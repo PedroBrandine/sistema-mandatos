@@ -7,13 +7,19 @@
     "src/frontend"
   ],
   "scripts": {
+    "lint": "eslint . && npm run lint --workspace=frontend",
+    "build": "npm run build --workspace=frontend",
     "test:unit": "vitest run --config vitest.config.ts",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:start": "supabase start",
+    "db:types": "supabase gen types typescript --linked > src/backend/supabase/database.types.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.111.0",
     "dotenv": "^17.4.2",
+    "eslint": "^9.39.5",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^2.1.9"
   },
   "dependencies": {
