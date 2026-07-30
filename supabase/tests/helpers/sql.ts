@@ -59,7 +59,34 @@ export async function runSql<T = Record<string, unknown>>(sql: string): Promise<
         }
         return parsed.rows as T[];
       } catch (error) {
-        lastError = error;
+        // execFile's rejection carries the actual Postgres error (ERRCODE
+        // included) in `.stdout` -- Node's default `.message` is just the
+        // generic "Command failed: <cmd>" (stderr-derived), which never
+        // contains the SQL error text. Callers that assert on error content
+        // (e.g. `error.message.toContain('23514')`, used across every
+        // CHECK/UNIQUE constraint test in this feature) need `.stdout`
+        // folded into `.message`, or every such assertion silently fails
+        // regardless of whether the constraint actually fired.
+        const stdout = (error as { stdout?: unknown }).stdout;
+        const stdoutStr = typeof stdout === "string" ? stdout : "";
+        lastError = stdoutStr
+          ? new Error(`${error instanceof Error ? error.message : String(error)}\n${stdoutStr}`)
+          : error;
+
+        // "unexpected status 400" means the Management API reached Postgres
+        // and Postgres itself rejected the SQL (e.g. a CHECK/UNIQUE
+        // violation) -- deterministic, not transient. Retrying it 4x with
+        // exponential backoff (~14s of sleep alone, on top of ~4 real round
+        // trips) only wastes time and risks tripping the 30s test timeout
+        // for tests that assert a query is *expected* to fail (every
+        // CHECK/UNIQUE constraint test in this feature does this). Only
+        // genuinely transient failures (Cloudflare 502s, connection resets,
+        // CLI/process errors -- none of which carry "status 400") should be
+        // retried.
+        const isDeterministicSqlError = stdoutStr.includes("unexpected status 400");
+        if (isDeterministicSqlError) {
+          throw lastError;
+        }
         if (attempt < MAX_ATTEMPTS) await sleep(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
       }
     }
