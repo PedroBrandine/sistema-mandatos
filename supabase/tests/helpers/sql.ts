@@ -29,12 +29,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The Management API backing `db query --linked` occasionally rejects a
 // request transiently (observed: back-to-back calls within the same test
-// file sporadically fail with no useful stderr). A couple of short retries
-// makes the suite reliable without masking a real, persistent SQL error
-// (which fails identically on every attempt and still surfaces after retries
-// are exhausted).
-const MAX_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 1500;
+// file sporadically fail with no useful stderr, and -- during this batch's
+// combined Phase 0 run -- an outright Cloudflare 502 from api.supabase.com
+// with "retryable": true). A few retries with exponential backoff makes the
+// suite reliable without masking a real, persistent SQL error (which fails
+// identically on every attempt and still surfaces after retries are
+// exhausted).
+const MAX_ATTEMPTS = 4;
+const RETRY_BASE_DELAY_MS = 2000;
 
 export async function runSql<T = Record<string, unknown>>(sql: string): Promise<T[]> {
   const file = join(tmpdir(), `sistema-mandatos-test-${randomUUID()}.sql`);
@@ -58,7 +60,7 @@ export async function runSql<T = Record<string, unknown>>(sql: string): Promise<
         return parsed.rows as T[];
       } catch (error) {
         lastError = error;
-        if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS);
+        if (attempt < MAX_ATTEMPTS) await sleep(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
       }
     }
     throw lastError;

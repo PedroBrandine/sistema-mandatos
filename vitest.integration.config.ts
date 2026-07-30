@@ -10,5 +10,13 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     passWithNoTests: true,
+    // Integration tests shell out to `supabase db query --linked`, which
+    // spawns a nested native binary per call. Running test *files* in
+    // parallel (Vitest's default) was observed to overwhelm process
+    // spawning / the Management API under concurrent load -- transient
+    // command failures, and once an outright CLI process crash. Serializing
+    // files trades speed for reliability, appropriate for tests hitting a
+    // shared live external resource.
+    fileParallelism: false,
   },
 });
