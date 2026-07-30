@@ -1,16 +1,14 @@
 import type { NextConfig } from "next";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 
-// This app lives at src/frontend inside the sistema-mandatos monorepo, which
-// has its own root-level package-lock.json (for the Vitest/Supabase test
-// suite -- see T9). Next.js's root inference picks that outer lockfile up
-// and warns; pinning `turbopack.root` to this app's own directory silences
-// the warning and keeps file tracing/workspace resolution scoped correctly.
-const nextConfig: NextConfig = {
-  turbopack: {
-    root: path.dirname(fileURLToPath(import.meta.url)),
-  },
-};
+// This app lives at src/frontend as an npm workspace member of the
+// sistema-mandatos monorepo (see root package.json's `workspaces` field --
+// T8 needs src/backend/** importable from here, which requires a single
+// hoisted node_modules shared by both). With one root-level lockfile,
+// Next's automatic workspace-root inference resolves correctly on its own;
+// no turbopack.root override needed (an earlier one, pinned to this
+// directory, was removed here -- it predates the workspace conversion and
+// broke resolution once next itself moved to the hoisted root
+// node_modules).
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
