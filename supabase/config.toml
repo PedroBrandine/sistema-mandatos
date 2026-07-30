@@ -10,7 +10,11 @@ enabled = true
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["public", "graphql_public"]
+# `app` added (Fundacao T4): the RPC layer (design.md) calls `app.*` business
+# functions via `supabase.rpc(...)` with `.schema('app')` -- e.g. `app.criar_mandato`
+# (Fase 3, T20-23). GRANT USAGE/EXECUTE on schema app is scoped per role (T3), so
+# exposing the schema does not by itself widen access beyond those grants.
+schemas = ["public", "graphql_public", "app"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
@@ -156,11 +160,15 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Left as remote's prior value (empty) -- T4 only intends to change the auth
+# hook + exposed schemas; `supabase config push` pushes the whole [auth]
+# section, so this is pinned to what sistema-mandatos-dev already had to
+# avoid an unrelated side effect.
+additional_redirect_urls = []
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -223,13 +231,15 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Pinned to sistema-mandatos-dev's prior value (true) -- unrelated to T4's
+# auth-hook/schema change; `config push` pushes the whole [auth] section.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+max_frequency = "1m0s"
 # Number of characters used in the email OTP.
-otp_length = 6
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
@@ -281,9 +291,29 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+# Fundacao T1/T4: maps dim_usuario.papel_global onto the JWT's top-level `role`
+# claim (legisla_admin/gestora/mentor/assessor, or legisla_app as fallback).
+# Applied to the linked remote project (sistema-mandatos-dev) via:
+#   supabase config push --project-ref npnvoolkebhabjkjzqwn
+# Dashboard equivalent: Authentication > Hooks (Beta) > Custom Access Token >
+# enable, function app.custom_access_token_hook.
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/app/custom_access_token_hook"
+
+# SPEC_DEVIATION (T4): PostgREST's pre-request hook (db-pre-request /
+# PGRST_DB_PRE_REQUEST / the `pgrst.db_pre_request` in-database GUC) has NO
+# config.toml key -- confirmed against the Supabase CLI config reference and
+# the PostgREST configuration reference. It cannot be registered here.
+# Registered instead as a plain migration statement (works identically for
+# local `supabase start` and for this linked remote project, unlike the
+# Dashboard-only path the original task envisioned):
+#   supabase/migrations/0005_plataforma_pre_request_wiring.sql
+#     ALTER ROLE authenticator SET pgrst.db_pre_request = 'app.pre_request';
+#     NOTIFY pgrst, 'reload config';
+# Remote-dashboard equivalent (if ever needed without CLI access): Project
+# Settings > Database > Custom Postgres Config, key `pgrst.db_pre_request`,
+# value `app.pre_request` -- same effect as the ALTER ROLE above.
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
@@ -300,8 +330,10 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+# Pinned to sistema-mandatos-dev's prior values (both true) -- unrelated to
+# T4's auth-hook/schema change; `config push` pushes the whole [auth] section.
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
