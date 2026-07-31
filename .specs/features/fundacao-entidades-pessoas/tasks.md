@@ -843,12 +843,14 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Lista os similares recebidos via props
-- [ ] `onConfirmar`/`onCancelar` disparam corretamente
-- [ ] Gate check passa: `npm run build`
+- [x] Lista os similares recebidos via props
+- [x] `onConfirmar`/`onCancelar` disparam corretamente
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/components/fundacao/duplicata-warning-dialog.tsx`. Componente puramente apresentacional sobre o `dialog` do shadcn/ui (T7): lista `candidatos: ContratanteSimilar[]` (T25) recebidos via props; `onConfirmar`/`onCancelar` ligados aos botões do rodapé e ao `onOpenChange` do Dialog (fechar via ESC/clique fora também dispara `onCancelar`, mesmo caminho que o botão "Cancelar"). Sem prop `open` própria (design.md não define uma) -- quem monta o componente decide quando ele existe na árvore. Gate: `npm run lint` (4/4 pré-existentes) + `npm run build` (limpo).
 
 ---
 
