@@ -14,7 +14,14 @@ port = 54321
 # functions via `supabase.rpc(...)` with `.schema('app')` -- e.g. `app.criar_mandato`
 # (Fase 3, T20-23). GRANT USAGE/EXECUTE on schema app is scoped per role (T3), so
 # exposing the schema does not by itself widen access beyond those grants.
-schemas = ["public", "graphql_public", "app"]
+# `tse` added (Fundacao T24): design.md queries `tse.mv_candidatura_resumo` as a
+# direct read via `supabase.schema('tse').from(...)` (buscarCandidaturas, T27) --
+# not via RPC. Without this, PostgREST returns "schema not exposed" for that
+# query regardless of the GRANT SELECT already in place (T15/0010). GRANT
+# USAGE ON SCHEMA tse already covers all 5 roles (T11/0006); GRANT SELECT on
+# tse tables already covers legisla_app/admin/gestora (T15/0010) -- exposing
+# the schema does not by itself widen access beyond those grants.
+schemas = ["public", "graphql_public", "app", "tse"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
