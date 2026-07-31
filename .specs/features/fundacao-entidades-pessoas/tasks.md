@@ -867,12 +867,14 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Renderiza lista de sugestões com badge de confiança
-- [ ] Estado vazio oferece busca manual (sem tela de erro) — FND-TSM-01
-- [ ] Gate check passa: `npm run build`
+- [x] Renderiza lista de sugestões com badge de confiança
+- [x] Estado vazio oferece busca manual (sem tela de erro) — FND-TSM-01
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/components/fundacao/tse-match-search.tsx`. Uma única UI de busca (nome/UF/ano) serve tanto FND-TSE-01 (sugestão) quanto FND-TSM-01 (fallback manual) -- não há uma tela "automática" separada de uma "manual": os mesmos campos ficam sempre visíveis, e um resultado vazio só adiciona uma mensagem inline (nunca uma tela de erro) convidando a refinar os filtros. Resultados renderizados em `Table` (shadcn/ui, T7) com `Badge` de confiança (variant mapeado 1:1 por `alta`/`media`/`baixa`). FND-TSM-02 (metodo_match='manual' em seleção manual): o componente entra em `modoManual` assim que uma busca retorna vazio: qualquer candidatura selecionada depois disso sai do componente com `metodoMatch` sobrescrito para `'manual'`, mesmo que a query (`buscarCandidaturas`, T27) sempre classifique como `'nome_uf_cargo'` internamente -- a decisão de "essa seleção foi manual" é de UI, exatamente como o comentário do T27 já previa (`src/backend/queries/tse.ts`). Erro de rede/consulta (não "sem resultado") mostra mensagem inline distinta, também sem tela de erro dedicada. Gate: `npm run lint` (4/4 pré-existentes) + `npm run build` (limpo).
 
 ---
 
