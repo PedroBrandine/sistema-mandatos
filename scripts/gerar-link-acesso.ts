@@ -12,6 +12,12 @@ import { createClient } from "@supabase/supabase-js";
 // src/frontend/app/auth/confirm/route.ts já sabe verificar (supabase.auth.verifyOtp),
 // em vez do action_link hospedado pela Supabase (que usa outro fluxo, hash
 // fragment / implicit grant, que este app não trata).
+//
+// type vem de data.properties.verification_type, não é sempre "magiclink":
+// pra um e-mail que ainda não existe em auth.users, generateLink cria o
+// usuário e o token é emitido como verification_type="signup" (mesmo
+// pedindo type: "magiclink" na chamada) -- hardcodar "magiclink" no link
+// faz verifyOtp rejeitar como "invalid or expired" pra todo primeiro login.
 config({ path: resolve(process.cwd(), ".env.local"), quiet: true });
 
 const DEFAULT_SITE_URL = "https://sistema-mandatos-pedrobrandine-5642-legisla.vercel.app";
@@ -55,6 +61,6 @@ if (error || !data) {
   process.exit(1);
 }
 
-const link = `${siteUrl}/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/`;
+const link = `${siteUrl}/auth/confirm?token_hash=${data.properties.hashed_token}&type=${data.properties.verification_type}&next=/`;
 
 console.log(`\nLink de acesso para ${email} (expira em 1h, uso único):\n${link}\n`);
