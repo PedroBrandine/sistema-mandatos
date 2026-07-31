@@ -263,6 +263,19 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Custom magic_link template (supabase/templates/magic_link.html already
+# written, ready to enable) -- shows the OTP code alongside the link, so
+# login still works if a corporate email security scanner pre-visits (and
+# consumes) the one-time link before the person actually clicks it.
+# BLOCKED: `supabase config push` rejects this on the current project
+# plan/provider -- "Email template modification is not available for free
+# tier projects using the default email provider." Needs either a paid
+# plan or a custom SMTP provider (AD-020 environment note) before this can
+# be uncommented.
+# [auth.email.template.magic_link]
+# subject = "Seu link de acesso -- Sistema Mandatos"
+# content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
