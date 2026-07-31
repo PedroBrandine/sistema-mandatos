@@ -920,12 +920,14 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Edição de campos de `dim_mandato`/`dim_contratante` salva via `update` direto
-- [ ] Ação "marcar como vigente" numa candidatura chama `marcarCandidaturaVigente` e atualiza a lista
-- [ ] Gate check passa: `npm run build`
+- [x] Edição de campos de `dim_mandato`/`dim_contratante` salva via `update` direto
+- [x] Ação "marcar como vigente" numa candidatura chama `marcarCandidaturaVigente` e atualiza a lista
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/app/mandatos/[id]/page.tsx`. Página cliente (Next.js 16: `params` é `Promise<{id}>`, resolvido com `use()` em vez de `await` para manter um Client Component só, sem arquivo extra) que carrega `dim_mandato`+`dim_contratante`+`rel_mandato_candidatura`+`fat_contrato` por consultas diretas. Edição: um único formulário (reusa `ContratanteFields`, T29) dispara dois `update` independentes (`dim_contratante`, `dim_mandato`) -- não é atômico (design.md não pede RPC aqui, só "update direto"); erro de qualquer um dos dois é mapeado com `mapeiaErroRpc` (T28, reutilizável para erros de `update` direto, não só RPC, já que só olha `error.code`/`error.message`) para uma mensagem amigável. "Marcar como vigente": botão por linha de candidatura não-vigente chama `marcarCandidaturaVigente` (T28) e recarrega a lista via a mesma função `carregar()`, confirmando que a UI reflete a troca. Lista de contratos do mandato incluída como valor agregado barato (mesma query, sem novo escopo) com link para `/mandatos/[id]/contratos/novo` (T34) e `/contratos/[id]/vinculos` (T37) -- nenhum dos dois exigido pelo Done-when, mas ambos são rotas que já existirão neste mesmo lote. Gate: `npm run lint` (4/4 pré-existentes) + `npm run build` (limpo, rota `/mandatos/[id]` dinâmica compilada e tipada).
 
 ---
 
