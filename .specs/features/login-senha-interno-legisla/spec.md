@@ -91,13 +91,13 @@ Toda ambiguidade foi resolvida ou registrada aqui — nada fica silenciosamente 
 
 | Requirement ID | Story | Phase | Status |
 | --------------- | ----- | ----- | ------- |
-| AUTHPWD-01 | P1: login com senha (AC1 — sucesso) | Execute | Pending |
-| AUTHPWD-02 | P1: login com senha (AC2 — erro genérico) | Execute | Pending |
-| AUTHPWD-03 | P1: login com senha (AC3 — magic link removido) | Execute | Pending |
-| AUTHPWD-04 | P2: provisionamento em lote (AC1 — criação nova) | Execute | Pending |
-| AUTHPWD-05 | P2: provisionamento em lote (AC2 — redefinição) | Execute | Pending |
-| AUTHPWD-06 | P2: provisionamento em lote (AC3 — gate de domínio por item, não aborta o lote) | Execute | Pending |
-| AUTHPWD-07 | P2: provisionamento em lote (AC4 — resumo final impresso) | Execute | Pending |
+| AUTHPWD-01 | P1: login com senha (AC1 — sucesso) | Execute | ✅ Verified |
+| AUTHPWD-02 | P1: login com senha (AC2 — erro genérico) | Execute | ✅ Verified |
+| AUTHPWD-03 | P1: login com senha (AC3 — magic link removido) | Execute | ✅ Verified |
+| AUTHPWD-04 | P2: provisionamento em lote (AC1 — criação nova) | Execute | ✅ Verified |
+| AUTHPWD-05 | P2: provisionamento em lote (AC2 — redefinição) | Execute | ✅ Verified |
+| AUTHPWD-06 | P2: provisionamento em lote (AC3 — gate de domínio por item, não aborta o lote) | Execute | ✅ Verified |
+| AUTHPWD-07 | P2: provisionamento em lote (AC4 — resumo final impresso) | Execute | ✅ Verified |
 
 **ID format:** `AUTHPWD-NN`
 
