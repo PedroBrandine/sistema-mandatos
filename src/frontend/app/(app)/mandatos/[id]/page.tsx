@@ -6,22 +6,40 @@ import { use, useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { buscarPerfilCandidatura, buscarPerfilEleitoradoCandidatura } from "@backend/queries/tse";
 import { mapeiaErroRpc } from "@backend/rpc/errors";
 import { marcarCandidaturaVigente } from "@backend/rpc/mandato";
 import { contratanteSchema } from "@backend/schemas/contratante";
 import { mandatoSchema } from "@backend/schemas/mandato";
 import { createClient } from "@backend/supabase/client";
 import type { Database } from "@backend/supabase/database.types";
+import type { PerfilCandidatura, PerfilEleitorado } from "@backend/types/fundacao";
 
 import { ContratanteFields } from "@/components/fundacao/contratante-fields";
+import { PerfilEleitoradoChart } from "@/components/fundacao/perfil-eleitorado-chart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ContratoRow = Database["public"]["Tables"]["fat_contrato"]["Row"];
 type CandidaturaRow = Database["public"]["Tables"]["rel_mandato_candidatura"]["Row"];
+
+// CAD-09: bloco de votação -- só os 2 campos em destaque no card (total de
+// votos + município principal), lido direto de tse.mv_candidatura_resumo
+// (mesma MV já usada por buscarCandidaturas, sem precisar de função nova).
+interface PerfilVotacao {
+  qtVotosTotal: number | null;
+  nmMunicipioPrincipal: string | null;
+}
+
+interface PerfilTseCandidatura {
+  votacao: PerfilVotacao | null;
+  pessoal: PerfilCandidatura | null;
+  eleitorado: PerfilEleitorado | null;
+}
 
 const detalheSchema = z.object({
   contratante: contratanteSchema,
@@ -39,6 +57,7 @@ export default function MandatoDetalhePage({ params }: { params: Promise<{ id: s
   const [carregando, setCarregando] = useState(true);
   const [idContratante, setIdContratante] = useState<number | null>(null);
   const [candidaturas, setCandidaturas] = useState<CandidaturaRow[]>([]);
+  const [perfisTse, setPerfisTse] = useState<Record<number, PerfilTseCandidatura>>({});
   const [contratos, setContratos] = useState<ContratoRow[]>([]);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
@@ -85,6 +104,39 @@ export default function MandatoDetalhePage({ params }: { params: Promise<{ id: s
         .eq("id_mandato", idMandato)
         .order("ano_eleicao", { ascending: false });
       setCandidaturas(candidaturasData ?? []);
+
+      // CAD-09 a CAD-12: perfil TSE rico por candidatura -- votação (leitura
+      // direta de mv_candidatura_resumo), perfil pessoal e perfil do
+      // eleitorado (T9/T10). Candidatura sem match real (cadastro manual) ou
+      // qualquer falha de fonte TSE vira dado ausente (catch -> null), nunca
+      // quebra a tela (spec.md AC4/AC5 da história de perfil TSE).
+      const entradas = await Promise.all(
+        (candidaturasData ?? []).map(async (c) => {
+          const chave = { anoEleicao: c.ano_eleicao, sqCandidato: c.sq_candidato, nrTurno: c.nr_turno };
+          const [resumo, pessoal, eleitorado] = await Promise.all([
+            supabase
+              .schema("tse")
+              .from("mv_candidatura_resumo")
+              .select("qt_votos_total, nm_municipio_principal")
+              .eq("ano_eleicao", chave.anoEleicao)
+              .eq("sq_candidato", chave.sqCandidato)
+              .eq("nr_turno", chave.nrTurno)
+              .maybeSingle()
+              .then(({ data }) => data ?? null),
+            buscarPerfilCandidatura(supabase, chave).catch(() => null),
+            buscarPerfilEleitoradoCandidatura(supabase, chave).catch(() => null),
+          ]);
+          const perfil: PerfilTseCandidatura = {
+            votacao: resumo
+              ? { qtVotosTotal: resumo.qt_votos_total, nmMunicipioPrincipal: resumo.nm_municipio_principal }
+              : null,
+            pessoal,
+            eleitorado,
+          };
+          return [c.id_vinculo_tse, perfil] as const;
+        })
+      );
+      setPerfisTse(Object.fromEntries(entradas));
 
       const { data: contratosData } = await supabase
         .from("fat_contrato")
@@ -227,6 +279,79 @@ export default function MandatoDetalhePage({ params }: { params: Promise<{ id: s
             ))}
           </TableBody>
         </Table>
+
+        {candidaturas.length > 0 && (
+          <div className="mt-4 grid gap-4">
+            {candidaturas.map((c) => {
+              const perfil = perfisTse[c.id_vinculo_tse];
+              return (
+                <Card key={c.id_vinculo_tse}>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Perfil eleitoral — {c.ano_eleicao}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-6 sm:grid-cols-3">
+                    {/* CAD-09: votação -- bloco inteiro omitido quando não há
+                        nenhuma linha em mv_candidatura_resumo pra essa
+                        candidatura (design.md Error Handling Strategy) */}
+                    {perfil?.votacao && (
+                      <div>
+                        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                          Votação
+                        </p>
+                        <p className="font-heading text-3xl">
+                          {perfil.votacao.qtVotosTotal != null
+                            ? perfil.votacao.qtVotosTotal.toLocaleString("pt-BR")
+                            : "—"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {perfil.votacao.nmMunicipioPrincipal ?? "—"}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* CAD-10: perfil pessoal -- bloco inteiro omitido quando
+                        não há linha em tse.dim_candidatura; campo individual
+                        (ex.: idade) mostra "—" quando o dado de origem é null */}
+                    {perfil?.pessoal && (
+                      <div className="grid gap-1 text-sm">
+                        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                          Perfil da candidatura
+                        </p>
+                        <p>Idade: {perfil.pessoal.idade ?? "—"}</p>
+                        <p>Gênero: {perfil.pessoal.genero ?? "—"}</p>
+                        <p>Cor/raça: {perfil.pessoal.corRaca ?? "—"}</p>
+                        <p>Instrução: {perfil.pessoal.grauInstrucao ?? "—"}</p>
+                        <p>Ocupação: {perfil.pessoal.ocupacao ?? "—"}</p>
+                        <p>Coligação: {perfil.pessoal.coligacao ?? "—"}</p>
+                      </div>
+                    )}
+
+                    {/* CAD-11/CAD-12: perfil do eleitorado -- bloco omitido
+                        por completo quando não há município principal */}
+                    {perfil?.eleitorado && (
+                      <div className="grid gap-3">
+                        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                          Perfil do eleitorado
+                        </p>
+                        <PerfilEleitoradoChart titulo="Gênero" dados={perfil.eleitorado.genero} />
+                        <PerfilEleitoradoChart titulo="Faixa etária" dados={perfil.eleitorado.faixaEtaria} />
+                        <PerfilEleitoradoChart titulo="Escolaridade" dados={perfil.eleitorado.grauEscolaridade} />
+                      </div>
+                    )}
+
+                    {!perfil?.votacao && !perfil?.pessoal && !perfil?.eleitorado && (
+                      <p className="text-sm text-muted-foreground">
+                        Sem dados TSE disponíveis pra esta candidatura.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div>
