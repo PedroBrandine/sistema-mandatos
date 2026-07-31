@@ -217,6 +217,14 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-07-31
 - **Status**: active
 
+### AD-027
+- **Decision**: A identidade visual da marca (`Identidade Visual Legisla.md`) é aplicada globalmente via CSS custom properties em `src/frontend/app/globals.css` (mapeadas pros tokens que o shadcn/ui já lê — `cssVariables: true`), nunca por classe Tailwind explícita espalhada componente a componente. Toda tela autenticada nova entra dentro do route group `src/frontend/app/(app)/`, que carrega o layout aninhado com a sidebar fixa; rotas públicas/pré-sessão (`/login`, `/auth/*`) ficam fora desse grupo, sem sidebar.
+- **Reason**: Design de `.specs/features/primeira-tela-cadastro/design.md`. CSS vars fazem todo componente shadcn herdar o tema automaticamente, sem tocar código de tela por tela (evita drift). Route group é o mecanismo oficial do Next.js App Router pra layouts parciais sem duplicar `<Sidebar>` manualmente e sem checar `pathname` em client component (frágil, causa flash).
+- **Trade-off**: Toda feature de UI nova precisa nascer dentro de `(app)/` pra herdar a sidebar (fácil de esquecer se não for verificado); cores novas de marca (se a paleta mudar) exigem editar `globals.css` num único lugar, mas qualquer uso pontual de opacidade (`bg-primary/50`) sobre uma cor definida em hex (em vez de `oklch()`) precisa ser conferido visualmente — risco pequeno, não confirmado como problema real ainda.
+- **Scope**: Todas as camadas de frontend; toda tela nova autenticada; toda decisão futura de paleta/tipografia.
+- **Date**: 2026-07-31
+- **Status**: active
+
 ---
 
 ## Handoff
@@ -232,21 +240,19 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
-**Nota de manutenção deste arquivo**: o Handoff abaixo (Fundação — Entidades e Pessoas) é o snapshot real anterior a esta feature, preservado porque descreve trabalho **ainda não concluído** (Fase 5, T29-T37) — nunca chegou a ser sobrescrito quando a sessão anterior pausou pra abrir a feature de login (violação da regra "Handoff é sobrescrito a cada pausa" do `memory.md`/`references/memory.md`). Condensado aqui pra caber no orçamento (~500 tokens por snapshot); os detalhes de decisão de design de cada fase (T10-T28) continuam recuperáveis nas mensagens de commit listadas abaixo — não foram perdidos, só não duplicados aqui.
+**Correção (2026-07-31, mesma sessão)**: a entrada anterior deste arquivo dizia "Fase 5 pendente (T29-T37)" — **isso estava errado**, herdado sem verificação de um handoff represado mais antigo (ver nota de manutenção abaixo, agora obsoleta). Conferido direto em `tasks.md`: as 5 fases (T1-T37) estão **completas**, e `validation.md` da própria feature já existe (Verifier PASS com ressalvas: 20/26 requisitos ✅ Verified, 5 "Needs Fix" conhecidos e não-bloqueantes, 1 conflito spec/schema documentado — ver `.specs/features/fundacao-entidades-pessoas/validation.md`). Rotas `/mandatos/novo`, `/mandatos/[id]`, `/coalizoes/novo`, `/coalizoes/[id]`, `/usuarios`, `/contratos/[id]/vinculos` já existem e funcionam (não são placeholder).
 
-## Handoff (Fundação — Entidades e Pessoas, pendente — retomar quando a feature de login não for mais a prioridade)
+## Handoff (Fundação — Entidades e Pessoas — CONCLUÍDA e validada)
 
-- **Feature**: Fundação — Entidades e Pessoas (`.specs/features/fundacao-entidades-pessoas/`).
-- **Phase / Task**: Specify → Design (AD-024) → Tasks (37 tasks, 6 fases) → **Fases 0-4 completas** (T1-T28) → **Fase 5 pendente** (T29-T37, 9 tasks, nenhum arquivo criado ainda).
-- **Next step**: Fase 5 — T29 `ContratanteFields`, T30 `DuplicataWarningDialog`, T31 `TseMatchSearch`, T32 `MandatoWizard`, T33 `ContratoForm`, T34 `VinculoTable`/`VinculoForm`, T35 `CoalizaoForm`, T36 `UsuarioForm`, T37 (integração/rotas restantes — ver `tasks.md` da feature pro detalhe exato de T32-T37). 9 tasks ≈ 1 batch de sub-agent (bem no limite do budget de ~8/batch — considerar 1-2 batches se for delegar).
-- **Completed** (cada task revisada, gate individual, commit atômico): T10 `d350946`, T11 `f922092`, T12 `51e160c`, T13 `5fabd80`, T14 `791cdc8`, T15 `dacc378`, T16 `1138ab4`, T17 `3a4d711`, T18 `bc87e6d`, T19 `53bafd9`, T20 `258bff8`, T21 `6a725b6`, T22 `0d977cd`, T23 `a45edf8`, T24 `34c0299`, T25 `e2ff001`, T26 `f508a12` (+ fix `99def84`), T27 `d060d21`, T28 `7e724bd`. Gate final Fase 3 (`test:integration`): 120/120. Gate final Fase 4 (`test:unit`): 81/81, `build` limpo.
-- **Blockers**: nenhum.
+- **Feature**: Fundação — Entidades e Pessoas (`.specs/features/fundacao-entidades-pessoas/`) — feature completa (Specify → Design → Tasks → Execute T1-T37 → Validate).
+- **Status real**: todas as 5 fases implementadas e commitadas; `validation.md` já escrito. 5 itens "Needs Fix" conhecidos (não-bloqueantes, ver `validation.md` → Fix Plans): FND-TSE-01/FND-TSM-01 (filtro de cargo não exposto na busca TSE), FND-CTR-05 (snapshot de cargo/partido no contrato nunca populado), FND-USR-02 (Gestora criando Gestora barrado só na UI, sem `WITH CHECK` de RLS), FND-COL-03 (seletor de membro de coalizão lista todo `fat_contrato`, não filtra `tipo_contratante='mandato'`). Mais 1 conflito spec/schema documentado (FND-TSE-03: rejeitar sugestão TSE não persiste, só descarta client-side, porque `rel_mandato_candidatura.id_mandato` é `NOT NULL`).
+- **Lacuna real (não é bug, é escopo nunca pedido)**: não existe rota `/mandatos` nem `/coalizoes` (índice/lista) — só `novo` e `[id]` pra cada. A tela de detalhe do mandato (`/mandatos/[id]`) mostra só metadados de match TSE (ano, status, confiança, vigente), não os dados de votação em si (`qt_votos_total`, `ds_situacao_candidatura` etc. de `tse.mv_candidatura_resumo` nunca são lidos/exibidos ali).
+- **Next step**: nenhum obrigatório — os 5 Needs-Fix são débito conhecido, não bloqueiam uso. Se uma feature nova precisar de tela de listagem/cards ou dos dados de votação do TSE, é trabalho novo (não uma continuação de tasks.md desta feature).
 - **Ambiente confirmado**: projeto Supabase de dev `sistema-mandatos-dev` (`npnvoolkebhabjkjzqwn`, `sa-east-1`), separado do `mgoeloqdlpgkofgqqbjs` de produção (AD-020). CLI v2.110.0, linkada. Docker não instalado — testes de integração rodam contra este projeto remoto.
-- **Deviations/lições ativas a lembrar antes de continuar a Fase 5**:
+- **Lições ativas dessa feature (ainda valem pra qualquer trabalho futuro no schema/backend)**:
   - Não existe `tsconfig.json` na raiz — `build`/`test:unit` não type-checam `src/backend/**` sem consumidor no frontend; usar `npx tsc --noEmit --strict --target ES2017 --module esnext --moduleResolution bundler --esModuleInterop --skipLibCheck --lib ES2017,DOM` (+ `--allowImportingTsExtensions` se o arquivo importar `.ts` direto) nos arquivos novos até terem consumidor real.
-  - `git commit -- <pathspec>` lê o **working tree**, não o índice — nunca usar pathspec explícito depois de um `git update-index --cacheinfo` manual (isolamento de dependência nova vs. trabalho paralelo do usuário); commitar sem pathspec nesse caso.
+  - `git commit -- <pathspec>` lê o **working tree**, não o índice — nunca usar pathspec explícito depois de um `git update-index --cacheinfo` manual; commitar sem pathspec nesse caso.
   - `supabase db push` aplica todas as migrações pendentes de uma vez — pra manter 1 migração por commit, mover as próximas pra fora de `supabase/migrations/` e devolver uma de cada vez antes do push correspondente.
-  - A cada task, rodar o gate só no arquivo de teste novo (`npm run test:integration -- <arquivo>`), não a suíte completa (suíte inteira leva ~17-23min); gate completo só uma vez ao final da fase.
-  - Management API do Supabase (`api.supabase.com`) apresentou Cloudflare 502 esporádico durante a Fase 2/3 — tratado como flake de infra, `runSql` já retria 4x com backoff.
+  - AD-021 (TanStack Table/Query) **ainda não foi cumprida em nenhuma tela** — todas as telas de Fundação usam fetch direto + `useState`, sem `@tanstack/react-table`/`@tanstack/react-query` instalado no projeto. Relevante pra qualquer tela nova que precise de tabela/lista.
 - **Uncommitted files**: `package-lock.json` modificado (resolução do `zod` + dependências `csv-parser`/`iconv-lite`/`pg` de trabalho paralelo do usuário) e `DADOS TSE/` untracked — **não relacionado a nenhuma feature deste projeto, não tocar**.
 - **Branch**: master
