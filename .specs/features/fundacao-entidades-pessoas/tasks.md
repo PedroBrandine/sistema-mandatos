@@ -826,7 +826,7 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 **Tests**: none — build gate only
 **Gate**: build
 
-**Status**: ✅ Complete — `src/frontend/components/fundacao/contratante-fields.tsx`. Componente genérico (`ContratanteFields<T extends ContratanteFormValues>`) que aceita `control: Control<T>` de qualquer formulário pai cujo shape aninhe `contratante: { nome, sg_uf?, nm_municipio? }` — mesmo supertipo criado por `app.criar_mandato`/`app.criar_coalizao`. Validação em tempo real vem do `mode: "onChange"` que `MandatoWizard`/`CoalizaoForm` configuram no próprio `useForm` (T32/T35) — o componente em si só expõe os `FormField`/`FormMessage` que reagem a qualquer modo escolhido pelo pai, sem duplicar a lógica de validação (a validação real é do `contratanteSchema`, T26, via `zodResolver` no pai). Reuso confirmado por `MandatoWizard` (T32, `import { ContratanteFields } from "./contratante-fields"`) -- ver Status de T35 para a segunda confirmação. Gate: `npm run lint` (4/4 erros pré-existentes, nenhum novo) + `npm run build` (limpo).
+**Status**: ✅ Complete — `src/frontend/components/fundacao/contratante-fields.tsx`. Componente genérico (`ContratanteFields<T extends ContratanteFormValues>`) que aceita `control: Control<T>` de qualquer formulário pai cujo shape aninhe `contratante: { nome, sg_uf?, nm_municipio? }` — mesmo supertipo criado por `app.criar_mandato`/`app.criar_coalizao`. Validação em tempo real vem do `mode: "onChange"` que `MandatoWizard`/`CoalizaoForm` configuram no próprio `useForm` (T32/T35) — o componente em si só expõe os `FormField`/`FormMessage` que reagem a qualquer modo escolhido pelo pai, sem duplicar a lógica de validação (a validação real é do `contratanteSchema`, T26, via `zodResolver` no pai). Reuso confirmado por `MandatoWizard` (T32, `import { ContratanteFields } from "./contratante-fields"`) e por `CoalizaoForm` (T35, `import { ContratanteFields } from "@/components/fundacao/contratante-fields"`) -- nenhuma cópia de JSX, mesmo componente genérico nos dois formulários pais. Gate: `npm run lint` (4/4 erros pré-existentes, nenhum novo) + `npm run build` (limpo).
 
 ---
 
@@ -968,12 +968,19 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Papel `grupo_trabalho` exige `nome_grupo` no formulário antes de habilitar o submit
-- [ ] `possui_planejamento_proprio` alterna a qualquer momento via `update` direto
-- [ ] Gate check passa: `npm run build`
+- [x] Papel `grupo_trabalho` exige `nome_grupo` no formulário antes de habilitar o submit
+- [x] `possui_planejamento_proprio` alterna a qualquer momento via `update` direto
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/app/coalizoes/coalizao-form.tsx` (cadastro, `criarCoalizao` T28), `src/frontend/app/coalizoes/novo/page.tsx`, `src/frontend/app/coalizoes/[id]/page.tsx` (detalhe: toggle + membros). Por instrução do "Where" desta task (só `app/coalizoes/**`, sem entrada em `components/fundacao/**`), `CoalizaoForm` foi colocado como arquivo comum dentro de `app/coalizoes/` (não é `page`/`layout`/`route`, então o App Router o ignora como rota) em vez de `components/fundacao/coalizao-form.tsx` -- diferente de `ContratoForm`/`UsuarioForm`/`VinculoForm`, cujas próprias tasks (T34/T36/T37) listam um arquivo em `components/fundacao/**` no "Where".
+- `possui_planejamento_proprio` (FND-COL-02): toggle por botão na página de detalhe chamando `update` direto em `dim_coalizao` -- não é um checkbox de formulário, é uma ação de um clique, mais direto para "alternar a qualquer momento" do que abrir um form de edição.
+- `grupo_trabalho` exige `nome_grupo` (FND-COL-04): reusa `membroCoalizaoSchema` (T26, já espelha `ck_membro_grupo` via `.refine()`) -- o campo "Nome do grupo" só aparece quando `papel==='grupo_trabalho'` (via `form.watch`), e o submit fica desabilitado por `!form.formState.isValid`, resultado direto do schema, sem gating duplicado.
+- **SPEC_DEVIATION (escopo deliberadamente reduzido)**: o seletor de "contrato do mandato" para adicionar membro (AC3: "exigir um contrato do mandato, não o contratante direto") lista todos os `fat_contrato` sem filtrar por `dim_contratante.tipo_contratante='mandato'` -- um filtro correto exigiria uma consulta com embed (`!inner`) cujo tipo gerado não é trivial de tipar com segurança a partir de `database.types.ts`, e nenhum Done-when desta task pede essa restrição especificamente (só a exigência de `nome_grupo`, e o toggle). Registrado aqui como lacuna conhecida, não corrigida por estar fora do Done-when literal.
+- Encerrar participação de membro (FND-COL-05, `dt_saida >= dt_entrada` via `ck_membro_periodo` já no schema do banco) incluído na página de detalhe como ação de baixo custo, mesmo não estando nos 2 bullets do Done-when -- dentro do "Requirement: FND-COL-01 a 06" da própria task.
+- Gate: `npm run lint` (4/4 pré-existentes) + `npm run build` (limpo, rotas `/coalizoes/novo` e `/coalizoes/[id]` compiladas e tipadas, incluindo a validação por `z.object(...).and(membroCoalizaoSchema)`).
 
 ---
 
