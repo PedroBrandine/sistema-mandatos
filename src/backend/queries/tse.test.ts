@@ -2,11 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarCandidaturas, buscarPerfilCandidatura } from "./tse";
+import { buscarCandidaturas, buscarPerfilCandidatura, buscarPerfilEleitoradoCandidatura } from "./tse";
 
 type Chamada = { metodo: string; args: unknown[] };
 type LinhaMv = Database["tse"]["Views"]["mv_candidatura_resumo"]["Row"];
 type LinhaDimCandidatura = Database["tse"]["Tables"]["dim_candidatura"]["Row"];
+type LinhaPerfilEleitorado = Database["tse"]["Views"]["mv_perfil_eleitorado_candidatura"]["Row"];
 
 function linha(sobrescreve: Partial<LinhaMv> = {}): LinhaMv {
   return {
@@ -56,6 +57,18 @@ function linhaDimCandidatura(sobrescreve: Partial<LinhaDimCandidatura> = {}): Li
     sg_partido: "PT",
     sg_ue: "SP",
     sg_uf: "SP",
+    sq_candidato: 1,
+    ...sobrescreve,
+  };
+}
+
+function linhaPerfilEleitorado(sobrescreve: Partial<LinhaPerfilEleitorado> = {}): LinhaPerfilEleitorado {
+  return {
+    ano_eleicao: 2020,
+    categoria: "Feminino",
+    dimensao: "genero",
+    nr_turno: 1,
+    qt_eleitores: 1000,
     sq_candidato: 1,
     ...sobrescreve,
   };
@@ -240,6 +253,55 @@ describe("buscarPerfilCandidatura", () => {
   it("filtra por ano_eleicao, sq_candidato e nr_turno (chave da candidatura)", async () => {
     const { client, chamadas } = criarClienteMock({ data: [linhaDimCandidatura()], error: null });
     await buscarPerfilCandidatura(client, CHAVE);
+
+    const eqs = chamadas.filter((c) => c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["ano_eleicao", 2020]);
+    expect(eqs).toContainEqual(["sq_candidato", 1]);
+    expect(eqs).toContainEqual(["nr_turno", 1]);
+  });
+});
+
+describe("buscarPerfilEleitoradoCandidatura", () => {
+  const CHAVE = { anoEleicao: 2020, sqCandidato: 1, nrTurno: 1 };
+
+  // Done-when: "Retorna null quando a view não tem nenhuma linha pra essa
+  // chave" (candidatura sem município principal identificável, CAD-12)
+  it("retorna null quando não há nenhuma linha pra essa chave", async () => {
+    const { client } = criarClienteMock<LinhaPerfilEleitorado>({ data: [], error: null });
+    const resultado = await buscarPerfilEleitoradoCandidatura(client, CHAVE);
+    expect(resultado).toBeNull();
+  });
+
+  // Done-when: "Agrupa corretamente linhas de dimensões diferentes nas 3 listas certas"
+  it("agrupa linhas de gênero, faixa etária e escolaridade nas 3 listas certas", async () => {
+    const { client } = criarClienteMock({
+      data: [
+        linhaPerfilEleitorado({ dimensao: "genero", categoria: "Feminino", qt_eleitores: 600 }),
+        linhaPerfilEleitorado({ dimensao: "genero", categoria: "Masculino", qt_eleitores: 400 }),
+        linhaPerfilEleitorado({ dimensao: "faixa_etaria", categoria: "25 a 34 anos", qt_eleitores: 300 }),
+        linhaPerfilEleitorado({ dimensao: "grau_escolaridade", categoria: "Ensino médio", qt_eleitores: 500 }),
+      ],
+      error: null,
+    });
+    const resultado = await buscarPerfilEleitoradoCandidatura(client, CHAVE);
+
+    expect(resultado?.genero).toEqual([
+      { categoria: "Feminino", qtEleitores: 600 },
+      { categoria: "Masculino", qtEleitores: 400 },
+    ]);
+    expect(resultado?.faixaEtaria).toEqual([{ categoria: "25 a 34 anos", qtEleitores: 300 }]);
+    expect(resultado?.grauEscolaridade).toEqual([{ categoria: "Ensino médio", qtEleitores: 500 }]);
+  });
+
+  // Done-when: "Lança o erro do Supabase (não engole) quando a query falha"
+  it("lança o erro do Supabase em vez de engolir a falha", async () => {
+    const { client } = criarClienteMock<LinhaPerfilEleitorado>({ data: null, error: { message: "boom" } });
+    await expect(buscarPerfilEleitoradoCandidatura(client, CHAVE)).rejects.toEqual({ message: "boom" });
+  });
+
+  it("filtra por ano_eleicao, sq_candidato e nr_turno (chave da candidatura)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: [linhaPerfilEleitorado()], error: null });
+    await buscarPerfilEleitoradoCandidatura(client, CHAVE);
 
     const eqs = chamadas.filter((c) => c.metodo === "eq").map((c) => c.args);
     expect(eqs).toContainEqual(["ano_eleicao", 2020]);

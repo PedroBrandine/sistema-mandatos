@@ -52,3 +52,12 @@ export interface PerfilCandidatura {
   coligacao: string | null;
 }
 
+// CAD-11: perfil demográfico do eleitorado do município principal da
+// candidatura (tse.mv_perfil_eleitorado_candidatura), consumido por
+// buscarPerfilEleitoradoCandidatura (tse.ts).
+export interface PerfilEleitorado {
+  genero: Array<{ categoria: string; qtEleitores: number }>;
+  faixaEtaria: Array<{ categoria: string; qtEleitores: number }>;
+  grauEscolaridade: Array<{ categoria: string; qtEleitores: number }>;
+}
+

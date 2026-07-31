@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../supabase/database.types";
-import type { CandidaturaSugerida, PerfilCandidatura } from "../types/fundacao";
+import type { CandidaturaSugerida, PerfilCandidatura, PerfilEleitorado } from "../types/fundacao";
 
 export interface FiltrosBuscaCandidatura {
   nome?: string;
@@ -184,4 +184,40 @@ export async function buscarPerfilCandidatura(
     ocupacao: linha.ds_ocupacao,
     coligacao: linha.nm_coligacao,
   };
+}
+
+const DIMENSAO_PARA_CHAVE: Record<string, keyof PerfilEleitorado> = {
+  genero: "genero",
+  faixa_etaria: "faixaEtaria",
+  grau_escolaridade: "grauEscolaridade",
+};
+
+// CAD-11/CAD-12. Perfil demográfico do eleitorado do município principal --
+// leitura da nova view tse.mv_perfil_eleitorado_candidatura (0019), formato
+// longo (dimensao/categoria/qt_eleitores) agrupado aqui em 3 listas.
+// Retorna null quando não há nenhuma linha pra essa chave (candidatura sem
+// município principal identificável -- CAD-12, nunca lê fat_votacao_zona
+// direto).
+export async function buscarPerfilEleitoradoCandidatura(
+  client: SupabaseClient<Database>,
+  chave: ChaveCandidatura
+): Promise<PerfilEleitorado | null> {
+  const { data, error } = await client
+    .schema("tse")
+    .from("mv_perfil_eleitorado_candidatura")
+    .select("*")
+    .eq("ano_eleicao", chave.anoEleicao)
+    .eq("sq_candidato", chave.sqCandidato)
+    .eq("nr_turno", chave.nrTurno);
+
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+
+  const perfil: PerfilEleitorado = { genero: [], faixaEtaria: [], grauEscolaridade: [] };
+  for (const linha of data) {
+    const chaveDimensao = linha.dimensao ? DIMENSAO_PARA_CHAVE[linha.dimensao] : undefined;
+    if (!chaveDimensao || linha.categoria == null || linha.qt_eleitores == null) continue;
+    perfil[chaveDimensao].push({ categoria: linha.categoria, qtEleitores: linha.qt_eleitores });
+  }
+  return perfil;
 }
