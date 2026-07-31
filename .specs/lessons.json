@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "promote_threshold": 2,
+  "window_days": 45,
+  "quarantine_threshold": 2,
+  "next_id": 3,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "surviving_mutant::when testing a date based age period calculation with a branch for has not yet reached vs already reached include a test case for each branch not just one",
+      "text": "When testing a date-based age/period calculation with a branch for 'has not yet reached' vs 'already reached', include a test case for each branch, not just one.",
+      "signal": "surviving_mutant",
+      "scope": "backend/queries",
+      "status": "candidate",
+      "features": [
+        "primeira-tela-cadastro"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "src/backend/queries/tse.ts:155 (calculaIdade) -- mutant #1 in validation.md (backend/queries)"
+      ],
+      "created": "2026-07-31T16:36:17Z",
+      "last_seen": "2026-07-31T16:36:17Z"
+    },
+    {
+      "id": "L-002",
+      "key": "spec_precision_gap::when a spec asks to derive a value from a date field without naming a reference date pick and document an explicit reference date in the implementation rather than defaulting to wall clock now",
+      "text": "When a spec asks to derive a value from a date field without naming a reference date, pick and document an explicit reference date in the implementation rather than defaulting to wall-clock now().",
+      "signal": "spec_precision_gap",
+      "scope": "spec-authoring",
+      "status": "candidate",
+      "features": [
+        "primeira-tela-cadastro"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md CAD-10 (P1 perfil TSE AC2, age from dt_nascimento) -- validation.md (spec-authoring)"
+      ],
+      "created": "2026-07-31T16:36:25Z",
+      "last_seen": "2026-07-31T16:36:25Z"
+    }
+  ]
+}

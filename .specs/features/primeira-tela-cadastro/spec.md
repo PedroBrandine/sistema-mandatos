@@ -121,28 +121,28 @@ Toda ambiguidade foi resolvida ou registrada aqui — nada fica silenciosamente 
 
 | Requirement ID | Story | Phase | Status |
 | --------------- | ----- | ----- | ------- |
-| CAD-01 | P1: cards de mandato (AC1 — dados do card) | Design | Pending |
-| CAD-02 | P1: cards de mandato (AC3 — estado vazio) | Design | Pending |
-| CAD-03 | P1: cards de mandato (AC4 — navega pro detalhe) | Design | Pending |
-| CAD-04 | P1: cards de mandato (AC5 — navega pro cadastro) | Design | Pending |
-| CAD-05 | P1: cards de coalizão (AC2 — dados do card) | Design | Pending |
-| CAD-06 | P1: cards de coalizão (AC3 — estado vazio) | Design | Pending |
-| CAD-07 | P1: cards de coalizão (AC4 — navega pro detalhe) | Design | Pending |
-| CAD-08 | P1: cards de coalizão (AC5 — navega pro cadastro) | Design | Pending |
-| CAD-09 | P1: perfil TSE (AC1 — bloco de votação: total + município principal) | Design | Pending |
-| CAD-10 | P1: perfil TSE (AC2 — bloco de perfil pessoal da candidatura) | Design | Pending |
-| CAD-11 | P1: perfil TSE (AC3 — bloco de perfil do eleitorado do município, nova view) | Design | Pending |
-| CAD-12 | P1: perfil TSE (AC4/AC5 — dado ausente/bloco omitido sem quebrar) | Design | Pending |
-| CAD-13 | P1: identidade visual (AC1/AC2 — cores/tipografia globais) | Design | Pending |
-| CAD-14 | P1: identidade visual (AC3 — sidebar fixa) | Design | Pending |
-| CAD-15 | P1: identidade visual (AC4 — login com identidade nova, sem sidebar) | Design | Pending |
-| CAD-16 | P1: identidade visual (AC5/AC6 — cards estilizados + sem regressão em Vínculos) | Design | Pending |
+| CAD-01 | P1: cards de mandato (AC1 — dados do card) | Execute | ✅ Verified |
+| CAD-02 | P1: cards de mandato (AC3 — estado vazio) | Execute | ✅ Verified |
+| CAD-03 | P1: cards de mandato (AC4 — navega pro detalhe) | Execute | ✅ Verified |
+| CAD-04 | P1: cards de mandato (AC5 — navega pro cadastro) | Execute | ✅ Verified |
+| CAD-05 | P1: cards de coalizão (AC2 — dados do card) | Execute | ✅ Verified |
+| CAD-06 | P1: cards de coalizão (AC3 — estado vazio) | Execute | ✅ Verified |
+| CAD-07 | P1: cards de coalizão (AC4 — navega pro detalhe) | Execute | ✅ Verified |
+| CAD-08 | P1: cards de coalizão (AC5 — navega pro cadastro) | Execute | ✅ Verified |
+| CAD-09 | P1: perfil TSE (AC1 — bloco de votação: total + município principal) | Execute | ✅ Verified (live-confirmado contra dado real) |
+| CAD-10 | P1: perfil TSE (AC2 — bloco de perfil pessoal da candidatura) | Execute | ✅ Verified (spec-precision gap não-bloqueante: data de referência da idade) |
+| CAD-11 | P1: perfil TSE (AC3 — bloco de perfil do eleitorado do município, nova view) | Execute | ✅ Verified (live-confirmado contra dado real) |
+| CAD-12 | P1: perfil TSE (AC4/AC5 — dado ausente/bloco omitido sem quebrar) | Execute | ✅ Verified |
+| CAD-13 | P1: identidade visual (AC1/AC2 — cores/tipografia globais) | Execute | ✅ Verified |
+| CAD-14 | P1: identidade visual (AC3 — sidebar fixa) | Execute | ✅ Verified |
+| CAD-15 | P1: identidade visual (AC4 — login com identidade nova, sem sidebar) | Execute | ✅ Verified |
+| CAD-16 | P1: identidade visual (AC5/AC6 — cards estilizados + sem regressão em Vínculos) | Execute | ⚠️ Verified — Needs Fix não-bloqueante (sombra leve ausente em repouso) |
 
 **ID format:** `CAD-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 16 total, 16 mapeados pra Design, 0 sem mapeamento.
+**Coverage:** 16 total, 16 mapeados pra Design, 0 sem mapeamento. **Verificação (2026-07-31):** 16/16 Verified — 14 sem ressalva, 1 com spec-precision gap documentado (CAD-10), 1 com Needs-Fix cosmético não-bloqueante (CAD-16). Ver `validation.md`.
 
 ---
 
