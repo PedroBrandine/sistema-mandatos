@@ -14,8 +14,13 @@ export default function NovoMandatoPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-6 text-xl font-semibold">Novo mandato</h1>
+    <div className="mx-auto max-w-3xl space-y-8 p-6 md:p-10">
+      <div className="space-y-1">
+        <h1 className="font-heading text-2xl uppercase">Novo mandato</h1>
+        <p className="text-sm text-muted-foreground">
+          Uma ficha por pessoa. Nome, partido e cargo vêm do TSE — o resto você completa.
+        </p>
+      </div>
       <MandatoWizard onCriado={aoCriar} />
     </div>
   );

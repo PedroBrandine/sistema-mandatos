@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { CheckCircle2, ChevronRight, Search, XCircle } from "lucide-react";
+import { ChevronRight, IdCard, Landmark, Lock, Pencil, Stamp, Users, XCircle } from "lucide-react";
 
 import { DuplicataDetectadaError } from "@backend/rpc/errors";
 import { criarMandato } from "@backend/rpc/mandato";
@@ -43,6 +43,16 @@ export interface MandatoWizardProps {
 const identidadesGenero = ["Mulher Cisgênero", "Homem Cisgênero", "Mulher Trans", "Homem Trans", "Não-binário", "Outros"];
 const orientacoes = ["Heterossexual", "Homossexual", "Bissexual", "Pansexual", "Assexual", "Outros"];
 const niveisClassificacao = ["Baixo", "Médio", "Alto"];
+
+// Eyebrow label + ícone reutilizados nas zonas da ficha (T7 design pass).
+function ZonaEyebrow({ icon: Icon, children }: { icon: typeof Users; children: React.ReactNode }) {
+  return (
+    <p className="flex items-center gap-2 font-heading text-xs uppercase tracking-wider text-muted-foreground">
+      <Icon className="size-3.5" />
+      {children}
+    </p>
+  );
+}
 
 // Fluxo de cadastro de mandato (FND-TSE-01 a 06, FND-TSM-01/02): busca TSE
 // (TseMatchSearch, T31) -> confirmar sugestão (criarMandato, T28) ou cadastro
@@ -141,59 +151,81 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
   const isBuscando = passo.tipo === "buscar";
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      {/* STEP 1: BUSCAR NA BASE DO TSE */}
-      <Card className="border-l-4 border-l-primary shadow-sm overflow-hidden">
-        <CardHeader className="bg-muted/30 pb-4">
-          <CardTitle className="text-xs tracking-wider text-muted-foreground uppercase font-semibold flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary">1</span>
-            Buscar na base do TSE
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          {isBuscando ? (
-            <div className="grid gap-6">
-              <TseMatchSearch onSelecionar={iniciarRevisao} />
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="h-px flex-1 bg-border" />
-                <span>Fora do TSE (suplência, assessor, CG)?</span>
-                <div className="h-px flex-1 bg-border" />
+    <div className="w-full space-y-6">
+
+      {/* FONTE OFICIAL: busca na base do TSE */}
+      <Card className="overflow-hidden border-none shadow-sm">
+        {isBuscando ? (
+          <>
+            <CardHeader className="bg-muted/40 pb-4">
+              <CardTitle className="flex items-center gap-2 font-heading text-xs uppercase tracking-wider text-muted-foreground">
+                <Landmark className="size-3.5 text-primary" />
+                Fonte oficial · base do TSE
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid gap-6">
+                <TseMatchSearch onSelecionar={iniciarRevisao} />
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="h-px flex-1 bg-border" />
+                  <span>Fora do TSE (suplência, assessor, CG)?</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                <Button type="button" variant="outline" onClick={iniciarManual} className="mx-auto w-full border-dashed sm:w-auto">
+                  Cadastro manual pela mesma tela
+                </Button>
               </div>
-              <Button type="button" variant="outline" onClick={iniciarManual} className="w-full sm:w-auto mx-auto border-dashed">
-                Cadastro manual pela mesma tela
-              </Button>
-            </div>
-          ) : (
-            <div className="rounded-lg border bg-accent/20 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            </CardContent>
+          </>
+        ) : (
+          <CardContent className="flex flex-col items-start gap-4 bg-primary p-6 text-primary-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div
+                className={
+                  passo.tipo === "revisar"
+                    ? "flex size-12 shrink-0 -rotate-6 items-center justify-center rounded-full border-2 border-dashed border-primary-foreground/50"
+                    : "flex size-12 shrink-0 items-center justify-center rounded-full border-2 border-primary-foreground/30"
+                }
+              >
+                {passo.tipo === "revisar" ? <Stamp className="size-5" /> : <Pencil className="size-5" />}
+              </div>
               <div>
-                <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <CheckCircle2 className="size-4 text-green-500" />
-                  {passo.tipo === "revisar" ? `Candidatura TSE vinculada: ${passo.candidatura.nmCandidato}` : "Modo de Cadastro Manual"}
+                <p className="text-xs uppercase tracking-wide text-primary-foreground/70">
+                  {passo.tipo === "revisar" ? "Candidatura TSE vinculada" : "Cadastro manual"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {passo.tipo === "revisar" 
-                    ? "Importado do TSE (somente leitura): nome · uf · município · nr_titulo · cargo · partido" 
-                    : "Você optou por preencher os dados integralmente de forma manual."}
+                <p className="font-heading text-lg uppercase leading-tight">
+                  {passo.tipo === "revisar" ? passo.candidatura.nmCandidato : "Preenchimento integral"}
+                </p>
+                <p className="mt-0.5 text-xs text-primary-foreground/70">
+                  {passo.tipo === "revisar"
+                    ? "Nome, UF, município, título, cargo e partido vieram do TSE — somente leitura."
+                    : "Nenhum dado foi importado. Você preenche tudo abaixo."}
                 </p>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={rejeitarERebuscar} className="text-muted-foreground hover:text-destructive">
-                <XCircle className="mr-2 size-4" /> Cancelar e buscar novamente
-              </Button>
             </div>
-          )}
-        </CardContent>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={rejeitarERebuscar}
+              className="text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            >
+              <XCircle className="mr-2 size-4" /> Cancelar e buscar novamente
+            </Button>
+          </CardContent>
+        )}
       </Card>
 
       {!isBuscando && (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((v) => submeter(v))} className="space-y-6 animate-in fade-in duration-700">
-            
-            {/* DADOS BÁSICOS (TSE COBRE PARTE) */}
-            <Card className="shadow-sm">
-              <CardContent className="pt-6 grid gap-6">
+          <form onSubmit={form.handleSubmit((v) => submeter(v))} className="animate-in fade-in duration-500">
+            <Card className="overflow-hidden shadow-sm">
+
+              {/* FICHA DO MANDATO */}
+              <CardContent className="grid gap-6 pt-6">
+                <ZonaEyebrow icon={IdCard}>Ficha do mandato</ZonaEyebrow>
                 <ContratanteFields control={form.control} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="mandato.nm_civil"
@@ -278,218 +310,205 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
                   />
                 </div>
               </CardContent>
-            </Card>
 
-            {/* STEP 2: COMPLEMENTAR */}
-            <Card className="border-l-4 border-l-blue-500 shadow-sm overflow-hidden">
-              <CardHeader className="bg-muted/30 pb-4">
-                <CardTitle className="text-xs tracking-wider text-muted-foreground uppercase font-semibold flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/20 text-blue-500">2</span>
-                  Complementar (O que o TSE não cobre)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="mandato.ds_identidade_genero"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Identidade de Gênero</FormLabel>
-                      <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {identidadesGenero.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mandato.ds_orientacao_sexual"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Orientação Sexual</FormLabel>
-                      <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {orientacoes.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mandato.fl_pcd"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>PcD</FormLabel>
-                      <Select 
-                        value={field.value === true ? "sim" : field.value === false ? "nao" : undefined}
-                        onValueChange={(v) => field.onChange(v === "sim")}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="sim">Sim</SelectItem>
-                          <SelectItem value="nao">Não</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            {/* STEP 3: CLASSIFICAÇÃO INTERNA */}
-            <Card className="border-l-4 border-l-purple-500 shadow-sm overflow-hidden">
-              <CardHeader className="bg-muted/30 pb-4">
-                <CardTitle className="text-xs tracking-wider text-muted-foreground uppercase font-semibold flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/20 text-purple-500">3</span>
-                  Classificação Interna da Legisla
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <FormField
-                  control={form.control}
-                  name="mandato.potencial_futuro"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Potencial de futuro</FormLabel>
-                      <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {niveisClassificacao.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mandato.relevancia_politica"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Relevância política</FormLabel>
-                      <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {niveisClassificacao.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mandato.confianca"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confiança</FormLabel>
-                      <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {niveisClassificacao.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="mandato.risco_democratico"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Risco democrático</FormLabel>
-                      <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {niveisClassificacao.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            {/* STEP 4: AÇÕES */}
-            <Card className="border-l-4 border-l-orange-500 shadow-sm bg-gradient-to-r from-orange-500/5 to-transparent overflow-hidden">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xs tracking-wider text-muted-foreground uppercase font-semibold flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500/20 text-orange-500">4</span>
-                  Vincular ao Produto — Cria o Contrato
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Search className="size-4 text-muted-foreground" />
-                  fat_Contrato: localizador · produto=estrategia
+              {/* COMPLEMENTO: o que o TSE não cobre */}
+              <CardContent className="grid gap-4 border-t border-border pt-6">
+                <div>
+                  <ZonaEyebrow icon={Users}>Complemento · o TSE não cobre</ZonaEyebrow>
+                  <p className="mt-1 text-xs text-muted-foreground">Autodeclarado, preenchimento opcional.</p>
                 </div>
-                
-                <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="mandato.ds_identidade_genero"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Identidade de Gênero</FormLabel>
+                        <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full bg-background">
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {identidadesGenero.map((opt) => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mandato.ds_orientacao_sexual"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Orientação Sexual</FormLabel>
+                        <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full bg-background">
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {orientacoes.map((opt) => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mandato.fl_pcd"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>PcD</FormLabel>
+                        <Select
+                          value={field.value === true ? "sim" : field.value === false ? "nao" : undefined}
+                          onValueChange={(v) => field.onChange(v === "sim")}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full bg-background">
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="sim">Sim</SelectItem>
+                            <SelectItem value="nao">Não</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CardContent>
+
+              {/* USO INTERNO: classificação confidencial da Legisla */}
+              <CardContent className="border-t border-border pt-6">
+                <div className="rounded-lg border border-dashed border-secondary/40 bg-secondary/5 p-5">
+                  <div className="flex items-center gap-2">
+                    <Lock className="size-3.5 text-secondary" />
+                    <p className="font-heading text-xs uppercase tracking-wider text-secondary">Uso interno da Legisla</p>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">Não aparece para o contratante nem em relatórios externos.</p>
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+                    <FormField
+                      control={form.control}
+                      name="mandato.potencial_futuro"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Potencial de futuro</FormLabel>
+                          <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger className="w-full bg-background">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {niveisClassificacao.map((opt) => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="mandato.relevancia_politica"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Relevância política</FormLabel>
+                          <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger className="w-full bg-background">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {niveisClassificacao.map((opt) => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="mandato.confianca"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confiança</FormLabel>
+                          <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger className="w-full bg-background">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {niveisClassificacao.map((opt) => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="mandato.risco_democratico"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Risco democrático</FormLabel>
+                          <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger className="w-full bg-background">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {niveisClassificacao.map((opt) => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+
+              {/* AÇÃO: salvar mandato (o contrato é aberto depois, em outra tela) */}
+              <CardContent className="flex flex-col gap-4 border-t border-border bg-muted/40 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Depois de salvar, você abre um contrato para vincular este mandato a um produto.
+                </p>
+                <div className="flex w-full items-center gap-3 sm:w-auto">
                   <Button type="button" variant="outline" onClick={rejeitarERebuscar} disabled={enviando} className="w-full sm:w-auto">
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={enviando} className="w-full sm:w-auto group relative overflow-hidden transition-all hover:scale-[1.02] bg-zinc-900 text-white hover:bg-zinc-800">
-                    <span className="relative z-10 flex items-center gap-2">
-                      {enviando ? "Salvando..." : "Criar cadastro e abrir Pontapé"} 
-                      {!enviando && <ChevronRight className="size-4 group-hover:translate-x-1 transition-transform" />}
-                    </span>
+                  <Button type="submit" disabled={enviando} className="group w-full sm:w-auto">
+                    {enviando ? "Salvando..." : "Salvar mandato"}
+                    {!enviando && <ChevronRight className="size-4 transition-transform group-hover:translate-x-1" />}
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
             {erro && (
-              <div className="p-4 rounded-lg bg-destructive/15 text-destructive text-sm font-medium flex items-center gap-2 animate-in fade-in">
+              <div className="mt-6 flex items-center gap-2 rounded-lg bg-destructive/15 p-4 text-sm font-medium text-destructive">
                 <XCircle className="size-4" />
                 {erro}
               </div>
