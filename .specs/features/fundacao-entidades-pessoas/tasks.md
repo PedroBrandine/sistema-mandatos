@@ -944,12 +944,14 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Seletor de "contrato anterior" lista só contratos do mesmo contratante
-- [ ] Encerrar com `status='nao_concluido'` exige `motivo_encerramento` antes de habilitar o submit
-- [ ] Gate check passa: `npm run build`
+- [x] Seletor de "contrato anterior" lista só contratos do mesmo contratante
+- [x] Encerrar com `status='nao_concluido'` exige `motivo_encerramento` antes de habilitar o submit
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/components/fundacao/contrato-form.tsx` + `src/frontend/app/mandatos/[id]/contratos/novo/page.tsx`. `ContratoForm` reusa `contratoSchema` (T26) inteiro nos dois modos (`abrir`/`encerrar`) em vez de recriar um subconjunto -- o próprio schema já espelha `ck_contrato_motivo` (status='nao_concluido' exige motivo_encerramento) via `.refine()`, então o gate de habilitação do submit no modo "encerrar" é literalmente `disabled={!form.formState.isValid}`: nenhuma lógica de gating duplicada, só o resultado do Zod exposto. Seletor de "contrato anterior" (modo "abrir") itera `contratosExistentes`, prop que a página já filtra por `eq("id_contratante", ...)` -- nunca lista contrato de outro contratante. A página também lista os contratos já existentes do contratante com uma ação "Encerrar" inline (abre `ContratoForm` no modo "encerrar") -- não há outra página nesta fase dedicada a um contrato já existente, e o próprio componente já expõe os dois modos por design (`onAbrir`/`onEncerrar`), então hospedar ambos na mesma rota evita uma página extra fora do "Where" desta task. Gate: `npm run lint` (4/4 pré-existentes) + `npm run build` (limpo, rota `/mandatos/[id]/contratos/novo` compilada e tipada).
 
 ---
 
