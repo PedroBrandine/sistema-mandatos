@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -10,15 +11,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+// AD-026: login por e-mail+senha substitui temporariamente o magic link
+// pra público Interno Legisla, enquanto o rate limit de e-mail do plano
+// free da Supabase (~2/h) não é resolvido. Senha provisionada via
+// scripts/provisionar-senhas.ts (service_role), nunca por e-mail.
 const loginSchema = z.object({
   email: z.email("Informe um e-mail válido"),
+  password: z.string().min(1, "Informe a senha"),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
+  const router = useRouter();
   const [status, setStatus] = useState<
-    { type: "idle" } | { type: "sent" } | { type: "error"; message: string }
+    { type: "idle" } | { type: "error"; message: string }
   >({ type: "idle" });
 
   const {
@@ -27,37 +34,21 @@ export function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
-  const onSubmit = async ({ email }: LoginFormValues) => {
+  const onSubmit = async ({ email, password }: LoginFormValues) => {
     setStatus({ type: "idle" });
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        // AD-002: nenhum acesso é anônimo. Decisão de sessão (fora de
-        // tasks.md, para destravar teste em equipe): e-mails
-        // @legislabrasil.org podem se autoprovisionar (o trigger
-        // app.provisiona_usuario_dominio_legisla os cria como
-        // papel_global='gestora' -- migração 0018); qualquer outro domínio
-        // continua exigindo dim_usuario pré-cadastrado por Gestora/Admin.
-        shouldCreateUser: email.toLowerCase().endsWith("@legislabrasil.org"),
-        emailRedirectTo: `${window.location.origin}/auth/confirm`,
-      },
+      password,
     });
 
     if (error) {
       setStatus({ type: "error", message: error.message });
       return;
     }
-    setStatus({ type: "sent" });
+    router.push("/");
+    router.refresh();
   };
-
-  if (status.type === "sent") {
-    return (
-      <p className="text-sm">
-        Link de acesso enviado. Confira seu e-mail para entrar.
-      </p>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
@@ -73,11 +64,18 @@ export function LoginForm() {
           <p className="text-sm text-red-500">{errors.email.message}</p>
         )}
       </div>
+      <div className="grid gap-2">
+        <Label htmlFor="password">Senha</Label>
+        <Input id="password" type="password" {...register("password")} />
+        {errors.password && (
+          <p className="text-sm text-red-500">{errors.password.message}</p>
+        )}
+      </div>
       {status.type === "error" && (
         <p className="text-sm text-red-500">{status.message}</p>
       )}
       <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Enviando..." : "Enviar link de acesso"}
+        {isSubmitting ? "Entrando..." : "Entrar"}
       </Button>
     </form>
   );
