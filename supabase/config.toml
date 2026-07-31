@@ -174,7 +174,9 @@ site_url = "http://localhost:3000"
 # T29-pre (login mínimo): magic link precisa redirecionar para
 # /auth/confirm após a verificação -- site_url sozinho só cobre a raiz
 # exata, não um path; wildcard necessário para o fluxo funcionar em dev.
-additional_redirect_urls = ["http://localhost:3000/**"]
+# LAN entry added so the magic link also works when testing from another
+# device on the same network via the dev server's printed Network URL.
+additional_redirect_urls = ["http://localhost:3000/**", "http://192.168.15.9:3000/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

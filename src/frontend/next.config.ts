@@ -9,6 +9,16 @@ import type { NextConfig } from "next";
 // directory, was removed here -- it predates the workspace conversion and
 // broke resolution once next itself moved to the hoisted root
 // node_modules).
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  // Dev-only: Next.js 16 blocks cross-origin requests to dev assets by
+  // default (hostname the server was started with -- "localhost" -- is the
+  // only one allowed otherwise). Testing the magic-link login from another
+  // device on the LAN hits the server via its network IP, which is a
+  // different origin and silently breaks hydration (the page still renders,
+  // but the JS bundle 403s, so the login form falls back to a native HTML
+  // GET submit instead of calling signInWithOtp). No effect on production
+  // builds/`next start`.
+  allowedDevOrigins: ["192.168.15.9"],
+};
 
 export default nextConfig;
