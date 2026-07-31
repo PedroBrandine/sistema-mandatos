@@ -41,7 +41,13 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isPublicRoute =
-    pathname.startsWith("/login") || pathname.startsWith("/auth");
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth") ||
+    // Bypass de login pra dev local (T-adhoc, ver app/admin/acesso) --
+    // liberado do gate de auth aqui pra existir sem sessão prévia, mas
+    // a própria rota se recusa a rodar fora de NODE_ENV=development, então
+    // isto não abre acesso anônimo real em produção/Preview (AD-002).
+    pathname.startsWith("/admin/acesso");
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
