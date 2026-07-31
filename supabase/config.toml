@@ -171,11 +171,10 @@ site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-# Left as remote's prior value (empty) -- T4 only intends to change the auth
-# hook + exposed schemas; `supabase config push` pushes the whole [auth]
-# section, so this is pinned to what sistema-mandatos-dev already had to
-# avoid an unrelated side effect.
-additional_redirect_urls = []
+# T29-pre (login mínimo): magic link precisa redirecionar para
+# /auth/confirm após a verificação -- site_url sozinho só cobre a raiz
+# exata, não um path; wildcard necessário para o fluxo funcionar em dev.
+additional_redirect_urls = ["http://localhost:3000/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
