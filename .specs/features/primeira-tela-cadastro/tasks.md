@@ -289,6 +289,7 @@ T16 → T17
 
 **Tests**: unit
 **Gate**: quick
+**Status**: ✅ Complete — commit `0c47664` (18/18 testes unitários passando)
 
 ---
 
@@ -312,6 +313,7 @@ T16 → T17
 
 **Tests**: unit
 **Gate**: quick
+**Status**: ✅ Complete — commit `b3be3ea` (18/18 testes unitários passando)
 
 ---
 
@@ -333,6 +335,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `f2619b9`
 
 ---
 
@@ -356,6 +359,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `229d009`
 
 ---
 
@@ -378,6 +382,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `ec07c20`
 
 ---
 
@@ -402,6 +407,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `741e494`
 
 ---
 
@@ -426,6 +432,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `ae4cd98`
 
 ---
 
@@ -448,6 +455,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `e97b96e`
 
 ---
 
@@ -468,12 +476,13 @@ T16 → T17
 - [ ] Bloco de perfil pessoal exibe idade/gênero/raça-cor/instrução/ocupação/coligação (CAD-10)
 - [ ] Bloco de perfil do eleitorado exibe o gráfico das 3 dimensões quando há município principal, omitido quando não há (CAD-11/CAD-12)
 - [ ] Candidatura sem match real (cadastro manual) não quebra a tela — todos os blocos aparecem indisponíveis/omitidos (CAD-12)
-- [ ] O link "Vínculos" de cada contrato, na mesma página, continua funcionando (CAD-16 — regressão, complementa a verificação de T5)
+- [ ] O link "Vínculos" de cada contrato, na mesma página, continua funcionando (CAD-16 — regressão, complementa a verificação de T5) — confirmado por diff puramente aditivo (0 linhas removidas/alteradas na seção Contratos)
 - [ ] `npm run build` passa
-- [ ] Verificação manual: abrir o detalhe de um mandato com candidatura TSE real vinculada (via wizard existente), confirmar que os 3 blocos aparecem com dado correto
+- [ ] Verificação manual: abrir o detalhe de um mandato com candidatura TSE real vinculada (via wizard existente), confirmar que os 3 blocos aparecem com dado correto — não executado neste lote (sem candidatura TSE real seedada disponível no ambiente); pendente de verificação visual humana
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `c732a43` (verificação manual em ambiente real ainda pendente, ver nota acima)
 
 ---
 
