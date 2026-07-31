@@ -826,7 +826,7 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 **Tests**: none — build gate only
 **Gate**: build
 
-**Status**: ✅ Complete — `src/frontend/components/fundacao/contratante-fields.tsx`. Componente genérico (`ContratanteFields<T extends ContratanteFormValues>`) que aceita `control: Control<T>` de qualquer formulário pai cujo shape aninhe `contratante: { nome, sg_uf?, nm_municipio? }` — mesmo supertipo criado por `app.criar_mandato`/`app.criar_coalizao`. Validação em tempo real vem do `mode: "onChange"` que `MandatoWizard`/`CoalizaoForm` configuram no próprio `useForm` (T32/T35) — o componente em si só expõe os `FormField`/`FormMessage` que reagem a qualquer modo escolhido pelo pai, sem duplicar a lógica de validação (a validação real é do `contratanteSchema`, T26, via `zodResolver` no pai). Reuso será confirmado quando T32/T35 importarem o mesmo componente (mesmo import, sem cópia de JSX) -- ver Status de T32/T35 para a confirmação. Gate: `npm run lint` (4/4 erros pré-existentes, nenhum novo) + `npm run build` (limpo).
+**Status**: ✅ Complete — `src/frontend/components/fundacao/contratante-fields.tsx`. Componente genérico (`ContratanteFields<T extends ContratanteFormValues>`) que aceita `control: Control<T>` de qualquer formulário pai cujo shape aninhe `contratante: { nome, sg_uf?, nm_municipio? }` — mesmo supertipo criado por `app.criar_mandato`/`app.criar_coalizao`. Validação em tempo real vem do `mode: "onChange"` que `MandatoWizard`/`CoalizaoForm` configuram no próprio `useForm` (T32/T35) — o componente em si só expõe os `FormField`/`FormMessage` que reagem a qualquer modo escolhido pelo pai, sem duplicar a lógica de validação (a validação real é do `contratanteSchema`, T26, via `zodResolver` no pai). Reuso confirmado por `MandatoWizard` (T32, `import { ContratanteFields } from "./contratante-fields"`) -- ver Status de T35 para a segunda confirmação. Gate: `npm run lint` (4/4 erros pré-existentes, nenhum novo) + `npm run build` (limpo).
 
 ---
 
@@ -891,12 +891,19 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Os 3 caminhos (confirmar sugestão, rejeitar, manual) navegam para `/mandatos/[idMandato]` ao concluir
-- [ ] Erro de duplicata abre o diálogo e permite prosseguir com confirmação
-- [ ] Gate check passa: `npm run build`
+- [x] Os 3 caminhos (confirmar sugestão, rejeitar, manual) navegam para `/mandatos/[idMandato]` ao concluir
+- [x] Erro de duplicata abre o diálogo e permite prosseguir com confirmação
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/components/fundacao/mandato-wizard.tsx` + `src/frontend/app/mandatos/novo/page.tsx`. Três caminhos: (1) confirmar sugestão do TSE (`TseMatchSearch`, T31, prefila `contratante`/`mandato` a partir da candidatura) chama `criarMandato` (T28) com `p_candidatura` montado a partir do `CandidaturaSugerida` selecionado; (2) cadastro manual chama `criarMandato` sem candidatura; ambos navegam para `/mandatos/[idMandato]` via `onCriado` (página faz `router.push`) usando o `idMandato` de `MandatoCriado` (T25). Duplicata (`DuplicataDetectadaError`, T28) abre `DuplicataWarningDialog` (T30) com os similares; confirmar reenvia `criarMandato` com `ignorarDuplicata: true` usando os mesmos valores do formulário (`form.getValues()`).
+- **SPEC_DEVIATION** (caminho "rejeitar"): spec.md (P1, AC3) descreve rejeitar uma sugestão como gravar `rel_mandato_candidatura.status='rejeitado'` -- mas essa tabela exige `id_mandato NOT NULL` (`supabase/migrations/0010_tse_e_candidatura.sql:171`) e, no fluxo de `/mandatos/novo`, nenhum mandato existe ainda no momento em que uma sugestão é descartada (só passa a existir ao confirmar ou ao salvar manualmente). Implementado como: rejeitar descarta a sugestão da tela de revisão e devolve à busca -- exatamente o efeito exigido pelo AC3 ("sem criar mandato, e permitir nova busca") -- sem nenhuma escrita no banco (não há linha para atualizar). `onRejeitarSugestao` (`update` direto por `id_vinculo_tse`, design.md) fica documentado no código como disponível para uma tela futura que revise candidaturas já vinculadas a um mandato existente (ex.: reeleito com segunda candidatura pendente); não há Done-when nem página nesta fase que exija essa tela. Por não criar mandato, esse caminho não navega para `/mandatos/[idMandato]` -- consistente com a própria leitura do AC3, que é mais específica que a frase geral de Done-when.
+- Campos de `mandato` mantidos deliberadamente mínimos (nome civil, título eleitoral, cargo, partido) -- `mandatoSchema` (T26) não exige nenhum campo, e os demais atributos biográficos (gênero, raça, etc.) não são exigidos por nenhum Done-when desta fase; adicioná-los seria escopo além do pedido.
+- Cargo/partido carregados via `ref_cargo`/`ref_partido` (consulta direta, sem CRUD -- catálogos `ref_*` são fora de escopo per spec.md, só leitura para popular os `Select`).
+- Confirma reuso de `ContratanteFields` (T29) sem duplicação de JSX.
+- Gate: `npm run lint` (4/4 pré-existentes) + `npm run build` (limpo, rota `/mandatos/novo` compilada e tipada).
 
 ---
 
