@@ -100,6 +100,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `b0f17cf`
 
 ---
 
@@ -124,6 +125,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `37bb6ce`
 
 ---
 
@@ -146,6 +148,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `f3a67d7`
 
 ---
 
@@ -168,6 +171,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `75fe128`
 
 ---
 
@@ -191,6 +195,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `24a692d`
 
 ---
 
@@ -212,6 +217,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `fc8a6ba`
 
 ---
 
@@ -236,6 +242,7 @@ T16 → T17
 
 **Tests**: integration
 **Gate**: full
+**Status**: ✅ Complete — commit `97965a4` (6/6 testes de integração passando)
 
 ---
 
@@ -257,6 +264,7 @@ T16 → T17
 
 **Tests**: none
 **Gate**: build
+**Status**: ✅ Complete — commit `2965fa8`
 
 ---
 
