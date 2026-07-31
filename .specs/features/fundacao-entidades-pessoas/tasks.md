@@ -997,12 +997,15 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Campo de papel some/desabilita a opção Gestora quando o usuário logado não é Admin
-- [ ] Erro `42501` do backstop de RLS aparece como mensagem genérica de permissão (não crash)
-- [ ] Gate check passa: `npm run build`
+- [x] Campo de papel some/desabilita a opção Gestora quando o usuário logado não é Admin
+- [x] Erro `42501` do backstop de RLS aparece como mensagem genérica de permissão (não crash)
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/components/fundacao/usuario-form.tsx` + `src/frontend/app/usuarios/page.tsx`. A página resolve `souAdmin` consultando `dim_usuario.papel_global` pelo e-mail da sessão atual (`supabase.auth.getUser()`); `UsuarioForm` recebe esse booleano e filtra a lista de opções do `Select` de papel (`PAPEIS_TODOS` só para Admin, `PAPEIS_NAO_ADMIN` = mentor/assessor para os demais) -- a opção "Gestora" (e "Admin") simplesmente não existe na lista para quem não é Admin, satisfazendo "some" (não apenas "desabilita"). Erro `42501` do `insert` direto é passado por `mapeiaErroRpc` (T28, reutilizável para qualquer `PostgrestError`, não só de RPC) que retorna `PermissaoNegadaError` com mensagem genérica fixa -- nunca revela dado da linha negada, nunca deixa a exceção não tratada (sempre capturada e exibida como texto inline, sem crash). Este gate de UI é só cosmético: o backstop real é RLS/GRANT do banco (design.md), que continuaria negando mesmo que a UI fosse contornada.
+- Gate: `npm run lint` (4/4 pré-existentes) + `npm run build` (limpo, rota `/usuarios` compilada e tipada).
 
 ---
 
