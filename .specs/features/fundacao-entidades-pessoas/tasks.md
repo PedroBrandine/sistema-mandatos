@@ -1022,13 +1022,22 @@ SPEC_DEVIATION: "projeto vazio" e "0 testes" no Done-when descrevem o estado esp
 - Skill: NONE
 
 **Done when**:
-- [ ] Editar cargo/grau/áreas de um vínculo aberto não altera `dt_inicio`/`dt_fim` (chamada `update` direto, sem passar por `substituirVinculo`)
-- [ ] Substituir chama `substituirVinculo` e a tabela reflete a linha antiga fechada + a nova aberta
-- [ ] Encerrar grava `dt_fim` sem apagar a linha e sem tocar `dim_usuario.ativo`
-- [ ] Gate check passa: `npm run build`
+- [x] Editar cargo/grau/áreas de um vínculo aberto não altera `dt_inicio`/`dt_fim` (chamada `update` direto, sem passar por `substituirVinculo`)
+- [x] Substituir chama `substituirVinculo` e a tabela reflete a linha antiga fechada + a nova aberta
+- [x] Encerrar grava `dt_fim` sem apagar a linha e sem tocar `dim_usuario.ativo`
+- [x] Gate check passa: `npm run build`
 
-**Tests**: none
+**Tests**: none — build gate only
 **Gate**: build
+
+**Status**: ✅ Complete — `src/frontend/components/fundacao/vinculo-table.tsx` (presentacional, lista + botões que delegam à página), `vinculo-form.tsx` (3 modos: `adicionar`/`editar`/`substituir`), `src/frontend/app/contratos/[id]/vinculos/page.tsx`.
+- **Editar** (FND-USR-04): payload do `update` inclui só as chaves `cargo`/`grau_responsabilidade`/`areas` -- `dt_inicio`/`dt_fim` nem aparecem no objeto passado a `.update(...)`, então não há como alterá-los por acidente; é estruturalmente impossível, não apenas "não populado no formulário". Reusa `VinculoEditavel` (T25) como forma -- `cargo`/`grauResponsabilidade`/`areas` -- só que `areas` é editado como texto separado por vírgula no input e convertido para `string[] | null` no submit (`textoParaAreas`/`areasParaTexto`).
+- **Substituir** (FND-USR-05): chama `substituirVinculo` (T28, `app.substituir_vinculo` RPC) com `idVinculoAntigo`/`idUsuarioNovo`/cargo/grau/áreas; a função já fecha a linha antiga (`dt_fim = CURRENT_DATE`) e cria a nova na mesma transação (T23) -- a página só recarrega a lista (`carregar()`) após `onConcluido`, e a tabela reflete as duas linhas (antiga com `dt_fim` preenchido → sem ações; nova sem `dt_fim` → aberta) porque `VinculoTable` já renderiza qualquer linha com `dt_fim != null` como fechada.
+- **Encerrar** (FND-USR-06): `update` direto só de `dt_fim = hoje` -- nunca `DELETE`, nunca toca `dim_usuario` (payload do update é só da tabela `rel_usuario_contrato`, `dim_usuario` não é referenciado em nenhuma chamada deste arquivo).
+- **Adicionar** (FND-USR-03/07/08, inclui o caso do assessor mentorado do PLL): `insert` direto; `uq_vinculo` (banco) é o backstop de duplicidade — nenhuma checagem client-side redundante foi adicionada. Cobre o vínculo manual do PLL trivialmente: é o mesmo fluxo de adicionar qualquer vínculo, sem importação/matching.
+- Gate: `npm run lint` (4/4 pré-existentes, nenhum novo) + `npm run build` (limpo -- as 10 rotas do lote inteiro, incluindo `/contratos/[id]/vinculos`, compiladas e tipadas).
+
+**Fase 5 completa (T29-T37).** Todas as 9 tasks de frontend concluídas com `npm run lint && npm run build` limpos a cada task (gate individual, não só ao final) -- 0 erros novos introduzidos em qualquer momento do lote, mantendo os mesmos 4 erros de lint pré-existentes e não relacionados (`DADOS TSE/carga_amostral.js`, `src/backend/rpc/{coalizao,mandato,vinculo}.test.ts`). Nenhum novo pacote npm foi necessário (todas as dependências de T29-37 já estavam instaladas desde T6-T9/T26). Nenhum novo componente shadcn/ui foi gerado -- os 8 de T7 (`button`/`input`/`select`/`dialog`/`table`/`form`/`label`/`badge`) cobriram toda a superfície necessária; onde um `checkbox` faria sentido (`possui_planejamento_proprio` no cadastro de coalizão), um `<input type="checkbox">` nativo foi usado em vez de gerar um componente novo, evitando a dependência extra para um único uso pontual.
 
 ---
 
