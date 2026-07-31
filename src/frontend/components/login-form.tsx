@@ -33,9 +33,13 @@ export function LoginForm() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        // AD-002: nenhum acesso é anônimo -- o magic link nunca cria conta
-        // Auth nova, só autentica um e-mail já provisionado em dim_usuario.
-        shouldCreateUser: false,
+        // AD-002: nenhum acesso é anônimo. Decisão de sessão (fora de
+        // tasks.md, para destravar teste em equipe): e-mails
+        // @legislabrasil.org podem se autoprovisionar (o trigger
+        // app.provisiona_usuario_dominio_legisla os cria como
+        // papel_global='gestora' -- migração 0018); qualquer outro domínio
+        // continua exigindo dim_usuario pré-cadastrado por Gestora/Admin.
+        shouldCreateUser: email.toLowerCase().endsWith("@legislabrasil.org"),
         emailRedirectTo: `${window.location.origin}/auth/confirm`,
       },
     });
