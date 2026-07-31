@@ -221,8 +221,14 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ## Handoff
 
-- **Feature**: Fundação — entidades & pessoas (`.specs/features/fundacao-entidades-pessoas/`)
-- **Phase / Task**: Execute — **Fase 4 completa** (T24-T28, camada backend TypeScript). Próxima: Fase 5 (T29-T37, componentes de frontend) — não iniciada. Sessão foi explicitamente escopada pelo usuário a "T24 até T28"; não avançar para T29 sem novo pedido.
+- **Feature**: Login com senha (Interno Legisla) (`.specs/features/login-senha-interno-legisla/`)
+- **Phase / Task**: **Specify concluído e commitado** (`86426df`) — spec.md com 7 requisitos (AUTHPWD-01..07), `AD-026` registrado em Decisions. Escopo Medium: Design e Tasks ficam inline dentro do Execute, sem `design.md`/`tasks.md` separados. **Nada foi implementado ainda** — próximo passo é Execute.
+- **Completed**: Specify (spec.md confirmado pelo usuário após 3 rodadas de perguntas: SSO vs senha → senha; magic link convive vs substitui → substitui; provisionamento individual vs lote-senha-única → lote com senha única).
+- **Next step**: Rodar Execute da spec `login-senha-interno-legisla`: (1) `src/frontend/components/login-form.tsx` — trocar `signInWithOtp` por `supabase.auth.signInWithPassword({email, password})`, campo de senha novo, remover a UI de magic link (AUTHPWD-01/02/03); (2) novo script `scripts/provisionar-senhas.ts` — aceita 1 senha + N e-mails como argumentos, usa `src/backend/supabase/admin.ts` (`createAdminClient`, já existe) para `admin.createUser`/`admin.updateUserById` por e-mail, pula e avisa e-mails fora de `@legislabrasil.org` sem abortar o lote, imprime resumo final (AUTHPWD-04/05/06/07). Rodar lint (`npx eslint` nos arquivos tocados) e testar de ponta a ponta (provisionar 1-2 e-mails de teste, logar via `/login` no Preview ou local, depois limpar os usuários de teste com `service_role`, igual ao padrão já usado nesta sessão pros scripts anteriores).
+- **Blockers**: none.
+- **Uncommitted files**: none (spec e AD-026 já commitados em `86426df`).
+- **Branch**: master.
+- **Contexto adicional que a próxima sessão precisa**: nesta mesma sessão já foram implementados (e commitados) dois bypasses anteriores de login que NÃO fazem parte desta feature, mas compartilham infraestrutura: `scripts/gerar-link-acesso.ts` (gera magic link manual via `admin.generateLink`, commits `2ff74ed`/`71afc69`) e `src/frontend/app/admin/acesso/` + `src/backend/supabase/proxy.ts` (bypass dev-only via `NODE_ENV`, commit `d2fe357`). Ambos ficam Out of Scope desta feature (não remover, não é pedido). `src/backend/supabase/admin.ts` (cliente `service_role` server-only) já existe e deve ser reaproveitado pelo script novo, não duplicado.
 - **Completed**: Specify → Design (AD-024 RPC `SECURITY INVOKER`) → Tasks (37 tasks, 6 fases) → **Batch 1** (T1-T9, Fase 0/1) → **Fase 2 completa** (T10-T19) → **Fase 3 completa** (T20-T23) → **Fase 4 completa** (T24-T28), cada task revisada, com gate individual e commit atômico:
   - T10 `d350946`, T11 `f922092`, T12 `51e160c`, T13 `5fabd80`, T14 `791cdc8`, T15 `dacc378`, T16 `1138ab4`, T17 `3a4d711`, T18 `bc87e6d`, T19 `53bafd9`.
   - T20 `258bff8` (`app.criar_mandato` + `app.contratante_similar`), T21 `6a725b6` (`app.marcar_candidatura_vigente`), T22 `0d977cd` (`app.criar_coalizao`), T23 `a45edf8` (`app.substituir_vinculo`).
