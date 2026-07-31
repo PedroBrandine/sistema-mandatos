@@ -40,3 +40,15 @@ export interface VinculoEditavel {
   grauResponsabilidade?: string | null;
   areas?: string[];
 }
+
+// CAD-10: perfil pessoal da candidatura (tse.dim_candidatura), consumido por
+// buscarPerfilCandidatura (tse.ts).
+export interface PerfilCandidatura {
+  idade: number | null;
+  genero: string | null;
+  corRaca: string | null;
+  grauInstrucao: string | null;
+  ocupacao: string | null;
+  coligacao: string | null;
+}
+

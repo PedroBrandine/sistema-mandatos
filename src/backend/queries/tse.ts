@@ -1,13 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../supabase/database.types";
-import type { CandidaturaSugerida } from "../types/fundacao";
+import type { CandidaturaSugerida, PerfilCandidatura } from "../types/fundacao";
 
 export interface FiltrosBuscaCandidatura {
   nome?: string;
   sgUf?: string;
   idCargo?: number;
   anoEleicao?: number;
+}
+
+// Chave que identifica uma candidatura TSE nas 3 fontes usadas nesta feature
+// (mv_candidatura_resumo, dim_candidatura, mv_perfil_eleitorado_candidatura)
+// -- mesma chave de rel_mandato_candidatura (design.md, Data Models).
+export interface ChaveCandidatura {
+  anoEleicao: number;
+  sqCandidato: number;
+  nrTurno: number;
 }
 
 type LinhaCandidaturaResumo = Database["tse"]["Views"]["mv_candidatura_resumo"]["Row"];
@@ -126,4 +135,53 @@ export async function buscarCandidaturas(
   return data
     .map((linha) => paraCandidaturaSugerida(linha, termoNormalizado))
     .sort((a, b) => ORDEM_CONFIANCA[b.confianca] - ORDEM_CONFIANCA[a.confianca]);
+}
+
+// Spec-precision gap: spec.md (P1 AC2) pede "idade (calculada a partir de
+// dt_nascimento)" sem definir a data de referência do cálculo. Usa 1º de
+// outubro do ano_eleicao (data usual do 1º turno das eleições brasileiras)
+// em vez da data corrente -- assim o perfil da candidatura (retrato
+// histórico) não muda a cada carregamento de tela conforme os dias passam.
+function calculaIdade(dtNascimento: string | null, anoEleicao: number): number | null {
+  if (dtNascimento == null) return null;
+  const nascimento = new Date(dtNascimento);
+  if (Number.isNaN(nascimento.getTime())) return null;
+
+  const referencia = new Date(Date.UTC(anoEleicao, 9, 1));
+  let idade = referencia.getUTCFullYear() - nascimento.getUTCFullYear();
+  const aniversarioAindaNaoChegou =
+    referencia.getUTCMonth() < nascimento.getUTCMonth() ||
+    (referencia.getUTCMonth() === nascimento.getUTCMonth() && referencia.getUTCDate() < nascimento.getUTCDate());
+  if (aniversarioAindaNaoChegou) idade -= 1;
+  return idade;
+}
+
+// CAD-10. Perfil pessoal da candidatura -- leitura direta de
+// tse.dim_candidatura (tabela dimensão, segura de ler crua -- não é a
+// fat_votacao_zona grande). Retorna null quando não há linha correspondente
+// (mesmo espírito de "ausência de match: nunca erro" de buscarCandidaturas).
+export async function buscarPerfilCandidatura(
+  client: SupabaseClient<Database>,
+  chave: ChaveCandidatura
+): Promise<PerfilCandidatura | null> {
+  const { data, error } = await client
+    .schema("tse")
+    .from("dim_candidatura")
+    .select("*")
+    .eq("ano_eleicao", chave.anoEleicao)
+    .eq("sq_candidato", chave.sqCandidato)
+    .eq("nr_turno", chave.nrTurno);
+
+  if (error) throw error;
+  const linha = data?.[0];
+  if (!linha) return null;
+
+  return {
+    idade: calculaIdade(linha.dt_nascimento, linha.ano_eleicao),
+    genero: linha.ds_genero,
+    corRaca: linha.ds_cor_raca,
+    grauInstrucao: linha.ds_grau_instrucao,
+    ocupacao: linha.ds_ocupacao,
+    coligacao: linha.nm_coligacao,
+  };
 }

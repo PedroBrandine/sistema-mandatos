@@ -2,10 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarCandidaturas } from "./tse";
+import { buscarCandidaturas, buscarPerfilCandidatura } from "./tse";
 
 type Chamada = { metodo: string; args: unknown[] };
 type LinhaMv = Database["tse"]["Views"]["mv_candidatura_resumo"]["Row"];
+type LinhaDimCandidatura = Database["tse"]["Tables"]["dim_candidatura"]["Row"];
 
 function linha(sobrescreve: Partial<LinhaMv> = {}): LinhaMv {
   return {
@@ -28,7 +29,39 @@ function linha(sobrescreve: Partial<LinhaMv> = {}): LinhaMv {
   };
 }
 
-function criarClienteMock(resultado: { data: LinhaMv[] | null; error: { message: string } | null }) {
+function linhaDimCandidatura(sobrescreve: Partial<LinhaDimCandidatura> = {}): LinhaDimCandidatura {
+  return {
+    ano_eleicao: 2020,
+    carregado_em: "2024-01-01T00:00:00Z",
+    cd_cargo: 11,
+    cd_eleicao: 1,
+    ds_cargo: "Vereador",
+    ds_cor_raca: "Parda",
+    ds_eleicao: "Eleições Municipais 2020",
+    ds_genero: "Feminino",
+    ds_grau_instrucao: "Superior completo",
+    ds_ocupacao: "Advogada",
+    ds_sit_tot_turno: "Eleito",
+    ds_situacao_candidatura: "Deferido",
+    dt_nascimento: "1980-05-20",
+    nm_candidato: "Fulana de Tal",
+    nm_coligacao: "Coligação Exemplo",
+    nm_social: null,
+    nm_ue: "São Paulo",
+    nm_urna: "Fulana",
+    nr_partido: 13,
+    nr_titulo_eleitoral: "123456789012",
+    nr_turno: 1,
+    sg_federacao: null,
+    sg_partido: "PT",
+    sg_ue: "SP",
+    sg_uf: "SP",
+    sq_candidato: 1,
+    ...sobrescreve,
+  };
+}
+
+function criarClienteMock<T>(resultado: { data: T[] | null; error: { message: string } | null }) {
   const chamadas: Chamada[] = [];
   const builder: Record<string, unknown> = {
     select: (...args: unknown[]) => {
@@ -140,5 +173,77 @@ describe("buscarCandidaturas", () => {
     const { client } = criarClienteMock({ data: [linha()], error: null });
     const resultado = await buscarCandidaturas(client, { sgUf: "SP" });
     expect(resultado[0].confianca).toBe("baixa");
+  });
+});
+
+describe("buscarPerfilCandidatura", () => {
+  const CHAVE = { anoEleicao: 2020, sqCandidato: 1, nrTurno: 1 };
+
+  // Done-when: "Retorna null quando não há linha correspondente (sem lançar erro)"
+  it("retorna null quando não há linha correspondente", async () => {
+    const { client } = criarClienteMock<LinhaDimCandidatura>({ data: [], error: null });
+    const resultado = await buscarPerfilCandidatura(client, CHAVE);
+    expect(resultado).toBeNull();
+  });
+
+  // Done-when: "Retorna idade null quando dt_nascimento é null"
+  it("retorna idade null quando dt_nascimento é null", async () => {
+    const { client } = criarClienteMock({
+      data: [linhaDimCandidatura({ dt_nascimento: null })],
+      error: null,
+    });
+    const resultado = await buscarPerfilCandidatura(client, CHAVE);
+    expect(resultado?.idade).toBeNull();
+  });
+
+  // Done-when: "Retorna idade calculada corretamente quando dt_nascimento existe"
+  // dt_nascimento 1980-05-20, ano_eleicao 2020: aniversário de maio já passou
+  // na referência (1º de outubro do ano da eleição) -> 40 anos completos.
+  it("retorna idade calculada corretamente quando dt_nascimento existe", async () => {
+    const { client } = criarClienteMock({
+      data: [linhaDimCandidatura({ dt_nascimento: "1980-05-20", ano_eleicao: 2020 })],
+      error: null,
+    });
+    const resultado = await buscarPerfilCandidatura(client, CHAVE);
+    expect(resultado?.idade).toBe(40);
+  });
+
+  it("mapeia gênero, cor/raça, grau de instrução, ocupação e coligação", async () => {
+    const { client } = criarClienteMock({
+      data: [
+        linhaDimCandidatura({
+          ds_genero: "Feminino",
+          ds_cor_raca: "Parda",
+          ds_grau_instrucao: "Superior completo",
+          ds_ocupacao: "Advogada",
+          nm_coligacao: "Coligação Exemplo",
+        }),
+      ],
+      error: null,
+    });
+    const resultado = await buscarPerfilCandidatura(client, CHAVE);
+    expect(resultado).toMatchObject({
+      genero: "Feminino",
+      corRaca: "Parda",
+      grauInstrucao: "Superior completo",
+      ocupacao: "Advogada",
+      coligacao: "Coligação Exemplo",
+    });
+  });
+
+  // Done-when: "Lança o erro do Supabase (não engole) quando a query falha"
+  it("lança o erro do Supabase em vez de engolir a falha", async () => {
+    const { client } = criarClienteMock<LinhaDimCandidatura>({ data: null, error: { message: "boom" } });
+    await expect(buscarPerfilCandidatura(client, CHAVE)).rejects.toEqual({ message: "boom" });
+  });
+
+  it("filtra por ano_eleicao, sq_candidato e nr_turno (chave da candidatura)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: [linhaDimCandidatura()], error: null });
+    await buscarPerfilCandidatura(client, CHAVE);
+
+    const eqs = chamadas.filter((c) => c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["ano_eleicao", 2020]);
+    expect(eqs).toContainEqual(["sq_candidato", 1]);
+    expect(eqs).toContainEqual(["nr_turno", 1]);
   });
 });
