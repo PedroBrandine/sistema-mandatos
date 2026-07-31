@@ -2263,6 +2263,17 @@ export type Database = {
         }
         Relationships: []
       }
+      mv_perfil_eleitorado_candidatura: {
+        Row: {
+          ano_eleicao: number | null
+          categoria: string | null
+          dimensao: string | null
+          nr_turno: number | null
+          qt_eleitores: number | null
+          sq_candidato: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
