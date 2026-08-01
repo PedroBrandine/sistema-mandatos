@@ -122,6 +122,11 @@ export default function MandatoDetalhePage({ params }: { params: Promise<{ id: s
           nm_civil: mandato.nm_civil,
           nm_urna: mandato.nm_urna,
           nr_titulo_eleitoral: mandato.nr_titulo_eleitoral,
+          ds_genero: mandato.ds_genero,
+          ds_raca: mandato.ds_raca as any,
+          ds_identidade_genero: mandato.ds_identidade_genero,
+          ds_orientacao_sexual: mandato.ds_orientacao_sexual,
+          fl_pcd: mandato.fl_pcd,
         },
       });
 
@@ -369,13 +374,26 @@ export default function MandatoDetalhePage({ params }: { params: Promise<{ id: s
           <Form {...form}>
             <form onSubmit={form.handleSubmit(salvar)} className="grid gap-4">
               <ContratanteFields control={form.control} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="mandato.nm_civil"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-xs">Nome civil completo</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} className="text-xs" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mandato.nm_urna"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Nome de Urna</FormLabel>
                       <FormControl>
                         <Input {...field} value={field.value ?? ""} className="text-xs" />
                       </FormControl>
@@ -392,6 +410,81 @@ export default function MandatoDetalhePage({ params }: { params: Promise<{ id: s
                       <FormControl>
                         <Input {...field} value={field.value ?? ""} className="text-xs font-mono" />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 border-t border-border/60 pt-3">
+                <FormField
+                  control={form.control}
+                  name="mandato.ds_raca"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold text-primary">Etnia / Cor / Raça</FormLabel>
+                      <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="w-full text-xs bg-background">
+                            <SelectValue placeholder="Selecione etnia" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {["Branca", "Preta", "Parda", "Amarela", "Indígena"].map((opt) => (
+                            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mandato.ds_genero"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold">Gênero (TSE)</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} placeholder="Ex: FEMININO" className="text-xs" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mandato.ds_identidade_genero"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold">Identidade de Gênero</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ""} placeholder="Ex: Mulher Cisgênero" className="text-xs" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mandato.fl_pcd"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold">PcD</FormLabel>
+                      <Select
+                        value={field.value === true ? "sim" : field.value === false ? "nao" : undefined}
+                        onValueChange={(v) => field.onChange(v === "sim")}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full text-xs bg-background">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="sim" className="text-xs">Sim</SelectItem>
+                          <SelectItem value="nao" className="text-xs">Não</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

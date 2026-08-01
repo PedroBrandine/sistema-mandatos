@@ -78,9 +78,21 @@ export interface MandatoWizardProps {
   onCriado: (mandato: MandatoCriado) => void;
 }
 
+const racas = ["Branca", "Preta", "Parda", "Amarela", "Indígena"];
 const identidadesGenero = ["Mulher Cisgênero", "Homem Cisgênero", "Mulher Trans", "Homem Trans", "Não-binário", "Outros"];
 const orientacoes = ["Heterossexual", "Homossexual", "Bissexual", "Pansexual", "Assexual", "Outros"];
 const niveisClassificacao = ["Baixo", "Médio", "Alto"];
+
+function normalizaRaca(raca: string | null | undefined): "Branca" | "Preta" | "Parda" | "Amarela" | "Indígena" | null {
+  if (!raca) return null;
+  const r = raca.trim().toUpperCase();
+  if (r.includes("BRANCA")) return "Branca";
+  if (r.includes("PRETA")) return "Preta";
+  if (r.includes("PARDA")) return "Parda";
+  if (r.includes("AMARELA")) return "Amarela";
+  if (r.includes("INDIGENA") || r.includes("INDÍGENA")) return "Indígena";
+  return null;
+}
 
 function ZonaEyebrow({ icon: Icon, children }: { icon: any; children: React.ReactNode }) {
   return (
@@ -163,9 +175,10 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
   async function iniciarRevisao(candidatura: CandidaturaSugerida) {
     if (await checkExistente(candidatura.nrTituloEleitoral)) return;
 
-    // Buscar genero e municipio no perfil TSE
+    // Buscar genero, raca e municipio no perfil TSE
     const supabase = createClient();
     let generoTse: string | null = null;
+    let racaTse: "Branca" | "Preta" | "Parda" | "Amarela" | "Indígena" | null = null;
     let municipioTse: string | null = candidatura.nmMunicipioPrincipal ?? null;
     try {
        const perfil = await buscarPerfilCandidatura(supabase, {
@@ -175,6 +188,9 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
        });
        if (perfil?.genero) {
          generoTse = perfil.genero.toUpperCase();
+       }
+       if (perfil?.corRaca) {
+         racaTse = normalizaRaca(perfil.corRaca);
        }
        if (!municipioTse && perfil?.nmUe && perfil.nmUe !== candidatura.sgUf) {
          municipioTse = perfil.nmUe;
@@ -197,6 +213,7 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
         id_partido_atual: idPartido,
         id_cargo_atual: idCargo,
         ds_genero: generoTse,
+        ds_raca: racaTse,
       },
       contrato: { id_produto: 1, dt_inicio: hoje() },
       coalizao: {}
@@ -494,7 +511,29 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
                       <ZonaEyebrow icon={Users}>Complemento · o TSE não cobre</ZonaEyebrow>
                       <p className="mt-1 text-xs text-muted-foreground">Autodeclarado, preenchimento opcional.</p>
                     </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+                      <FormField
+                        control={form.control}
+                        name="mandato.ds_raca"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Etnia / Cor / Raça</FormLabel>
+                            <Select value={field.value ?? undefined} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger className="w-full bg-background">
+                                  <SelectValue placeholder="Selecione etnia" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {racas.map((opt) => (
+                                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       <FormField
                         control={form.control}
                         name="mandato.ds_identidade_genero"
