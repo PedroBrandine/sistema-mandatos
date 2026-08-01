@@ -1,0 +1,9 @@
+# Cursor Rules - Sistema Mandatos
+
+## UI/UX & Frontend Standards
+- Sempre siga as diretrizes definidas na skill `.claude/skills/ui-ux-pro-max/SKILL.md` e em `docs/UI_UX_SKILLS_GUIDE.md`.
+- Use a biblioteca **Shadcn UI** e **Radix UI Primitives** instaladas em `src/frontend/components/ui/`.
+- Utilize **Lucide React** para todos os ícones (`lucide-react`).
+- Respeite o sistema de design tokens do Tailwind CSS (variáveis CSS HSL em `globals.css`).
+- Mantenha conformidade com acessibilidade **WCAG 2.1 AA** (`:focus-visible`, `aria-*`, leitores de tela).
+- Trate sempre os estados de formulário com **React Hook Form + Zod** e estados de carregamento com **Skeleton animations**.

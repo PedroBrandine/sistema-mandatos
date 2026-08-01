@@ -11,26 +11,19 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
-// Campos comuns de dim_contratante (nome, UF, município) -- validados pelo
-// contratanteSchema (src/backend/schemas/contratante.ts, T26) no formulário
-// pai. Reusado sem duplicação por MandatoWizard (T32) e CoalizaoForm (T35):
-// ambos aninham um objeto `contratante` com este shape na própria árvore de
-// campos do react-hook-form (mesmo supertipo criado por app.criar_mandato /
-// app.criar_coalizao). Não possui `<form>` próprio -- só sub-campos
-// controlados via `control` recebido do formulário pai (design.md).
 export interface ContratanteFormValues extends FieldValues {
-  contratante: {
+  contratante?: {
     nome: string;
     sg_uf?: string | null;
     nm_municipio?: string | null;
   };
 }
 
-export interface ContratanteFieldsProps<T extends ContratanteFormValues> {
+export interface ContratanteFieldsProps<T extends FieldValues = any> {
   control: Control<T>;
 }
 
-export function ContratanteFields<T extends ContratanteFormValues>({
+export function ContratanteFields<T extends FieldValues = any>({
   control,
 }: ContratanteFieldsProps<T>) {
   return (

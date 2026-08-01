@@ -3,10 +3,11 @@ import { z } from "zod";
 import { textoLimpoSchema } from "./texto-limpo";
 
 // Espelha o payload `p_coalizao` lido por app.criar_coalizao
-// (supabase/migrations/0016_fn_criar_coalizao.sql): id_projeto_origem,
-// possui_planejamento_proprio (default false na própria função via COALESCE).
+// (supabase/migrations/0023_coalizao_classificacao_agenda.sql): classificacao,
+// agenda_tematica, possui_planejamento_proprio.
 export const coalizaoSchema = z.object({
-  id_projeto_origem: z.number().int().positive().nullable().optional(),
+  classificacao: z.enum(["Nacional", "Subnacional"]).optional(),
+  agenda_tematica: z.array(z.string()).optional(),
   possui_planejamento_proprio: z.boolean().optional(),
 });
 

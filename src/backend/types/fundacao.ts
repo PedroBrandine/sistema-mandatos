@@ -11,7 +11,10 @@ export interface CandidaturaSugerida {
   nmUrna: string | null;
   sgUf: string | null;
   nmMunicipioPrincipal: string | null;
+  nmUe?: string | null;
   sgPartido: string | null;
+  cdCargo: number | null;
+  dsGenero: string | null;
   qtVotosTotal: number;
   metodoMatch: "titulo_eleitoral" | "nome_uf_cargo" | "manual";
   confianca: "alta" | "media" | "baixa";
@@ -50,6 +53,7 @@ export interface PerfilCandidatura {
   grauInstrucao: string | null;
   ocupacao: string | null;
   coligacao: string | null;
+  nmUe?: string | null;
 }
 
 // CAD-11: perfil demográfico do eleitorado do município principal da

@@ -7,6 +7,7 @@
     "src/frontend"
   ],
   "scripts": {
+    "dev": "npm run dev --workspace=frontend",
     "lint": "eslint . && npm run lint --workspace=frontend",
     "build": "npm run build --workspace=frontend",
     "test:unit": "vitest run --config vitest.config.ts",

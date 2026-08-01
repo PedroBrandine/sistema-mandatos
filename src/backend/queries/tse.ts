@@ -90,6 +90,8 @@ function paraCandidaturaSugerida(
     sgUf: linha.sg_uf,
     nmMunicipioPrincipal: linha.nm_municipio_principal,
     sgPartido: linha.sg_partido,
+    cdCargo: linha.cd_cargo,
+    dsGenero: null, // Fetched later if needed, or left null
     qtVotosTotal: linha.qt_votos_total ?? 0,
     // esta função só faz busca por nome/UF/cargo/ano sobre a MV -- nunca por
     // nr_titulo_eleitoral exato e nunca 'manual' (isso é decidido pela UI/RPC
@@ -183,6 +185,7 @@ export async function buscarPerfilCandidatura(
     grauInstrucao: linha.ds_grau_instrucao,
     ocupacao: linha.ds_ocupacao,
     coligacao: linha.nm_coligacao,
+    nmUe: linha.nm_ue,
   };
 }
 
@@ -220,4 +223,102 @@ export async function buscarPerfilEleitoradoCandidatura(
     perfil[chaveDimensao].push({ categoria: linha.categoria, qtEleitores: linha.qt_eleitores });
   }
   return perfil;
+}
+
+export interface CandidaturaCompletaTse {
+  anoEleicao: number;
+  sqCandidato: number;
+  nrTurno: number;
+  nrTituloEleitoral: string | null;
+  nmCandidato: string | null;
+  nmUrna: string | null;
+  sgUf: string | null;
+  nmUe: string | null;
+  nmMunicipioPrincipal: string | null;
+  sgPartido: string | null;
+  cdCargo: number | null;
+  dsCargo: string | null;
+  dsGenero: string | null;
+  dsCorRaca: string | null;
+  dsGrauInstrucao: string | null;
+  dsOcupacao: string | null;
+  dsSituacaoCandidatura: string | null;
+  dsSitTotTurno: string | null;
+  qtVotosTotal: number;
+}
+
+// Puxar todas as candidaturas e votos da base pelo título de eleitor + sequencial
+export async function buscarTodasCandidaturasPorTitulo(
+  client: SupabaseClient<Database>,
+  nrTituloEleitoral: string
+): Promise<CandidaturaCompletaTse[]> {
+  if (!nrTituloEleitoral || nrTituloEleitoral.trim().length === 0) return [];
+
+  // 1. Puxar da base tse.dim_candidatura pelo título de eleitor
+  const { data: candidaturas, error } = await client
+    .schema("tse")
+    .from("dim_candidatura")
+    .select("*")
+    .eq("nr_titulo_eleitoral", nrTituloEleitoral.trim())
+    .order("ano_eleicao", { ascending: false });
+
+  if (error || !candidaturas || candidaturas.length === 0) return [];
+
+  // 2. Para cada candidatura capturada pelo título, buscar votos (resumo ou fat_votacao_zona)
+  const resultado = await Promise.all(
+    candidaturas.map(async (c) => {
+      let qtVotos = 0;
+      let nmMunicipio = c.nm_ue !== c.sg_uf ? c.nm_ue : null;
+
+      // Tentar resumo primeiro
+      const { data: resumo } = await client
+        .schema("tse")
+        .from("mv_candidatura_resumo")
+        .select("qt_votos_total, nm_municipio_principal")
+        .eq("ano_eleicao", c.ano_eleicao)
+        .eq("sq_candidato", c.sq_candidato)
+        .eq("nr_turno", c.nr_turno)
+        .maybeSingle();
+
+      if (resumo?.qt_votos_total) {
+        qtVotos = resumo.qt_votos_total;
+        if (resumo.nm_municipio_principal) nmMunicipio = resumo.nm_municipio_principal;
+      } else {
+        // Fallback direto na fat_votacao_zona se resumo ainda não tiver atualizado
+        const { data: votosZona } = await client
+          .schema("tse")
+          .from("fat_votacao_zona")
+          .select("qt_votos_nominais")
+          .eq("sq_candidato", c.sq_candidato);
+
+        if (votosZona) {
+          qtVotos = votosZona.reduce((acc, curr) => acc + (curr.qt_votos_nominais ?? 0), 0);
+        }
+      }
+
+      return {
+        anoEleicao: c.ano_eleicao,
+        sqCandidato: c.sq_candidato,
+        nrTurno: c.nr_turno,
+        nrTituloEleitoral: c.nr_titulo_eleitoral,
+        nmCandidato: c.nm_candidato,
+        nmUrna: c.nm_urna,
+        sgUf: c.sg_uf,
+        nmUe: c.nm_ue,
+        nmMunicipioPrincipal: nmMunicipio ?? c.nm_ue ?? c.sg_uf,
+        sgPartido: c.sg_partido,
+        cdCargo: c.cd_cargo,
+        dsCargo: c.ds_cargo,
+        dsGenero: c.ds_genero,
+        dsCorRaca: c.ds_cor_raca,
+        dsGrauInstrucao: c.ds_grau_instrucao,
+        dsOcupacao: c.ds_ocupacao,
+        dsSituacaoCandidatura: c.ds_situacao_candidatura,
+        dsSitTotTurno: c.ds_sit_tot_turno,
+        qtVotosTotal: qtVotos,
+      };
+    })
+  );
+
+  return resultado;
 }

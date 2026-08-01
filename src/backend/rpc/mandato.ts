@@ -21,16 +21,20 @@ export type CandidaturaParaConfirmar = {
 };
 
 export interface CriarMandatoInput {
-  contratante: ContratanteInput;
-  mandato: MandatoInput;
+  contratante?: ContratanteInput;
+  mandato?: MandatoInput;
   candidatura?: CandidaturaParaConfirmar | null;
   ignorarDuplicata?: boolean;
+  contrato?: any; // To be typed later if needed, or use a specific type
+  coalizao?: any;
+  idContratanteExistente?: number;
 }
 
 interface RetornoCriarMandato {
   id_contratante: number;
-  id_mandato: number;
+  id_mandato: number | null;
   id_vinculo_tse: number | null;
+  id_contrato: number | null;
 }
 
 // FND-TSE-01/02/05/06. Único ponto de chamada de app.criar_mandato
@@ -41,10 +45,13 @@ export async function criarMandato(
   input: CriarMandatoInput
 ): Promise<MandatoCriado> {
   const { data, error } = await client.schema("app").rpc("criar_mandato", {
-    p_contratante: input.contratante,
-    p_mandato: input.mandato,
+    p_contratante: input.contratante ?? null,
+    p_mandato: input.mandato ?? null,
     p_candidatura: input.candidatura ?? null,
     p_ignorar_duplicata: input.ignorarDuplicata ?? false,
+    p_contrato: input.contrato ?? null,
+    p_coalizao: input.coalizao ?? null,
+    p_id_contratante_existente: input.idContratanteExistente ?? null,
   });
 
   if (error) throw mapeiaErroRpc(error);
@@ -52,9 +59,10 @@ export async function criarMandato(
   const resultado = data as unknown as RetornoCriarMandato;
   return {
     idContratante: resultado.id_contratante,
-    idMandato: resultado.id_mandato,
+    idMandato: resultado.id_mandato ?? 0, // Fallback if needed, though for existing it will be null if not queried properly, but our SQL returns it
     idVinculoTse: resultado.id_vinculo_tse,
-  };
+    idContrato: resultado.id_contrato,
+  } as MandatoCriado & { idContrato?: number | null };
 }
 
 // FND-TSE-04. Único ponto de chamada de app.marcar_candidatura_vigente
