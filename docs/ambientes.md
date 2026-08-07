@@ -197,9 +197,15 @@ deliberado — e o acidente é o risco real aqui.
 
 O hook não cobre merge feito pela interface do GitHub, nem outra máquina. Para
 o que é irreversível — migrations no banco de produção — existe uma segunda
-camada, esta **no servidor**: o job `aguardar-ci` do `deploy-db.yml` consulta
-os check runs do commit e **se recusa a aplicar migrations se o CI não tiver
-passado**.
+camada, esta **no servidor**: o job `aguardar-ci` do `deploy-db.yml` consulta a
+conclusão do `ci.yml` naquele commit e **se recusa a aplicar migrations se o CI
+não tiver passado**. Se o CI ainda estiver rodando, espera (até 20 min); se
+falhar, ou se o tempo esgotar, aborta.
+
+Ele olha a execução inteira do `ci.yml`, não job a job — quais jobs bloqueiam
+já está declarado lá, via `continue-on-error`. O lint do frontend falha hoje e
+mesmo assim a execução conclui como `success`, que é a semântica desejada.
+Repetir a lista de nomes aqui seria uma segunda fonte de verdade.
 
 | | Deploy de código | Deploy de schema |
 | --- | --- | --- |

@@ -50,27 +50,43 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # Os dois jobs bloqueantes do ci.yml. O lint do frontend é
-          # informativo de propósito e fica de fora.
-          OBRIGATORIOS='Lint + testes unitários|Migrations do zero + testes de integração'
+
+          # Consulta a CONCLUSÃO DA EXECUÇÃO do ci.yml, não os check runs job a
+          # job. Duas razões:
+          #
+          #  1. A primeira versão filtrava por nome com uma regex e não casava
+          #     com nada: o `+` de "Lint + testes unitários" é quantificador em
+          #     regex, então a trava esperava 20 min e abortava todo deploy.
+          #     Detectado antes de rodar em produção.
+          #  2. Quais jobs bloqueiam já está declarado no ci.yml, via
+          #     `continue-on-error`. O lint do frontend é informativo e falha
+          #     hoje -- ainda assim a execução conclui como `success`, que é
+          #     exatamente a semântica desejada. Repetir a lista de nomes aqui
+          #     seria uma segunda fonte de verdade, que sai de sincronia no
+          #     primeiro rename.
+          #
+          # `.workflow_runs[0]` é a execução mais recente (a API devolve da mais
+          # nova para a mais antiga), então um "Re-run" manual é respeitado.
+          # Sem execução ainda, a saída é vazia e o laço continua esperando.
           LIMITE=$(( SECONDS + 1200 ))
 
           while :; do
-            runs=$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate \
-                   --jq ".check_runs[] | select(.name | test(\"$OBRIGATORIOS\")) | \"\(.name)=\(.status):\(.conclusion // \"pendente\")\"" || true)
+            estado=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+                     --jq '[.workflow_runs[] | "\(.status):\(.conclusion // "pendente")"] | first // ""' || true)
 
-            if [ -n "$runs" ]; then
-              echo "$runs"
-              if echo "$runs" | grep -qE '=completed:(failure|cancelled|timed_out)'; then
-                echo "::error::O CI falhou neste commit. Migrations NÃO serão aplicadas em produção."
-                exit 1
-              fi
-              concluidos=$(echo "$runs" | grep -c '=completed:success' || true)
-              if [ "$concluidos" -ge 2 ]; then
-                echo "CI verde nos dois jobs obrigatórios. Liberando o deploy."
+            case "$estado" in
+              completed:success)
+                echo "CI verde neste commit. Liberando o deploy."
                 exit 0
-              fi
-            fi
+                ;;
+              completed:*)
+                echo "::error::O CI terminou como '${estado#completed:}' neste commit. Migrations NÃO serão aplicadas em produção."
+                exit 1
+                ;;
+              *)
+                echo "Aguardando o CI: ${estado:-nenhuma execução encontrada para este commit}"
+                ;;
+            esac
 
             if [ "$SECONDS" -ge "$LIMITE" ]; then
               echo "::error::Tempo esgotado aguardando o CI deste commit. Deploy abortado por precaução."
