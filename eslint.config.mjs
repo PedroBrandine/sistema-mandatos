@@ -15,6 +15,18 @@ export default tseslint.config(
       // Test helpers/fixtures intentionally use `any` in a few spots
       // (raw SQL query result rows); not worth a stricter rule here.
       "@typescript-eslint/no-explicit-any": "off",
+      // Mocks precisam honrar a assinatura da função que substituem mesmo
+      // quando ignoram um parâmetro (ex.: `schema: (_nome: string) => ...`).
+      // O prefixo `_` já era a convenção usada no código; esta regra a torna
+      // oficial em vez de forçar a remoção do parâmetro.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   }
 );

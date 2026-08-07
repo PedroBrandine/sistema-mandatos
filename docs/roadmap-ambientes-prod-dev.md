@@ -292,8 +292,14 @@ Actions**:
 
 **D4.3** — Criar `.github/workflows/ci.yml` — roda em todo PR:
 ```
-npm ci → npm run lint → npm run test:unit
+npm ci → npm run lint → npm run test:unit          # obrigatório
+npm run lint:frontend                              # continue-on-error: true
 ```
+`lint` cobre a raiz (`src/backend`, `supabase/tests`) e está verde.
+`lint:frontend` tem 35 problemas conhecidos em telas que ainda vão ser
+redesenhadas — roda como job **informativo** para você ver o número subir ou
+descer, sem bloquear o merge. Quando a UI estabilizar, basta remover o
+`continue-on-error` (ou passar a usar `lint:all`).
 
 **D4.4** — **O substituto do `db reset` local.** No mesmo workflow, um job
 que sobe o Supabase dentro do runner:

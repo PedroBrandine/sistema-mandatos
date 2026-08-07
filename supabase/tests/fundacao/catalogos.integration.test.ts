@@ -27,7 +27,9 @@ describe("T12 -- catálogos dependentes de Fundação", () => {
     const rows = await runSql<{ nome: string; nivel_federativo: string }>(`
       SELECT nome, nivel_federativo FROM ref_cargo WHERE cd_cargo_tse IS NOT NULL OR nome = 'Não se aplica';
     `);
-    expect(rows.length).toBeGreaterThanOrEqual(9);
+    // 6, não 9: Prefeito(a)/Vice-Prefeito(a)/Governador(a) foram removidos do
+    // catálogo por não serem usados -- ver migration 0026.
+    expect(rows.length).toBeGreaterThanOrEqual(6);
     for (const row of rows) {
       expect(row.nivel_federativo).toMatch(/^(federal|estadual|municipal|nao_se_aplica)$/);
     }

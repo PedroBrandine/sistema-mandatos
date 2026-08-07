@@ -3,9 +3,25 @@ import path from 'path';
 import csv from 'csv-parser';
 import iconv from 'iconv-lite';
 import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 
-const SUPABASE_URL = 'https://npnvoolkebhabjkjzqwn.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wbnZvb2xrZWJoYWJqa2p6cXduIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTQyNjg1OSwiZXhwIjoyMTAxMDAyODU5fQ.xrfD_Szsl7yFFRdqRaVPEt8ctCimFQZpvrPeWCAfjHs';
+// Credenciais vêm do .env.local (gitignorado) -- nunca hardcoded.
+// A service_role ignora RLS por completo; commitá-la dá acesso total ao banco
+// a qualquer pessoa com acesso ao repositório, e o histórico do git preserva
+// a chave mesmo depois de removida do arquivo.
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), quiet: true });
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error(
+    'Faltam NEXT_PUBLIC_SUPABASE_URL e/ou SUPABASE_SERVICE_ROLE_KEY.\n' +
+    'Defina-as no .env.local da raiz do projeto antes de rodar a carga.'
+  );
+  process.exit(1);
+}
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const BASE_DIR = 'C:\\Users\\brand\\Downloads\\Dados TSE 22 e 24';
@@ -45,7 +61,6 @@ async function processFile(filePath, tableName, colsMap, transformFn, filterFn) 
 
   return new Promise((resolve, reject) => {
     let batch = [];
-    let count = 0;
     let inserted = 0;
 
     const stream = fs.createReadStream(filePath)
@@ -56,7 +71,6 @@ async function processFile(filePath, tableName, colsMap, transformFn, filterFn) 
       // Custom Filter
       if (filterFn && !filterFn(row)) return;
 
-      count++;
       const mappedRow = {};
       
       for (const [csvCol, dbCol] of Object.entries(colsMap)) {

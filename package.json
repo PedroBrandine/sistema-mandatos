@@ -8,7 +8,9 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=frontend",
-    "lint": "eslint . && npm run lint --workspace=frontend",
+    "lint": "eslint .",
+    "lint:frontend": "npm run lint --workspace=frontend",
+    "lint:all": "npm run lint && npm run lint:frontend",
     "build": "npm run build --workspace=frontend",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",

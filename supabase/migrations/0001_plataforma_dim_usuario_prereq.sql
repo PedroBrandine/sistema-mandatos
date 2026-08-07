@@ -83,10 +83,33 @@ CREATE TABLE IF NOT EXISTS dim_usuario (
   CONSTRAINT ck_usuario_email CHECK (email = lower(btrim(email)) AND email LIKE '%@%.%')
 );
 
--- RLS no mesmo DDL (AD-001). Política verbatim de docs/schema_sistema.sql:1621-1623.
--- app.papel_atual() é SECURITY DEFINER (definida abaixo) e por isso não recorre
--- nesta própria política.
+-- RLS no mesmo DDL (AD-001).
 ALTER TABLE dim_usuario ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
+-- 2. Funções de sessão (docs/schema_sistema.sql:1451-1461, verbatim)
+--
+-- ORDEM IMPORTA: estas duas funções precisam existir ANTES da política
+-- `p_usuario`, que as referencia. O Postgres valida a expressão de USING no
+-- momento do CREATE POLICY -- não em tempo de execução. Até 04/08/2026 este
+-- bloco vinha depois da política, o que funcionava no projeto de dev (onde as
+-- funções já existiam de um provisionamento anterior) mas quebrava em banco
+-- vazio, com "Failed to execute statement". Descoberto ao criar o projeto de
+-- produção do zero.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION app.id_usuario() RETURNS BIGINT
+LANGUAGE sql STABLE AS
+$$ SELECT NULLIF(current_setting('app.id_usuario', true), '')::BIGINT $$;
+
+CREATE OR REPLACE FUNCTION app.papel_atual() RETURNS TEXT
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS
+$$ SELECT papel_global FROM dim_usuario WHERE id_usuario = app.id_usuario() $$;
+
+-- ---------------------------------------------------------------------------
+-- 3. Política de dim_usuario (verbatim de docs/schema_sistema.sql:1621-1623)
+-- app.papel_atual() é SECURITY DEFINER e por isso não recorre nesta política.
+-- ---------------------------------------------------------------------------
 
 DO $$
 BEGIN
@@ -99,15 +122,3 @@ BEGIN
     $sql$;
   END IF;
 END $$;
-
--- ---------------------------------------------------------------------------
--- 2. Funções de sessão (docs/schema_sistema.sql:1451-1461, verbatim)
--- ---------------------------------------------------------------------------
-
-CREATE OR REPLACE FUNCTION app.id_usuario() RETURNS BIGINT
-LANGUAGE sql STABLE AS
-$$ SELECT NULLIF(current_setting('app.id_usuario', true), '')::BIGINT $$;
-
-CREATE OR REPLACE FUNCTION app.papel_atual() RETURNS TEXT
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS
-$$ SELECT papel_global FROM dim_usuario WHERE id_usuario = app.id_usuario() $$;
