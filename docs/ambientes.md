@@ -193,6 +193,32 @@ git config core.hooksPath .githooks
 `git push --no-verify` passa por cima. Ele impede o acidente, não o ato
 deliberado — e o acidente é o risco real aqui.
 
+### A trava que roda no servidor
+
+O hook não cobre merge feito pela interface do GitHub, nem outra máquina. Para
+o que é irreversível — migrations no banco de produção — existe uma segunda
+camada, esta **no servidor**: o job `aguardar-ci` do `deploy-db.yml` consulta
+os check runs do commit e **se recusa a aplicar migrations se o CI não tiver
+passado**.
+
+| | Deploy de código | Deploy de schema |
+| --- | --- | --- |
+| Onde | Vercel | `deploy-db.yml` |
+| Gatilho | push em `master` | push em `master` que toque `supabase/**` |
+| Trava | nenhuma | **exige CI verde** |
+| Reversível? | sim — rollback instantâneo na Vercel | **não** |
+
+A assimetria é proposital. Publicar código quebrado é chato e se desfaz em um
+clique; aplicar migration errada em produção não se desfaz. A trava está onde
+o dano é permanente.
+
+Execução manual pela aba *Actions* (`workflow_dispatch`) pula a verificação —
+clicar no botão já é ato deliberado.
+
+Testado em 07/08/2026: além de branch protection e rulesets, **revisor
+obrigatório e temporizador de environment também são recusados por plano**
+(`422`). Nenhuma trava nativa do GitHub está disponível neste repositório.
+
 O caminho correto para levar código a produção continua sendo o Pull Request:
 
 ```bash

@@ -25,8 +25,67 @@ env:
   SITE_URL_PROD: https://sistema-mandatos.vercel.app
 
 jobs:
+  # Substituto gratuito de "required status checks".
+  #
+  # A proteção de branch do GitHub travaria isso no servidor, mas é recurso
+  # pago em repositório privado -- testado em 07/08/2026: branch protection,
+  # rulesets, revisor obrigatório de environment e temporizador, todos
+  # recusados por plano. Então o próprio workflow se recusa a rodar se o CI
+  # não tiver passado neste commit.
+  #
+  # Diferente do hook em .githooks/pre-push, esta trava roda no servidor:
+  # `--no-verify` não passa por cima dela, e vale para merge feito pela
+  # interface do GitHub.
+  aguardar-ci:
+    name: Exigir CI verde neste commit
+    runs-on: ubuntu-latest
+    # Execução manual é ato deliberado (a aba Actions exige clique); a trava
+    # existe contra o acidente, não contra a intenção.
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - name: Aguardar conclusão do CI e exigir sucesso
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Os dois jobs bloqueantes do ci.yml. O lint do frontend é
+          # informativo de propósito e fica de fora.
+          OBRIGATORIOS='Lint + testes unitários|Migrations do zero + testes de integração'
+          LIMITE=$(( SECONDS + 1200 ))
+
+          while :; do
+            runs=$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate \
+                   --jq ".check_runs[] | select(.name | test(\"$OBRIGATORIOS\")) | \"\(.name)=\(.status):\(.conclusion // \"pendente\")\"" || true)
+
+            if [ -n "$runs" ]; then
+              echo "$runs"
+              if echo "$runs" | grep -qE '=completed:(failure|cancelled|timed_out)'; then
+                echo "::error::O CI falhou neste commit. Migrations NÃO serão aplicadas em produção."
+                exit 1
+              fi
+              concluidos=$(echo "$runs" | grep -c '=completed:success' || true)
+              if [ "$concluidos" -ge 2 ]; then
+                echo "CI verde nos dois jobs obrigatórios. Liberando o deploy."
+                exit 0
+              fi
+            fi
+
+            if [ "$SECONDS" -ge "$LIMITE" ]; then
+              echo "::error::Tempo esgotado aguardando o CI deste commit. Deploy abortado por precaução."
+              exit 1
+            fi
+            sleep 20
+          done
+
   deploy:
     name: Migrations + config no prod
+    needs: aguardar-ci
+    # `needs` sozinho pularia este job quando aguardar-ci é pulado (execução
+    # manual). Aceita explicitamente os dois estados válidos -- e nenhum outro,
+    # então uma falha da trava continua abortando o deploy.
+    if: always() && (needs.aguardar-ci.result == 'success' || needs.aguardar-ci.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
