@@ -10,11 +10,10 @@ armadilhas.
 > o projeto cloud de dev, e tudo que exigiria Docker foi movido para o Dia 4,
 > onde roda nos servidores do GitHub.
 >
-> **Status em 06/08/2026:** Dias 1, 2 e 4 concluídos; Dia 3 quase. Os dois
-> ambientes estão no ar, com deploy automático:
-> **prod** https://sistema-mandatos.vercel.app ·
-> **dev** https://sistema-mandatos-git-develop-legisla.vercel.app
-> Detalhes operacionais em `docs/ambientes.md`.
+> **Status em 06/08/2026:** Dias 1 e 2 concluídos, Dia 3 quase. Os dois
+> ambientes estão no ar — https://sistema-mandatos.vercel.app (prod) e
+> https://sistema-mandatos-dev.vercel.app (dev). Detalhes operacionais em
+> `docs/ambientes.md`.
 
 ## Dia 1 — Preparar o terreno e travar a linha de base
 
@@ -49,7 +48,7 @@ armadilhas.
 - [x] **D2.6** ~~Configurar SMTP~~ — **cancelado**: o app usa apenas `signInWithPassword`, não há magic link
 - [x] **D2.7** Rodar `supabase db advisors --linked` e comparar com o gabarito do D1.5
 - [x] **D2.8** Confirmar `supabase migration list --linked` com todas as linhas local ↔ remote
-- [ ] **D2.9** Testar o login ponta a ponta no prod — se logar e a tela vier vazia, o D2.4 falhou
+- [x] **D2.9** Testar o login ponta a ponta no prod — se logar e a tela vier vazia, o D2.4 falhou
 - [x] **D2.10** Voltar o link para o projeto de dev (`npnvoolkebhabjkjzqwn`)
 
 ## Dia 3 — Vercel com ambientes separados
@@ -77,12 +76,12 @@ armadilhas.
 > dele** — do zero, toda vez, de graça. Este virou o dia mais importante do
 > plano.
 
-- [x] **D4.1** Gerar um Access Token do Supabase (Dashboard → Account → Access Tokens)
-- [x] **D4.2** Cadastrar os secrets no GitHub (access token, senha do prod, refs de prod e dev)
-- [x] **D4.3** Criar `.github/workflows/ci.yml` — `npm ci` + lint + test:unit em todo PR
-- [x] **D4.4** Adicionar o job com `supabase start` + `db reset` + seed + `test:integration` contra banco efêmero (substitui o `db reset` local)
-- [x] **D4.5** Criar `.github/workflows/deploy-db.yml` — `db push` no prod ao mergear em `master`
-- [x] **D4.6** Criar o workflow semanal de `supabase db diff --linked` nos dois projetos (substitui o `db diff` local)
+- [ ] **D4.1** Gerar um Access Token do Supabase (Dashboard → Account → Access Tokens)
+- [ ] **D4.2** Cadastrar os secrets no GitHub (access token, senha do prod, refs de prod e dev)
+- [ ] **D4.3** Criar `.github/workflows/ci.yml` — `npm ci` + lint + test:unit em todo PR
+- [ ] **D4.4** Adicionar o job com `supabase start` + `db reset` + seed + `test:integration` contra banco efêmero (substitui o `db reset` local)
+- [ ] **D4.5** Criar `.github/workflows/deploy-db.yml` — `db push` no prod ao mergear em `master`
+- [ ] **D4.6** Criar o workflow semanal de `supabase db diff --linked` nos dois projetos (substitui o `db diff` local)
 - [ ] **D4.7** Proteger a branch `master`: exigir PR e CI verde antes do merge
 - [ ] **D4.8** Validar o ciclo completo com um PR contendo uma migration nova
 
@@ -106,12 +105,10 @@ armadilhas.
 
 Itens que não estavam no plano original e apareceram durante a execução.
 
-- [x] **P1** ~~Desativar~~ **feito em 06/08 — verificado: as legadas respondem 401 nos dois projetos.** Desativar as **chaves legadas** (`eyJhbGci…`) nos dois projetos Supabase: *Settings → API Keys → Legacy API Keys → Disable*. Uma delas está no histórico do git desde 31/07 e só a desativação a torna inofensiva
-- [x] **P2** ~~Configurar o deploy automático~~ — **o repositório já estava conectado**; o push inicial de criação da branch é que não disparou build. Funciona desde 06/08: push em `develop` gera preview em ~1 min e a Vercel mantém o alias `…-git-develop-legisla.vercel.app` atualizado sozinha
+- [ ] **P1** Desativar as **chaves legadas** (`eyJhbGci…`) nos dois projetos Supabase: *Settings → API Keys → Legacy API Keys → Disable*. Uma delas está no histórico do git desde 31/07 e só a desativação a torna inofensiva
+- [ ] **P2** Configurar o **deploy automático de branches** na Vercel (*Settings → Git*). Hoje só a branch de produção deploya sozinha; o link de dev precisa de `vercel deploy` + `alias set` manuais
 - [ ] **P3** Decidir sobre **`enable_signup = true`** — hoje qualquer pessoa cria conta em produção, embora os usuários sejam provisionados por script
 - [ ] **P4** Resolver o **usuário `admin` inativo** (`sistema@legislabrasil.org.br`, `ativo = false`). Como `app.pre_request` exige `ativo = true`, não há papel de admin funcionando
 - [ ] **P5** Limpar os **2 perfis de teste** (`@legislabrasil.test`) que foram junto na importação de usuários para produção
 - [ ] **P6** Resolver os **35 problemas de lint do frontend** antes do D4.3 (13 imports não usados, 10 `set-state-in-effect`)
 - [ ] **P7** Avaliar **`REVOKE EXECUTE`** nas funções `SECURITY DEFINER` expostas a `anon` (advisors apontam 6 a 8 ocorrências)
-
-- [ ] **P8** Remover o alias manual `sistema-mandatos-dev.vercel.app` — não se atualiza sozinho e vira armadilha (mostra build velho). O alias oficial de dev é o `…-git-develop-legisla.vercel.app`
