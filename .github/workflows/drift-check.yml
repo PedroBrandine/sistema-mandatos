@@ -1,0 +1,72 @@
+name: Detecção de deriva
+
+# Compara o schema REAL de cada projeto com o que as migrations produzem.
+#
+# Por que existe: `supabase migration list` compara a tabela de histórico, não
+# o schema. Ele é cego para SQL rodado à mão no SQL Editor -- e foi exatamente
+# assim que quatro divergências entre dev e prod nasceram entre 30/07 e 06/08,
+# uma delas derrubando a produção inteira (GRANT USAGE ausente, migration
+# 0028). Só `db diff` pega esse tipo de coisa, e ele exige Docker, que a
+# máquina de desenvolvimento não tem. Aqui tem.
+#
+# Roda semanalmente e sob demanda. Não bloqueia nada -- só avisa.
+
+on:
+  schedule:
+    - cron: '17 11 * * 1'   # segundas, 11h17 UTC (~8h17 em Brasília)
+  workflow_dispatch:
+
+jobs:
+  diff:
+    name: ${{ matrix.nome }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nome: dev
+            ref: npnvoolkebhabjkjzqwn
+            senha: SUPABASE_DB_PASSWORD_DEV
+          - nome: prod
+            ref: dgoutrbqfuyaroobhxdq
+            senha: SUPABASE_DB_PASSWORD_PROD
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Linkar em ${{ matrix.nome }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
+        run: supabase link --project-ref "${{ matrix.ref }}"
+
+      - name: Histórico de migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
+        run: supabase migration list --linked
+
+      # Falha se houver diferença entre o schema remoto e o que as migrations
+      # descrevem. Uma falha aqui significa: alguém mexeu no banco por fora.
+      - name: Diff de schema
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
+        run: |
+          set -o pipefail
+          supabase db diff --linked --schema public,app,tse,stg | tee diff.txt
+          if [ -s diff.txt ]; then
+            echo "::error::Deriva detectada em ${{ matrix.nome }} — o banco não bate com as migrations."
+            exit 1
+          fi
+          echo "Sem deriva em ${{ matrix.nome }}."
+
+      - name: Auditoria de segurança
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
+        run: supabase db advisors --linked --type all

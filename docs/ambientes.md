@@ -11,7 +11,7 @@ as chaves" ou "como subo uma mudança", está tudo aqui.
 
 | | Desenvolvimento | Produção |
 | --- | --- | --- |
-| **URL** | https://sistema-mandatos-dev.vercel.app | https://sistema-mandatos.vercel.app |
+| **URL** | https://sistema-mandatos-git-develop-legisla.vercel.app | https://sistema-mandatos.vercel.app |
 | **Projeto Supabase** | `sistema-mandatos-dev` | `sistema-mandatos-prod` |
 | **Ref** | `npnvoolkebhabjkjzqwn` | `dgoutrbqfuyaroobhxdq` |
 | **Região** | `sa-east-1` | `sa-east-1` |
@@ -23,6 +23,16 @@ as chaves" ou "como subo uma mudança", está tudo aqui.
 
 Aliases adicionais de produção: `sistema-mandatos-legisla.vercel.app` e
 `sistema-mandatos-git-master-legisla.vercel.app`.
+
+> ⚠️ Existe também um alias `sistema-mandatos-dev.vercel.app`, criado à mão
+> antes do deploy automático funcionar. Ele **não se atualiza sozinho** — vai
+> mostrar um build velho. Não use; prefira o `git-develop-legisla` da tabela
+> acima, que a Vercel mantém apontando para o último push da branch.
+>
+> Os aliases `*-git-<branch>-legisla.vercel.app` **não aparecem** em
+> *Settings → Domains* do painel: aquela tela só lista domínios atribuídos
+> explicitamente. Os aliases de branch são automáticos e ficam junto de cada
+> build, na aba *Deployments*. Não se assuste ao ver só um domínio lá.
 
 ---
 
@@ -52,14 +62,16 @@ As três variáveis em cada lugar são sempre as mesmas:
 ### Formato das chaves
 
 O projeto usa o **formato novo** do Supabase (`sb_publishable_…` e
-`sb_secret_…`). As chaves legadas em formato JWT (`eyJhbGci…`) não são mais
-usadas em lugar nenhum e **devem ser desativadas** no dashboard de cada
-projeto: *Settings → API Keys → Legacy API Keys → Disable*.
+`sb_secret_…`). As chaves legadas em formato JWT (`eyJhbGci…`) foram
+**desativadas nos dois projetos** em 06/08/2026 — verificado: respondem 401.
 
-Isso é importante porque uma `service_role` legada do projeto de dev ficou
+Isso importava porque uma `service_role` legada do projeto de dev ficou
 commitada no repositório entre 31/07 e 06/08 (commit `33e4bc9`). O arquivo foi
-corrigido, mas o histórico do git preserva a chave — só a desativação a torna
-inofensiva.
+corrigido, mas o histórico do git preserva a chave; a desativação é o que a
+tornou inofensiva.
+
+Se algum dia precisar reativá-las, o caminho é *Settings → API Keys → Legacy
+API Keys* — uma seção separada da lista de chaves novas.
 
 ---
 
@@ -67,20 +79,24 @@ inofensiva.
 
 ### De código
 
+O deploy é **automático** — a Vercel está conectada ao repositório GitHub.
+
 ```bash
 git checkout develop
 # ... suas mudanças ...
-git push
-npx vercel deploy                                    # gera o preview
-npx vercel alias set <url-do-preview> sistema-mandatos-dev.vercel.app
+git push          # ~1 min depois, o ambiente de dev já reflete a mudança
 ```
 
-Para produção, faça merge em `master` e rode `npx vercel deploy --prod`.
+Para produção, faça merge em `master` e dê push. A Vercel publica sozinha, e
+o workflow `deploy-db.yml` aplica as migrations no banco de produção.
 
-> ⚠️ A integração com o Git da Vercel **não** está criando deploys
-> automáticos para branches que não sejam a de produção. Por isso o passo
-> manual acima. Configurar isso em *Settings → Git* eliminaria os dois últimos
-> comandos.
+| Push em | Publica em | Banco |
+| ------- | ---------- | ----- |
+| `develop` (ou qualquer branch) | `…-git-<branch>-legisla.vercel.app` | dev |
+| `master` | `sistema-mandatos.vercel.app` | prod |
+
+> ⚠️ **Todo push em `master` vai direto para produção.** É por isso que a
+> proteção de branch (PR obrigatório + CI verde) deixou de ser opcional.
 
 ### De schema (migrations)
 
@@ -118,6 +134,43 @@ redirecionamentos de auth quebram.
 
 ---
 
+---
+
+## CI/CD (GitHub Actions)
+
+Três workflows em `.github/workflows/`:
+
+| Workflow | Quando roda | O que faz |
+| -------- | ----------- | --------- |
+| `ci.yml` | todo PR e push em `master`/`develop` | lint da raiz + 91 testes unitários; sobe um **Supabase efêmero** no runner, aplica as migrations do zero e roda os testes de integração contra ele; lint do frontend como job informativo |
+| `deploy-db.yml` | push em `master` que toque `supabase/**` | `db push` + `config push` no projeto de produção, e auditoria de segurança depois |
+| `drift-check.yml` | segundas, 11h17 UTC (e sob demanda) | `db diff` nos dois projetos — **falha se o banco não bater com as migrations** |
+
+O `ci.yml` **não usa secret nenhum** (o banco é local ao runner). Os outros
+dois dependem de três secrets já cadastrados no repositório:
+`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PROD` e
+`SUPABASE_DB_PASSWORD_DEV`.
+
+### Por que o job de banco efêmero importa
+
+Ele é a única coisa que prova que as migrations reconstroem o banco **do
+zero** — validação que a máquina de desenvolvimento não consegue fazer por
+não ter Docker. Foi exatamente esse tipo de falha que derrubou o primeiro
+`db push` em produção (a `0001` criava uma política antes das funções que ela
+referencia). Com esse job, isso apareceria num PR.
+
+O `drift-check.yml` cobre o outro flanco: `supabase migration list` compara a
+tabela de histórico, não o schema, e é **cego** para SQL rodado à mão no
+editor. Só o `db diff` pega.
+
+### Rodando os testes de integração localmente
+
+Na sua máquina eles batem no projeto cloud de dev (padrão). Em CI, a variável
+`SUPABASE_TEST_TARGET=local` faz `supabase/tests/helpers/sql.ts` apontar para
+o banco do runner.
+
+---
+
 ## Regras que evitam acidente
 
 1. **Confira o link antes de qualquer escrita.** `supabase db push`,
@@ -152,7 +205,10 @@ redirecionamentos de auth quebram.
 - **Produção sem dados de negócio**: os 34 usuários entram, mas não há
   contratantes, mandatos nem contratos. Os vínculos `rel_usuario_contrato` não
   foram copiados porque apontam para contratos inexistentes lá.
-- **CI/CD não existe** (`.github/` ausente) — Dias 4 e 5 do roadmap.
+- **`master` sem proteção de branch**: qualquer push vai direto para
+  produção. Falta exigir PR e CI verde (D4.7).
+- **Dia 5 não iniciado**: backups, regra de processo no `CLAUDE.md`,
+  `docs/fluxo-de-trabalho.md` e checklist de release.
 - **Docker não instalado**, por decisão consciente (a máquina tem 11,8 GB de
   RAM e ~90% de commit em uso). Consequência: sem `supabase db reset` local e
   sem `db diff` para detectar deriva. Ver `docs/roadmap-ambientes-prod-dev.md`.

@@ -4,6 +4,13 @@ Registro do estado do projeto `sistema-mandatos-dev` (`npnvoolkebhabjkjzqwn`)
 **antes** da criação do ambiente de produção. Serve de gabarito de comparação
 para o Dia 2 do `docs/roadmap-ambientes-prod-dev.md`.
 
+> ⚠️ **Documento histórico — congelado em 04/08/2026.** Não reflete o estado
+> atual. O ambiente de produção foi criado em 06/08 e mais correções vieram
+> depois (migrations `0027`, `0028` e a reordenação da `0001`). Para o estado
+> de hoje, veja `docs/ambientes.md`; para o histórico completo das
+> descobertas, a seção "O que realmente aconteceu" em
+> `docs/roadmap-ambientes-prod-dev.md`.
+
 ---
 
 ## D1.1 / D1.3 — Máquina

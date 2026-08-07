@@ -24,16 +24,20 @@ para executar às cegas.
 | 1 — Terreno e linha de base | ✅ concluído (D1.2, pasta `Velhos`, adiado por decisão) |
 | 2 — Produção | ✅ concluído (D2.6/SMTP cancelado — sem magic link) |
 | 3 — Vercel | ✅ D3.1–D3.5 · ⏳ D3.6, D3.7 |
-| 4 — CI/CD | ⏳ não iniciado |
+| 4 — CI/CD | ✅ D4.1–D4.6 · ⏳ D4.7 (proteger `master`), D4.8 (validar com PR) |
 | 5 — Blindagem | ⏳ não iniciado |
 
-**Os dois ambientes estão no ar e separados:**
+**Os dois ambientes estão no ar, separados e com deploy automático:**
 
 | | Dev | Prod |
 | --- | --- | --- |
-| URL | https://sistema-mandatos-dev.vercel.app | https://sistema-mandatos.vercel.app |
+| URL | https://sistema-mandatos-git-develop-legisla.vercel.app | https://sistema-mandatos.vercel.app |
 | Supabase ref | `npnvoolkebhabjkjzqwn` | `dgoutrbqfuyaroobhxdq` |
 | Migrations | 28/28 | 28/28 |
+| Branch | `develop` | `master` |
+
+Chaves legadas desativadas nos dois projetos (06/08). Três workflows de CI/CD
+criados e os secrets cadastrados — falta apenas a primeira execução real.
 
 Pendências conhecidas estão listadas em `docs/ambientes.md`.
 

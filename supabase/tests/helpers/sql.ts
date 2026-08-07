@@ -11,6 +11,13 @@ const execFileAsync = promisify(execFile);
 // shim; Node can spawn it directly (no shell) once the extension is explicit.
 const SUPABASE_BIN = process.platform === "win32" ? "supabase.cmd" : "supabase";
 
+// Alvo do `db query`: por padrão o projeto cloud linkado (é o único caminho
+// disponível na máquina de desenvolvimento, que não tem Docker). Em CI, onde
+// o runner sobe um stack local efêmero via `supabase start`, defina
+// SUPABASE_TEST_TARGET=local para que os testes rodem contra esse banco --
+// muito mais rápido e sem PRs concorrentes disputando o mesmo projeto.
+const TARGET_FLAG = process.env.SUPABASE_TEST_TARGET === "local" ? "--local" : "--linked";
+
 /**
  * Runs raw SQL against the linked remote Supabase project via
  * `supabase db query --linked --file <tmp>` (Management API), returning the
@@ -47,7 +54,7 @@ export async function runSql<T = Record<string, unknown>>(sql: string): Promise<
       try {
         const { stdout } = await execFileAsync(
           SUPABASE_BIN,
-          ["db", "query", "--linked", "--file", file],
+          ["db", "query", TARGET_FLAG, "--file", file],
           // shell is required to spawn the `.cmd` shim on Windows; safe here
           // because the only interpolated argument is a temp-file path (no
           // SQL text reaches the shell command line at all).

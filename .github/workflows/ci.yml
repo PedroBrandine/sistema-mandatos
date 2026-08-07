@@ -1,0 +1,103 @@
+name: CI
+
+# Roda em todo PR e em pushes para as branches principais.
+#
+# Três jobs, com papéis distintos:
+#   qualidade   -> lint da raiz + testes unitários (BLOQUEANTE)
+#   integracao  -> sobe um Supabase efêmero no runner, aplica as migrations do
+#                  zero e roda os testes de integração contra ele (BLOQUEANTE)
+#   lint-frontend -> informativo, não bloqueia (ver nota abaixo)
+
+on:
+  pull_request:
+  push:
+    branches: [master, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualidade:
+    name: Lint + testes unitários
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint (raiz — src/backend, supabase/tests)
+        run: npm run lint
+
+      - name: Testes unitários
+        run: npm run test:unit
+
+  integracao:
+    name: Migrations do zero + testes de integração
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # `supabase start` sobe o stack no Docker do runner e já aplica todas as
+      # migrations em ordem. Se qualquer uma delas não conseguir construir o
+      # banco a partir do zero, este passo falha -- que é exatamente a
+      # validação que a máquina de desenvolvimento não consegue fazer por não
+      # ter Docker. Foi assim que a 0001 quebrou ao criar produção; com este
+      # job, isso teria sido pego num PR.
+      - name: Subir Supabase efêmero (aplica as migrations do zero)
+        run: supabase start
+
+      - name: Conferir que o banco reconstrói limpo
+        run: supabase db reset --local --no-seed
+
+      - name: Carregar o seed de teste
+        run: supabase db query --local --file supabase/seed_test.sql
+
+      # SUPABASE_TEST_TARGET=local faz supabase/tests/helpers/sql.ts apontar
+      # para o banco do runner em vez do projeto cloud de dev. Sem isso, dois
+      # PRs simultâneos disputariam o mesmo banco compartilhado.
+      - name: Testes de integração (banco efêmero)
+        env:
+          SUPABASE_TEST_TARGET: local
+        run: npm run test:integration
+
+      - name: Logs do Supabase em caso de falha
+        if: failure()
+        run: supabase status || true
+
+  lint-frontend:
+    name: Lint do frontend (informativo)
+    runs-on: ubuntu-latest
+    # Não bloqueia o merge. As telas de src/frontend ainda vão ser
+    # redesenhadas, então corrigir os 35 problemas conhecidos agora seria
+    # trabalho jogado fora. Este job existe para o número ficar visível a cada
+    # PR em vez de escondido. Quando a UI estabilizar, remova o
+    # continue-on-error (ou troque o comando por `npm run lint:all`).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint:frontend
