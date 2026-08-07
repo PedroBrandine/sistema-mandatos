@@ -167,7 +167,16 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://localhost:3000"
+# Valor por ambiente -- `config.toml` é um arquivo só para os dois projetos
+# remotos, então este campo não pode ser fixo. Defina a variável antes de
+# rodar `supabase config push`:
+#
+#   dev  : SUPABASE_AUTH_SITE_URL=http://localhost:3000
+#   prod : SUPABASE_AUTH_SITE_URL=https://sistema-mandatos.vercel.app
+#
+# Se a variável não estiver definida, o push grava site_url vazio e os
+# redirecionamentos de auth quebram -- confira antes de empurrar.
+site_url = "env(SUPABASE_AUTH_SITE_URL)"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
@@ -178,7 +187,16 @@ site_url = "http://localhost:3000"
 # device on the same network via the dev server's printed Network URL.
 # Vercel entry covers every Preview deployment URL for the legisla team
 # (pattern taken verbatim from Supabase's own Vercel redirect-urls guide).
-additional_redirect_urls = ["http://localhost:3000/**", "http://192.168.15.9:3000/**", "https://*-legisla.vercel.app/**"]
+additional_redirect_urls = [
+  # produção -- alias estável do projeto na Vercel. NÃO casa com o curinga
+  # abaixo (`*-legisla` exige o sufixo), por isso precisa de entrada própria.
+  "https://sistema-mandatos.vercel.app/**",
+  # previews e deploys por branch (sistema-mandatos-<hash>-legisla.vercel.app)
+  "https://*-legisla.vercel.app/**",
+  # desenvolvimento local
+  "http://localhost:3000/**",
+  "http://192.168.15.9:3000/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

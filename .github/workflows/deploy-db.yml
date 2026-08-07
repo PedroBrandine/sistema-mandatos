@@ -1,0 +1,145 @@
+name: Deploy do banco (produção)
+
+# Aplica migrations e configuração de auth no projeto de PRODUÇÃO ao mergear
+# em master. É o único caminho automatizado até o banco de produção -- nada
+# de SQL Editor.
+#
+# A Vercel já publica o código sozinha no push para master; este workflow
+# cuida da parte que ela não cobre: o schema.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy-db.yml'
+  workflow_dispatch:        # permite rodar à mão pela aba Actions
+
+concurrency:
+  group: deploy-db-prod     # nunca dois deploys de banco ao mesmo tempo
+  cancel-in-progress: false
+
+env:
+  PROJECT_REF_PROD: dgoutrbqfuyaroobhxdq
+  SITE_URL_PROD: https://sistema-mandatos.vercel.app
+
+jobs:
+  # Substituto gratuito de "required status checks".
+  #
+  # A proteção de branch do GitHub travaria isso no servidor, mas é recurso
+  # pago em repositório privado -- testado em 07/08/2026: branch protection,
+  # rulesets, revisor obrigatório de environment e temporizador, todos
+  # recusados por plano. Então o próprio workflow se recusa a rodar se o CI
+  # não tiver passado neste commit.
+  #
+  # Diferente do hook em .githooks/pre-push, esta trava roda no servidor:
+  # `--no-verify` não passa por cima dela, e vale para merge feito pela
+  # interface do GitHub.
+  aguardar-ci:
+    name: Exigir CI verde neste commit
+    runs-on: ubuntu-latest
+    # Execução manual é ato deliberado (a aba Actions exige clique); a trava
+    # existe contra o acidente, não contra a intenção.
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - name: Aguardar conclusão do CI e exigir sucesso
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Consulta a CONCLUSÃO DA EXECUÇÃO do ci.yml, não os check runs job a
+          # job. Duas razões:
+          #
+          #  1. A primeira versão filtrava por nome com uma regex e não casava
+          #     com nada: o `+` de "Lint + testes unitários" é quantificador em
+          #     regex, então a trava esperava 20 min e abortava todo deploy.
+          #     Detectado antes de rodar em produção.
+          #  2. Quais jobs bloqueiam já está declarado no ci.yml, via
+          #     `continue-on-error`. O lint do frontend é informativo e falha
+          #     hoje -- ainda assim a execução conclui como `success`, que é
+          #     exatamente a semântica desejada. Repetir a lista de nomes aqui
+          #     seria uma segunda fonte de verdade, que sai de sincronia no
+          #     primeiro rename.
+          #
+          # `.workflow_runs[0]` é a execução mais recente (a API devolve da mais
+          # nova para a mais antiga), então um "Re-run" manual é respeitado.
+          # Sem execução ainda, a saída é vazia e o laço continua esperando.
+          LIMITE=$(( SECONDS + 1200 ))
+
+          while :; do
+            estado=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+                     --jq '[.workflow_runs[] | "\(.status):\(.conclusion // "pendente")"] | first // ""' || true)
+
+            case "$estado" in
+              completed:success)
+                echo "CI verde neste commit. Liberando o deploy."
+                exit 0
+                ;;
+              completed:*)
+                echo "::error::O CI terminou como '${estado#completed:}' neste commit. Migrations NÃO serão aplicadas em produção."
+                exit 1
+                ;;
+              *)
+                echo "Aguardando o CI: ${estado:-nenhuma execução encontrada para este commit}"
+                ;;
+            esac
+
+            if [ "$SECONDS" -ge "$LIMITE" ]; then
+              echo "::error::Tempo esgotado aguardando o CI deste commit. Deploy abortado por precaução."
+              exit 1
+            fi
+            sleep 20
+          done
+
+  deploy:
+    name: Migrations + config no prod
+    needs: aguardar-ci
+    # `needs` sozinho pularia este job quando aguardar-ci é pulado (execução
+    # manual). Aceita explicitamente os dois estados válidos -- e nenhum outro,
+    # então uma falha da trava continua abortando o deploy.
+    if: always() && (needs.aguardar-ci.result == 'success' || needs.aguardar-ci.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Linkar no projeto de produção
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+        run: supabase link --project-ref "$PROJECT_REF_PROD"
+
+      - name: Conferir o que será aplicado
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+        run: supabase migration list --linked
+
+      - name: Aplicar migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+        run: supabase db push --linked
+
+      # site_url é por ambiente (config.toml usa env(SUPABASE_AUTH_SITE_URL)).
+      # Sem a variável, o push grava site_url vazio e os redirecionamentos de
+      # auth quebram.
+      - name: Aplicar configuração de auth
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+          SUPABASE_AUTH_SITE_URL: ${{ env.SITE_URL_PROD }}
+        run: supabase config push
+
+      - name: Auditoria de segurança pós-deploy
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+        run: supabase db advisors --linked --type security --level error

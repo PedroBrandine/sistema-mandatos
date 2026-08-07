@@ -10,6 +10,36 @@ para executar às cegas.
 > **Checklist para o Notion:** `docs/checklist-ambientes-notion.md`. Os IDs
 > (`D1.1`, `D2.4`, …) são os mesmos nos dois arquivos — use o checklist para
 > marcar progresso e este documento para o detalhe de cada passo.
+>
+> **Referência operacional:** `docs/ambientes.md` — URLs, refs, onde ficam as
+> chaves e como subir mudança em cada ambiente. É o documento do dia a dia;
+> este aqui é o plano.
+
+---
+
+## Status em 06/08/2026
+
+| Dia | Situação |
+| --- | -------- |
+| 1 — Terreno e linha de base | ✅ concluído (D1.2, pasta `Velhos`, adiado por decisão) |
+| 2 — Produção | ✅ concluído (D2.6/SMTP cancelado — sem magic link) |
+| 3 — Vercel | ✅ D3.1–D3.5 · ⏳ D3.6, D3.7 |
+| 4 — CI/CD | ✅ D4.1–D4.6 · ⏳ D4.7 (proteger `master`), D4.8 (validar com PR) |
+| 5 — Blindagem | ⏳ não iniciado |
+
+**Os dois ambientes estão no ar, separados e com deploy automático:**
+
+| | Dev | Prod |
+| --- | --- | --- |
+| URL | https://sistema-mandatos-git-develop-legisla.vercel.app | https://sistema-mandatos.vercel.app |
+| Supabase ref | `npnvoolkebhabjkjzqwn` | `dgoutrbqfuyaroobhxdq` |
+| Migrations | 28/28 | 28/28 |
+| Branch | `develop` | `master` |
+
+Chaves legadas desativadas nos dois projetos (06/08). Três workflows de CI/CD
+criados e os secrets cadastrados — falta apenas a primeira execução real.
+
+Pendências conhecidas estão listadas em `docs/ambientes.md`.
 
 ---
 
@@ -405,6 +435,50 @@ Runbook escrito e regra de processo registrada no `CLAUDE.md`.
 | 3 | Vercel multi-ambiente | D3.1–D3.7 | Deploy correto por branch |
 | 4 | GitHub Actions | D4.1–D4.8 | CI valida do zero, detecta deriva e promove |
 | 5 | Blindagem | D5.1–D5.7 | Backups, regra de processo, runbook |
+
+---
+
+## O que realmente aconteceu (04–06/08/2026)
+
+Registro das descobertas que o plano não previa. Todas são da mesma família:
+**mudanças feitas à mão no banco de dev que nunca viraram arquivo**. Nenhuma
+era visível pelo `supabase migration list`, porque SQL avulso não se registra
+em lugar nenhum.
+
+| # | Descoberta | Como apareceu | Correção |
+| - | ---------- | ------------- | -------- |
+| 1 | Migration `20260801134547` órfã no remoto | `migration list` | `migration repair` + push |
+| 2 | `ref_cargo` com 6 linhas onde a migration cria 9 | teste de integração T12 | migration `0026` |
+| 3 | Regressão em `app.criar_coalizao`: a `0023` perdeu `id_projeto_origem` e `id_partido_relacionado` | teste de integração T22 | migration `0025` |
+| 4 | `public.carrega_tse` existia só no dev | comparação de advisors dev × prod | migration `0027` |
+| 5 | `GRANT USAGE ON SCHEMA app` faltando para `anon`/`authenticated`/`service_role` | **produção subiu 100% quebrada** | migration `0028` |
+| 6 | `service_role` do dev commitada no repositório | leitura do `carga_amostral.js` | script passou a ler do env; **chave precisa ser desativada** |
+
+### A `0001` não conseguia reconstruir o banco
+
+O primeiro `db push` no projeto de produção **falhou na migração 1 de 26**. A
+`0001` criava a política `p_usuario` antes de criar as funções
+`app.papel_atual()` e `app.id_usuario()` que ela referencia — e o Postgres
+valida a expressão do `USING` no momento do `CREATE POLICY`.
+
+No dev nunca apareceu porque as funções já existiam quando a migration rodou.
+Em banco vazio, quebrava — nenhum ambiente novo poderia ser construído.
+
+Foi a **única exceção** à regra de não editar migration aplicada: o arquivo não
+estava subótimo, estava irreproduzível, e todos os seus statements são
+idempotentes. Não abre precedente.
+
+### A lição
+
+O item 5 é o mais instrutivo: a produção subiu, a página de login carregou
+normalmente (é estática) e **toda chamada de API retornava 401**. Um teste
+superficial teria dito que estava tudo bem.
+
+Cinco das seis descobertas só apareceram porque algo comparou dois ambientes
+ou rodou os testes. É exatamente o que o Dia 4 automatiza — e é por isso que
+ele deixou de ser opcional.
+
+---
 
 ### Os três erros que mais custam caro
 

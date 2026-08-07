@@ -10,7 +10,11 @@ Este diretório contém a documentação das especificações e tarefas do desen
 - **`.specs/`**: Documentação de arquitetura, especificações técnicas e tarefas de desenvolvimento.
 - **`docs/`**: Documentação auxiliar e especificações funcionais (`schema_sistema.sql`).
 
-## Banco de Dados Supabase (Projeto: `mgoeloqdlpgkofgqqbjs`)
+## Banco de Dados Supabase
+
+Dois projetos distintos (dev e produção) desde 06/08/2026 — refs, chaves e
+regras de deploy em `docs/ambientes.md` (fonte de verdade operacional; não
+duplicar os refs aqui para não desatualizar de novo).
 
 **`docs/schema_sistema.sql` é a fonte de verdade aprovada do modelo completo** (AD-008) — **51 tabelas lógicas** (sem contar partições filhas) + **11 views/materialized views**, organizadas em 11 blocos:
 

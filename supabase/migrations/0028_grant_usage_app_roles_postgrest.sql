@@ -1,0 +1,26 @@
+-- =============================================================================
+-- Migration 0028: concede USAGE no schema `app` aos roles do PostgREST
+--
+-- A 0005 liga `app.pre_request()` como db-pre-request do PostgREST via
+-- `ALTER ROLE authenticator SET pgrst.db_pre_request`. Esse hook roda em TODA
+-- requisição, já depois do SET ROLE para `anon`, `authenticated` ou
+-- `service_role` -- e não para os roles `legisla_*`, que são os únicos que a
+-- 0004 contempla no `GRANT USAGE ON SCHEMA public, app`.
+--
+-- Resultado num banco criado só a partir das migrations: qualquer chamada à
+-- API responde 401 com
+--   {"code":"42501","message":"permission denied for schema app"}
+--
+-- No projeto de dev isso nunca apareceu porque o GRANT foi feito à mão em
+-- algum momento e nunca virou arquivo. Detectado em 06/08/2026, minutos depois
+-- de apontar a Vercel de produção para o projeto novo -- a produção subiu
+-- inteiramente quebrada.
+--
+-- Nota: o EXECUTE nas funções de `app` não precisa ser concedido aqui. O
+-- Postgres já concede EXECUTE a PUBLIC por padrão ao criar função; sem USAGE
+-- no schema, porém, esse EXECUTE é inalcançável. Era só o USAGE que faltava.
+--
+-- Idempotente: GRANT repetido não falha.
+-- =============================================================================
+
+GRANT USAGE ON SCHEMA app TO anon, authenticated, service_role;
