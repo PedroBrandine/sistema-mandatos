@@ -67,6 +67,7 @@ else
   probe() { supabase migration list --db-url "$1" 2>&1; }
 fi
 
+erros=""
 for alvo in $candidatos; do
   h=${alvo%:*}
   p=${alvo##*:}
@@ -79,7 +80,17 @@ for alvo in $candidatos; do
   fi
   echo "--- sem conexão por $h:$p ---"
   printf '%s\n' "$saida" | tail -4
+  erros="$erros $saida"
 done
 
-echo "::error::Nenhum pooler respondeu para $PROJECT_REF. Confira a senha do banco no secret correspondente e o host em Project Settings → Database → Connection pooling."
+# As três causas possíveis exigem correções diferentes, e o log acima já
+# distingue as três. Traduzir aqui evita que a próxima pessoa precise
+# reconstruir o raciocínio.
+if printf %s "$erros" | grep -q "password authentication failed"; then
+  echo "::error::O pooler encontrou o projeto $PROJECT_REF e RECUSOU A SENHA. Host e usuário estão certos; o secret com a senha do banco é que está errado. Gere uma nova em Project Settings → Database → Reset database password e atualize o secret."
+elif printf %s "$erros" | grep -q "tenant/user .* not found"; then
+  echo "::error::Nenhum pooler da região $REGIAO conhece o projeto $PROJECT_REF. Confira o ref e o host em Project Settings → Database → Connection pooling."
+else
+  echo "::error::Não consegui conectar em $PROJECT_REF por nenhum pooler. Veja as mensagens acima."
+fi
 exit 1
