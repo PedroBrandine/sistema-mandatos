@@ -52,7 +52,50 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const MAX_ATTEMPTS = TARGET_FLAG === "--local" ? 1 : 4;
 const RETRY_BASE_DELAY_MS = 2000;
 
+/**
+ * Caminho LOCAL: conexão direta via `pg`.
+ *
+ * Não é otimização -- é necessidade. Os testes de constraint asseveram sobre o
+ * SQLSTATE (`23514`, `23505`, `MDU01`…), e esse código só aparece na saída do
+ * `db query --linked` porque a Management API devolve o erro estruturado. O
+ * CLI local imprime apenas o texto do Postgres ("violates check constraint
+ * ..."), sem o código -- então toda asserção de constraint falhava em CI.
+ * O driver `pg` expõe o SQLSTATE em `err.code`.
+ *
+ * De quebra, elimina o spawn de um processo por consulta, que era o que fazia
+ * a suíte demorar dezenas de minutos.
+ *
+ * SUPABASE_DB_URL é gerada no workflow a partir de `supabase status -o env`.
+ */
+async function runSqlLocal<T>(sql: string): Promise<T[]> {
+  const { default: pg } = await import("pg");
+  const client = new pg.Client({
+    connectionString:
+      process.env.SUPABASE_DB_URL ??
+      "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+  });
+  await client.connect();
+  try {
+    const resultado = await client.query(sql);
+    // Múltiplos statements devolvem um array de resultados; as chamadas deste
+    // helper esperam as linhas do último comando que produziu linhas.
+    const resultados = Array.isArray(resultado) ? resultado : [resultado];
+    const comLinhas = [...resultados].reverse().find((r) => r?.rows?.length);
+    return ((comLinhas ?? resultados[resultados.length - 1])?.rows ?? []) as T[];
+  } catch (error) {
+    // Dobra o SQLSTATE na mensagem, no mesmo formato que os testes esperam
+    // encontrar quando rodam contra o projeto remoto.
+    const codigo = (error as { code?: string }).code;
+    const mensagem = error instanceof Error ? error.message : String(error);
+    throw new Error(codigo ? `${codigo}: ${mensagem}` : mensagem);
+  } finally {
+    await client.end();
+  }
+}
+
 export async function runSql<T = Record<string, unknown>>(sql: string): Promise<T[]> {
+  if (TARGET_FLAG === "--local") return runSqlLocal<T>(sql);
+
   const file = join(tmpdir(), `sistema-mandatos-test-${randomUUID()}.sql`);
   await writeFile(file, sql, "utf8");
   try {
