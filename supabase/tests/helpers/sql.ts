@@ -69,6 +69,15 @@ const RETRY_BASE_DELAY_MS = 2000;
  */
 async function runSqlLocal<T>(sql: string): Promise<T[]> {
   const { default: pg } = await import("pg");
+
+  // A Management API serializa todo número como string no JSON de resposta, e
+  // é sobre esse formato que as asserções foram escritas (`toEqual(['11'])`).
+  // O driver `pg` converte int2/int4 para Number por padrão -- int8 e numeric
+  // ele já devolve como string. Alinhar os dois evita reescrever os testes e
+  // mantém um único conjunto de asserções válido nos dois alvos.
+  pg.types.setTypeParser(pg.types.builtins.INT2, (v) => v);
+  pg.types.setTypeParser(pg.types.builtins.INT4, (v) => v);
+
   const client = new pg.Client({
     connectionString:
       process.env.SUPABASE_DB_URL ??
