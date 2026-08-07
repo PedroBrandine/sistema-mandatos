@@ -30,6 +30,12 @@ set -euo pipefail
 : "${SENHA:?SENHA não definida}"
 REGIAO="${REGIAO:-sa-east-1}"
 
+# Quebra de linha ou espaço colado junto ao copiar a senha para o secret vira
+# %0A/%20 depois do encode e o Postgres recusa, com a mesma mensagem de senha
+# errada. Tirar antes elimina essa classe de falso negativo.
+SENHA=$(printf %s "$SENHA" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+echo "Senha lida do secret: ${#SENHA} caracteres."
+
 # A senha entra numa URL; caracteres como @ : / ? # quebrariam o parsing.
 senha_enc=$(printf %s "$SENHA" | jq -sRr @uri)
 echo "::add-mask::$senha_enc"
