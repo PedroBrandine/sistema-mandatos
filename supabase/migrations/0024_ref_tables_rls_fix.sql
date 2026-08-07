@@ -1,4 +1,4 @@
--- Migration 0023: Desabilitar RLS e garantir GRANT de leitura nos catálogos de referência (ref_*)
+-- Migration 0024: Desabilitar RLS e garantir GRANT de leitura nos catálogos de referência (ref_*)
 
 ALTER TABLE public.ref_cargo DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ref_partido DISABLE ROW LEVEL SECURITY;
