@@ -154,6 +154,51 @@ dois dependem de três secrets já cadastrados no repositório:
 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PROD` e
 `SUPABASE_DB_PASSWORD_DEV`.
 
+### Por que o CI conecta pelo pooler, e não direto
+
+`db.<ref>.supabase.co` resolve **só em IPv6**, e runners do GitHub não têm
+IPv6. Conferido dentro do runner em 07/08/2026: nenhum registro A para o host
+direto, zero endereços IPv6 globais na máquina. Ou seja, `--linked` nunca vai
+conectar de dentro do CI, por mais correta que esteja a senha.
+
+O caminho é o pooler (Supavisor), que tem IPv4:
+
+```
+postgresql://postgres.<ref>:<senha>@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+```
+
+`.github/scripts/url-pooler.sh` descobre esse host pela Management API e
+monta a URL; os workflows usam `--db-url` em vez de `--linked`. Na sua máquina
+nada muda — você tem IPv6 e o `--linked` funciona normalmente.
+
+A mensagem de erro da CLI nesse cenário engana: ela diz
+`failed to connect to postgres` e sugere conferir `SUPABASE_DB_PASSWORD`, o que
+aponta para senha quando o problema é rede. Por isso o script sonda com `psql`,
+que repassa o motivo real do Postgres:
+
+| Mensagem do Postgres | Significa |
+| --- | --- |
+| `password authentication failed` | host e usuário certos, **senha errada** |
+| `tenant/user ... not found` | pooler errado para este projeto |
+| falha de rede/timeout | host inalcançável (o caso do IPv6) |
+
+### Senha do banco ≠ tudo o mais
+
+O secret `SUPABASE_DB_PASSWORD_*` é a senha do **Postgres**, não o access
+token nem chave de API. Se você não tem ela guardada, o caminho é *Project
+Settings → Database → Reset database password*. Resetar **não derruba a
+aplicação**: o app fala com o banco via PostgREST e chaves de API, não por
+conexão direta.
+
+### Versão da CLI fixa nos workflows de banco
+
+`deploy-db.yml` e `drift-check.yml` fixam `supabase/setup-cli` em `2.110.0`. Em
+07/08/2026 a `2.112.0` saiu às 10h08 UTC e às 12h47 já quebrava o
+`supabase link` com `failed to get api keys: SchemaError(... inserted_at)`.
+Com `version: latest`, uma release de terceiros derruba o deploy de produção
+sem que nada mude aqui. O `ci.yml` continua em `latest` de propósito: não
+linka em projeto remoto, e deixar flutuar faz a quebra aparecer num PR.
+
 ### Por que o job de banco efêmero importa
 
 Ele é a única coisa que prova que as migrations reconstroem o banco **do
