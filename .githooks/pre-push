@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# Recusa push direto na branch de produção.
+#
+# Por que existe: `master` publica em https://sistema-mandatos.vercel.app no
+# instante em que recebe um commit, e dispara o deploy-db.yml, que aplica
+# migrations no banco de PRODUÇÃO. Não há confirmação, revisão ou desfazer.
+#
+# A trava correta seria a proteção de branch do GitHub, mas ela é recurso pago
+# em repositório privado (testado em 06/08/2026: branch protection e rulesets
+# retornam 403 "Upgrade to GitHub Pro"). Este hook é o substituto possível.
+#
+# LIMITES -- seja honesto sobre eles:
+#   - vale só nesta máquina (hooks não são clonados automaticamente)
+#   - `git push --no-verify` passa por cima
+#   - não protege merges feitos pela interface do GitHub (que é o caminho certo)
+#
+# Ele impede o acidente, não o ato deliberado. O acidente é o risco real.
+#
+# Instalação (uma vez por clone):
+#   git config core.hooksPath .githooks
+
+BRANCH_PROTEGIDA="refs/heads/master"
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "$BRANCH_PROTEGIDA" ]; then
+    cat >&2 <<'MSG'
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │  PUSH DIRETO EM master BLOQUEADO                               │
+  └────────────────────────────────────────────────────────────────┘
+
+  master é a branch de PRODUÇÃO. Um push aqui:
+    - publica em https://sistema-mandatos.vercel.app na hora
+    - dispara o deploy-db.yml, que aplica migrations no banco de produção
+
+  O caminho correto é abrir um Pull Request:
+
+      git push origin <sua-branch>
+      gh pr create --base master
+
+  Assim o CI roda antes, e você revê o que está indo.
+
+  Se você REALMENTE precisa empurrar direto (correção urgente, e sabendo
+  o que está fazendo):
+
+      git push --no-verify
+
+MSG
+    exit 1
+  fi
+done
+
+exit 0

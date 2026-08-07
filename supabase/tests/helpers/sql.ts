@@ -42,7 +42,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // suite reliable without masking a real, persistent SQL error (which fails
 // identically on every attempt and still surfaces after retries are
 // exhausted).
-const MAX_ATTEMPTS = 4;
+// Contra o banco LOCAL não existe rede, Management API nem Cloudflare no
+// caminho -- não há falha transitória a absorver, e todo erro é
+// determinístico. Repetir ali é puro desperdício: cada teste que *espera* um
+// erro de SQL (todos os de CHECK/UNIQUE, dezenas deles) pagaria 14s de sleep
+// e estouraria o testTimeout de 30s. Foi exatamente o que aconteceu na
+// primeira execução do CI em 06/08/2026: a suíte passou de 22 min (cloud)
+// para 37+ min sem terminar. Local roda sem retry.
+const MAX_ATTEMPTS = TARGET_FLAG === "--local" ? 1 : 4;
 const RETRY_BASE_DELAY_MS = 2000;
 
 export async function runSql<T = Record<string, unknown>>(sql: string): Promise<T[]> {

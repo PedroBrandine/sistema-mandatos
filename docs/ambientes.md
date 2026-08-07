@@ -171,6 +171,37 @@ o banco do runner.
 
 ---
 
+## Proteção da branch de produção
+
+`master` publica em produção no instante em que recebe um commit, e dispara o
+`deploy-db.yml`. Não há confirmação nem desfazer.
+
+A trava correta seria a **proteção de branch do GitHub**, mas ela é recurso
+pago em repositório privado — testado em 06/08/2026, tanto a proteção clássica
+quanto os *rulesets* retornam `403 Upgrade to GitHub Pro`. As duas saídas
+oficiais seriam assinar o GitHub Pro (~US$ 4/mês) ou tornar o repositório
+público (inviável: o histórico contém uma `service_role` antiga).
+
+Na falta disso, existe um **git hook** em `.githooks/pre-push` que recusa push
+direto em `master`. Ele precisa ser habilitado uma vez por clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+**Limites, que importam:** vale só na máquina onde foi habilitado, e
+`git push --no-verify` passa por cima. Ele impede o acidente, não o ato
+deliberado — e o acidente é o risco real aqui.
+
+O caminho correto para levar código a produção continua sendo o Pull Request:
+
+```bash
+git push origin <sua-branch>
+gh pr create --base master
+```
+
+---
+
 ## Regras que evitam acidente
 
 1. **Confira o link antes de qualquer escrita.** `supabase db push`,
