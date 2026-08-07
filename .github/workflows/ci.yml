@@ -50,6 +50,11 @@ jobs:
 
       - run: npm ci
 
+      # Aqui `latest` é proposital, ao contrário do deploy-db.yml e do
+      # drift-check.yml, que são fixos. Este job não linka em projeto remoto
+      # (o banco é local ao runner), então o risco é menor -- e deixar flutuar
+      # faz uma quebra da CLI aparecer num PR, que é onde ela custa barato, em
+      # vez de aparecer no meio de um deploy para produção.
       - uses: supabase/setup-cli@v1
         with:
           version: latest

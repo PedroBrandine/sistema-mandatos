@@ -131,9 +131,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Versão FIXA, de propósito. Com `latest`, uma release da CLI publicada
+      # por terceiros quebra o caminho de deploy para produção sem que nada
+      # mude aqui -- foi o que aconteceu em 07/08/2026: a 2.112.0 saiu às 10h08
+      # UTC e às 12h47 o `supabase link` já falhava com
+      # `failed to get api keys: SchemaError(... at [2]["inserted_at"])`,
+      # validação de schema da resposta de chaves de API que ficou restrita
+      # demais. A 2.110.0 faz a mesma chamada sem erro.
+      #
+      # Para atualizar: suba a versão num PR e deixe o CI provar que passa.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.110.0
 
       - name: Linkar no projeto de produção
         env:

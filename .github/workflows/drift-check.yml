@@ -33,9 +33,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fixa pelo mesmo motivo do deploy-db.yml: este workflow também faz
+      # `supabase link`, e a 2.112.0 quebrou essa chamada (ver comentário lá).
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.110.0
 
       - name: Linkar em ${{ matrix.nome }}
         env:
