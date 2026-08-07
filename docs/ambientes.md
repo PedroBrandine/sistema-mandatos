@@ -3,7 +3,10 @@
 Referência operacional. Se você só precisa saber "qual é o link", "onde ficam
 as chaves" ou "como subo uma mudança", está tudo aqui.
 
-Última atualização: 06/08/2026.
+Para "o que eu faço agora" — ciclo de trabalho, checklist de release, backup,
+o que fazer quando o deploy falha — veja `docs/fluxo-de-trabalho.md`.
+
+Última atualização: 07/08/2026.
 
 ---
 
@@ -268,10 +271,10 @@ gh pr create --base master
 - **Produção sem dados de negócio**: os 34 usuários entram, mas não há
   contratantes, mandatos nem contratos. Os vínculos `rel_usuario_contrato` não
   foram copiados porque apontam para contratos inexistentes lá.
-- **`master` sem proteção de branch**: qualquer push vai direto para
-  produção. Falta exigir PR e CI verde (D4.7).
-- **Dia 5 não iniciado**: backups, regra de processo no `CLAUDE.md`,
-  `docs/fluxo-de-trabalho.md` e checklist de release.
+- **Política de backup de produção não conferida** (*Database → Backups* no
+  painel). No plano gratuito não há PITR. Enquanto produção não tiver dados de
+  negócio o risco é baixo; o dump manual está documentado em
+  `docs/fluxo-de-trabalho.md`.
 - **Docker não instalado**, por decisão consciente (a máquina tem 11,8 GB de
   RAM e ~90% de commit em uso). Consequência: sem `supabase db reset` local e
   sem `db diff` para detectar deriva. Ver `docs/roadmap-ambientes-prod-dev.md`.

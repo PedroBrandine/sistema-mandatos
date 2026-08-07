@@ -24,6 +24,15 @@ env:
   PROJECT_REF_PROD: dgoutrbqfuyaroobhxdq
   SITE_URL_PROD: https://sistema-mandatos.vercel.app
 
+# O padrão deste repositório concede ao GITHUB_TOKEN apenas contents e
+# packages (`default_workflow_permissions: read`). Sem declarar `actions`, a
+# consulta do job aguardar-ci volta 403 "Resource not accessible by
+# integration" -- foi o que travou o primeiro deploy real, em 07/08/2026.
+# Ambas são de leitura; nenhum job aqui escreve pelo token.
+permissions:
+  contents: read      # checkout no job de deploy
+  actions: read       # ler a conclusão do ci.yml no job aguardar-ci
+
 jobs:
   # Substituto gratuito de "required status checks".
   #
@@ -69,10 +78,26 @@ jobs:
           # nova para a mais antiga), então um "Re-run" manual é respeitado.
           # Sem execução ainda, a saída é vazia e o laço continua esperando.
           LIMITE=$(( SECONDS + 1200 ))
+          # Um erro de API não pode virar espera silenciosa: era assim que o
+          # 403 de permissão se disfarçava de "CI ainda rodando" e consumia os
+          # 20 min inteiros antes de abortar, sem dizer o motivo. Tolera um
+          # soluço de rede, desiste no terceiro seguido -- e diz o que houve.
+          FALHAS=0
 
           while :; do
-            estado=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
-                     --jq '[.workflow_runs[] | "\(.status):\(.conclusion // "pendente")"] | first // ""' || true)
+            if estado=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+                        --jq '[.workflow_runs[] | "\(.status):\(.conclusion // "pendente")"] | first // ""' 2>&1); then
+              FALHAS=0
+            else
+              FALHAS=$(( FALHAS + 1 ))
+              echo "Falha ao consultar a API do GitHub ($FALHAS/3): $estado"
+              if [ "$FALHAS" -ge 3 ]; then
+                echo "::error::Não consegui verificar o CI deste commit. Deploy abortado. Se a resposta acima for 403, falta 'permissions: actions: read' neste workflow."
+                exit 1
+              fi
+              sleep 20
+              continue
+            fi
 
             case "$estado" in
               completed:success)

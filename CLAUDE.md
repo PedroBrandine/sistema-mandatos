@@ -18,6 +18,7 @@ Supabase (Postgres + Auth + RLS), React Hook Form + Zod, hospedagem Vercel
 | `supabase/migrations/` | Migrations SQL — única forma permitida de alterar o schema |
 | `docs/schema_sistema.sql` | Modelo de dados **aprovado** (51 tabelas lógicas). Fonte de verdade do desenho; o banco real é provisionado incrementalmente a partir dele (AD-025 em `.specs/STATE.md`) |
 | `docs/ambientes.md` | **Fonte de verdade operacional** dos dois ambientes (refs, chaves, deploy, CI/CD) — leia antes de mexer em banco ou deploy |
+| `docs/fluxo-de-trabalho.md` | Como uma mudança chega em produção: ciclo de código, ciclo de schema, checklist de release, backup, o que fazer quando falha |
 | `.specs/` | Desenvolvimento guiado por spec (skill `tlc-spec-driven`): `overview.md` (arquitetura), `STATE.md` (decisões AD-XXX + handoffs), `roadmap.md` (plano de execução), `features/<nome>/` (spec/design/tasks/validation por feature) |
 | `DADOS TSE/` | Carga e dicionário de dados do espelho TSE (schema `tse.*`, read-only) |
 | `scripts/` | `gerar-link-acesso.ts`, `provisionar-senhas.ts` — provisionamento manual de usuários |
@@ -47,16 +48,29 @@ ou `db reset`, confira qual está linkado** (`cat supabase/.temp/project-ref`)
 | | Dev | Produção |
 | --- | --- | --- |
 | Branch | `develop` (e qualquer outra) | `master` |
-| Deploy | automático a cada push | automático a cada push — **sem rede de segurança além de PR + CI** |
+| Deploy | automático a cada push | automático a cada push, via merge em `master` |
 | Banco | dados de teste | dados de negócio reais |
 
+**Toda mudança de schema nasce como arquivo em `supabase/migrations/` e chega
+ao banco por `supabase db push`. O SQL Editor do Supabase é somente leitura.**
+Não é preferência de estilo: seis divergências entre dev e prod nasceram de SQL
+rodado à mão que nunca virou arquivo, e uma delas derrubou a produção inteira.
+Nenhuma era visível pelo `supabase migration list`, que compara a tabela de
+histórico e não o schema.
+
 - Migrations são **forward-only**: correção é arquivo novo, nunca editar uma
-  já aplicada.
-- SQL Editor do Supabase é **somente leitura** — SQL rodado à mão já causou
-  divergência entre dev e prod mais de uma vez.
+  já aplicada — nem em dev.
+- Arquivo novo se cria com `supabase migration new <nome>`, que gera prefixo de
+  timestamp. O padrão manual `00NN_` produziu dois `0023` e foi aposentado; os
+  arquivos antigos ficam como estão.
+- **Você nunca roda `db push` em produção.** O `deploy-db.yml` faz isso ao
+  receber o merge em `master`, e só se o CI daquele commit estiver verde.
 - `SUPABASE_SERVICE_ROLE_KEY` nunca leva prefixo `NEXT_PUBLIC_` (AD-009) — ela
   ignora RLS por completo.
 - Produção não recebe seed (`supabase/seed_test.sql` é só para dev).
+
+Antes de abrir PR para `master`, rode o checklist de release em
+`docs/fluxo-de-trabalho.md`.
 
 ## Trabalhando em uma feature nova
 
