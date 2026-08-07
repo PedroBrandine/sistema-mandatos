@@ -39,27 +39,24 @@ jobs:
         with:
           version: 2.110.0
 
-      - name: Linkar em ${{ matrix.nome }}
+      # O host direto resolve só em IPv6 e o runner não tem IPv6; o caminho é o
+      # pooler. Ver .github/scripts/url-pooler.sh. Exporta DB_URL.
+      - name: Descobrir URL IPv4 do banco (pooler)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
-        run: supabase link --project-ref "${{ matrix.ref }}"
+          PROJECT_REF: ${{ matrix.ref }}
+          SENHA: ${{ secrets[matrix.senha] }}
+        run: bash .github/scripts/url-pooler.sh
 
       - name: Histórico de migrations
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
-        run: supabase migration list --linked
+        run: supabase migration list --db-url "$DB_URL"
 
       # Falha se houver diferença entre o schema remoto e o que as migrations
       # descrevem. Uma falha aqui significa: alguém mexeu no banco por fora.
       - name: Diff de schema
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
         run: |
           set -o pipefail
-          supabase db diff --linked --schema public,app,tse,stg | tee diff.txt
+          supabase db diff --db-url "$DB_URL" --schema public,app,tse,stg | tee diff.txt
           if [ -s diff.txt ]; then
             echo "::error::Deriva detectada em ${{ matrix.nome }} — o banco não bate com as migrations."
             exit 1
@@ -68,7 +65,4 @@ jobs:
 
       - name: Auditoria de segurança
         if: always()
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets[matrix.senha] }}
-        run: supabase db advisors --linked --type all
+        run: supabase db advisors --db-url "$DB_URL" --type all
