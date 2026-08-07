@@ -83,14 +83,22 @@ export async function runSql<T = Record<string, unknown>>(sql: string): Promise<
       } catch (error) {
         // execFile's rejection carries the actual Postgres error (ERRCODE
         // included) in `.stdout` -- Node's default `.message` is just the
-        // generic "Command failed: <cmd>" (stderr-derived), which never
-        // contains the SQL error text. Callers that assert on error content
-        // (e.g. `error.message.toContain('23514')`, used across every
-        // CHECK/UNIQUE constraint test in this feature) need `.stdout`
-        // folded into `.message`, or every such assertion silently fails
-        // regardless of whether the constraint actually fired.
-        const stdout = (error as { stdout?: unknown }).stdout;
-        const stdoutStr = typeof stdout === "string" ? stdout : "";
+        // generic "Command failed: <cmd>", which never contains the SQL error
+        // text. Callers that assert on error content (e.g.
+        // `error.message.toContain('23514')`, usado em todo teste de
+        // CHECK/UNIQUE) precisam desse texto dobrado no `.message`, senão a
+        // asserção falha independentemente de a constraint ter disparado.
+        //
+        // Onde o texto aparece depende do alvo: com `--linked` o erro do
+        // Postgres volta no stdout (é o corpo da resposta da Management API);
+        // com `--local` o CLI o escreve no stderr. Ler os dois deixa o
+        // comportamento igual nos dois ambientes -- ler só stdout fazia todos
+        // os testes de constraint falharem em CI com "expected '...' to
+        // contain '23505'".
+        const { stdout, stderr } = error as { stdout?: unknown; stderr?: unknown };
+        const stdoutStr = [stdout, stderr]
+          .filter((s): s is string => typeof s === "string" && s.length > 0)
+          .join("\n");
         lastError = stdoutStr
           ? new Error(`${error instanceof Error ? error.message : String(error)}\n${stdoutStr}`)
           : error;
