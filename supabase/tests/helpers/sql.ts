@@ -61,7 +61,11 @@ export async function runSql<T = Record<string, unknown>>(sql: string): Promise<
       try {
         const { stdout } = await execFileAsync(
           SUPABASE_BIN,
-          ["db", "query", TARGET_FLAG, "--file", file],
+          // `--output-format json` é obrigatório: com `--linked` o CLI já
+          // devolve JSON por padrão, mas com `--local` ele imprime uma tabela
+          // ASCII e o JSON.parse abaixo estoura com
+          // `Unexpected token '┌'`. Explicitar deixa os dois alvos iguais.
+          ["db", "query", TARGET_FLAG, "--output-format", "json", "--file", file],
           // shell is required to spawn the `.cmd` shim on Windows; safe here
           // because the only interpolated argument is a temp-file path (no
           // SQL text reaches the shell command line at all).

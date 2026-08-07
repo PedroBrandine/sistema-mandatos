@@ -69,6 +69,24 @@ jobs:
       - name: Carregar o seed de teste
         run: supabase db query --local --file supabase/seed_test.sql
 
+      # Parte dos testes cria um cliente supabase-js a partir do .env.local
+      # (carregado por supabase/tests/setup-env.ts). No runner esse arquivo não
+      # existe -- sem ele, `createClient` falha com "supabaseUrl is required".
+      # `supabase status -o env` extrai URL e chaves do stack que acabou de
+      # subir; --override-name renomeia para as variáveis que o projeto usa.
+      - name: Gerar .env.local apontando para o stack do runner
+        run: |
+          supabase status -o env \
+            --override-name api.url=NEXT_PUBLIC_SUPABASE_URL \
+            --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY \
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY \
+            > .env.local
+          # Confere que as três saíram preenchidas, sem imprimir os valores.
+          for v in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            grep -q "^$v=." .env.local || { echo "::error::$v não foi gerada"; exit 1; }
+          done
+          echo "3 variáveis geradas."
+
       # SUPABASE_TEST_TARGET=local faz supabase/tests/helpers/sql.ts apontar
       # para o banco do runner em vez do projeto cloud de dev. Sem isso, dois
       # PRs simultâneos disputariam o mesmo banco compartilhado.
