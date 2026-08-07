@@ -150,11 +150,25 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
         run: supabase link --project-ref "$PROJECT_REF_PROD"
 
+      # TEMPORÁRIO -- diagnóstico da falha de conexão de 07/08/2026. Remover
+      # assim que a causa estiver identificada.
+      - name: Diagnóstico de conectividade
+        run: |
+          echo "=== host direto (db.<ref>.supabase.co) ==="
+          getent ahosts "db.$PROJECT_REF_PROD.supabase.co" || echo "(sem resolução alguma)"
+          echo "=== o runner tem rota IPv4 para o host direto? ==="
+          getent ahostsv4 "db.$PROJECT_REF_PROD.supabase.co" || echo "(sem registro A -- IPv6 apenas)"
+          echo "=== poolers da regiao (IPv4) ==="
+          getent ahostsv4 aws-0-sa-east-1.pooler.supabase.com | head -2 || echo "(aws-0 sem A)"
+          getent ahostsv4 aws-1-sa-east-1.pooler.supabase.com | head -2 || echo "(aws-1 sem A)"
+          echo "=== o runner tem IPv6 de saida? ==="
+          ip -6 addr show scope global | grep -c "inet6" || echo "0 enderecos IPv6 globais"
+
       - name: Conferir o que será aplicado
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
-        run: supabase migration list --linked
+        run: supabase migration list --linked --debug
 
       - name: Aplicar migrations
         env:
