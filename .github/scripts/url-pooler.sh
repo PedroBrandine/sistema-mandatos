@@ -59,13 +59,17 @@ for alvo in $candidatos; do
   h=${alvo%:*}
   p=${alvo##*:}
   url="postgresql://postgres.$PROJECT_REF:$senha_enc@$h:$p/postgres"
-  if supabase migration list --db-url "$url" >/dev/null 2>&1; then
+  # A saída do probe é o único sinal que distingue senha errada
+  # ("password authentication failed") de usuário/tenant errado ("Tenant or
+  # user not found") de rede. Engolir isso custou um ciclo inteiro.
+  if saida=$(supabase migration list --db-url "$url" 2>&1); then
     echo "::add-mask::$url"
     echo "Conectado via $h:$p"
     echo "DB_URL=$url" >> "${GITHUB_ENV:-/dev/stdout}"
     exit 0
   fi
-  echo "Sem conexão por $h:$p"
+  echo "--- sem conexão por $h:$p ---"
+  printf '%s\n' "$saida" | tail -4
 done
 
 echo "::error::Nenhum pooler respondeu para $PROJECT_REF. Confira a senha do banco no secret correspondente e o host em Project Settings → Database → Connection pooling."
