@@ -67,17 +67,24 @@ const RETRY_BASE_DELAY_MS = 2000;
  *
  * SUPABASE_DB_URL é gerada no workflow a partir de `supabase status -o env`.
  */
-// OIDs dos tipos numéricos do Postgres: int8, int2, int4, float4, float8,
-// numeric. A Management API serializa todos como string no JSON de resposta,
-// e é sobre esse formato que as asserções foram escritas (`toEqual(['11'])`).
-// O `pg` devolve int2/int4/float como Number.
+// OIDs numéricos do Postgres: int8, numeric, float4, float8.
 //
-// A conversão é feita aqui, usando `fields[].dataTypeID` do próprio resultado,
-// em vez de `pg.types.setTypeParser` -- que foi tentado primeiro e não surtiu
-// efeito através do wrapper ESM do driver. Usar os metadados da consulta
-// também é mais preciso: converte só o que veio de coluna numérica, deixando
-// intactos os números dentro de payloads jsonb (que a API igualmente preserva
-// como números).
+// O `db query --linked` devolve esses valores como NÚMERO no JSON (conferido:
+// `"id_coalizao": 103`), e é sobre isso que as asserções foram escritas --
+// inclusive as que comparam um id vindo daqui com o mesmo id vindo do
+// PostgREST, que também entrega número.
+//
+// O `pg`, por outro lado, devolve int8/numeric como STRING por padrão, para
+// não perder precisão em valores acima de Number.MAX_SAFE_INTEGER. Como as
+// chaves deste projeto são BIGSERIAL, todo id chegava como "103" e as
+// comparações falhavam com `expected [ 11 ] to deeply equal [ '11' ]`.
+//
+// int2/int4 o `pg` já devolve como número; ficam na lista só por simetria.
+//
+// A conversão usa `fields[].dataTypeID` do próprio resultado em vez de
+// `pg.types.setTypeParser` (tentado antes, sem efeito através do wrapper ESM
+// do driver). Também é mais preciso: alcança apenas colunas numéricas e deixa
+// intactos os números dentro de payloads jsonb.
 const OIDS_NUMERICOS = new Set([20, 21, 23, 700, 701, 1700]);
 
 function normalizarNumeros(resultado: {
@@ -92,7 +99,10 @@ function normalizarNumeros(resultado: {
   return linhas.map((linha) => {
     const copia = { ...linha };
     for (const coluna of colunas) {
-      if (typeof copia[coluna] === "number") copia[coluna] = String(copia[coluna]);
+      const valor = copia[coluna];
+      if (typeof valor === "string" && valor !== "" && Number.isFinite(Number(valor))) {
+        copia[coluna] = Number(valor);
+      }
     }
     return copia;
   });
