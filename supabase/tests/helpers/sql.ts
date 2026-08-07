@@ -67,16 +67,39 @@ const RETRY_BASE_DELAY_MS = 2000;
  *
  * SUPABASE_DB_URL é gerada no workflow a partir de `supabase status -o env`.
  */
+// OIDs dos tipos numéricos do Postgres: int8, int2, int4, float4, float8,
+// numeric. A Management API serializa todos como string no JSON de resposta,
+// e é sobre esse formato que as asserções foram escritas (`toEqual(['11'])`).
+// O `pg` devolve int2/int4/float como Number.
+//
+// A conversão é feita aqui, usando `fields[].dataTypeID` do próprio resultado,
+// em vez de `pg.types.setTypeParser` -- que foi tentado primeiro e não surtiu
+// efeito através do wrapper ESM do driver. Usar os metadados da consulta
+// também é mais preciso: converte só o que veio de coluna numérica, deixando
+// intactos os números dentro de payloads jsonb (que a API igualmente preserva
+// como números).
+const OIDS_NUMERICOS = new Set([20, 21, 23, 700, 701, 1700]);
+
+function normalizarNumeros(resultado: {
+  rows?: Record<string, unknown>[];
+  fields?: { name: string; dataTypeID: number }[];
+}): Record<string, unknown>[] {
+  const linhas = resultado.rows ?? [];
+  const colunas = (resultado.fields ?? [])
+    .filter((f) => OIDS_NUMERICOS.has(f.dataTypeID))
+    .map((f) => f.name);
+  if (colunas.length === 0) return linhas;
+  return linhas.map((linha) => {
+    const copia = { ...linha };
+    for (const coluna of colunas) {
+      if (typeof copia[coluna] === "number") copia[coluna] = String(copia[coluna]);
+    }
+    return copia;
+  });
+}
+
 async function runSqlLocal<T>(sql: string): Promise<T[]> {
   const { default: pg } = await import("pg");
-
-  // A Management API serializa todo número como string no JSON de resposta, e
-  // é sobre esse formato que as asserções foram escritas (`toEqual(['11'])`).
-  // O driver `pg` converte int2/int4 para Number por padrão -- int8 e numeric
-  // ele já devolve como string. Alinhar os dois evita reescrever os testes e
-  // mantém um único conjunto de asserções válido nos dois alvos.
-  pg.types.setTypeParser(pg.types.builtins.INT2, (v) => v);
-  pg.types.setTypeParser(pg.types.builtins.INT4, (v) => v);
 
   const client = new pg.Client({
     connectionString:
@@ -90,7 +113,7 @@ async function runSqlLocal<T>(sql: string): Promise<T[]> {
     // helper esperam as linhas do último comando que produziu linhas.
     const resultados = Array.isArray(resultado) ? resultado : [resultado];
     const comLinhas = [...resultados].reverse().find((r) => r?.rows?.length);
-    return ((comLinhas ?? resultados[resultados.length - 1])?.rows ?? []) as T[];
+    return normalizarNumeros(comLinhas ?? resultados[resultados.length - 1]) as T[];
   } catch (error) {
     // Dobra o SQLSTATE na mensagem, no mesmo formato que os testes esperam
     // encontrar quando rodam contra o projeto remoto.
