@@ -71,11 +71,15 @@ export async function runSql<T = Record<string, unknown>>(sql: string): Promise<
           // SQL text reaches the shell command line at all).
           { maxBuffer: 10 * 1024 * 1024, shell: true }
         );
+        // Os dois alvos devolvem JSON, mas com formatos diferentes:
+        //   --linked : {"boundary": ..., "rows": [...], "warning": ...}
+        //   --local  : [...]  (array puro)
         const parsed = JSON.parse(stdout);
-        if (parsed.rows === undefined) {
+        const rows = Array.isArray(parsed) ? parsed : parsed.rows;
+        if (rows === undefined) {
           throw new Error(`Unexpected supabase db query output: ${stdout}`);
         }
-        return parsed.rows as T[];
+        return rows as T[];
       } catch (error) {
         // execFile's rejection carries the actual Postgres error (ERRCODE
         // included) in `.stdout` -- Node's default `.message` is just the
