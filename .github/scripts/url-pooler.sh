@@ -55,14 +55,23 @@ fi
 # transação (6543) não suporta.
 candidatos="$candidatos aws-0-$REGIAO.pooler.supabase.com:5432 aws-1-$REGIAO.pooler.supabase.com:5432"
 
+# O probe precisa dizer POR QUE falhou: senha errada, tenant inexistente e
+# rede inalcançável exigem correções completamente diferentes. A CLI do
+# Supabase embrulha os três no mesmo "PgClient: Failed to connect", então
+# quando houver `psql` a sondagem usa ele, que repassa a mensagem do Postgres
+# literalmente ("password authentication failed", "Tenant or user not found").
+if command -v psql >/dev/null 2>&1; then
+  probe() { psql "$1" -tAc 'select 1' 2>&1; }
+else
+  echo "psql indisponível; sondando com a CLI (mensagens de erro mais pobres)."
+  probe() { supabase migration list --db-url "$1" 2>&1; }
+fi
+
 for alvo in $candidatos; do
   h=${alvo%:*}
   p=${alvo##*:}
   url="postgresql://postgres.$PROJECT_REF:$senha_enc@$h:$p/postgres"
-  # A saída do probe é o único sinal que distingue senha errada
-  # ("password authentication failed") de usuário/tenant errado ("Tenant or
-  # user not found") de rede. Engolir isso custou um ciclo inteiro.
-  if saida=$(supabase migration list --db-url "$url" 2>&1); then
+  if saida=$(probe "$url"); then
     echo "::add-mask::$url"
     echo "Conectado via $h:$p"
     echo "DB_URL=$url" >> "${GITHUB_ENV:-/dev/stdout}"
