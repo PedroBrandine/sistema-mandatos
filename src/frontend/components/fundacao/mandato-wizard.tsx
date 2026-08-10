@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { ChevronRight, IdCard, Landmark, Lock, Pencil, Stamp, Users, XCircle, FileSignature } from "lucide-react";
 
-import { DuplicataDetectadaError } from "@backend/rpc/errors";
+import { DuplicataDetectadaError, ViolacaoUnicaError } from "@backend/rpc/errors";
 import { criarMandato } from "@backend/rpc/mandato";
 import { contratanteSchema } from "@backend/schemas/contratante";
 import { mandatoSchema } from "@backend/schemas/mandato";
@@ -117,6 +117,11 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
   const [coalizoes, setCoalizoes] = useState<RefOption[]>([]);
   const [similares, setSimilares] = useState<ContratanteSimilar[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  // CMU-04 (AC5): quando a checagem prévia passa mas o INSERT ainda assim
+  // colide com dim_mandato_nr_titulo_eleitoral_key (condição de corrida --
+  // outra sessão cadastrou o mesmo título entre a checagem e o envio), guarda
+  // o título que colidiu para oferecer a mesma ação do passo "existente".
+  const [duplicataTitulo, setDuplicataTitulo] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [checandoExistente, setChecandoExistente] = useState(false);
 
@@ -242,6 +247,7 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
   async function submeter(valores: WizardFormValues, ignorarDuplicata = false) {
     setEnviando(true);
     setErro(null);
+    setDuplicataTitulo(null);
     try {
       const supabase = createClient();
       
@@ -287,6 +293,13 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
     } catch (e) {
       if (e instanceof DuplicataDetectadaError) {
         setSimilares(e.similares);
+      } else if (e instanceof ViolacaoUnicaError && e.constraint === "dim_mandato_nr_titulo_eleitoral_key") {
+        // Condição de corrida: a checagem prévia (checkExistente) passou, mas
+        // outra sessão cadastrou o mesmo título eleitoral entre a checagem e
+        // este envio. Mensagem amigável já vem de mapeiaErroRpc; a ação de
+        // "ver mandato existente" fica no botão abaixo do erro (ver JSX).
+        setErro(e.message);
+        setDuplicataTitulo(valores.mandato?.nr_titulo_eleitoral ?? null);
       } else {
         setErro(e instanceof Error ? e.message : "Erro ao cadastrar mandato ou contrato.");
       }
@@ -875,9 +888,23 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
             </Card>
 
             {erro && (
-              <div className="mt-6 flex items-center gap-2 rounded-lg bg-destructive/15 p-4 text-sm font-medium text-destructive">
-                <XCircle className="size-4" />
-                {erro}
+              <div className="mt-6 flex flex-col gap-3 rounded-lg bg-destructive/15 p-4 text-sm font-medium text-destructive">
+                <div className="flex items-center gap-2">
+                  <XCircle className="size-4" />
+                  {erro}
+                </div>
+                {duplicataTitulo && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit"
+                    disabled={checandoExistente}
+                    onClick={() => void checkExistente(duplicataTitulo)}
+                  >
+                    Ver mandato existente / abrir contrato para ele
+                  </Button>
+                )}
               </div>
             )}
           </form>
