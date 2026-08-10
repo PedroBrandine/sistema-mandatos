@@ -6,7 +6,7 @@ as chaves" ou "como subo uma mudança", está tudo aqui.
 Para "o que eu faço agora" — ciclo de trabalho, checklist de release, backup,
 o que fazer quando o deploy falha — veja `docs/fluxo-de-trabalho.md`.
 
-Última atualização: 07/08/2026.
+Última atualização: 10/08/2026.
 
 ---
 
@@ -20,7 +20,7 @@ o que fazer quando o deploy falha — veja `docs/fluxo-de-trabalho.md`.
 | **Região** | `sa-east-1` | `sa-east-1` |
 | **Ambiente Vercel** | Preview + Development | Production |
 | **Branch** | `develop` (e qualquer outra) | `master` |
-| **Migrations** | 28/28 | 28/28 |
+| **Migrations** | 30/30 | 30/30 |
 | **Usuários** | 34 contas / 51 perfis | 34 contas / 52 perfis |
 | **Dados de negócio** | dados de teste | **vazio** |
 
@@ -341,3 +341,25 @@ gh pr create --base master
 - **Docker não instalado**, por decisão consciente (a máquina tem 11,8 GB de
   RAM e ~90% de commit em uso). Consequência: sem `supabase db reset` local e
   sem `db diff` para detectar deriva. Ver `docs/roadmap-ambientes-prod-dev.md`.
+- **A migration `0008` não é determinística**: chama
+  `app.cria_particoes_log(CURRENT_DATE, 18)`, então reconstruir o banco em outra
+  data gera um conjunto diferente de partições. Hoje isso só produz ruído no
+  `db diff` (6 statements em dev, filtrados como `particao-datada`). Corrigir
+  exige migration nova com datas fixas; não vale mexer antes de a retenção de
+  24 meses virar assunto.
+- **`EXECUTE` a `PUBLIC` nas funções de `app`**: é o padrão do Postgres em toda
+  função nova, inclusive nas `SECURITY DEFINER`. Endurecer (`REVOKE ... FROM
+  PUBLIC` + `GRANT` explícito por papel) precisa ser testado função por função
+  — foi deixado de fora do alinhamento de 10/08 de propósito.
+
+### Verificado em 10/08/2026
+
+Primeira execução do ciclo completo, ponta a ponta e verde:
+
+| | |
+| --- | --- |
+| `aguardar-ci` | esperou o CI, viu verde e liberou o deploy |
+| `deploy-db.yml` | aplicou as 2 migrations novas em produção (30/30) |
+| `config push` | aplicado |
+| `drift-check` | **sem deriva em dev e em prod** |
+| Testes | 91 unitários + integração verdes, contra dev e contra banco efêmero |
