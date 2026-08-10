@@ -150,7 +150,12 @@ perdidas pela `0023`) e com a `0028` (produção 100% fora do ar por falta de um
 | `Descobrir URL IPv4 do banco` | não chegou ao banco — a própria mensagem de erro diz se é senha, pooler errado ou rede. **Nada foi aplicado** |
 | `Aplicar migrations` | o `db push` quebrou; o banco pode estar parcialmente aplicado — leia o log antes de repetir |
 | `Aplicar configuração de auth` | migrations entraram, `config.toml` não |
-| `Auditoria de segurança` | tudo foi aplicado; há um alerta de segurança de nível `error` para resolver |
+
+O último passo, `Auditoria de segurança`, **lista mas não bloqueia**. Ele
+imprime 4 alertas `ERROR` esperados — `rls_disabled_in_public` em `ref_cargo`,
+`ref_partido`, `ref_produto` e `ref_projeto`, catálogos de referência onde a
+migration `0024` desligou RLS de propósito. Se aparecer um quinto, é novo e
+merece atenção.
 
 O CI conecta no banco pelo **pooler**, não pelo host direto: `db.<ref>.supabase.co`
 resolve só em IPv6 e runners do GitHub não têm IPv6. Na sua máquina o
