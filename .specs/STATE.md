@@ -261,14 +261,14 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ## Handoff
 
-- **Feature**: Login com senha (Interno Legisla) (`.specs/features/login-senha-interno-legisla/`) — **CONCLUÍDA e verificada**.
-- **Phase / Task**: Execute concluído, Verifier independente retornou **PASS** (7/7 AUTHPWD-01..07, 0 gaps). Relatório em `.specs/features/login-senha-interno-legisla/validation.md`. `spec.md` atualizado (todos os requisitos = ✅ Verified).
-- **Completed**: Specify (`86426df`) → Execute — `src/frontend/components/login-form.tsx` trocado pra `signInWithPassword` (`0633abd`) + `scripts/provisionar-senhas.ts` novo (`defbef7`) → Validate (PASS).
-- **Next step**: nenhum pendente **nesta feature**. Falta só o passo manual fora do código: Pedro rodar `npm run provisionar-senhas -- <senha> <emails...>` pra equipe real e confirmar com pelo menos 1 colega real que o login funciona no Preview (Success Criteria do spec.md, não verificável por agente).
+- **Feature**: Plataforma de UI — TanStack + Estados Padrão (`.specs/features/plataforma-ui-tanstack/`) — **CONCLUÍDA e validada**, 1 item não-bloqueante pendente de UAT manual.
+- **Phase / Task**: Design já vinha completo de sessão anterior. Execute rodou nesta sessão como lista inline de 5 passos (escopo Medium, sem `tasks.md` formal). Verifier independente retornou **PASS** (11/12 PUI-01..12 Verified via evidência de código; PUI-06 tem a mecânica verificada por código, mas a confirmação visual literal do toast depende de UAT manual humano — sem navegador disponível ao Verifier, não é gap de implementação). Sensor de discriminação: 3 mutações injetadas, 0/3 mortas pelo gate build/lint — esperado, este projeto não tem suíte de teste de componente de frontend (débito pré-existente, documentado em `design.md`). Relatório completo em `.specs/features/plataforma-ui-tanstack/validation.md`.
+- **Completed**: Specify → Design (sessão anterior) → Execute: instala `@tanstack/react-query`+`@tanstack/react-table` (`1374f26`) → `QueryClientProvider`+`Toaster` no layout raiz (`d19c59f`) → `<CarregandoSkeleton>` (`f581d82`) → `<ErroInline>` (`dd45087`) → `<EstadoVazio>` (`266dfba`) → rastreabilidade (`932c1fd`) → Validate (`bd160be`, PASS).
+- **Next step**: nenhum obrigatório de código. Pendente: UAT manual humano de PUI-06 — abrir `/mandatos`, excluir um registro de teste, confirmar visualmente que o toast de sucesso aparece; forçar uma exclusão bloqueada por RLS e confirmar o toast de erro. Não bloqueia a feature.
 - **Blockers**: none.
-- **Uncommitted files**: none.
-- **Branch**: master.
-- **Contexto que sobrevive desta feature**: `scripts/gerar-link-acesso.ts` (magic link manual, commits `2ff74ed`/`71afc69`) e `src/frontend/app/admin/acesso/` + `src/backend/supabase/proxy.ts` (bypass dev-only, `d2fe357`) continuam existindo, Out of Scope, não tocar. `src/backend/supabase/admin.ts` (`createAdminClient`, service_role) é reusado tanto por eles quanto pelo script novo desta feature.
+- **Uncommitted files**: none desta feature. **Nota**: `.specs/lessons.json`/`.specs/LESSONS.md` têm mudanças no working tree — mistura o lesson `L-007` desta feature com lessons `L-003..L-006` de outra sessão paralela (`cadastro-mandato-contrato-unificado`), ainda não commitadas por ninguém. Deliberadamente não commitado por este agente para não atribuir trabalho de outra sessão ao commit desta feature — quem fechar por último deve commitar o estado final.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: outras duas features (`cadastro-mandato-contrato-unificado`, `catalogos-referencia`) commitaram intercaladas neste mesmo branch `develop` durante a execução desta feature (ver `git log` — commits `d4dba31`, `487dc7d`, `a39e500`, `c8a2e25`, `50640f7` entre os 6 desta feature). Nenhum arquivo desta feature colidiu, mas confirme `git status`/`git log` antes de qualquer operação de escrita em arquivo compartilhado (`package.json`, `package-lock.json`, `.specs/lessons.json`, `.specs/STATE.md`).
 
 ---
 
