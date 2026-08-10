@@ -6,12 +6,12 @@ O wizard de cadastro (`MandatoWizard`, `/mandatos/novo`) só cobre a criação d
 
 ## Goals
 
-- [ ] Uma Gestora cadastra um mandato (via TSE ou manual) **e** abre o contrato dele (Produto, Projeto, Coalizão opcional) numa única tela, sem passar por uma segunda tela separada.
-- [ ] Buscar e re-selecionar um parlamentar já cadastrado (mesmo título eleitoral) nunca mais gera erro de duplicata — o sistema reconhece o mandato existente e oferece abrir um novo contrato para ele.
-- [ ] A busca de candidatura do TSE dentro do wizard é um combobox/autocomplete (digitar e escolher), não mais um formulário de filtro + tabela de resultados.
-- [ ] O título eleitoral confirmado pelo TSE nunca é editável na tela.
-- [ ] A base `tse.*` só contém candidaturas de cargos do Legislativo (Vereador(a), Deputado(a) Estadual, Deputado(a) Federal, Senador(a)) — o restante (Executivo e demais) é removido na origem.
-- [ ] Uma Coalizão também consegue abrir seu próprio contrato (hoje só mandato tem essa tela).
+- [x] Uma Gestora cadastra um mandato (via TSE ou manual) **e** abre o contrato dele (Produto, Projeto, Coalizão opcional) numa única tela, sem passar por uma segunda tela separada.
+- [x] Buscar e re-selecionar um parlamentar já cadastrado (mesmo título eleitoral) nunca mais gera erro de duplicata — o sistema reconhece o mandato existente e oferece abrir um novo contrato para ele.
+- [x] A busca de candidatura do TSE dentro do wizard é um combobox/autocomplete (digitar e escolher), não mais um formulário de filtro + tabela de resultados.
+- [x] O título eleitoral confirmado pelo TSE nunca é editável na tela.
+- [x] A base `tse.*` só contém candidaturas de cargos do Legislativo (Vereador(a), Deputado(a) Estadual, Deputado(a) Federal, Senador(a)) — o restante (Executivo e demais) é removido na origem.
+- [x] Uma Coalizão também consegue abrir seu próprio contrato (hoje só mandato tem essa tela).
 
 ## Out of Scope
 
@@ -183,68 +183,75 @@ Toda ambiguidade foi resolvida ou registrada aqui — nada fica silenciosamente 
 
 ## Requirement Traceability
 
-> **Nota de método (auditoria de 2026-08-10, Trilha A do roadmap):** os status abaixo vêm de
-> **leitura direta do código real** (não da auditoria anterior do roadmap, que foi conferida item a
-> item nesta sessão) — não do sub-agente Verifier formal da skill. Por isso o rótulo usado é
-> **"Implemented"**, nunca **"Verified"**: "Verified" fica reservado pra depois que a fase Validate
-> (Verifier independente, autor ≠ verificador) rodar de fato sobre os 16 requisitos — item 3 da
-> Trilha A em `.specs/roadmap.md`, ainda não executado, fora do escopo desta sessão. Toda divergência
-> encontrada contra a letra do Acceptance Criteria está documentada na célula correspondente, com
-> arquivo:linha como evidência, e as que exigem decisão de produto/processo (não só código) estão
-> listadas em **Perguntas abertas para Pedro**, abaixo.
+> **Nota de método (Validate formal, 2026-08-10 — segunda sessão):** os status abaixo vêm da fase
+> Validate real, com um Verifier independente (autor ≠ verificador) rodado duas vezes: uma auditoria
+> completa dos 16 requisitos, e um Fix Round 1 fechando os gaps de cobertura de teste de backend que
+> a primeira rodada encontrou (relatório completo em `validation.md`). CMU-15 e CMU-16 foram
+> implementados nesta mesma sessão (commits `a39e500`/`c8a2e25`); CMU-04 e CMU-14 AC5 — que a auditoria
+> anterior (sessão passada, leitura de código sem Verifier) tinha deixado como ⚠️ parciais — foram
+> corrigidos nesta sessão (commits `487dc7d`/`d4dba31`) e depois verificados. Onde o rótulo é
+> **"Verified"**, é literal: passou pelo Verifier. Onde carrega ressalva explícita, a ressalva está
+> documentada na célula e detalhada em `validation.md`.
 
 | Requirement ID | Story | Phase | Status |
 | --------------- | ----- | ----- | ------- |
-| CMU-01 | P1: reaproveitar mandato existente (AC1/AC2 — detecção por título) | Implement | ✅ Implemented — `checkExistente` roda dentro de `iniciarRevisao` (fluxo TSE) e no início de `submeter` (fluxo manual), pula a criação do mandato e mostra o passo `"existente"` com aviso antes de ir pro contrato — `mandato-wizard.tsx:151-176` |
-| CMU-02 | P1: reaproveitar mandato existente (AC3 — só cria contrato, nunca recria mandato) | Implement | ✅ Implemented — `app.criar_mandato` só entra no branch de `INSERT` em `dim_contratante`/`dim_mandato`/`rel_mandato_candidatura` quando `p_id_contratante_existente` é nulo; caso contrário só resolve `v_id_mandato` por `SELECT` — `0022_cadastro_mandato_contrato_unificado.sql:47-115` |
-| CMU-03 | P1: reaproveitar mandato existente (AC4 — título nulo = mandato novo) | Implement | ✅ Implemented — `checkExistente` retorna `false` sem consultar o banco quando `nrTituloEleitoral` é nulo/vazio, seguindo fluxo normal — `mandato-wizard.tsx:152` |
-| CMU-04 | P1: reaproveitar mandato existente (AC5 — condição de corrida tratada com mensagem amigável) | Implement | ⚠️ Implementado parcialmente — a mensagem amigável aparece (`mapeiaErroRpc` já mapeia a constraint `dim_mandato_nr_titulo_eleitoral_key` pra essa frase, `errors.ts:70`), mas a **ação** "ver mandato existente / abrir contrato para ele" exigida pela letra do AC5 não existe: o `catch` de `submeter` trata qualquer erro que não seja `DuplicataDetectadaError` só como texto simples (`setErro`), sem nenhum botão/link de ação — `mandato-wizard.tsx:287-295`. Ver **Perguntas abertas para Pedro** (Q1). |
-| CMU-05 | P1: wizard único (AC1/AC2 — etapa de contrato com Produto/Projeto/Coalizão na mesma tela) | Implement | ✅ Implemented — bloco "Abertura de Contrato" dentro do mesmo `<form>` do wizard, incluindo regra de `papel`/`nome_grupo` da coalizão — `mandato-wizard.tsx:711-858` |
-| CMU-06 | P1: wizard único (AC3/AC5 — persistência atômica, sem escrita parcial) | Implement | ✅ Implemented — uma única chamada RPC (`app.criar_mandato`) cobre mandato (quando novo) + contrato + vínculo de coalizão (quando selecionado) dentro da mesma função Postgres — atomicidade vem de ser uma função só, sem sequência de chamadas soltas do cliente — `0022...sql:27-146`, `rpc/mandato.ts:43-66` |
-| CMU-07 | P1: wizard único (AC4 — navega pro detalhe do mandato ao concluir) | Implement | ✅ Implemented — `router.push(\`/mandatos/${resultado.idMandato}\`)` após sucesso, inclusive no ramo de mandato existente (RPC resolve `v_id_mandato` por `SELECT` mesmo nesse ramo) — `mandato-wizard.tsx:286` |
-| CMU-08 | P1: combobox TSE (AC1/AC2 — autocomplete com debounce substitui filtro+tabela) | Implement | ✅ Implemented — `Command`/`Popover` do shadcn, debounce de 500ms (`use-debounce`), colunas nome de urna/UF/partido/ano/confiança — `tse-match-search.tsx:34-156` |
-| CMU-09 | P1: combobox TSE (AC3/AC4 — modo manual e filtros opcionais preservados) | Implement | ✅ Implemented — `modoManual` ativa quando a busca retorna vazio; UF/ano continuam opcionais ao lado do combobox — `tse-match-search.tsx:63,139-152` |
-| CMU-10 | P1: combobox TSE (AC5 — erro de rede tratado) | Implement | ✅ Implemented — `try/catch` em torno de `buscarCandidaturas` seta mensagem genérica sem propagar exceção pro resto do wizard — `tse-match-search.tsx:52-69` |
-| CMU-11 | P1: título eleitoral travado (AC1/AC2/AC3) | Implement | ✅ Implemented — `readOnly={passo.tipo === "revisar"}` + estilo `bg-muted/50` + legenda "Vindo do TSE" só nesse passo; editável normalmente no passo `"manual"` — `mandato-wizard.tsx:405-422` |
-| CMU-12 | P1: base TSE restrita ao Legislativo (AC1/AC2 — migração + refresh das MVs) | Implement | ⚠️ Implementado, mas o passo de verificação exigido pela própria assumption do spec não está documentado — a migration apaga `cd_cargo NOT IN (5,6,7,13)` de `dim_candidatura`/`fat_votacao_zona` e refresca as 2 MVs (`0022...sql:1-22`); os códigos batem com o seed de `ref_cargo` (`0007_catalogos_fundacao.sql:73-80`), mas a assumption do spec (linha "Chave exata de cargo pra filtrar") exigia confirmar contra `SELECT DISTINCT cd_cargo, ds_cargo FROM tse.dim_candidatura` **antes** do `DELETE` — não há essa evidência na migration, nem em `tasks.md`/`validation.md` (que não existem para esta feature, porque nenhuma fase Tasks foi aberta). Ver **Perguntas abertas para Pedro** (Q3). |
-| CMU-13 | P1: base TSE restrita ao Legislativo (AC3 — checagem de vínculo existente antes de apagar) | Implement | ✅ Resolvido retroativamente — `0022...sql:11-15` apagou o vínculo de `rel_mandato_candidatura` de um cargo fora do Legislativo sem decisão documentada antes (comentário da própria migration: "we know there's one for Prefeito"), mas Pedro confirmou em 2026-08-10 que Executivo está fora de escopo (**AD-031**). Débito histórico aceito, dado já apagado não é restaurado. |
-| CMU-14 | P1: base TSE restrita ao Legislativo (AC4/AC5 — busca já filtrada + regra do ETL futuro) | Implement | ⚠️ Parcial — AC4 ✅ Implemented (a busca sai naturalmente filtrada da origem; `buscarCandidaturas` não precisa de filtro adicional). AC5 ❌ Needs Fix — nem `public.carrega_tse` (`0027_carrega_tse.sql`) nem `DADOS TSE/carga_amostral.js` filtram por cargo, e não existe nenhum AD em `.specs/STATE.md` documentando essa regra pra cargas futuras; uma nova safra do TSE carregada hoje reintroduziria os cargos que 0022/0026 removeram. Ver **Perguntas abertas para Pedro** (Q2). |
-| CMU-15 | P2: contrato próprio da Coalizão (AC1/AC2/AC3) | Design | Design concluído nesta sessão — ver `design.md`. Não implementado: confirmado que `/coalizoes/[id]/page.tsx` hoje não tem nenhuma ação "Novo contrato" nem lista os contratos da própria coalizão (só a lista de membros). Tasks/Execute ainda não rodaram. |
-| CMU-16 | P2: correção FND-COL-03 (AC1) | Design | Design concluído nesta sessão — ver `design.md`. Não implementado: confirmado no código que o seletor de `"Adicionar membro"` (`coalizoes/[id]/page.tsx:82-87`) carrega `fat_contrato` sem nenhum filtro por `tipo_contratante`, exatamente o débito `FND-COL-03` que o comentário do próprio arquivo já admite (linha 79-82). Tasks/Execute ainda não rodaram. |
+| CMU-01 | P1: reaproveitar mandato existente (AC1/AC2 — detecção por título) | Execute | ✅ Verified — `checkExistente` roda dentro de `iniciarRevisao` (fluxo TSE) e no início de `submeter` (fluxo manual), pula a criação do mandato e mostra o passo `"existente"` com aviso antes de ir pro contrato — `mandato-wizard.tsx:151-176`. AC3/AC5 (backend) agora com teste de integração e sensor confirmando (Fix Round 1) |
+| CMU-02 | P1: reaproveitar mandato existente (AC3 — só cria contrato, nunca recria mandato) | Execute | ✅ Verified — `app.criar_mandato` só entra no branch de `INSERT` em `dim_contratante`/`dim_mandato`/`rel_mandato_candidatura` quando `p_id_contratante_existente` é nulo; caso contrário só resolve `v_id_mandato` por `SELECT` — `0022_cadastro_mandato_contrato_unificado.sql:47-115`. Teste de integração dedicado (Fix Round 1) prova ausência de linha nova em `dim_contratante`/`dim_mandato` |
+| CMU-03 | P1: reaproveitar mandato existente (AC4 — título nulo = mandato novo) | Execute | ✅ Verified (code-verified, UI — sem harness de teste de componente neste projeto) — `checkExistente` retorna `false` sem consultar o banco quando `nrTituloEleitoral` é nulo/vazio, seguindo fluxo normal — `mandato-wizard.tsx:152` |
+| CMU-04 | P1: reaproveitar mandato existente (AC5 — condição de corrida tratada com mensagem amigável) | Execute | ✅ Verified — corrigido nesta sessão (`487dc7d`): o `catch` de `submeter` reconhece `ViolacaoUnicaError` com `constraint === "dim_mandato_nr_titulo_eleitoral_key"` e oferece o botão "Ver mandato existente / abrir contrato para ele", reaproveitando `checkExistente` — `mandato-wizard.tsx:296-302,896-907`. Mensagem exata agora com teste dedicado, mutante confirmado morto (Fix Round 1) |
+| CMU-05 | P1: wizard único (AC1/AC2 — etapa de contrato com Produto/Projeto/Coalizão na mesma tela) | Execute | ⚠️ Verified com spec-precision gap — os campos batem (Produto/Projeto/Data de início/papel/nome_grupo), mas a letra do AC exige reuso de `contratoSchema`/`membroCoalizaoSchema`; o wizard declara um `z.object` local próprio equivalente (`mandato-wizard.tsx:30-51,56-60`), nunca importa os schemas compartilhados. Funcionalmente correto hoje, risco de drift se `ck_contrato_*`/`ck_membro_*` mudarem. **Decisão de Pedro (2026-08-10): aceitar como débito documentado, não corrigir agora** — ver nota abaixo da tabela |
+| CMU-06 | P1: wizard único (AC3/AC5 — persistência atômica, sem escrita parcial) | Execute | ✅ Verified — uma única chamada RPC (`app.criar_mandato`) cobre mandato (quando novo) + contrato + vínculo de coalizão — `0022...sql:27-146`, `rpc/mandato.ts:43-66`. Fix Round 1 acrescentou teste de integração que prova rollback completo (contagem de linha = 0) quando `p_coalizao` referencia `id_coalizao` inexistente |
+| CMU-07 | P1: wizard único (AC4 — navega pro detalhe do mandato ao concluir) | Execute | ✅ Verified — `router.push(\`/mandatos/${resultado.idMandato}\`)` após sucesso, inclusive no ramo de mandato existente — `mandato-wizard.tsx:286`. Lado backend (`id_mandato` não nulo nesse ramo) agora com teste dedicado (Fix Round 1) |
+| CMU-08 | P1: combobox TSE (AC1/AC2 — autocomplete com debounce substitui filtro+tabela) | Execute | ✅ Verified (code-verified, UI) — `Command`/`Popover` do shadcn, debounce de 500ms (`use-debounce`), colunas nome de urna/UF/partido/ano/confiança — `tse-match-search.tsx:34-156` |
+| CMU-09 | P1: combobox TSE (AC3/AC4 — modo manual e filtros opcionais preservados) | Execute | ✅ Verified (code-verified, UI) — `modoManual` ativa quando a busca retorna vazio; UF/ano continuam opcionais ao lado do combobox — `tse-match-search.tsx:63,139-152` |
+| CMU-10 | P1: combobox TSE (AC5 — erro de rede tratado) | Execute | ✅ Verified (UI code-verified + backend testado) — `try/catch` em torno de `buscarCandidaturas` seta mensagem genérica sem propagar exceção pro resto do wizard — `tse-match-search.tsx:52-69`; a origem (`buscarCandidaturas`) tem teste real relançando erro (`tse.test.ts:117-120`) |
+| CMU-11 | P1: título eleitoral travado (AC1/AC2/AC3) | Execute | ✅ Verified — `readOnly={passo.tipo === "revisar"}` + estilo `bg-muted/50` + legenda "Vindo do TSE" só nesse passo; editável normalmente no passo `"manual"`, com a mesma regex de 12 dígitos testada em `schemas/mandato.test.ts` — `mandato-wizard.tsx:405-422` |
+| CMU-12 | P1: base TSE restrita ao Legislativo (AC1/AC2 — migração + refresh das MVs) | Execute | ⚠️ Verified com débito aceito — a migration apaga `cd_cargo NOT IN (5,6,7,13)` de `dim_candidatura`/`fat_votacao_zona` e refresca as 2 MVs (`0022...sql:1-22`); confirmado ao vivo no banco de dev (`SELECT DISTINCT cd_cargo, ds_cargo FROM tse.dim_candidatura` retorna só os 4 cargos do Legislativo). O passo de verificação prévia contra o dado real, exigido pela letra do AC1, não foi documentado na migration — débito histórico aceito via **AD-031**, não é achado novo |
+| CMU-13 | P1: base TSE restrita ao Legislativo (AC3 — checagem de vínculo existente antes de apagar) | Execute | ❌ Divergência real, já ocorrida, aceita como débito histórico — `0022...sql:11-15` apagou o vínculo de `rel_mandato_candidatura` de um cargo fora do Legislativo sem decisão documentada antes, mas Pedro confirmou em 2026-08-10 que Executivo está fora de escopo (**AD-031**). Dado já apagado não é restaurado |
+| CMU-14 | P1: base TSE restrita ao Legislativo (AC4/AC5 — busca já filtrada + regra do ETL futuro) | Execute | ✅ Verified — AC4 já saía filtrado da origem. AC5 corrigido nesta sessão (`d4dba31`): `DADOS TSE/carga_amostral.js` ganhou `isCargoLegislativo()`, aplicado às cargas de `dim_candidatura`/`fat_votacao_zona` (as únicas com `CD_CARGO` na origem); `dim_perfil_eleitorado`/`rel_rede_social` seguem sem filtro de cargo, mesmo escopo que a migration 0022 já tinha. Decisão registrada em **AD-031**. Caveat não bloqueante: `public.carrega_tse` (a função genérica de insert) continua sem filtro próprio — a defesa é só no script cliente, não em `CHECK`/trigger no banco |
+| CMU-15 | P2: contrato próprio da Coalizão (AC1/AC2/AC3) | Execute | ✅ Verified — implementado nesta sessão (`a39e500`): ação "Novo contrato" em `/coalizoes/[id]` abre `ContratoForm` modo `abrir` sem alteração no componente; seção "Contratos da coalizão" lista `contratosProprios`; "Contrato anterior" já vem filtrado pela mesma lista — `coalizoes/[id]/page.tsx:177-216` |
+| CMU-16 | P2: correção FND-COL-03 (AC1) | Execute | ✅ Verified — implementado nesta sessão (`c8a2e25`): o seletor "Adicionar membro" agora usa `contratosMandato`, uma query com embed `!inner` em `dim_contratante` filtrando `tipo_contratante='mandato'` — `coalizoes/[id]/page.tsx:82-101,272` |
 
 **ID format:** `CMU-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 16 total. CMU-01 a CMU-14 auditados nesta sessão contra o código real: 10 ✅ Implemented,
-3 ⚠️ implementados com lacuna ou passo de processo não documentado (CMU-04, CMU-12, CMU-14-AC5), 1 ❌
-divergência real de spec já ocorrida e não reversível (CMU-13). CMU-15/16: Design concluído nesta
-sessão (ver `design.md`), 0 implementado — Tasks/Execute pendentes. **Nenhum dos 16 passou pela fase
-formal de Validate** (Verifier independente, autor ≠ verificador) — essa auditoria de código é
-evidência, não substitui o Verifier (Trilha A, item 3, `.specs/roadmap.md`).
+**Coverage:** 16 total, todos passaram pela fase Validate (Verifier independente, autor ≠
+verificador — `validation.md`). **14 ✅ Verified** sem ressalva bloqueante (inclui CMU-15/16,
+implementados nesta sessão, e CMU-04/CMU-14 corrigidos nesta sessão). **1 ⚠️ com débito aceito**
+(CMU-12, verificação de cargo não documentada na migration — AD-031, não é achado novo). **1 ❌
+divergência histórica já aceita e não revertida** (CMU-13, AD-031). **1 ⚠️ com spec-precision gap**
+(CMU-05 — reuso de schema não literal, ver nota abaixo). O Verifier rodou 2 vezes: rodada original
+(FAIL no sensor — 2 mutantes sobreviventes, ambos de cobertura de teste de backend, nunca um bug de
+comportamento) e Fix Round 1 (PASS — os 2 mutantes fechados com teste dedicado, mais 4 testes de
+integração novos cobrindo `p_contrato`/`p_coalizao`/`p_id_contratante_existente` de
+`app.criar_mandato`, que nunca tinham teste algum). Ver `validation.md` para o relatório completo.
+
+> **Nota (CMU-05, decisão de Pedro em 2026-08-10):** o spec-precision gap achado pelo Verifier —
+> `mandato-wizard.tsx` duplica `contratoSchema`/`membroCoalizaoSchema` em `z.object` locais
+> equivalentes em vez de importar os compartilhados — fica como débito documentado. Pedro escolheu
+> não refatorar o wizard nesta sessão (componente grande, sem suíte de teste de UI que pegasse uma
+> regressão de comportamento). Se `ck_contrato_*`/`ck_membro_*` mudar no schema compartilhado no
+> futuro, os 2 objetos locais do wizard precisam ser conferidos manualmente contra a mudança.
 
 ---
 
 ## Perguntas abertas para Pedro
 
-Encontradas durante a auditoria de código desta sessão (2026-08-10) — nenhuma foi decidida
-unilateralmente aqui; ficam registradas para decisão antes de fechar a Trilha A.
+Encontradas durante a auditoria de código da sessão anterior (2026-08-10) e desta sessão de
+Execute/Validate — nenhuma foi decidida unilateralmente; ficam registradas com a decisão tomada.
 
-1. **CMU-04 — ação ausente na condição de corrida.** Hoje, quando a checagem prévia passa mas o
-   `INSERT` ainda assim colide com `dim_mandato_nr_titulo_eleitoral_key` (duas sessões cadastrando o
-   mesmo título ao mesmo tempo), o sistema mostra a mensagem amigável certa, mas não oferece a ação
-   "ver mandato existente / abrir contrato para ele" que o AC5 pede literalmente — só texto. Duas
-   saídas: (a) fechar isso quando a Trilha A entrar em Tasks/Execute (acréscimo pequeno de UI —
-   reconhecer `ViolacaoUnicaError` com `constraint === "dim_mandato_nr_titulo_eleitoral_key"` e
-   oferecer o mesmo botão que o passo `"existente"` já tem); ou (b) relaxar a letra do AC5 pra bater
-   com o comportamento atual (mensagem apenas) e registrar como debt aceito, já que é uma condição de
-   corrida rara. Qual?
-2. **CMU-14 AC5 — carga futura do TSE sem filtro de cargo.** Nem `public.carrega_tse` nem
-   `DADOS TSE/carga_amostral.js` restringem a carga a cargos do Legislativo hoje. A regra em si já
-   está fechada (**AD-031**, 2026-08-10, Legislativo-only) — o que falta é só o filtro de código no
-   loader, pra uma carga futura não reintroduzir Prefeito/Governador silenciosamente. Ainda em
-   aberto: corrigir o loader agora (parte do fechamento da Trilha A) ou aceitar como débito separado
-   (Trilha E), já que não há carga nova do TSE prevista no curto prazo?
+1. ~~**CMU-04 — ação ausente na condição de corrida.**~~ **RESOLVIDA por Pedro nesta sessão
+   (2026-08-10): corrigir agora.** Implementado em `487dc7d` — o `catch` de `submeter` reconhece
+   `ViolacaoUnicaError` com `constraint === "dim_mandato_nr_titulo_eleitoral_key"` e oferece o mesmo
+   botão que o passo `"existente"` já tinha ("Ver mandato existente / abrir contrato para ele"),
+   chamando `checkExistente`. Verificado (Fix Round 1: mensagem exata agora com teste dedicado,
+   mutante confirmado morto).
+2. ~~**CMU-14 AC5 — carga futura do TSE sem filtro de cargo.**~~ **RESOLVIDA por Pedro nesta sessão
+   (2026-08-10): corrigir o loader agora.** Implementado em `d4dba31` — `DADOS TSE/carga_amostral.js`
+   ganhou `isCargoLegislativo()` aplicado às cargas de `dim_candidatura`/`fat_votacao_zona` (as únicas
+   com `CD_CARGO` na origem). Sem migração — `public.carrega_tse` é um insert genérico sem semântica
+   de cargo; o filtro cabe inteiro no loader cliente.
 3. ~~**CMU-12/13 — verificação retroativa e exclusão silenciosa já ocorridas.**~~ **RESOLVIDA por
    Pedro em 2026-08-10**: Prefeito/Governador (Executivo) não são necessários — a restrição ao
    Legislativo (Vereador, Dep. Estadual, Dep. Federal, Senador) é a decisão correta, aceita como
@@ -252,13 +259,17 @@ unilateralmente aqui; ficam registradas para decisão antes de fechar a Trilha A
    retroativamente como **AD-031** em `.specs/STATE.md`. O `cd_cargo` do `DELETE` de CMU-12
    permanece não confirmado contra `SELECT DISTINCT` — aceito como parte do mesmo débito, não
    corrigido agora.
-4. **(Baixa prioridade, FYI) `/mandatos/[id]/contratos/novo` parece órfã.** Nenhum lugar do código
-   linka mais pra essa rota desde que o wizard (`/mandatos/novo`) passou a cobrir reaproveitamento de
-   mandato existente — o botão "Abrir Novo Contrato" em `/mandatos/[id]` já aponta pro wizard, não
-   pra essa página (confirmado por busca no código, nenhum outro arquivo referencia
-   `contratos/novo`). O design de CMU-15 (`design.md`) propõe **não** replicar esse padrão de rota
-   dedicada pra Coalizão — abre inline em `/coalizoes/[id]`. Quer que uma trilha futura avalie
-   remover a rota órfã do mandato, ou ela fica de propósito como fallback?
+4. **(Baixa prioridade, FYI, ainda em aberto) `/mandatos/[id]/contratos/novo` parece órfã.** Nenhum
+   lugar do código linka mais pra essa rota desde que o wizard (`/mandatos/novo`) passou a cobrir
+   reaproveitamento de mandato existente — o botão "Abrir Novo Contrato" em `/mandatos/[id]` já
+   aponta pro wizard, não pra essa página (confirmado por busca no código, nenhum outro arquivo
+   referencia `contratos/novo`). CMU-15 não replicou esse padrão de rota dedicada pra Coalizão — abre
+   inline em `/coalizoes/[id]`. Quer que uma trilha futura avalie remover a rota órfã do mandato, ou
+   ela fica de propósito como fallback? **Sem ação nesta sessão** — fora do pedido, mantido como FYI.
+5. ~~**CMU-05 — spec-precision gap achado pelo Verifier (wizard duplica `contratoSchema`/
+   `membroCoalizaoSchema`).**~~ **RESOLVIDA por Pedro nesta sessão (2026-08-10): aceitar como débito
+   documentado.** Sem refactor do wizard agora — ver nota abaixo da tabela de Requirement
+   Traceability, acima.
 
 ---
 
@@ -266,8 +277,8 @@ unilateralmente aqui; ficam registradas para decisão antes de fechar a Trilha A
 
 Como sabemos que a feature foi bem-sucedida:
 
-- [ ] Uma Gestora cadastra um mandato reeleito (mesmo título eleitoral de um já cadastrado) e consegue abrir um segundo contrato para ele sem nenhum erro, tudo dentro de `/mandatos/novo`.
-- [ ] Nenhum cadastro de mandato termina sem passar pela etapa de Produto do contrato — as duas telas viraram uma.
-- [ ] A busca de candidatura do TSE se comporta como um combobox de autocomplete, não como um formulário de filtro com botão.
-- [ ] `SELECT DISTINCT ds_cargo FROM tse.dim_candidatura` retorna só os 4 cargos do Legislativo.
-- [ ] Uma coalizão cadastrada consegue ter um contrato próprio, visível na sua tela de detalhe.
+- [x] Uma Gestora cadastra um mandato reeleito (mesmo título eleitoral de um já cadastrado) e consegue abrir um segundo contrato para ele sem nenhum erro, tudo dentro de `/mandatos/novo`. (CMU-01/02, `validation.md`)
+- [x] Nenhum cadastro de mandato termina sem passar pela etapa de Produto do contrato — as duas telas viraram uma. (CMU-05/06)
+- [x] A busca de candidatura do TSE se comporta como um combobox de autocomplete, não como um formulário de filtro com botão. (CMU-08)
+- [x] `SELECT DISTINCT ds_cargo FROM tse.dim_candidatura` retorna só os 4 cargos do Legislativo. (confirmado ao vivo no banco de dev nesta sessão: SENADOR/DEPUTADO FEDERAL/DEPUTADO ESTADUAL/VEREADOR)
+- [x] Uma coalizão cadastrada consegue ter um contrato próprio, visível na sua tela de detalhe. (CMU-15, `a39e500`)

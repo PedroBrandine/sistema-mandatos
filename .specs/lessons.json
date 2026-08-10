@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 3,
+  "next_id": 8,
   "lessons": [
     {
       "id": "L-001",
@@ -40,6 +40,96 @@
       ],
       "created": "2026-07-31T16:36:25Z",
       "last_seen": "2026-07-31T16:36:25Z"
+    },
+    {
+      "id": "L-003",
+      "key": "surviving_mutant::when a constraint to message lookup table maps multiple distinct constraints to distinct user facing messages add one assertion per constraint not just one representative case for the whole table",
+      "text": "When a constraint-to-message lookup table maps multiple distinct constraints to distinct user-facing messages, add one assertion per constraint, not just one representative case for the whole table.",
+      "signal": "surviving_mutant",
+      "scope": "backend/rpc/errors",
+      "status": "candidate",
+      "features": [
+        "cadastro-mandato-contrato-unificado"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "src/backend/rpc/errors.ts:70 (dim_mandato_nr_titulo_eleitoral_key message) (backend/rpc/errors)"
+      ],
+      "created": "2026-08-10T19:40:57Z",
+      "last_seen": "2026-08-10T19:40:57Z"
+    },
+    {
+      "id": "L-004",
+      "key": "surviving_mutant::when an rpc wrapper adds a new pass through parameter assert that exact parameter s presence and value in the success path test not just the pre existing parameters",
+      "text": "When an RPC wrapper adds a new pass-through parameter, assert that exact parameter's presence and value in the success-path test, not just the pre-existing parameters.",
+      "signal": "surviving_mutant",
+      "scope": "backend/rpc",
+      "status": "candidate",
+      "features": [
+        "cadastro-mandato-contrato-unificado"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "src/backend/rpc/mandato.ts (p_id_contratante_existente passthrough) (backend/rpc)"
+      ],
+      "created": "2026-08-10T19:41:01Z",
+      "last_seen": "2026-08-10T19:41:01Z"
+    },
+    {
+      "id": "L-005",
+      "key": "spec_precision_gap::when a spec explicitly requires reusing an existing shared schema verify the implementation imports that schema rather than redeclaring an equivalent shape inline since equivalent looking duplicates drift silently when the shared schema changes",
+      "text": "When a spec explicitly requires reusing an existing shared schema, verify the implementation imports that schema rather than redeclaring an equivalent shape inline, since equivalent-looking duplicates drift silently when the shared schema changes.",
+      "signal": "spec_precision_gap",
+      "scope": "frontend/forms",
+      "status": "candidate",
+      "features": [
+        "cadastro-mandato-contrato-unificado"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md CMU-05 AC1/AC2 vs mandato-wizard.tsx:56-60,30-51 (frontend/forms)"
+      ],
+      "created": "2026-08-10T19:41:05Z",
+      "last_seen": "2026-08-10T19:41:05Z"
+    },
+    {
+      "id": "L-006",
+      "key": "ac_gap::this project has no ui component test harness no jsdom testing library configured acceptance criteria satisfied purely by react component code have zero automated test evidence and must be reported as a standing test infrastructure gap not silently treated as equivalent to a passing test",
+      "text": "This project has no UI-component test harness (no jsdom/testing-library configured); acceptance criteria satisfied purely by React component code have zero automated-test evidence and must be reported as a standing test-infrastructure gap, not silently treated as equivalent to a passing test.",
+      "signal": "ac_gap",
+      "scope": "frontend/testing-infra",
+      "status": "candidate",
+      "features": [
+        "cadastro-mandato-contrato-unificado"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "vitest.config.ts:6 (include: src/backend/**/*.test.ts only) -- 11+ UI-behavior ACs in this feature have zero automated-test evidence, only code-reading (frontend/testing-infra)"
+      ],
+      "created": "2026-08-10T19:41:46Z",
+      "last_seen": "2026-08-10T19:41:46Z"
+    },
+    {
+      "id": "L-007",
+      "key": "surviving_mutant::typescript strict and eslint do not observe rendered jsx output or runtime branch outcomes removing a rendered element inverting a server client branch condition or dropping a conditional prop render guard all pass build lint clean treat frontend render branch logic as unverified by the gate until a component level test harness exists",
+      "text": "TypeScript strict and ESLint do not observe rendered JSX output or runtime branch outcomes -- removing a rendered element, inverting a server/client branch condition, or dropping a conditional-prop render guard all pass build/lint clean; treat frontend render/branch logic as unverified by the gate until a component-level test harness exists.",
+      "signal": "surviving_mutant",
+      "scope": "frontend/testing-infra",
+      "status": "candidate",
+      "features": [
+        "plataforma-ui-tanstack"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "src/frontend/components/providers.tsx:20, src/frontend/lib/query-client.ts:23, src/frontend/components/ui/erro-inline.tsx:28-39 (validation.md discrimination sensor, 3 mutants) (frontend/testing-infra)"
+      ],
+      "created": "2026-08-10T22:27:46Z",
+      "last_seen": "2026-08-10T22:27:46Z"
     }
   ]
 }
