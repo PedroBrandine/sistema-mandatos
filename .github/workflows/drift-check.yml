@@ -53,15 +53,23 @@ jobs:
 
       # Falha se houver diferença entre o schema remoto e o que as migrations
       # descrevem. Uma falha aqui significa: alguém mexeu no banco por fora.
+      #
+      # O diff bruto traz ~170 statements que são baseline da nuvem Supabase e
+      # não deriva de ninguém; filtra-deriva.sh explica cada categoria e o
+      # resumo do que foi ignorado sai no log deste passo.
       - name: Diff de schema
         run: |
           set -o pipefail
-          supabase db diff --db-url "$DB_URL" --schema public,app,tse,stg | tee diff.txt
-          if [ -s diff.txt ]; then
+          supabase db diff --db-url "$DB_URL" --schema public,app,tse,stg > diff-bruto.txt
+          bash .github/scripts/filtra-deriva.sh < diff-bruto.txt > diff.txt
+          # `-s` não serve: o filtro emite linhas em branco entre statements, e
+          # um arquivo só de espaços passaria como "tem conteúdo".
+          if grep -qE '[^[:space:]]' diff.txt; then
             echo "::error::Deriva detectada em ${{ matrix.nome }} — o banco não bate com as migrations."
+            cat diff.txt
             exit 1
           fi
-          echo "Sem deriva em ${{ matrix.nome }}."
+          echo "Sem deriva em ${{ matrix.nome }} além do baseline da plataforma."
 
       - name: Auditoria de segurança
         if: always()

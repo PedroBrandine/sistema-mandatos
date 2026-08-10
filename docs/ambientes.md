@@ -211,6 +211,23 @@ O `drift-check.yml` cobre o outro flanco: `supabase migration list` compara a
 tabela de histórico, não o schema, e é **cego** para SQL rodado à mão no
 editor. Só o `db diff` pega.
 
+O diff bruto traz ~170 statements que são baseline da nuvem Supabase, não
+deriva de ninguém: concessões em bloco em `public` para
+`anon`/`authenticated`/`service_role`, `ALTER DEFAULT PRIVILEGES` do projeto, o
+event trigger `ensure_rls` da própria plataforma, e as partições
+`log_auditoria_*` (a migration `0008` chama
+`app.cria_particoes_log(CURRENT_DATE, 18)`, então **não é determinística** — um
+shadow construído hoje nunca bate com um banco provisionado semanas atrás).
+
+`.github/scripts/filtra-deriva.sh` remove essas quatro categorias e falha só no
+que resta; o resumo do que foi ignorado sai no log. O recorte é por **schema**:
+grants em `public` são da plataforma, grants em `app`/`tse`/`stg` são nossos e
+aparecem. Na primeira execução com o filtro, dev acusou 30 concessões
+`GRANT ALL ON FUNCTION app.* TO anon/authenticated/service_role` que produção
+não tinha — inclusive no `custom_access_token_hook`, que a migration `0002`
+revoga de propósito. Corrigido pela migration
+`20260810121100_alinha_grants_app_com_producao`.
+
 ### Rodando os testes de integração localmente
 
 Na sua máquina eles batem no projeto cloud de dev (padrão). Em CI, a variável
@@ -294,9 +311,10 @@ gh pr create --base master
 2. **Migration aplicada não se edita.** Toda correção é arquivo novo, para
    frente. Houve uma exceção documentada (a `0001`, que não conseguia
    reconstruir o banco do zero) — foi exceção, não precedente.
-3. **SQL Editor é somente leitura.** Quatro divergências entre dev e prod
+3. **SQL Editor é somente leitura.** Sete divergências entre dev e prod
    nasceram de SQL rodado à mão que nunca virou arquivo. Todas custaram
-   tempo, e uma delas derrubou a produção inteira.
+   tempo, uma derrubou a produção inteira, e a sétima deixou o
+   `custom_access_token_hook` executável por `anon` em dev por dez dias.
 4. **Produção não recebe seed.** `supabase/seed_test.sql` é só para dev.
 
 ---
