@@ -39,7 +39,7 @@ export default function CoalizaoDetalhePage({ params }: { params: Promise<{ id: 
   const [coalizao, setCoalizao] = useState<CoalizaoRow | null>(null);
   const [contratante, setContratante] = useState<ContratanteRow | null>(null);
   const [membros, setMembros] = useState<MembroRow[]>([]);
-  const [contratos, setContratos] = useState<ContratoRow[]>([]);
+  const [contratosMandato, setContratosMandato] = useState<ContratoRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
@@ -76,15 +76,15 @@ export default function CoalizaoDetalhePage({ params }: { params: Promise<{ id: 
       setMembros(membrosData ?? []);
     }
 
-    // Contratos elegíveis como membro (AC3: contrato do mandato, não o
-    // contratante direto) -- lista geral de fat_contrato; este lote não
-    // constrói um seletor com join tipado por tipo_contratante='mandato'
-    // (escopo além do Done-when desta task, ver Status em tasks.md).
-    const { data: contratosData } = await supabase
+    // Contratos elegíveis como membro (AC3/CMU-16: contrato do mandato, nunca
+    // contrato de coalizão -- embed !inner filtra por dim_contratante.tipo_contratante
+    // direto na query, sem trazer linha nenhuma de contrato de coalizão pro cliente).
+    const { data: contratosMandatoData } = await supabase
       .from("fat_contrato")
-      .select("*")
+      .select("*, dim_contratante!inner(tipo_contratante)")
+      .eq("dim_contratante.tipo_contratante", "mandato")
       .order("id_contrato", { ascending: false });
-    setContratos(contratosData ?? []);
+    setContratosMandato(contratosMandatoData ?? []);
 
     setCarregando(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,7 +214,7 @@ export default function CoalizaoDetalhePage({ params }: { params: Promise<{ id: 
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {contratos.map((c) => (
+                      {contratosMandato.map((c) => (
                         <SelectItem key={c.id_contrato} value={String(c.id_contrato)}>
                           Contrato #{c.id_contrato} ({c.dt_inicio})
                         </SelectItem>
