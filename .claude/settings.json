@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Bash(awk 'NR>=185 && NR<=225 {print NR\": \"$0}' \"app/\\(app\\)/mandatos/page.tsx\")"
     ]
   }
 }
