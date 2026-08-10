@@ -187,27 +187,32 @@ da entrega funcional.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| PUI-01 | P1: plataforma de dados (AC1 — provider único no layout raiz) | Execute | Implementing |
-| PUI-02 | P1: plataforma de dados (AC2 — telas existentes inalteradas) | Execute | Implementing |
-| PUI-03 | P1: plataforma de dados (AC3 — build com as 2 deps declaradas) | Execute | Implementing |
-| PUI-04 | P1: plataforma de dados (AC4 — tela futura resolve sem provider próprio) | Execute | Implementing |
-| PUI-05 | P1: toast global (AC1 — `<Toaster/>` único montado) | Execute | Implementing |
-| PUI-06 | P1: toast global (AC2 — 5 toasts existentes passam a aparecer) | Execute | Implementing |
-| PUI-07 | P1: toast global (AC3 — toast futuro usa o mesmo `<Toaster/>`) | Execute | Implementing |
-| PUI-08 | P1: 3 componentes de estado (AC1 — `<CarregandoSkeleton>`) | Execute | Implementing |
-| PUI-09 | P1: 3 componentes de estado (AC2 — `<ErroInline>`) | Execute | Implementing |
-| PUI-10 | P1: 3 componentes de estado (AC3 — `<EstadoVazio>`) | Execute | Implementing |
-| PUI-11 | P1: 3 componentes de estado (AC4 — puramente apresentacional) | Execute | Implementing |
-| PUI-12 | P1: 3 componentes de estado (AC5 — local/tipagem) | Execute | Implementing |
+| PUI-01 | P1: plataforma de dados (AC1 — provider único no layout raiz) | Verify | ✅ Verified |
+| PUI-02 | P1: plataforma de dados (AC2 — telas existentes inalteradas) | Verify | ✅ Verified |
+| PUI-03 | P1: plataforma de dados (AC3 — build com as 2 deps declaradas) | Verify | ✅ Verified |
+| PUI-04 | P1: plataforma de dados (AC4 — tela futura resolve sem provider próprio) | Verify | ✅ Verified |
+| PUI-05 | P1: toast global (AC1 — `<Toaster/>` único montado) | Verify | ✅ Verified |
+| PUI-06 | P1: toast global (AC2 — 5 toasts existentes passam a aparecer) | Verify | ⚠️ Verified (código) — confirmação visual pendente de UAT manual |
+| PUI-07 | P1: toast global (AC3 — toast futuro usa o mesmo `<Toaster/>`) | Verify | ✅ Verified |
+| PUI-08 | P1: 3 componentes de estado (AC1 — `<CarregandoSkeleton>`) | Verify | ✅ Verified |
+| PUI-09 | P1: 3 componentes de estado (AC2 — `<ErroInline>`) | Verify | ✅ Verified |
+| PUI-10 | P1: 3 componentes de estado (AC3 — `<EstadoVazio>`) | Verify | ✅ Verified |
+| PUI-11 | P1: 3 componentes de estado (AC4 — puramente apresentacional) | Verify | ✅ Verified |
+| PUI-12 | P1: 3 componentes de estado (AC5 — local/tipagem) | Verify | ✅ Verified |
 
 **ID format:** `PUI-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
 **Coverage:** 12 total, 12 implementados em Execute (sem `tasks.md` formal — lista inline de 5
-passos, ver commits `1374f26`, `d19c59f`, `f581d82`, `dd45087`, `266dfba`), 0 sem mapeamento. Execute
-rodou nesta sessão (2026-08-10, sessão seguinte à que fechou Design) — status final de cada
-requisito depende do Verifier independente, ver `validation.md`.
+passos, ver commits `1374f26`, `d19c59f`, `f581d82`, `dd45087`, `266dfba`), 0 sem mapeamento.
+Verificação independente concluída em 2026-08-10 — 11/12 requisitos verificados integralmente via
+evidência de código + gate build/lint; PUI-06 tem a mecânica verificada por código mas a confirmação
+visual literal ("toast aparece na tela") depende de UAT manual humano, categoria própria (sem
+navegador disponível ao Verifier) — não é um gap de implementação. Ver `validation.md` para o
+relatório completo, incluindo os 3 mutantes do sensor de discriminação (0/3 mortos pelo gate
+build/lint — esperado, este projeto não tem suíte de teste de frontend, documentado em
+`design.md`).
 
 ---
 
