@@ -149,8 +149,21 @@ async function run() {
   const filterSP = (row) => row['SG_UF'] === UF_ALVO;
   const filterCampinas = (row) => row['SG_UF'] === UF_ALVO && row['NM_MUNICIPIO'] === 'CAMPINAS';
 
-  await processFile(path.join(BASE_DIR, 'consulta_cand_2022', 'consulta_cand_2022_BRASIL.csv'), 'dim_candidatura', candMap, candTransform, filterSP);
-  await processFile(path.join(BASE_DIR, 'consulta_cand_2024', 'consulta_cand_2024_BRASIL.csv'), 'dim_candidatura', candMap, candTransform, filterSP);
+  // AD-031/CMU-14 AC5: restringe a carga futura aos 4 cargos do Legislativo
+  // (Vereador, Dep. Estadual, Dep. Federal, Senador) -- mesmos códigos de
+  // tse.dim_candidatura.cd_cargo já usados pela migration 0022/0026. Sem
+  // este filtro, uma nova safra do TSE reintroduziria Executivo em silêncio.
+  // Só se aplica a arquivos que têm CD_CARGO na origem (consulta_cand e
+  // votacao_candidato_munzona); perfil_eleitorado é agregado por
+  // município/zona, sem cargo, e continua com filterCampinas sem alteração
+  // (mesmo escopo da migration 0022, que nunca tocou dim_perfil_eleitorado).
+  const CARGOS_LEGISLATIVO = ['5', '6', '7', '13'];
+  const isCargoLegislativo = (row) => CARGOS_LEGISLATIVO.includes(String(row['CD_CARGO']).trim());
+  const filterCandidaturaLegislativo = (row) => filterSP(row) && isCargoLegislativo(row);
+  const filterVotacaoLegislativo = (row) => filterCampinas(row) && isCargoLegislativo(row);
+
+  await processFile(path.join(BASE_DIR, 'consulta_cand_2022', 'consulta_cand_2022_BRASIL.csv'), 'dim_candidatura', candMap, candTransform, filterCandidaturaLegislativo);
+  await processFile(path.join(BASE_DIR, 'consulta_cand_2024', 'consulta_cand_2024_BRASIL.csv'), 'dim_candidatura', candMap, candTransform, filterCandidaturaLegislativo);
 
   // 2. VOTAÇÃO ZONA
   const votMap = {
@@ -168,8 +181,8 @@ async function run() {
   };
   const votTransform = (m) => { m.st_voto_em_transito = parseBool(m.st_voto_em_transito); };
 
-  await processFile(path.join(BASE_DIR, 'votacao_candidato_munzona_2022', 'votacao_candidato_munzona_2022_BRASIL.csv'), 'fat_votacao_zona', votMap, votTransform, filterCampinas);
-  await processFile(path.join(BASE_DIR, 'votacao_candidato_munzona_2024', 'votacao_candidato_munzona_2024_BRASIL.csv'), 'fat_votacao_zona', votMap, votTransform, filterCampinas);
+  await processFile(path.join(BASE_DIR, 'votacao_candidato_munzona_2022', 'votacao_candidato_munzona_2022_BRASIL.csv'), 'fat_votacao_zona', votMap, votTransform, filterVotacaoLegislativo);
+  await processFile(path.join(BASE_DIR, 'votacao_candidato_munzona_2024', 'votacao_candidato_munzona_2024_BRASIL.csv'), 'fat_votacao_zona', votMap, votTransform, filterVotacaoLegislativo);
 
   // 3. PERFIL ELEITORADO
   const perfMap = {
