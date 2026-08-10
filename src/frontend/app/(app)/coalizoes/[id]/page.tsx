@@ -10,6 +10,7 @@ import { membroCoalizaoSchema } from "@backend/schemas/coalizao";
 import { createClient } from "@backend/supabase/client";
 import type { Database } from "@backend/supabase/database.types";
 
+import { ContratoForm } from "@/components/fundacao/contrato-form";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,8 @@ export default function CoalizaoDetalhePage({ params }: { params: Promise<{ id: 
   const [contratante, setContratante] = useState<ContratanteRow | null>(null);
   const [membros, setMembros] = useState<MembroRow[]>([]);
   const [contratosMandato, setContratosMandato] = useState<ContratoRow[]>([]);
+  const [contratosProprios, setContratosProprios] = useState<ContratoRow[]>([]);
+  const [abrindoContrato, setAbrindoContrato] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
@@ -74,6 +77,17 @@ export default function CoalizaoDetalhePage({ params }: { params: Promise<{ id: 
         .eq("id_coalizao", idCoalizao)
         .order("dt_entrada", { ascending: false });
       setMembros(membrosData ?? []);
+
+      // CMU-15 AC2/AC3: contratos da própria coalizão (id_contratante = a
+      // coalizão, nunca de um mandato) -- usado tanto pra listar aqui quanto
+      // como contratosExistentes do ContratoForm ("contrato anterior" só pode
+      // apontar pra outro contrato da mesma coalizão).
+      const { data: contratosProprioData } = await supabase
+        .from("fat_contrato")
+        .select("*")
+        .eq("id_contratante", coalizaoData.id_contratante)
+        .order("dt_inicio", { ascending: false });
+      setContratosProprios(contratosProprioData ?? []);
     }
 
     // Contratos elegíveis como membro (AC3/CMU-16: contrato do mandato, nunca
@@ -158,6 +172,47 @@ export default function CoalizaoDetalhePage({ params }: { params: Promise<{ id: 
           {coalizao.possui_planejamento_proprio ? "Desativar" : "Ativar"} planejamento próprio
         </Button>
         {mensagem && <p className="mt-2 text-sm text-red-500">{mensagem}</p>}
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-lg font-medium">Contratos da coalizão</h2>
+          <Button type="button" size="sm" variant="outline" onClick={() => setAbrindoContrato((v) => !v)}>
+            {abrindoContrato ? "Cancelar" : "Novo contrato"}
+          </Button>
+        </div>
+        {abrindoContrato ? (
+          <ContratoForm
+            idContratante={coalizao.id_contratante}
+            contratosExistentes={contratosProprios}
+            modo={{ tipo: "abrir" }}
+            onConcluido={() => {
+              setAbrindoContrato(false);
+              void carregar();
+            }}
+          />
+        ) : contratosProprios.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum contrato para esta coalizão.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produto</TableHead>
+                <TableHead>Início</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contratosProprios.map((c) => (
+                <TableRow key={c.id_contrato}>
+                  <TableCell>Produto #{c.id_produto}</TableCell>
+                  <TableCell>{c.dt_inicio}</TableCell>
+                  <TableCell>{c.status}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       <div>
