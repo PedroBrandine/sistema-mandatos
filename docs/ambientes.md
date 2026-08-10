@@ -154,6 +154,51 @@ dois dependem de três secrets já cadastrados no repositório:
 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PROD` e
 `SUPABASE_DB_PASSWORD_DEV`.
 
+### Por que o CI conecta pelo pooler, e não direto
+
+`db.<ref>.supabase.co` resolve **só em IPv6**, e runners do GitHub não têm
+IPv6. Conferido dentro do runner em 07/08/2026: nenhum registro A para o host
+direto, zero endereços IPv6 globais na máquina. Ou seja, `--linked` nunca vai
+conectar de dentro do CI, por mais correta que esteja a senha.
+
+O caminho é o pooler (Supavisor), que tem IPv4:
+
+```
+postgresql://postgres.<ref>:<senha>@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+```
+
+`.github/scripts/url-pooler.sh` descobre esse host pela Management API e
+monta a URL; os workflows usam `--db-url` em vez de `--linked`. Na sua máquina
+nada muda — você tem IPv6 e o `--linked` funciona normalmente.
+
+A mensagem de erro da CLI nesse cenário engana: ela diz
+`failed to connect to postgres` e sugere conferir `SUPABASE_DB_PASSWORD`, o que
+aponta para senha quando o problema é rede. Por isso o script sonda com `psql`,
+que repassa o motivo real do Postgres:
+
+| Mensagem do Postgres | Significa |
+| --- | --- |
+| `password authentication failed` | host e usuário certos, **senha errada** |
+| `tenant/user ... not found` | pooler errado para este projeto |
+| falha de rede/timeout | host inalcançável (o caso do IPv6) |
+
+### Senha do banco ≠ tudo o mais
+
+O secret `SUPABASE_DB_PASSWORD_*` é a senha do **Postgres**, não o access
+token nem chave de API. Se você não tem ela guardada, o caminho é *Project
+Settings → Database → Reset database password*. Resetar **não derruba a
+aplicação**: o app fala com o banco via PostgREST e chaves de API, não por
+conexão direta.
+
+### Versão da CLI fixa nos workflows de banco
+
+`deploy-db.yml` e `drift-check.yml` fixam `supabase/setup-cli` em `2.110.0`. Em
+07/08/2026 a `2.112.0` saiu às 10h08 UTC e às 12h47 já quebrava o
+`supabase link` com `failed to get api keys: SchemaError(... inserted_at)`.
+Com `version: latest`, uma release de terceiros derruba o deploy de produção
+sem que nada mude aqui. O `ci.yml` continua em `latest` de propósito: não
+linka em projeto remoto, e deixar flutuar faz a quebra aparecer num PR.
+
 ### Por que o job de banco efêmero importa
 
 Ele é a única coisa que prova que as migrations reconstroem o banco **do
@@ -165,6 +210,23 @@ referencia). Com esse job, isso apareceria num PR.
 O `drift-check.yml` cobre o outro flanco: `supabase migration list` compara a
 tabela de histórico, não o schema, e é **cego** para SQL rodado à mão no
 editor. Só o `db diff` pega.
+
+O diff bruto traz ~170 statements que são baseline da nuvem Supabase, não
+deriva de ninguém: concessões em bloco em `public` para
+`anon`/`authenticated`/`service_role`, `ALTER DEFAULT PRIVILEGES` do projeto, o
+event trigger `ensure_rls` da própria plataforma, e as partições
+`log_auditoria_*` (a migration `0008` chama
+`app.cria_particoes_log(CURRENT_DATE, 18)`, então **não é determinística** — um
+shadow construído hoje nunca bate com um banco provisionado semanas atrás).
+
+`.github/scripts/filtra-deriva.sh` remove essas quatro categorias e falha só no
+que resta; o resumo do que foi ignorado sai no log. O recorte é por **schema**:
+grants em `public` são da plataforma, grants em `app`/`tse`/`stg` são nossos e
+aparecem. Na primeira execução com o filtro, dev acusou 30 concessões
+`GRANT ALL ON FUNCTION app.* TO anon/authenticated/service_role` que produção
+não tinha — inclusive no `custom_access_token_hook`, que a migration `0002`
+revoga de propósito. Corrigido pela migration
+`20260810121100_alinha_grants_app_com_producao`.
 
 ### Rodando os testes de integração localmente
 
@@ -249,9 +311,10 @@ gh pr create --base master
 2. **Migration aplicada não se edita.** Toda correção é arquivo novo, para
    frente. Houve uma exceção documentada (a `0001`, que não conseguia
    reconstruir o banco do zero) — foi exceção, não precedente.
-3. **SQL Editor é somente leitura.** Quatro divergências entre dev e prod
+3. **SQL Editor é somente leitura.** Sete divergências entre dev e prod
    nasceram de SQL rodado à mão que nunca virou arquivo. Todas custaram
-   tempo, e uma delas derrubou a produção inteira.
+   tempo, uma derrubou a produção inteira, e a sétima deixou o
+   `custom_access_token_hook` executável por `anon` em dev por dez dias.
 4. **Produção não recebe seed.** `supabase/seed_test.sql` é só para dev.
 
 ---

@@ -131,9 +131,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Versão FIXA, de propósito. Com `latest`, uma release da CLI publicada
+      # por terceiros quebra o caminho de deploy para produção sem que nada
+      # mude aqui -- foi o que aconteceu em 07/08/2026: a 2.112.0 saiu às 10h08
+      # UTC e às 12h47 o `supabase link` já falhava com
+      # `failed to get api keys: SchemaError(... at [2]["inserted_at"])`,
+      # validação de schema da resposta de chaves de API que ficou restrita
+      # demais. A 2.110.0 faz a mesma chamada sem erro.
+      #
+      # Para atualizar: suba a versão num PR e deixe o CI provar que passa.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.110.0
 
       - name: Linkar no projeto de produção
         env:
@@ -141,17 +150,22 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
         run: supabase link --project-ref "$PROJECT_REF_PROD"
 
-      - name: Conferir o que será aplicado
+      # `--linked` conecta em db.<ref>.supabase.co, que resolve só em IPv6 --
+      # inalcançável de um runner do GitHub. Ver .github/scripts/url-pooler.sh
+      # para o diagnóstico completo. Este passo exporta DB_URL.
+      - name: Descobrir URL IPv4 do banco (pooler)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
-        run: supabase migration list --linked
+          PROJECT_REF: ${{ env.PROJECT_REF_PROD }}
+          SENHA: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+        run: bash .github/scripts/url-pooler.sh
 
+      - name: Conferir o que será aplicado
+        run: supabase migration list --db-url "$DB_URL"
+
+      # --yes: sem TTY não há como responder ao "deseja aplicar?".
       - name: Aplicar migrations
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
-        run: supabase db push --linked
+        run: supabase db push --db-url "$DB_URL" --yes
 
       # site_url é por ambiente (config.toml usa env(SUPABASE_AUTH_SITE_URL)).
       # Sem a variável, o push grava site_url vazio e os redirecionamentos de
@@ -164,7 +178,4 @@ jobs:
         run: supabase config push
 
       - name: Auditoria de segurança pós-deploy
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
-        run: supabase db advisors --linked --type security --level error
+        run: supabase db advisors --db-url "$DB_URL" --type security --level error
