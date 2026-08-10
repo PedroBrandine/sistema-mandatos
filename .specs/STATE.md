@@ -15,7 +15,7 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Trade-off**: Toda migração fica mais lenta e mais verbosa; nenhuma tabela pode ser criada "para testar depois".
 - **Scope**: Todas as camadas; toda migração em `supabase/`.
 - **Date**: 2026-07-30
-- **Status**: active
+- **Status**: active (exceção documentada em AD-030 para tabelas de catálogo `ref_*`)
 
 ### AD-002
 - **Decision**: Nenhum acesso é anônimo — nem leitura, nem resposta de formulário. Login sempre; a autorização é sempre decidida pela RLS, nunca pela UI.
@@ -183,7 +183,7 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Trade-off**: A feature de Sucessos Mensais tem um gate de validação externa que as outras não têm, e o cronograma depende da agenda de um assessor.
 - **Scope**: Planejamento & Monitoramento (Sucessos Mensais).
 - **Date**: 2026-07-30
-- **Status**: active
+- **Status**: superseded (ver AD-028)
 
 ### AD-023
 - **Decision**: O **Kanban de etapas é feature de Operação dos produtos (§2.5), com escrita** — não uma tela de leitura na Saída. Arrastar o card entre colunas é a ação que grava a transição de etapa, com data e autor, no fato de etapa. A Saída consome essa transição como leitura e continua sem escrever (AD-015).
@@ -223,6 +223,38 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Trade-off**: Toda feature de UI nova precisa nascer dentro de `(app)/` pra herdar a sidebar (fácil de esquecer se não for verificado); cores novas de marca (se a paleta mudar) exigem editar `globals.css` num único lugar, mas qualquer uso pontual de opacidade (`bg-primary/50`) sobre uma cor definida em hex (em vez de `oklch()`) precisa ser conferido visualmente — risco pequeno, não confirmado como problema real ainda.
 - **Scope**: Todas as camadas de frontend; toda tela nova autenticada; toda decisão futura de paleta/tipografia.
 - **Date**: 2026-07-31
+- **Status**: active
+
+### AD-028
+- **Decision**: O gate de protótipo validado com assessor real antes de código de produção (AD-022) na tela de edição em grade dos Sucessos Mensais é dispensado. A feature avança sem essa aprovação externa prévia; a frase correspondente foi removida do §5.7 da Constituição.
+- **Reason**: Ritmo de execução — esperar agenda de assessor real antes de escrever código de produção travava o avanço do projeto, e a Definição de Pronto (§6) não tem outra feature com esse tipo de gate.
+- **Trade-off**: O risco de adoção descrito em §5.7 (assessores voltarem pro Sheets se a edição em grade não for rápida o bastante) deixa de ter uma validação externa prévia como mitigação. Passa a depender de revisão pós-implementação ou feedback informal — sem data nem responsável definidos ainda. Se a adoção falhar depois de construído, o retrabalho é maior do que teria sido com o gate.
+- **Scope**: Planejamento & Monitoramento (Sucessos Mensais).
+- **Date**: 2026-08-10
+- **Status**: active
+
+### AD-029
+- **Decision**: O provider global de TanStack Query e o `<Toaster/>` do sonner montam no `app/layout.tsx` **raiz**, não em `(app)/layout.tsx` (AD-027). Sem `next-themes`. Os três componentes de estado padrão (`<CarregandoSkeleton>`, `<ErroInline>`, `<EstadoVazio>`) vivem em `components/ui/`, não em pasta própria.
+- **Reason**: `/login` e `/auth/*` ficam fora do route group `(app)/` (AD-027) mas também precisam de toast/query — montar no route group deixaria essas rotas sem cobertura. O app não tem alternância de tema hoje; adicionar `next-themes` seria dependência sem consumidor real. `components/ui/` já tem precedente de composite específico do projeto (`confirm-delete-dialog.tsx`), então os 3 componentes de estado seguem o mesmo lugar em vez de criar `components/estado/`.
+- **Trade-off**: o layout raiz ganha responsabilidade cross-cutting (dados + feedback) que a divisão de AD-027 não previa — é uma segunda camada de layout compartilhado, além da sidebar. Se dark mode for pedido depois, `next-themes` entra como feature própria, não como retrofit deste provider.
+- **Scope**: `.specs/features/plataforma-ui-tanstack/`; toda tela nova, autenticada ou não.
+- **Date**: 2026-08-10
+- **Status**: active
+
+### AD-030
+- **Decision**: Tabelas de catálogo `ref_*` (somente-leitura, sem `id_contrato`/carteira pra filtrar por linha) são **exceção documentada ao AD-001** — usam modelo GRANT-only em vez de política de RLS por linha. Acesso é restrito a `authenticated` + roles `legisla_*`; `anon` nunca tem SELECT nelas. O GRANT a `anon` que a migration `0024_ref_tables_rls_fix.sql` tinha concedido nos 4 catálogos já existentes (`ref_cargo`, `ref_partido`, `ref_produto`, `ref_projeto`) foi revogado (`20260810183759_revoke_anon_grant_ref_tables.sql`).
+- **Reason**: catálogo de referência não tem coluna de carteira pra RLS filtrar — controle de acesso é por GRANT de role, não por linha. Esse já era o desenho do schema aprovado (nenhum `ref_*` liga RLS, `docs/schema_sistema.sql`), mas nunca tinha sido documentado como exceção intencional ao AD-001 — ficava como divergência silenciosa entre o texto da regra e a prática (achado da Trilha C, `.specs/features/catalogos-referencia/`). O GRANT a `anon` nunca teve justificativa equivalente — contradizia AD-002 e a Regra Inegociável nº4 (§6 da Constituição, "nenhum acesso é anônimo") — e foi tratado como falha de segurança real, mesma prioridade da FND-USR-02.
+- **Trade-off**: qualquer tabela nova rotulada `ref_*` que ganhe coluna de carteira/contrato no futuro precisa reavaliar se ainda se qualifica pra esta exceção, ou se volta a exigir RLS por linha como AD-001 pede por padrão.
+- **Scope**: `ref_cargo`, `ref_partido`, `ref_produto`, `ref_projeto` + as 12 tabelas novas de `.specs/features/catalogos-referencia/`.
+- **Date**: 2026-08-10
+- **Status**: active
+
+### AD-031
+- **Decision**: O sistema atende só cargos do **Legislativo** — Vereador, Deputado Estadual, Deputado Federal, Senador (`cd_cargo_tse` 5, 6, 7, 13). Executivo (Prefeito(a), Vice-Prefeito(a), Governador(a)) está **fora de escopo**, confirmado por Pedro em 2026-08-10.
+- **Reason**: as migrations `0022_cadastro_mandato_contrato_unificado.sql` e `0026_remove_cargos_nao_utilizados.sql` já restringiram a base do TSE e o catálogo `ref_cargo` a esses 4 cargos — inclusive apagando um vínculo `rel_mandato_candidatura` conhecido de Prefeito(a) — mas isso rodou em produção **sem decisão documentada antes** (achado da Trilha A, CMU-12/CMU-13, `.specs/features/cadastro-mandato-contrato-unificado/spec.md`). Esta entrada registra retroativamente a decisão que já foi executada; nada é revertido.
+- **Trade-off**: qualquer carga futura de dado do TSE (`public.carrega_tse`, `DADOS TSE/carga_amostral.js`) precisa filtrar por esses 4 códigos de cargo **na origem**, ou uma carga nova desfaz silenciosamente a restrição das migrations 0022/0026. Débito ainda aberto (CMU-14 AC5) — ver Trilha A.
+- **Scope**: schema `tse.*`, `ref_cargo`, `rel_mandato_candidatura`, qualquer ETL futuro de candidatura.
+- **Date**: 2026-08-10
 - **Status**: active
 
 ---

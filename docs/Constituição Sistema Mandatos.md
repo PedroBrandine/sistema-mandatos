@@ -225,7 +225,7 @@ Regras de sessão:
 
 ### **5.7 O risco conhecido**
 
-O maior risco de adoção não é técnico: os assessores vêm de planilha. Se a tela de Sucessos Mensais não permitir edição rápida em grade — tabular entre células, colar de uma faixa, editar em massa — eles voltam para o Sheets e a Definição de Pronto cai. **Essa tela é a que precisa de protótipo validado com assessor real antes de qualquer linha de código de produção.**
+O maior risco de adoção não é técnico: os assessores vêm de planilha. Se a tela de Sucessos Mensais não permitir edição rápida em grade — tabular entre células, colar de uma faixa, editar em massa — eles voltam para o Sheets e a Definição de Pronto cai.
 
 ### **5.8 O que fica fora**
 
