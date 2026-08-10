@@ -217,3 +217,63 @@ Da seção Edge Cases de `spec.md`:
 4. **Minor** (5 ocorrências) — constraints/UNIQUE/FK corretas na DDL mas sem teste próprio: `uq_etapa_produto_ordem` (Fix 2), `uq_tipo_registro_etapa_codigo` (Fix 3), FK `ref_formulario.id_etapa` (Fix 4), `uq_metrica_form_campo` (parte do Fix 5), `ref_pilar_insight.nome` UNIQUE (Fix 6), 4 FKs de `ref_tipologia` (Fix 7).
 
 **Next steps**: Rodar Fix 1 primeiro (Blocker, trivial — renomear variável descartada). Fixes 2-8 podem ser agrupados numa única task de "fortalecimento de cobertura" e rodados como fix→re-verify (máximo 3 iterações, conforme `validate.md`). Nenhum dos gaps encontrados indica DDL, GRANT ou seed incorretos em produção — todos os 6 gaps de AC e o mutante sobrevivente são de **profundidade de teste**, não de comportamento; risco de regressão futura não detectada, não de defeito já existente.
+
+---
+
+## Round 2 (fix→re-verify)
+
+**Date**: 2026-08-10
+**Fix commit**: `38da907` ("test(db): fecha os 8 gaps do Verifier em catalogos-referencia (fix->re-verify)")
+**Verifier**: mesma sessão independente do Round 1 (author dos fixes ≠ verifier — o commit `38da907` foi feito por outra sessão, não por este Verifier)
+**Files touched pelo fix**: só `supabase/tests/catalogos/catalogos-referencia.integration.test.ts` e `supabase/tests/catalogos/catalogos-referencia-seed.integration.test.ts` (confirmado via `git show --stat 38da907`) — **nenhuma migração foi tocada**, consistente com o veredito do Round 1 de que todos os 8 gaps eram de profundidade de teste, não de DDL/seed incorretos.
+
+### Resultado por fix
+
+| Fix | Descrição | Evidência (file:line) | Status |
+| --- | --------- | ----------------------- | ------ |
+| Fix 1 (Blocker) | `npm run lint:all` falhava por 2 erros ESLint (`produto` não usado) | `catalogos-referencia-seed.integration.test.ts:297-298` — `.map(({ produto: _produto, ...resto }) => resto)` nas duas ocorrências (era `{ produto, ...resto }`) | ✅ **Covered** — `npx eslint supabase/tests/catalogos/` rodado nesta reverificação: **exit 0, zero output** (nenhum problema) |
+| Fix 2 | `uq_etapa_produto_ordem` sem teste | `catalogos-referencia.integration.test.ts:136-148` — `it("CAT-01: uq_etapa_produto_ordem rejects duplicate (id_produto, ordem)")`, insere `ordem=31996` duas vezes para o mesmo `id_produto`, `expectSqlError(..., "23505")` | ✅ **Covered** |
+| Fix 3 | `uq_tipo_registro_etapa_codigo` sem teste | `:174-186` — `it("CAT-02: uq_tipo_registro_etapa_codigo rejects duplicate (id_etapa, codigo)")`, `codigo` duplicado no mesmo `id_etapa`, `toContain("23505")` | ✅ **Covered** |
+| Fix 4 | FK `ref_formulario.id_etapa` sem teste de rejeição | `:206-211` — `it("CAT-03: ref_formulario.id_etapa rejects a non-existent FK")`, `id_etapa=999999999`, `toContain("23503")` | ✅ **Covered** |
+| Fix 5 (Major) | Mutante sobrevivente: teste do índice parcial não discriminava `WHERE eh_nps` de um UNIQUE pleno; `uq_metrica_form_campo` sem teste direto | `:239-253` — `it("CAT-04: uq_metrica_form_campo rejects duplicate (id_formulario, codigo_campo) regardless of eh_nps")`, mesmo `codigo_campo` duas vezes sob o mesmo `id_formulario` (ambos os `INSERT`s omitem `eh_nps`, que tem `DEFAULT false` na DDL — logo é `eh_nps=false` dos dois lados, confirmando a UNIQUE plena independente da flag), `toContain("23505")`. **E** `:255-278` — `it("CAT-04: uq_metrica_nps_por_formulario is PARTIAL (WHERE eh_nps)...")`, insere `eh_nps=true` (`teste_cat04_parcial_nps`), depois insere `eh_nps=false` (`teste_cat04_parcial_naonps`) **no mesmo `id_formulario`** e afirma `expect(rows).toHaveLength(1)` sobre o `RETURNING` do segundo INSERT (sucesso, sem try/catch — se o INSERT falhasse, a promise rejeitaria e o teste falharia) | ✅ **Covered** — ver reavaliação da mutação 2 abaixo, é o ponto central desta rodada |
+| Fix 6 | `ref_pilar_insight.nome` UNIQUE sem teste (só `codigo` exercitado) | `:328-333` renomeado para `it("CAT-08: ref_pilar_insight.codigo is UNIQUE")` (mesmo corpo de antes) + `:335-340` novo `it("CAT-08: ref_pilar_insight.nome is UNIQUE (distinta da UNIQUE de codigo)")`, `nome` duplicado com `codigo` distinto (`cat08_codigo_a`/`cat08_codigo_b`), `toContain("23505")` | ✅ **Covered** |
+| Fix 7 | 4 FKs de `ref_tipologia` sem teste (`nivel_d2_padrao`, `nivel_d3_padrao`, `id_indicador`, `id_preditor_1`/`id_preditor_2`) | `:409-415` `nivel_d2_padrao` → `23503`; `:417-423` `nivel_d3_padrao` → `23503`; `:425-431` `id_indicador=999999999` → `23503`; `:433-439` `id_preditor_1=999999999` → `23503` | ✅ **Covered para `nivel_d2_padrao`, `nivel_d3_padrao`, `id_indicador`, `id_preditor_1`.** ⚠️ Nota residual de baixíssima materialidade: `id_preditor_2` especificamente (rejeição de valor inexistente, distinta do `ck_tipologia_preditores` já testado) continua sem teste próprio — mecanismo idêntico ao de `id_preditor_1` (mesma tabela-alvo `ref_preditor`, mesmo tipo de coluna), então o risco de regressão não coberto por `id_preditor_1` é essencialmente nulo. Não bloqueia o fechamento deste fix — mas fica registrado para não desaparecer silenciosamente |
+| Fix 8 (Major) | `CAT-15 AC10` só reaplicava `ref_nivel_iip` (1 de 9 tabelas) | `catalogos-referencia-seed.integration.test.ts:134-282` — novo `it("CAT-15 AC10 (extensão, Fix 8 do Verifier): reaplicar os outros 8 INSERTs de seed não duplica em nenhuma tabela")`. Comparei o SQL reaplicado linha a linha contra `supabase/migrations/20260810193327_catalogos_referencia_seed.sql`: os 8 `INSERT ... ON CONFLICT DO NOTHING` são **verbatim idênticos** ao arquivo de migração (mesmos valores, mesma ordem). Após reaplicar, `expect(contagens).toEqual({ preditor: 5, perfil: 3, pilar: 4, dimensao: 4, etapa_estrategia: 7, etapa_pll: 5, tipo_registro: 11, formulario: 16 })` + `expect(total_nps).toBe(total_avaliacao)` — cobre as 8 tabelas restantes com contagem exata inalterada. Combinado com o teste original de `ref_nivel_iip` (`:124-132`), agora **todas as 9 tabelas semeadas** têm idempotência verificada | ✅ **Covered** |
+
+### Reavaliação da mutação 2 do discrimination sensor (Round 1) — ponto central desta rodada
+
+**Mutação**: remover `WHERE eh_nps` do índice `uq_metrica_nps_por_formulario` (linha 161-164 de `20260810191659_catalogos_referencia_estrutura.sql`), tornando-o `UNIQUE(id_formulario)` pleno.
+
+**Raciocínio contra o teste NOVO** (`catalogos-referencia.integration.test.ts:255-278`):
+
+1. O teste insere uma linha `eh_nps=true` (`teste_cat04_parcial_nps`) no `idFormularioFixture` — sucede trivialmente (única linha até então).
+2. Em seguida insere uma **segunda** linha, `eh_nps=false` (`teste_cat04_parcial_naonps`), **no mesmo `id_formulario`**, via `RETURNING id_metrica`, sem `try/catch`.
+3. **Sob o índice real de hoje** (`WHERE eh_nps`, confirmado via `pg_indexes.indexdef` no Round 1): a segunda linha não colide, porque o índice parcial só indexa linhas com `eh_nps=true` — a segunda linha (`eh_nps=false`) fica de fora do índice inteiramente. INSERT sucede, `RETURNING` devolve 1 linha, `expect(rows).toHaveLength(1)` passa.
+4. **Sob a mutação** (índice virasse `UNIQUE(id_formulario)` pleno, sem `WHERE`): a segunda linha, mesmo com `eh_nps=false`, colidiria com a primeira linha já existente no **mesmo `id_formulario`** — o INSERT violaria a constraint e retornaria SQLSTATE `23505`. Como a chamada não está dentro de um `try/catch` (diferente de `expectSqlError`), `runSql` rejeitaria a promise, e o `await` na linha 267 propagaria a exceção para fora do teste — Vitest marcaria o teste como **falho** (erro não tratado), não como passando silenciosamente.
+5. **Conclusão**: a mutação 2 **seria morta** pelo novo teste. Diferente do teste antigo (`:223-237`, que só usava `eh_nps=true` dos dois lados e por isso não discriminava a cláusula `WHERE`), este novo teste depende estruturalmente da parcialidade do índice para passar — é exatamente o teste "positivo" que faltava.
+
+**Veredito atualizado do sensor**: mutação 2 agora **✅ Killed** (raciocínio, não reaplicada de fato — mesma metodologia somente-leitura do Round 1, nenhuma mutação real foi injetada no banco/árvore). **Sensor final: 3/3 mortas.**
+
+### Gate (Round 2)
+
+- `npx eslint supabase/tests/catalogos/` → **exit 0, zero output** (Fix 1 confirmado; `npm run lint:all` do repo inteiro não foi rerrodado por instrução explícita do coordenador — 35 problemas remanescentes em `src/frontend/components/fundacao/*` são débito pré-existente de outra feature, documentado em `docs/ambientes.md`, nada a ver com esta)
+- `npm run test:integration -- supabase/tests/catalogos` → **56/56 passou** (36 estrutura + 14 seed/coalizão + 6 grants), 384.57s — reverificado independentemente por este Verifier (não confiei no número do commit `38da907`)
+- Contagem de teste bate exatamente com a esperada por leitura do diff: 26→36 (+10, um por fix de constraint/FK) na estrutura, 13→14 (+1, a extensão de idempotência) no seed, 6→6 (inalterado) nos grants — `26+10=36`, `13+1=14`, `36+14+6=56` ✓
+
+### Gaps remanescentes
+
+Nenhum gap Blocker ou Major remanescente. Um único item de nota residual, de materialidade desprezível (ver Fix 7 acima): `id_preditor_2` de `ref_tipologia` não tem teste de rejeição de FK individual (distinto do `ck_tipologia_preditores` já testado) — mecanismo idêntico ao de `id_preditor_1`, que já está coberto. Não é listado como gap ranqueado.
+
+### Summary (Round 2)
+
+**Overall**: ✅ Ready
+
+**Spec-anchored check**: 17/17 ACs de código batem integralmente com o outcome do spec (CAT-16 continua N/A, bloco de rastreamento)
+**Sensor**: 3/3 mutações mortas (mutação 2 killed nesta rodada, ver reavaliação acima)
+**Gate**: `npx eslint supabase/tests/catalogos/` ✅ (0 problemas) | `test:integration` fatia da feature ✅ (56/56, reverificado independentemente) | `build`/`test:unit` inalterados desde o Round 1 (✅ 0 erros / ✅ 93/93 — não dependiam de código desta feature, não foram rerrodados pois nada em `src/frontend`/`package.json` mudou no fix) | `lint:all` do repo inteiro não rerrodado por instrução do coordenador (débito pré-existente alheio, documentado)
+
+**What works agora**: todos os 8 gaps do Round 1 fechados com evidência direta; o mutante sobrevivente (mutação 2) foi morto por um teste positivo novo que prova estruturalmente a parcialidade do índice `uq_metrica_nps_por_formulario`; nenhuma migração foi tocada (fix foi 100% em testes, confirmando que os gaps do Round 1 eram de cobertura, nunca de DDL/seed incorretos).
+
+**Issues found**: nenhum Blocker/Major. Uma nota residual de materialidade desprezível (FK individual de `id_preditor_2` em `ref_tipologia`, ver acima) — não bloqueia o fechamento da feature.
+
+**Next steps**: Nenhuma ação pendente para fechar esta feature. Recomendação de baixa prioridade, não bloqueante: se algum dia `ref_tipologia` for revisitada, adicionar o teste espelho de `id_preditor_2` por simetria com `id_preditor_1`.
