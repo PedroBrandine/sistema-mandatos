@@ -187,25 +187,27 @@ da entrega funcional.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| PUI-01 | P1: plataforma de dados (AC1 — provider único no layout raiz) | Design | In Design |
-| PUI-02 | P1: plataforma de dados (AC2 — telas existentes inalteradas) | Design | In Design |
-| PUI-03 | P1: plataforma de dados (AC3 — build com as 2 deps declaradas) | Design | In Design |
-| PUI-04 | P1: plataforma de dados (AC4 — tela futura resolve sem provider próprio) | Design | In Design |
-| PUI-05 | P1: toast global (AC1 — `<Toaster/>` único montado) | Design | In Design |
-| PUI-06 | P1: toast global (AC2 — 5 toasts existentes passam a aparecer) | Design | In Design |
-| PUI-07 | P1: toast global (AC3 — toast futuro usa o mesmo `<Toaster/>`) | Design | In Design |
-| PUI-08 | P1: 3 componentes de estado (AC1 — `<CarregandoSkeleton>`) | Design | In Design |
-| PUI-09 | P1: 3 componentes de estado (AC2 — `<ErroInline>`) | Design | In Design |
-| PUI-10 | P1: 3 componentes de estado (AC3 — `<EstadoVazio>`) | Design | In Design |
-| PUI-11 | P1: 3 componentes de estado (AC4 — puramente apresentacional) | Design | In Design |
-| PUI-12 | P1: 3 componentes de estado (AC5 — local/tipagem) | Design | In Design |
+| PUI-01 | P1: plataforma de dados (AC1 — provider único no layout raiz) | Execute | Implementing |
+| PUI-02 | P1: plataforma de dados (AC2 — telas existentes inalteradas) | Execute | Implementing |
+| PUI-03 | P1: plataforma de dados (AC3 — build com as 2 deps declaradas) | Execute | Implementing |
+| PUI-04 | P1: plataforma de dados (AC4 — tela futura resolve sem provider próprio) | Execute | Implementing |
+| PUI-05 | P1: toast global (AC1 — `<Toaster/>` único montado) | Execute | Implementing |
+| PUI-06 | P1: toast global (AC2 — 5 toasts existentes passam a aparecer) | Execute | Implementing |
+| PUI-07 | P1: toast global (AC3 — toast futuro usa o mesmo `<Toaster/>`) | Execute | Implementing |
+| PUI-08 | P1: 3 componentes de estado (AC1 — `<CarregandoSkeleton>`) | Execute | Implementing |
+| PUI-09 | P1: 3 componentes de estado (AC2 — `<ErroInline>`) | Execute | Implementing |
+| PUI-10 | P1: 3 componentes de estado (AC3 — `<EstadoVazio>`) | Execute | Implementing |
+| PUI-11 | P1: 3 componentes de estado (AC4 — puramente apresentacional) | Execute | Implementing |
+| PUI-12 | P1: 3 componentes de estado (AC5 — local/tipagem) | Execute | Implementing |
 
 **ID format:** `PUI-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 12 total, 12 mapeados para `design.md`, 0 sem mapeamento. Fase Tasks/Execute **não**
-roda nesta sessão (parada deliberada em Design, ver handoff a ser registrado por quem retomar).
+**Coverage:** 12 total, 12 implementados em Execute (sem `tasks.md` formal — lista inline de 5
+passos, ver commits `1374f26`, `d19c59f`, `f581d82`, `dd45087`, `266dfba`), 0 sem mapeamento. Execute
+rodou nesta sessão (2026-08-10, sessão seguinte à que fechou Design) — status final de cada
+requisito depende do Verifier independente, ver `validation.md`.
 
 ---
 
