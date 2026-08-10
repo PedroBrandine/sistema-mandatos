@@ -131,3 +131,51 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
     expect(qtd).toBe(3);
   });
 });
+
+describe("Catálogos de Referência -- régua da Coalizão clonada da Estratégia (D9, CAT-17)", () => {
+  it("CAT-17 AC1/Independent Test: Coalizão tem as mesmas 7 etapas da Estratégia, nomes e ordem idênticos", async () => {
+    const rows = await runSql<{ produto: string; codigo: string; nome: string; ordem: number }>(`
+      SELECT p.nome AS produto, e.codigo, e.nome, e.ordem
+        FROM ref_etapa e JOIN ref_produto p ON p.id_produto = e.id_produto
+       WHERE p.nome IN ('Estratégia', 'Coalizão')
+       ORDER BY p.nome, e.ordem;
+    `);
+    const estrategia = rows.filter((r) => r.produto === "Estratégia");
+    const coalizao = rows.filter((r) => r.produto === "Coalizão");
+    expect(estrategia).toHaveLength(7);
+    expect(coalizao).toHaveLength(7);
+    expect(coalizao.map(({ produto, ...resto }) => resto)).toEqual(
+      estrategia.map(({ produto, ...resto }) => resto)
+    );
+  });
+
+  it("CAT-17 AC2: reaplicar o INSERT de clonagem não duplica (ON CONFLICT DO NOTHING)", async () => {
+    await runSql(`
+      INSERT INTO ref_etapa (id_produto, codigo, nome, ordem, duracao_prevista_dias, gera_registro)
+      SELECT (SELECT id_produto FROM ref_produto WHERE nome = 'Coalizão'),
+             e.codigo, e.nome, e.ordem, e.duracao_prevista_dias, e.gera_registro
+        FROM ref_etapa e JOIN ref_produto p ON p.id_produto = e.id_produto
+       WHERE p.nome = 'Estratégia'
+      ON CONFLICT (id_produto, codigo) DO NOTHING;
+    `);
+    const [{ qtd }] = await runSql<{ qtd: number }>(`
+      SELECT count(*)::int AS qtd FROM ref_etapa e
+        JOIN ref_produto p ON p.id_produto = e.id_produto
+       WHERE p.nome = 'Coalizão';
+    `);
+    expect(qtd).toBe(7);
+  });
+
+  it("CAT-17 AC3: Estratégia e PLL continuam com suas 7/5 linhas, sem regressão", async () => {
+    const rows = await runSql<{ produto: string; qtd: number }>(`
+      SELECT p.nome AS produto, count(*)::int AS qtd
+        FROM ref_etapa e JOIN ref_produto p ON p.id_produto = e.id_produto
+       WHERE p.nome IN ('Estratégia', 'PLL')
+       GROUP BY p.nome ORDER BY p.nome;
+    `);
+    expect(rows).toEqual([
+      { produto: "Estratégia", qtd: 7 },
+      { produto: "PLL", qtd: 5 },
+    ]);
+  });
+});
