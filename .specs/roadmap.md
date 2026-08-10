@@ -61,7 +61,7 @@ gargalo do caminho crítico.
 
 1. `FND-TSE-01`/`FND-TSM-01` — filtro de cargo na busca TSE (**resolvido por outra via** na Feature A: restrição na origem).
 2. `FND-CTR-05` — snapshot de cargo/partido no contrato nunca populado.
-3. `FND-USR-02` — Gestora criando Gestora barrado só na UI, sem `WITH CHECK` de RLS. **Furo de segurança real** — a UI não é autorização (§5.3).
+3. ~~`FND-USR-02` — Gestora criando Gestora barrado só na UI, sem `WITH CHECK` de RLS.~~ ✅ **Corrigido em 2026-08-10** (`20260810181508_fix_with_check_p_usuario.sql`, aplicado em dev) — era mais grave que o registrado: sem `WITH CHECK`, Gestora conseguia criar até Admin, não só Gestora. Teste de regressão em `supabase/tests/plataforma/usuario-with-check.integration.test.ts` (4/4 verde), suíte de RLS/sessão existente sem regressão (13/13 verde).
 4. `FND-COL-03` — seletor de membro de coalizão não filtra `tipo_contratante` (entra na Feature A).
 5. `FND-TSE-03` — rejeitar sugestão TSE não persiste (conflito spec/schema documentado).
 6. Dropdowns (Cargo/Partido/Produto/Projeto) relatados como quebrados — **causa não reproduzida ainda**.
@@ -269,6 +269,6 @@ Sequência (a detalhar quando a onda anterior fechar):
 - Não fecha a aritmética do IIP (D2) — depende da área de conhecimento.
 - Não toca em Mapa Político nem Diagnóstico de Organograma (AD-017, deferidos).
 - Não implementa prospecção (decisão fechada: contrato existe quando há contrato).
-- Não corrige `FND-CTR-05` e `FND-USR-02` como feature própria — **`FND-USR-02` deve entrar como
-  correção de segurança na Semana 2**, junto do trabalho de RLS do convite, porque autorização que
-  só existe na UI não é autorização.
+- Não corrige `FND-CTR-05` como feature própria (baixo impacto, item avulso).
+- `FND-USR-02` **foi corrigido fora de ordem, em 2026-08-10** — não esperou nenhuma feature, por ser
+  falha de segurança ativa (Gestora conseguia criar Admin via RLS), não teórica.
