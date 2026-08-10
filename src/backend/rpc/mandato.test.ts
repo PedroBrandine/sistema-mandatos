@@ -42,6 +42,27 @@ describe("criarMandato", () => {
     });
   });
 
+  // CMU-01/CMU-02: abrir contrato pra mandato existente depende deste
+  // passthrough -- sensor do Verifier (validation.md, Gap #3) encontrou que
+  // remover o passthrough de idContratanteExistente não quebrava nenhum teste.
+  it("CMU-01/02: repassa idContratanteExistente como p_id_contratante_existente", async () => {
+    const { client, chamadas } = criarClienteMock({
+      data: { id_contratante: 9, id_mandato: 10, id_vinculo_tse: null, id_contrato: 11 },
+      error: null,
+    });
+
+    await criarMandato(client, {
+      idContratanteExistente: 9,
+      contrato: { id_produto: 1, dt_inicio: "2026-01-01" },
+    });
+
+    expect(chamadas[0].params).toMatchObject({
+      p_id_contratante_existente: 9,
+      p_contratante: null,
+      p_mandato: null,
+    });
+  });
+
   // Done-when: "Cada wrapper mapeia MDU01 → erro DuplicataDetectada com a lista de similares"
   it("MDU01: lança DuplicataDetectadaError com a lista de similares", async () => {
     const similares = [{ idContratante: 9, nome: "Fulano", sgUf: "SP", nmMunicipio: "São Paulo" }];
@@ -86,6 +107,29 @@ describe("criarMandato", () => {
     await expect(criarMandato(client, { contratante: CONTRATANTE, mandato: MANDATO })).rejects.toThrow(
       ViolacaoUnicaError
     );
+  });
+
+  // CMU-04/CMU-01 AC5: condição de corrida no wizard (checkExistente passou, mas o INSERT
+  // ainda colidiu com o título eleitoral) depende desta mensagem exata para acionar a ação
+  // "ver mandato existente" -- sensor do Verifier (validation.md, Gap #2) encontrou que a
+  // mensagem podia ser trocada sem que nenhum teste falhasse.
+  it("23505: lança ViolacaoUnicaError com a mensagem de dim_mandato_nr_titulo_eleitoral_key", async () => {
+    const { client } = criarClienteMock({
+      data: null,
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "dim_mandato_nr_titulo_eleitoral_key"',
+      },
+    });
+
+    try {
+      await criarMandato(client, { contratante: CONTRATANTE, mandato: MANDATO });
+      throw new Error("deveria ter lançado ViolacaoUnicaError");
+    } catch (erro) {
+      expect(erro).toBeInstanceOf(ViolacaoUnicaError);
+      expect((erro as ViolacaoUnicaError).constraint).toBe("dim_mandato_nr_titulo_eleitoral_key");
+      expect((erro as ViolacaoUnicaError).message).toBe("Já existe um mandato cadastrado com este título eleitoral.");
+    }
   });
 
   it("42501: lança PermissaoNegadaError com mensagem genérica", async () => {

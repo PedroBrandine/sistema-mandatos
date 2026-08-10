@@ -208,4 +208,132 @@ describe("T20 -- app.criar_mandato", () => {
     );
     expect(Number(count[0].count)).toBe(2);
   });
+
+  // CMU-01 AC3, CMU-02, CMU-05 AC3/AC5, CMU-06, CMU-07 (0022_cadastro_mandato_contrato_unificado.sql):
+  // p_contrato, p_coalizao e p_id_contratante_existente -- o path novo que a migration 0022
+  // acrescentou a esta mesma função e que, até esta rodada de Validate, não tinha nenhum teste
+  // automatizado (unit nem integration) exercitando-o (validation.md, Gap #1).
+  describe("p_contrato / p_coalizao / p_id_contratante_existente (CMU-01/02/05/06/07)", () => {
+    let idProdutoEstrategia: number;
+    let idContratanteCoalizao: number;
+    let idCoalizao: number;
+    const contratosIds: number[] = [];
+    const membrosCoalizaoIds: number[] = [];
+
+    beforeAll(async () => {
+      const [{ id_produto }] = await runSql<{ id_produto: number }>(
+        `SELECT id_produto FROM ref_produto WHERE nome = 'Estratégia';`
+      );
+      idProdutoEstrategia = id_produto;
+
+      const [{ id_contratante }] = await runSql<{ id_contratante: number }>(`
+        INSERT INTO dim_contratante (tipo_contratante, nome) VALUES ('coalizao', 'T20 CMU Coalizao Fixture')
+        RETURNING id_contratante;
+      `);
+      idContratanteCoalizao = id_contratante;
+      const [{ id_coalizao }] = await runSql<{ id_coalizao: number }>(
+        `INSERT INTO dim_coalizao (id_contratante) VALUES (${idContratanteCoalizao}) RETURNING id_coalizao;`
+      );
+      idCoalizao = id_coalizao;
+    }, 60000);
+
+    afterAll(async () => {
+      if (membrosCoalizaoIds.length) {
+        await runSql(`DELETE FROM rel_coalizao_membro WHERE id_membro IN (${membrosCoalizaoIds.join(",")});`);
+      }
+      if (contratosIds.length) {
+        await runSql(`DELETE FROM fat_contrato WHERE id_contrato IN (${contratosIds.join(",")});`);
+      }
+      await runSql(`DELETE FROM dim_coalizao WHERE id_coalizao = ${idCoalizao};`);
+      await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratanteCoalizao};`);
+    }, 60000);
+
+    it("CMU-05/06: creates fat_contrato together with a new mandato in the same call (p_contrato)", async () => {
+      const { data, error } = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_contratante: { nome: "T20 CMU Mandato Com Contrato", sg_uf: "SP" },
+        p_mandato: {},
+        p_contrato: { id_produto: idProdutoEstrategia, dt_inicio: "2026-01-01" },
+      });
+      expect(error).toBeNull();
+      contratanteIds.push(data.id_contratante);
+      mandatoIds.push(data.id_mandato);
+      expect(data.id_contrato).not.toBeNull();
+      contratosIds.push(data.id_contrato);
+
+      const [row] = await runSql<{ id_contratante: number; id_produto: number; status: string }>(`
+        SELECT id_contratante, id_produto, status FROM fat_contrato WHERE id_contrato = ${data.id_contrato};
+      `);
+      expect(row.id_contratante).toBe(data.id_contratante);
+      expect(row.id_produto).toBe(idProdutoEstrategia);
+      expect(row.status).toBe("ativo");
+    });
+
+    it("CMU-01/02: opens a second fat_contrato for an existing mandato via p_id_contratante_existente, without a new dim_contratante/dim_mandato row", async () => {
+      const primeiro = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_contratante: { nome: "T20 CMU Mandato Existente", sg_uf: "RS" },
+        p_mandato: {},
+      });
+      expect(primeiro.error).toBeNull();
+      contratanteIds.push(primeiro.data.id_contratante);
+      mandatoIds.push(primeiro.data.id_mandato);
+
+      const segundo = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_id_contratante_existente: primeiro.data.id_contratante,
+        p_contrato: { id_produto: idProdutoEstrategia, dt_inicio: "2026-02-01" },
+      });
+      expect(segundo.error).toBeNull();
+      expect(segundo.data.id_contratante).toBe(primeiro.data.id_contratante);
+      expect(segundo.data.id_mandato).toBe(primeiro.data.id_mandato);
+      expect(segundo.data.id_contrato).not.toBeNull();
+      contratosIds.push(segundo.data.id_contrato);
+
+      const countMandato = await runSql<{ count: string }>(
+        `SELECT count(*)::int AS count FROM dim_mandato WHERE id_contratante = ${primeiro.data.id_contratante};`
+      );
+      expect(Number(countMandato[0].count)).toBe(1);
+
+      const contratosDoMandato = await runSql<{ id_contrato: number }>(
+        `SELECT id_contrato FROM fat_contrato WHERE id_contratante = ${primeiro.data.id_contratante} ORDER BY id_contrato;`
+      );
+      expect(contratosDoMandato).toHaveLength(1);
+      expect(contratosDoMandato[0].id_contrato).toBe(segundo.data.id_contrato);
+    });
+
+    it("CMU-05: creates rel_coalizao_membro together with fat_contrato when p_coalizao is given", async () => {
+      const { data, error } = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_contratante: { nome: "T20 CMU Mandato Com Coalizao", sg_uf: "BA" },
+        p_mandato: {},
+        p_contrato: { id_produto: idProdutoEstrategia, dt_inicio: "2026-03-01" },
+        p_coalizao: { id_coalizao: idCoalizao, papel: "membro" },
+      });
+      expect(error).toBeNull();
+      contratanteIds.push(data.id_contratante);
+      mandatoIds.push(data.id_mandato);
+      contratosIds.push(data.id_contrato);
+
+      const [row] = await runSql<{ id_coalizao: number; id_membro: number; papel: string }>(`
+        SELECT id_coalizao, id_membro, papel FROM rel_coalizao_membro WHERE id_contrato = ${data.id_contrato};
+      `);
+      expect(row.id_coalizao).toBe(idCoalizao);
+      expect(row.papel).toBe("membro");
+      membrosCoalizaoIds.push(row.id_membro);
+    });
+
+    it("CMU-05/06 AC5: rolls back the whole call (no dim_contratante left) when p_coalizao references a non-existent id_coalizao", async () => {
+      const nomeTentativa = "T20 CMU Mandato Rollback Coalizao Invalida";
+      const { data, error } = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_contratante: { nome: nomeTentativa, sg_uf: "PE" },
+        p_mandato: {},
+        p_contrato: { id_produto: idProdutoEstrategia, dt_inicio: "2026-04-01" },
+        p_coalizao: { id_coalizao: 999999999, papel: "membro" },
+      });
+      expect(data).toBeNull();
+      expect(error).not.toBeNull();
+
+      const count = await runSql<{ count: string }>(
+        `SELECT count(*)::int AS count FROM dim_contratante WHERE nome = '${nomeTentativa}';`
+      );
+      expect(Number(count[0].count)).toBe(0);
+    });
+  });
 });
