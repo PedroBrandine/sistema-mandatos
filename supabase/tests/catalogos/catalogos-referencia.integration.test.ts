@@ -133,6 +133,20 @@ describe("Catálogos de Referência -- estrutura das 12 tabelas novas (CAT-01..1
     await runSql(`DELETE FROM ref_etapa WHERE codigo = 'teste_cat01_dup';`);
   });
 
+  it("CAT-01: uq_etapa_produto_ordem rejects duplicate (id_produto, ordem)", async () => {
+    await runSql(`
+      INSERT INTO ref_etapa (id_produto, codigo, nome, ordem)
+      SELECT id_produto, 'teste_cat01_ordem_a', 'Teste CAT-01 ordem A', 31996 FROM ref_produto ORDER BY id_produto LIMIT 1
+      ON CONFLICT (id_produto, codigo) DO NOTHING;
+    `);
+    await expectSqlError(
+      `INSERT INTO ref_etapa (id_produto, codigo, nome, ordem)
+       SELECT id_produto, 'teste_cat01_ordem_b', 'Teste CAT-01 ordem B', 31996 FROM ref_produto ORDER BY id_produto LIMIT 1;`,
+      "23505"
+    );
+    await runSql(`DELETE FROM ref_etapa WHERE codigo = 'teste_cat01_ordem_a';`);
+  });
+
   it("CAT-01: ref_etapa.id_produto rejects a non-existent FK", async () => {
     await expectSqlError(
       `INSERT INTO ref_etapa (id_produto, codigo, nome, ordem) VALUES (999999999, 'x', 'x', 1);`,
@@ -157,6 +171,20 @@ describe("Catálogos de Referência -- estrutura das 12 tabelas novas (CAT-01..1
     );
   });
 
+  it("CAT-02: uq_tipo_registro_etapa_codigo rejects duplicate (id_etapa, codigo)", async () => {
+    await runSql(`
+      INSERT INTO ref_tipo_registro (id_etapa, codigo, nome)
+      VALUES (${idEtapaFixture}, 'teste_cat02_dup', 'Teste CAT-02 dup')
+      ON CONFLICT (id_etapa, codigo) DO NOTHING;
+    `);
+    await expectSqlError(
+      `INSERT INTO ref_tipo_registro (id_etapa, codigo, nome)
+       VALUES (${idEtapaFixture}, 'teste_cat02_dup', 'Outro nome');`,
+      "23505"
+    );
+    await runSql(`DELETE FROM ref_tipo_registro WHERE id_etapa = ${idEtapaFixture} AND codigo = 'teste_cat02_dup';`);
+  });
+
   // -- CAT-03: ref_formulario ---------------------------------------------
 
   it("CAT-03: ck_formulario_respondente rejects an invalid respondente value", async () => {
@@ -172,6 +200,13 @@ describe("Catálogos de Referência -- estrutura das 12 tabelas novas (CAT-01..1
       `INSERT INTO ref_formulario (id_etapa, codigo, nome)
        VALUES (${idEtapaFixture}, 'fixture_t1_teste_estrutura_form', 'Outro nome');`,
       "23505"
+    );
+  });
+
+  it("CAT-03: ref_formulario.id_etapa rejects a non-existent FK", async () => {
+    await expectSqlError(
+      `INSERT INTO ref_formulario (id_etapa, codigo, nome) VALUES (999999999, 'teste_cat03_fk', 'x');`,
+      "23503"
     );
   });
 
@@ -199,6 +234,47 @@ describe("Catálogos de Referência -- estrutura das 12 tabelas novas (CAT-01..1
     await runSql(
       `DELETE FROM ref_metrica_formulario WHERE id_formulario = ${idFormularioFixture} AND codigo_campo = 'teste_cat04_nps1';`
     );
+  });
+
+  it("CAT-04: uq_metrica_form_campo rejects duplicate (id_formulario, codigo_campo) regardless of eh_nps", async () => {
+    await runSql(`
+      INSERT INTO ref_metrica_formulario (id_formulario, codigo_campo, rotulo, tipo)
+      VALUES (${idFormularioFixture}, 'teste_cat04_campo_dup', 'Campo dup', 'numero')
+      ON CONFLICT (id_formulario, codigo_campo) DO NOTHING;
+    `);
+    await expectSqlError(
+      `INSERT INTO ref_metrica_formulario (id_formulario, codigo_campo, rotulo, tipo)
+       VALUES (${idFormularioFixture}, 'teste_cat04_campo_dup', 'Outro rótulo', 'booleano');`,
+      "23505"
+    );
+    await runSql(
+      `DELETE FROM ref_metrica_formulario WHERE id_formulario = ${idFormularioFixture} AND codigo_campo = 'teste_cat04_campo_dup';`
+    );
+  });
+
+  it("CAT-04: uq_metrica_nps_por_formulario is PARTIAL (WHERE eh_nps) -- a non-NPS row coexists with an NPS row on the same formulário", async () => {
+    // Discrimination sensor do Verifier (validation.md, mutação 2): o teste
+    // acima só prova que 2 linhas eh_nps=true colidem -- isso também seria
+    // verdade sob um UNIQUE(id_formulario) pleno, sem WHERE. Este teste prova
+    // especificamente a parcialidade: uma 2ª linha eh_nps=false no MESMO
+    // formulário deve ter sucesso, o que só é possível porque o índice é
+    // `WHERE eh_nps`, não um UNIQUE pleno.
+    await runSql(`
+      INSERT INTO ref_metrica_formulario (id_formulario, codigo_campo, rotulo, tipo, eh_nps)
+      VALUES (${idFormularioFixture}, 'teste_cat04_parcial_nps', 'NPS', 'escala_0_10', true)
+      ON CONFLICT (id_formulario, codigo_campo) DO NOTHING;
+    `);
+    const rows = await runSql<{ id_metrica: number }>(`
+      INSERT INTO ref_metrica_formulario (id_formulario, codigo_campo, rotulo, tipo, eh_nps)
+      VALUES (${idFormularioFixture}, 'teste_cat04_parcial_naonps', 'Não-NPS', 'numero', false)
+      RETURNING id_metrica;
+    `);
+    expect(rows).toHaveLength(1);
+    await runSql(`
+      DELETE FROM ref_metrica_formulario
+       WHERE id_formulario = ${idFormularioFixture}
+         AND codigo_campo IN ('teste_cat04_parcial_nps', 'teste_cat04_parcial_naonps');
+    `);
   });
 
   it("CAT-04: ref_metrica_formulario.id_formulario cascades on delete (ON DELETE CASCADE)", async () => {
@@ -249,9 +325,16 @@ describe("Catálogos de Referência -- estrutura das 12 tabelas novas (CAT-01..1
     );
   });
 
-  it("CAT-08: ref_pilar_insight.codigo and .nome are each UNIQUE", async () => {
+  it("CAT-08: ref_pilar_insight.codigo is UNIQUE", async () => {
     await expectSqlError(
       `INSERT INTO ref_pilar_insight (codigo, nome) VALUES ('dup_cat08', 'Pilar A CAT-08'), ('dup_cat08', 'Pilar B CAT-08');`,
+      "23505"
+    );
+  });
+
+  it("CAT-08: ref_pilar_insight.nome is UNIQUE (distinta da UNIQUE de codigo)", async () => {
+    await expectSqlError(
+      `INSERT INTO ref_pilar_insight (codigo, nome) VALUES ('cat08_codigo_a', 'Pilar Duplicado CAT-08'), ('cat08_codigo_b', 'Pilar Duplicado CAT-08');`,
       "23505"
     );
   });
@@ -319,6 +402,38 @@ describe("Catálogos de Referência -- estrutura das 12 tabelas novas (CAT-01..1
     await expectSqlError(
       `INSERT INTO ref_tipologia (grupo, tipologia, estado, nivel_d1_padrao)
        VALUES ('G-CAT11c', 'T-CAT11c', 'E-CAT11c', 'codigo_inexistente');`,
+      "23503"
+    );
+  });
+
+  it("CAT-11: ref_tipologia.nivel_d2_padrao rejects a non-existent ref_nivel_iip.codigo", async () => {
+    await expectSqlError(
+      `INSERT INTO ref_tipologia (grupo, tipologia, estado, nivel_d2_padrao)
+       VALUES ('G-CAT11d', 'T-CAT11d', 'E-CAT11d', 'codigo_inexistente');`,
+      "23503"
+    );
+  });
+
+  it("CAT-11: ref_tipologia.nivel_d3_padrao rejects a non-existent ref_nivel_iip.codigo", async () => {
+    await expectSqlError(
+      `INSERT INTO ref_tipologia (grupo, tipologia, estado, nivel_d3_padrao)
+       VALUES ('G-CAT11e', 'T-CAT11e', 'E-CAT11e', 'codigo_inexistente');`,
+      "23503"
+    );
+  });
+
+  it("CAT-11: ref_tipologia.id_indicador rejects a non-existent FK", async () => {
+    await expectSqlError(
+      `INSERT INTO ref_tipologia (grupo, tipologia, estado, id_indicador)
+       VALUES ('G-CAT11f', 'T-CAT11f', 'E-CAT11f', 999999999);`,
+      "23503"
+    );
+  });
+
+  it("CAT-11: ref_tipologia.id_preditor_1 rejects a non-existent FK", async () => {
+    await expectSqlError(
+      `INSERT INTO ref_tipologia (grupo, tipologia, estado, id_preditor_1)
+       VALUES ('G-CAT11g', 'T-CAT11g', 'E-CAT11g', 999999999);`,
       "23503"
     );
   });

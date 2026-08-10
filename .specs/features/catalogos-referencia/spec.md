@@ -163,30 +163,30 @@ Cada requisito recebe um ID único para rastreamento entre design, tasks e valid
 
 | Requirement ID | Story | Phase | Status |
 | --------------- | ----- | ------ | ------ |
-| CAT-01 | P1: Estrutura das 12 tabelas — `ref_etapa` | Design | In Design |
-| CAT-02 | P1: Estrutura das 12 tabelas — `ref_tipo_registro` | Design | In Design |
-| CAT-03 | P1: Estrutura das 12 tabelas — `ref_formulario` | Design | In Design |
-| CAT-04 | P1: Estrutura das 12 tabelas — `ref_metrica_formulario` | Design | In Design |
-| CAT-05 | P1: Estrutura das 12 tabelas — `ref_preditor` | Design | In Design |
-| CAT-06 | P1: Estrutura das 12 tabelas — `ref_agenda_tematica` | Design | In Design |
-| CAT-07 | P1: Estrutura das 12 tabelas — `ref_perfil_atuacao` | Design | In Design |
-| CAT-08 | P1: Estrutura das 12 tabelas — `ref_pilar_insight` | Design | In Design |
-| CAT-09 | P1: Estrutura das 12 tabelas — `ref_indicador` | Design | In Design |
-| CAT-10 | P1: Estrutura das 12 tabelas — `ref_nivel_iip` | Design | In Design |
-| CAT-11 | P1: Estrutura das 12 tabelas — `ref_tipologia` | Design | In Design |
-| CAT-12 | P1: Estrutura das 12 tabelas — `ref_dimensao_gip` | Design | In Design |
-| CAT-13 | P1: Padrão de acesso uniforme (RLS desabilitada + GRANT por papel) | Design | In Design |
-| CAT-14 | P1: Provisionamento incremental (AD-025) — migração nova, sem redesenhar o aprovado, sem tocar os 4 catálogos existentes | Design | In Design |
-| CAT-15 | P1: Seed real das 9 tabelas com conteúdo já aprovado (§16 do schema) | Design | In Design |
-| CAT-16 | P2: Levantamento com Monitoramento + seed futuro de `ref_agenda_tematica`/`ref_indicador`/`ref_tipologia` | Design | In Design (bloco de rastreamento — sem código a projetar) |
-| CAT-17 | P2: D9 — régua de etapas da Coalizão (clona Estratégia) | Design | In Design — D9 resolvida por Pedro em 2026-08-10 |
-| CAT-18 | P1: Smoke test de leitura por papel (5 roles `legisla_*` + `anon` negado) | Design | In Design |
+| CAT-01 | P1: Estrutura das 12 tabelas — `ref_etapa` | Execute | ❌ Needs Fix (`50640f7`; falta teste de `uq_etapa_produto_ordem`, ver `validation.md` Fix 2) |
+| CAT-02 | P1: Estrutura das 12 tabelas — `ref_tipo_registro` | Execute | ❌ Needs Fix (`50640f7`; falta teste de `uq_tipo_registro_etapa_codigo`, ver `validation.md` Fix 3) |
+| CAT-03 | P1: Estrutura das 12 tabelas — `ref_formulario` | Execute | ❌ Needs Fix (`50640f7`; falta teste de FK `id_etapa`, ver `validation.md` Fix 4) |
+| CAT-04 | P1: Estrutura das 12 tabelas — `ref_metrica_formulario` | Execute | ❌ Needs Fix (`50640f7`; mutante sobrevivente no índice parcial + falta teste de `uq_metrica_form_campo`, ver `validation.md` Fix 5) |
+| CAT-05 | P1: Estrutura das 12 tabelas — `ref_preditor` | Execute | ✅ Verified (`50640f7`) |
+| CAT-06 | P1: Estrutura das 12 tabelas — `ref_agenda_tematica` | Execute | ✅ Verified (`50640f7`) |
+| CAT-07 | P1: Estrutura das 12 tabelas — `ref_perfil_atuacao` | Execute | ✅ Verified (`50640f7`) |
+| CAT-08 | P1: Estrutura das 12 tabelas — `ref_pilar_insight` | Execute | ❌ Needs Fix (`50640f7`; falta teste de UNIQUE(`nome`), ver `validation.md` Fix 6) |
+| CAT-09 | P1: Estrutura das 12 tabelas — `ref_indicador` | Execute | ✅ Verified (`50640f7`) |
+| CAT-10 | P1: Estrutura das 12 tabelas — `ref_nivel_iip` | Execute | ✅ Verified (`50640f7`) |
+| CAT-11 | P1: Estrutura das 12 tabelas — `ref_tipologia` | Execute | ❌ Needs Fix (`50640f7`; faltam testes de FK para `nivel_d2/d3_padrao`, `id_indicador`, `id_preditor_1/2`, ver `validation.md` Fix 7) |
+| CAT-12 | P1: Estrutura das 12 tabelas — `ref_dimensao_gip` | Execute | ✅ Verified (`50640f7`) |
+| CAT-13 | P1: Padrão de acesso uniforme (RLS desabilitada + GRANT por papel) | Execute | ✅ Verified (`d996a67`) |
+| CAT-14 | P1: Provisionamento incremental (AD-025) — migração nova, sem redesenhar o aprovado, sem tocar os 4 catálogos existentes | Execute | ✅ Verified (`50640f7`) |
+| CAT-15 | P1: Seed real das 9 tabelas com conteúdo já aprovado (§16 do schema) | Execute | ❌ Needs Fix (`e88ac11`; AC10 de idempotência só verificado para 1 das 9 tabelas, ver `validation.md` Fix 8) |
+| CAT-16 | P2: Levantamento com Monitoramento + seed futuro de `ref_agenda_tematica`/`ref_indicador`/`ref_tipologia` | Execute | Pending (bloco de rastreamento — trabalho humano fora desta feature, ver `tasks.md` Notes) |
+| CAT-17 | P2: D9 — régua de etapas da Coalizão (clona Estratégia) | Execute | ✅ Verified (`93e5e67`) |
+| CAT-18 | P1: Smoke test de leitura por papel (5 roles `legisla_*` + `anon` negado) | Execute | ✅ Verified (`d996a67`) |
 
 **ID format:** `CAT-[NÚMERO]` (Catálogos).
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified.
 
-**Coverage:** 18 total, 18 especificados nesta fase, 18 seguem para Design (D9 resolvida — nenhum requisito fica bloqueado). 0 mapeados para tasks ainda — fase Tasks está fora do escopo desta sessão por restrição explícita.
+**Coverage:** 18 total, 18 especificados, 18 desenhados (`design.md`), 4 tasks executadas (`tasks.md`) cobrindo os 17 requisitos de código (CAT-16 é rastreamento, sem código). Verificado por Verifier independente em 2026-08-10 (`validation.md`): 11/17 ✅ Verified, 6/17 ❌ Needs Fix (gaps de profundidade de teste, não de comportamento incorreto) — ver `validation.md` para evidência completa e fix plans.
 
 ---
 
