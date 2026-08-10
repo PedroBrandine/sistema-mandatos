@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Anton, Commissioner } from "next/font/google";
 import "./globals.css";
 
+import { Providers } from "@/components/providers";
+
 const anton = Anton({
   variable: "--font-heading",
   subsets: ["latin"],
@@ -28,7 +30,9 @@ export default function RootLayout({
       lang="en"
       className={`${anton.variable} ${commissioner.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
