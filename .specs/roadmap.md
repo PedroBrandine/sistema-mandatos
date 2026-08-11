@@ -123,8 +123,8 @@ Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto d
 | Dropdowns (Cargo/Partido/Produto/Projeto) relatados como quebrados numa sessão anterior | Aparentam funcionar hoje | **Ainda pendente de confirmação visual humana** — item do roteiro de UAT de 2026-08-10 |
 | Convite por contrato (acesso externo) | ❌ Nunca iniciado — nenhuma migration, nenhuma rota | Ver Trilha B — candidata forte pra amanhã |
 | AD-021 (TanStack Query/Table) | 🟡 Parcial — `useQuery` tem primeiro consumidor real (`useProdutoAtual`, Trilha F, 2026-08-11) | `useReactTable` continua sem consumidor; primeiro candidato real segue sendo Kanban/grade de Sucessos Mensais (§5.2/§6.1) |
-| `<ErroInline>` (AD-029) tem zero consumidores em todo o repositório | ❌ Aberto — achado pelo Verifier da Trilha F (2026-08-11) | `ContratoForm`/`MandatoWizard` (pré-existentes) mostram erro de RLS via `<p>` bruto em vez de `<ErroInline>`; erro não é engolido (chega à tela), só o componente diverge do que `design.md` de `plataforma-ui-tanstack` prometia. Candidato a Trilha E |
-| Aba "Nenhuma etapa cadastrada" da ficha do contrato leva a tela que nunca resolve se `ref_etapa` vier vazio | ❌ Aberto — achado pelo Verifier da Trilha F (2026-08-11) | Edge case que "não deveria acontecer" (régua já seedada pros 3 produtos) — `contratos/[id]/page.tsx` fica preso em `<CarregandoSkeleton>` em vez de mostrar a mensagem. Candidato a Trilha E |
+| `<ErroInline>` (AD-029) tinha zero consumidores em todo o repositório | ✅ Corrigido em 2026-08-11 (`b8b9445`) — achado pelo Verifier da Trilha F, corrigido na mesma sessão a pedido de Pedro | `ContratoForm`/`MandatoWizard` agora usam `<ErroInline>` no erro de RLS em vez do `<p>` bruto anterior |
+| Aba "Nenhuma etapa cadastrada" da ficha do contrato levava a tela que nunca resolvia se `ref_etapa` vier vazio | ✅ Corrigido em 2026-08-11 (`61568ff`) — achado pelo Verifier da Trilha F, corrigido na mesma sessão a pedido de Pedro | `contratos/[id]/page.tsx` agora mostra a mensagem explicitamente em vez de ficar preso em `<CarregandoSkeleton>` |
 
 ---
 

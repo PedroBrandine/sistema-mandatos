@@ -208,12 +208,14 @@ Spot-check em 3 arquivos de frontend contra `coding-principles.md`:
 - **Root cause**: `design.md` (Error Handling Strategy) promete que o erro de `42501`/RLS chega até `<ErroInline>`, mas `ContratoForm`/`MandatoWizard` (código pré-existente, não tocado por nenhuma task desta feature) exibem erro via `<p className="text-sm text-red-500">{erro}</p>` bruto. `<ErroInline>` (`components/ui/erro-inline.tsx`) existe no repositório mas **não tem nenhum consumidor**, nem antes nem depois deste diff. O comportamento funcional exigido pelo spec — "nunca falhar silenciosamente" — é cumprido (mensagem chega à tela via `mapeiaErroRpc`), só o componente específico citado no design não é o que renderiza.
 - **Fix task**: trocar o `<p>` de erro em `contrato-form.tsx`/`mandato-wizard.tsx` por `<ErroInline mensagem={erro} />` (ou equivalente) — tarefa de outra feature/débito técnico, já que nenhuma task de `navegacao-por-produto` tocou esse trecho especificamente.
 - **Priority**: Minor (comportamento correto ao usuário; só o componente exato diverge do design).
+- **Status**: ✅ **Corrigido** (`b8b9445`, mesma sessão — Pedro pediu para corrigir imediatamente em vez de adiar). Build/lint conferidos verdes após a correção, mesma baseline de 27 problemas pré-existentes.
 
 ### Fix 2: Aba "Nenhuma etapa cadastrada" leva a uma tela que nunca resolve
 
 - **Root cause**: quando `ref_etapa` está vazio para o produto, `ficha-contrato-chrome.tsx:66` cria a aba com `href: base` (ou seja, `/contratos/[id]`). Essa rota (`contratos/[id]/page.tsx:22-37`) é a página de redirect para a 1ª etapa: seu `useEffect` busca as etapas e, se `etapas.length === 0`, simplesmente retorna sem navegar (`:29`) — a tela fica presa em `<CarregandoSkeleton>` para sempre, em vez de mostrar a mensagem "Nenhuma etapa cadastrada" de fato. A aba existe (satisfaz o Done-when literal de T22 e o edge case do spec, "mostrar uma aba"), mas clicar nela não mostra conteúdo algum.
 - **Fix task**: em `contratos/[id]/page.tsx`, quando `etapas.length === 0`, renderizar `<EmDesenvolvimento titulo="Nenhuma etapa cadastrada" />` em vez de manter o skeleton indefinidamente.
 - **Priority**: Minor — o próprio spec documenta que este caso "não deveria acontecer" (régua já seedada para os 3 produtos, Trilha C); não bloqueia nenhum fluxo real hoje, mas é um estado alcançável e sem tratamento se a régua de algum produto ficar vazia no futuro.
+- **Status**: ✅ **Corrigido** (`61568ff`, mesma sessão — Pedro pediu para corrigir imediatamente em vez de adiar). Estado `semEtapas` explícito substitui o retorno silencioso do efeito; build/lint conferidos verdes.
 
 ---
 
@@ -283,12 +285,14 @@ gated por papel.
 1. (Minor) Erro de RLS no Cadastro de novo Contrato não passa por `<ErroInline>` (AD-029) como o
    design promete — herda um padrão de exibição de erro pré-existente em `ContratoForm`/
    `MandatoWizard` que nunca usou esse componente. Não é regressão desta feature.
+   **✅ Corrigido em `b8b9445`** (mesma sessão, a pedido de Pedro).
 2. (Minor) Aba "Nenhuma etapa cadastrada" (edge case que "não deveria acontecer") leva a uma tela
    de carregamento que nunca resolve, em vez de mostrar a própria mensagem.
+   **✅ Corrigido em `61568ff`** (mesma sessão, a pedido de Pedro).
 
-**Next steps**: nenhuma ação bloqueante. Fix 1 e Fix 2 podem virar tasks de um ciclo de polimento
-futuro (ou de outra feature, no caso do Fix 1, já que toca código fora do escopo commitado por
-`navegacao-por-produto`). Recomenda-se UAT manual interativo para os itens marcados ⚠️ acima
-(destaque visual da aba ativa; comportamento real de 404 HTTP em `/produtos/xis` e
-`/contratos/999999999` sob sessão autenticada — não executado aqui por exigir servidor dev rodando
-com auth real, fora do escopo de uma verificação estática/lightweight).
+**Next steps**: nenhuma ação bloqueante — os 2 achados Minor já foram corrigidos nesta mesma
+sessão (build/lint reconferidos verdes após cada correção, mesma baseline de 27 problemas
+pré-existentes). Recomenda-se UAT manual interativo para os itens marcados ⚠️ acima (destaque
+visual da aba ativa; comportamento real de 404 HTTP em `/produtos/xis` e `/contratos/999999999`
+sob sessão autenticada — não executado aqui por exigir servidor dev rodando com auth real, fora do
+escopo de uma verificação estática/lightweight).

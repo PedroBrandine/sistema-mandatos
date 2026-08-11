@@ -291,19 +291,20 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   isso). Corrigido dentro do escopo ampliado da própria T1 (1 linha, aprovado explicitamente antes
   do worker prosseguir) — não é regressão desta feature, é dívida que só ficou visível ao corrigir
   os types.
-- **2 achados Minor do Verifier, não-bloqueantes** (ambos com Fix Plan em `validation.md`, nenhum
-  invalida um AC): (1) erro de RLS no Cadastro de novo Contrato não passa por `<ErroInline>`
-  (AD-029) como o `design.md` prometia — `ContratoForm`/`MandatoWizard` (pré-existentes, não
-  tocados por nenhuma task desta feature) usam um `<p>` bruto; `<ErroInline>` tem zero consumidores
-  em todo o repositório, antes e depois deste diff — débito preexistente, não regressão. (2) a aba
-  "Nenhuma etapa cadastrada" (edge case que "não deveria acontecer") leva a uma tela que fica presa
-  em `<CarregandoSkeleton>` em vez de mostrar a mensagem, porque o redirect de `/contratos/[id]`
-  não trata o caso de zero etapas. Lição `L-008` (candidate) registrada sobre o padrão #1.
-- **Next step**: nenhum obrigatório de código. Os 2 achados Minor acima são candidatos a item
-  avulso de Trilha E sempre que houver folga (ver `.specs/roadmap.md` §1.5, Débito conhecido).
-  Recomenda-se UAT manual pros itens que o Verifier marcou ⚠️ (destaque visual da aba ativa;
-  comportamento real de 404 HTTP em `/produtos/xis` e `/contratos/999999999` sob sessão
-  autenticada — não executável numa verificação estática).
+- **2 achados Minor do Verifier, ambos corrigidos na mesma sessão** (Pedro pediu pra corrigir na
+  hora em vez de adiar pra Trilha E; nenhum invalidava um AC): (1) erro de RLS no Cadastro de novo
+  Contrato não passava por `<ErroInline>` (AD-029) como o `design.md` prometia —
+  `ContratoForm`/`MandatoWizard` (pré-existentes) usavam um `<p>` bruto; `<ErroInline>` tinha zero
+  consumidores em todo o repositório — **corrigido em `b8b9445`**. (2) a aba "Nenhuma etapa
+  cadastrada" (edge case que "não deveria acontecer") deixava a tela presa em
+  `<CarregandoSkeleton>` em vez de mostrar a mensagem, porque o redirect de `/contratos/[id]` não
+  tratava o caso de zero etapas — **corrigido em `61568ff`**. Build/lint reconferidos verdes após
+  as duas correções, mesma baseline de 27 problemas pré-existentes. Lição `L-008` (candidate)
+  registrada sobre o padrão #1 (continua válida como lição, independente da correção pontual).
+- **Next step**: nenhum. Os 2 achados Minor já foram corrigidos nesta sessão. Recomenda-se UAT
+  manual pros itens que o Verifier marcou ⚠️ (destaque visual da aba ativa; comportamento real de
+  404 HTTP em `/produtos/xis` e `/contratos/999999999` sob sessão autenticada — não executável
+  numa verificação estática).
 - **Blockers**: none.
 - **Uncommitted files**: `.specs/STATE.md`/`.specs/roadmap.md` tinham edições pré-existentes de
   sessão anterior já no working tree antes desta sessão começar (não criadas por esta feature) —
