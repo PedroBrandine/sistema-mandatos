@@ -67,25 +67,32 @@ const RETRY_BASE_DELAY_MS = 2000;
  *
  * SUPABASE_DB_URL é gerada no workflow a partir de `supabase status -o env`.
  */
-// OIDs numéricos do Postgres: int8, numeric, float4, float8.
+// OIDs numéricos do Postgres: int8, float4, float8 (int2/int4 o `pg` já
+// devolve como número, ficam na lista só por simetria).
 //
-// O `db query --linked` devolve esses valores como NÚMERO no JSON (conferido:
-// `"id_coalizao": 103`), e é sobre isso que as asserções foram escritas --
-// inclusive as que comparam um id vindo daqui com o mesmo id vindo do
-// PostgREST, que também entrega número.
+// O `db query --linked` devolve id (BIGSERIAL/int8) como NÚMERO no JSON
+// (conferido: `"id_coalizao": 103`), e é sobre isso que as asserções foram
+// escritas -- inclusive as que comparam um id vindo daqui com o mesmo id
+// vindo do PostgREST, que também entrega número. O `pg`, por padrão, devolve
+// int8 como STRING para não perder precisão em valores acima de
+// Number.MAX_SAFE_INTEGER; como as chaves deste projeto são BIGSERIAL, todo
+// id chegava como "103" e as comparações falhavam com
+// `expected [ 11 ] to deeply equal [ '11' ]`.
 //
-// O `pg`, por outro lado, devolve int8/numeric como STRING por padrão, para
-// não perder precisão em valores acima de Number.MAX_SAFE_INTEGER. Como as
-// chaves deste projeto são BIGSERIAL, todo id chegava como "103" e as
-// comparações falhavam com `expected [ 11 ] to deeply equal [ '11' ]`.
-//
-// int2/int4 o `pg` já devolve como número; ficam na lista só por simetria.
-//
-// A conversão usa `fields[].dataTypeID` do próprio resultado em vez de
-// `pg.types.setTypeParser` (tentado antes, sem efeito através do wrapper ESM
-// do driver). Também é mais preciso: alcança apenas colunas numéricas e deixa
-// intactos os números dentro de payloads jsonb.
-const OIDS_NUMERICOS = new Set([20, 21, 23, 700, 701, 1700]);
+// NUMERIC (OID 1700) foi removido deste conjunto em 2026-08-10: a suposição
+// de que "todo tipo numérico segue a mesma regra do int8" nunca tinha sido
+// testada contra uma coluna NUMERIC(p,s) de verdade até `ref_nivel_iip.valor`
+// (Trilha C) existir. Testado direto: `db query --linked` devolve
+// NUMERIC(5,2) como STRING formatada ("1.00"), não como número -- ao
+// contrário do id. Convertê-la aqui pra Number (como fazia antes) trocava
+// "1.00" por `1`, batendo com nada e quebrando exatamente o oposto do que
+// esta função existe pra evitar: o CI local (`SUPABASE_TEST_TARGET=local`)
+// via `pg` puro já devolve NUMERIC como string "1.00" nativamente, sem
+// nenhuma conversão -- bastava não mexer. Vale pra qualquer NUMERIC(p,s)
+// futuro (`ref_indicador.peso_iip` já existe; mais vêm em Planejamento/
+// Incidência/Saída) -- não readicionar 1700 aqui sem testar contra `--linked`
+// primeiro.
+const OIDS_NUMERICOS = new Set([20, 21, 23, 700, 701]);
 
 function normalizarNumeros(resultado: {
   rows?: Record<string, unknown>[];
