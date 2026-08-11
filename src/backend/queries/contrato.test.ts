@@ -2,20 +2,39 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarContratoParaFicha, buscarContratosAtivosPorProduto, buscarEtapasDoProduto } from "./contrato";
+import {
+  buscarContratoParaFicha,
+  buscarContratosAtivosPorProduto,
+  buscarEtapasDoProduto,
+  buscarPessoasComPapelNoProduto,
+  contarContratosEAssessoresAtivos,
+} from "./contrato";
 
 type Chamada = { tabela: string; metodo: string; args: unknown[] };
-type RespostaTabela = { data: unknown; error: { message: string } | null };
+type RespostaTabela = { data: unknown; error: { message: string } | null; count?: number };
 
 // Mock de client com uma resposta canônica por tabela -- buscarContratoParaFicha
 // encadeia múltiplas tabelas (fat_contrato, depois dim_mandato OU dim_coalizao),
 // então o mock precisa rotear por nome de tabela em vez de uma única resposta
-// fixa (diferente do padrão de tabela única de queries/tse.test.ts).
-function criarClienteMock(respostas: Record<string, RespostaTabela>) {
+// fixa (diferente do padrão de tabela única de queries/tse.test.ts). Quando
+// uma mesma tabela é consultada mais de uma vez na mesma chamada (ex.:
+// contarContratosEAssessoresAtivos com filtro consulta rel_usuario_contrato
+// duas vezes, com propósitos diferentes), a entrada pode ser uma lista --
+// consumida em fila, uma resposta por `.from()` sucessivo.
+function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | RespostaTabela[]>) {
   const chamadas: Chamada[] = [];
+  const filas = new Map<string, RespostaTabela[]>(
+    Object.entries(respostasPorTabela).map(([tabela, resp]) => [tabela, Array.isArray(resp) ? [...resp] : [resp]])
+  );
+
+  function proximaResposta(tabela: string): RespostaTabela {
+    const fila = filas.get(tabela);
+    if (!fila || fila.length === 0) return { data: null, error: null };
+    return fila.length > 1 ? fila.shift()! : fila[0];
+  }
 
   function criarBuilder(tabela: string) {
-    const resposta = respostas[tabela] ?? { data: null, error: null };
+    const resposta = proximaResposta(tabela);
     const builder: Record<string, unknown> = {
       select: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "select", args });
@@ -27,6 +46,10 @@ function criarClienteMock(respostas: Record<string, RespostaTabela>) {
       },
       in: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "in", args });
+        return builder;
+      },
+      or: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "or", args });
         return builder;
       },
       order: (...args: unknown[]) => {
@@ -217,6 +240,85 @@ describe("buscarContratosAtivosPorProduto", () => {
   it("retorna lista vazia quando não há contrato ativo do produto", async () => {
     const { client } = criarClienteMock({ fat_contrato: { data: [], error: null } });
     const resultado = await buscarContratosAtivosPorProduto(client, 2);
+    expect(resultado).toEqual([]);
+  });
+});
+
+describe("contarContratosEAssessoresAtivos", () => {
+  // Done-when: "Sem filtro, conta todos os contratos ativos e todos os
+  // vínculos de assessor ativos do produto"
+  it("sem filtro conta todos os contratos ativos e todos os vínculos de assessor ativos", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: {
+        data: [{ id_contrato: 1 }, { id_contrato: 2 }, { id_contrato: 3 }],
+        error: null,
+      },
+      rel_usuario_contrato: { data: null, count: 5, error: null },
+    });
+
+    const resultado = await contarContratosEAssessoresAtivos(client, 2);
+
+    expect(resultado).toEqual({ contratosAtivos: 3, assessoresAtivos: 5 });
+    const inAssessores = chamadas.find((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in");
+    expect(inAssessores?.args).toEqual(["id_contrato", [1, 2, 3]]);
+    const eqAssessores = chamadas
+      .filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "eq")
+      .map((c) => c.args);
+    expect(eqAssessores).toContainEqual(["papel_no_contrato", "assessor"]);
+  });
+
+  // Done-when: "Com filtro { papel, idUsuario }, restringe as duas contagens
+  // aos contratos onde aquela pessoa tem vínculo ativo naquele papel (AC2 do
+  // NAV-11, literal)"
+  it("com filtro restringe as duas contagens aos contratos da pessoa naquele papel", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: {
+        data: [{ id_contrato: 1 }, { id_contrato: 2 }, { id_contrato: 3 }],
+        error: null,
+      },
+      rel_usuario_contrato: [
+        { data: [{ id_contrato: 1 }, { id_contrato: 2 }], error: null },
+        { data: null, count: 4, error: null },
+      ],
+    });
+
+    const resultado = await contarContratosEAssessoresAtivos(client, 2, { papel: "gestora", idUsuario: 42 });
+
+    expect(resultado).toEqual({ contratosAtivos: 2, assessoresAtivos: 4 });
+  });
+});
+
+describe("buscarPessoasComPapelNoProduto", () => {
+  it("retorna as pessoas com vínculo ativo naquele papel em algum contrato ativo do produto", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }, { id_contrato: 2 }], error: null },
+      rel_usuario_contrato: { data: [{ id_usuario: 10 }, { id_usuario: 11 }, { id_usuario: 10 }], error: null },
+      dim_usuario: {
+        data: [
+          { id_usuario: 10, nome: "Ana" },
+          { id_usuario: 11, nome: "Beto" },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarPessoasComPapelNoProduto(client, 2, "mentor");
+
+    expect(resultado).toEqual([
+      { idUsuario: 10, nome: "Ana" },
+      { idUsuario: 11, nome: "Beto" },
+    ]);
+  });
+
+  // Done-when: "buscarPessoasComPapelNoProduto retorna [] quando ninguém tem
+  // aquele papel no produto"
+  it("retorna lista vazia quando ninguém tem aquele papel no produto", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }, { id_contrato: 2 }], error: null },
+      rel_usuario_contrato: { data: [], error: null },
+    });
+
+    const resultado = await buscarPessoasComPapelNoProduto(client, 2, "gestora");
     expect(resultado).toEqual([]);
   });
 });

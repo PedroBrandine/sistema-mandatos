@@ -157,3 +157,87 @@ export async function buscarContratosAtivosPorProduto(
     dtInicio: c.dt_inicio,
   }));
 }
+
+async function idsContratosAtivosDoProduto(client: SupabaseClient<Database>, idProduto: number): Promise<number[]> {
+  const { data, error } = await client
+    .from("fat_contrato")
+    .select("id_contrato")
+    .eq("id_produto", idProduto)
+    .eq("status", "ativo");
+
+  if (error) throw error;
+  return (data ?? []).map((c) => c.id_contrato);
+}
+
+// dt_fim IS NULL OR dt_fim >= hoje (AC1 do NAV-10, literal).
+function filtroVinculoAtivo(): string {
+  const hoje = new Date().toISOString().slice(0, 10);
+  return `dt_fim.is.null,dt_fim.gte.${hoje}`;
+}
+
+// NAV-10/NAV-11. Contagens do Dashboard do produto. Sem filtro, conta todos
+// os contratos ativos do produto e todos os vínculos de assessor ativos
+// desses contratos; com filtro (papel+idUsuario), restringe as duas
+// contagens aos contratos onde aquela pessoa tem vínculo ativo naquele papel
+// (AC2 do NAV-11, literal).
+export async function contarContratosEAssessoresAtivos(
+  client: SupabaseClient<Database>,
+  idProduto: number,
+  filtro?: { papel: "gestora" | "mentor"; idUsuario: number }
+): Promise<{ contratosAtivos: number; assessoresAtivos: number }> {
+  let idsContrato = await idsContratosAtivosDoProduto(client, idProduto);
+
+  if (filtro && idsContrato.length > 0) {
+    const { data, error } = await client
+      .from("rel_usuario_contrato")
+      .select("id_contrato")
+      .in("id_contrato", idsContrato)
+      .eq("id_usuario", filtro.idUsuario)
+      .eq("papel_no_contrato", filtro.papel)
+      .or(filtroVinculoAtivo());
+    if (error) throw error;
+    idsContrato = Array.from(new Set((data ?? []).map((v) => v.id_contrato)));
+  }
+
+  if (idsContrato.length === 0) return { contratosAtivos: 0, assessoresAtivos: 0 };
+
+  const { count, error: erroAssessores } = await client
+    .from("rel_usuario_contrato")
+    .select("id_vinculo", { count: "exact", head: true })
+    .in("id_contrato", idsContrato)
+    .eq("papel_no_contrato", "assessor")
+    .or(filtroVinculoAtivo());
+  if (erroAssessores) throw erroAssessores;
+
+  return { contratosAtivos: idsContrato.length, assessoresAtivos: count ?? 0 };
+}
+
+// NAV-11. Pessoas com vínculo ativo naquele papel em algum contrato ativo do
+// produto -- popula o segundo Select em cascata do filtro do Dashboard.
+export async function buscarPessoasComPapelNoProduto(
+  client: SupabaseClient<Database>,
+  idProduto: number,
+  papel: "gestora" | "mentor"
+): Promise<{ idUsuario: number; nome: string }[]> {
+  const idsContrato = await idsContratosAtivosDoProduto(client, idProduto);
+  if (idsContrato.length === 0) return [];
+
+  const { data: vinculos, error } = await client
+    .from("rel_usuario_contrato")
+    .select("id_usuario")
+    .in("id_contrato", idsContrato)
+    .eq("papel_no_contrato", papel)
+    .or(filtroVinculoAtivo());
+  if (error) throw error;
+
+  const idsUsuario = Array.from(new Set((vinculos ?? []).map((v) => v.id_usuario)));
+  if (idsUsuario.length === 0) return [];
+
+  const { data: usuarios, error: erroUsuarios } = await client
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .in("id_usuario", idsUsuario);
+  if (erroUsuarios) throw erroUsuarios;
+
+  return (usuarios ?? []).map((u) => ({ idUsuario: u.id_usuario, nome: u.nome }));
+}
