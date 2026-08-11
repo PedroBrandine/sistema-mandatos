@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErroInline } from "@/components/ui/erro-inline";
 
 import { ContratanteFields } from "./contratante-fields";
 import { DuplicataWarningDialog } from "./duplicata-warning-dialog";
@@ -906,11 +907,8 @@ export function MandatoWizard({
             </Card>
 
             {erro && (
-              <div className="mt-6 flex flex-col gap-3 rounded-lg bg-destructive/15 p-4 text-sm font-medium text-destructive">
-                <div className="flex items-center gap-2">
-                  <XCircle className="size-4" />
-                  {erro}
-                </div>
+              <div className="mt-6 flex flex-col gap-3">
+                <ErroInline mensagem={erro} />
                 {duplicataTitulo && (
                   <Button
                     type="button"

@@ -11,6 +11,7 @@ import type { Database } from "@backend/supabase/database.types";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ErroInline } from "@/components/ui/erro-inline";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -236,7 +237,7 @@ export function ContratoForm({ idContratante, contratosExistentes, modo, produto
               </FormItem>
             )}
           />
-          {erro && <p className="text-sm text-red-500">{erro}</p>}
+          {erro && <ErroInline mensagem={erro} />}
           <Button type="submit" disabled={enviando} className="w-fit">
             {enviando ? "Salvando..." : "Abrir contrato"}
           </Button>
