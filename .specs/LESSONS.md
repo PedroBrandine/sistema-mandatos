@@ -56,6 +56,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: src/frontend/components/providers.tsx:20, src/frontend/lib/query-client.ts:23, src/frontend/components/ui/erro-inline.tsx:28-39 (validation.md discrimination sensor, 3 mutants) (frontend/testing-infra)
 - last seen: 2026-08-10T22:27:46Z
 
+### L-008 — When a design's Error Handling Strategy names a specific shared error-display component (e.g. ErroInline) as the propagation endpoint for a reused form, verify the reused component's actual JSX renders through it -- a form can map errors correctly and still surface them via an ad-hoc element instead of the named standard component.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `frontend-error-display` · harmful: 0
+- features: navegacao-por-produto
+- evidence: spec.md Edge Cases (RLS nega escrita) / design.md Error Handling Strategy row 5 / src/frontend/components/fundacao/contrato-form.tsx:239 (frontend-error-display)
+- last seen: 2026-08-11T13:52:02Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

@@ -257,6 +257,60 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-08-10
 - **Status**: active
 
+### AD-032
+- **Decision**: `vw_carteira` (G1, carteira ponderada) nasce numa **versão reduzida, sem a coluna de IIP** (`iip_provisorio`/`nr_fatos`, que vêm de `mv_iip_contrato`) até a onda de Incidência (§6.2 do roadmap) existir. A versão completa, idêntica ao `docs/schema_sistema.sql:1327-1352` aprovado, substitui a reduzida quando `mv_iip_contrato` for criada — não é redesenho, é adoção tardia da mesma view já aprovada.
+- **Reason**: `vw_carteira`, como aprovada, faz `JOIN` com `mv_iip_contrato` — em Postgres, `CREATE VIEW` falha se o objeto referenciado não existe. Como a onda de Operação (régua + Kanban + G1/G2, §5) roda antes da Incidência (§6.2) no roadmap, esperar a Incidência pra ter G1/G2 atrasaria as duas primeiras telas de gestão do sistema por uma coluna que ficaria `NULL` de qualquer forma até lá. Decisão de Pedro em 2026-08-10.
+- **Trade-off**: existe uma janela em que a `vw_carteira` em produção diverge do texto de `docs/schema_sistema.sql` (menos uma consulta, não mais) — quem for construir a Incidência precisa **substituir**, nunca só adicionar por cima, a view reduzida pela completa, e apagar esta entrada do débito quando isso acontecer.
+- **Scope**: `vw_carteira`; onda de Operação (§5) e Incidência (§6.2) do roadmap.
+- **Date**: 2026-08-10
+- **Status**: active — resolve quando a Incidência (§6.2) provisionar `mv_iip_contrato`
+
+---
+
+## Handoff (Navegação por Produto — Trilha F — CONCLUÍDA e validada)
+
+- **Feature**: Navegação por Produto (`.specs/features/navegacao-por-produto/`) — **CONCLUÍDA e
+  validada**, 15/15 requisitos (NAV-01 a NAV-15). Substitui a landing page pós-login por um hub de
+  4 produtos (Estratégia/PLL/Coalizão/Visão Gerencial), cada produto operado com 4 abas fixas
+  (Dashboard/Agenda/Contratos/Cadastro de novo Contrato), e uma ficha operacional nova por
+  contrato (`/contratos/[id]`) reaproveitada entre mandato e coalizão.
+- **Phase / Task**: Specify+Discuss já vinham completos de sessão anterior (`spec.md`/`context.md`,
+  7 pontos "a confirmar" resolvidos por Pedro no início desta sessão, todos com o default
+  proposto). Esta sessão rodou Design (`design.md`) → Tasks (25 tasks formais, `tasks.md`, 4 lotes
+  de sub-agente — Pedro aceitou a oferta) → Execute (4 lotes sequenciais, T1-T25) → Validate
+  (Verifier independente, 1 rodada, PASS de primeira).
+- **Completed**: Lote 1/T1-T6 tipos+queries (`8c186bf`..`f559f82`, 111 testes unitários) → Lote
+  2/T7-T11 infra de UI + Hub (`24bc4d6`..`e7dfe69`) → Lote 3/T12-T17 área de produto
+  (`5253557`..`ac1a0f2`) → Lote 4/T18-T25 Cadastro de novo Contrato + ficha do contrato
+  (`52cf42e`..`5913c0c`) → Verifier independente (`✅ PASS`, 15/15, sensor 3/3 killed) →
+  `spec.md`/`validation.md`/`STATE.md`/`roadmap.md`/lessons (commit desta sessão).
+- **Achado real durante T1** (não estava em `design.md`, descoberto empiricamente): regenerar
+  `database.types.ts` (pra tipar `ref_etapa`, nunca tipada desde a Trilha C) expôs um gap de tipo
+  pré-existente em `rpc/mandato.ts:54` (`p_id_contratante_existente ?? null` incompatível com o
+  `Args` de `app.criar_mandato` corretamente tipado agora — o type antigo incompleto mascarava
+  isso). Corrigido dentro do escopo ampliado da própria T1 (1 linha, aprovado explicitamente antes
+  do worker prosseguir) — não é regressão desta feature, é dívida que só ficou visível ao corrigir
+  os types.
+- **2 achados Minor do Verifier, não-bloqueantes** (ambos com Fix Plan em `validation.md`, nenhum
+  invalida um AC): (1) erro de RLS no Cadastro de novo Contrato não passa por `<ErroInline>`
+  (AD-029) como o `design.md` prometia — `ContratoForm`/`MandatoWizard` (pré-existentes, não
+  tocados por nenhuma task desta feature) usam um `<p>` bruto; `<ErroInline>` tem zero consumidores
+  em todo o repositório, antes e depois deste diff — débito preexistente, não regressão. (2) a aba
+  "Nenhuma etapa cadastrada" (edge case que "não deveria acontecer") leva a uma tela que fica presa
+  em `<CarregandoSkeleton>` em vez de mostrar a mensagem, porque o redirect de `/contratos/[id]`
+  não trata o caso de zero etapas. Lição `L-008` (candidate) registrada sobre o padrão #1.
+- **Next step**: nenhum obrigatório de código. Os 2 achados Minor acima são candidatos a item
+  avulso de Trilha E sempre que houver folga (ver `.specs/roadmap.md` §1.5, Débito conhecido).
+  Recomenda-se UAT manual pros itens que o Verifier marcou ⚠️ (destaque visual da aba ativa;
+  comportamento real de 404 HTTP em `/produtos/xis` e `/contratos/999999999` sob sessão
+  autenticada — não executável numa verificação estática).
+- **Blockers**: none.
+- **Uncommitted files**: `.specs/STATE.md`/`.specs/roadmap.md` tinham edições pré-existentes de
+  sessão anterior já no working tree antes desta sessão começar (não criadas por esta feature) —
+  incorporadas ao commit de fechamento desta feature junto das atualizações de `spec.md`/
+  `validation.md`/lessons, por não haver stage parcial de hunk disponível neste ambiente.
+- **Branch**: develop.
+
 ---
 
 ## Handoff
