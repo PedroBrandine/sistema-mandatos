@@ -51,7 +51,7 @@ describe("criarMandato", () => {
       error: null,
     });
 
-    await criarMandato(client, {
+    const resultado = await criarMandato(client, {
       idContratanteExistente: 9,
       contrato: { id_produto: 1, dt_inicio: "2026-01-01" },
     });
@@ -61,6 +61,7 @@ describe("criarMandato", () => {
       p_contratante: null,
       p_mandato: null,
     });
+    expect(resultado.idContrato).toBe(11);
   });
 
   // Done-when: "Cada wrapper mapeia MDU01 → erro DuplicataDetectada com a lista de similares"

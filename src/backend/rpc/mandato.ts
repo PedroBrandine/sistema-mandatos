@@ -62,7 +62,7 @@ export async function criarMandato(
     idMandato: resultado.id_mandato ?? 0, // Fallback if needed, though for existing it will be null if not queried properly, but our SQL returns it
     idVinculoTse: resultado.id_vinculo_tse,
     idContrato: resultado.id_contrato,
-  } as MandatoCriado & { idContrato?: number | null };
+  };
 }
 
 // FND-TSE-04. Único ponto de chamada de app.marcar_candidatura_vigente

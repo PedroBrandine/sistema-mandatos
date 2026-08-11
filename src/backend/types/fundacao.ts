@@ -31,6 +31,7 @@ export interface MandatoCriado {
   idContratante: number;
   idMandato: number;
   idVinculoTse: number | null;
+  idContrato: number | null;
 }
 
 export interface CoalizaoCriada {
