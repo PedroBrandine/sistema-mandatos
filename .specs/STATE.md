@@ -287,6 +287,53 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
+## Handoff (Plataforma de UI — TanStack + Estados Padrão — CONCLUÍDA)
+
+- **Reconstruído em 2026-08-10** — esta seção foi perdida do arquivo por uma corrida de escrita entre
+  as 3 sessões paralelas de hoje: o commit `e2c5a06` a escreveu corretamente na seção genérica
+  `## Handoff`, mas o commit seguinte (`2dabf9d`, de `cadastro-mandato-contrato-unificado`) substituiu
+  aquele conteúdo pelo próprio sem renomeá-lo primeiro — quebra da convenção que os outros dois
+  commits (`e2c5a06` e `bcd71c9`) seguiram certo. Nada foi perdido de código ou de decisão: reconstruído
+  aqui a partir de `.specs/features/plataforma-ui-tanstack/validation.md` (íntegro).
+- **Feature**: Plataforma de UI — TanStack Query/Table + toast global + estados padrão
+  (`.specs/features/plataforma-ui-tanstack/`) — **CONCLUÍDA**, 11/12 ACs verificados por código; 1/12
+  (PUI-06) code-verified mas com confirmação visual pendente de UAT manual (não é gap de código).
+- **Phase / Task**: Specify+Design já vinham completos de sessão anterior (escopo Medium — sem
+  `tasks.md` formal). Execute rodou como lista inline de 6 passos: instalar
+  `@tanstack/react-query`+`@tanstack/react-table`, montar `QueryClientProvider`+`<Toaster/>` no
+  `app/layout.tsx` raiz (`getQueryClient()` factory SSR-safe, sem `next-themes` — AD-029), e os 3
+  componentes de estado (`CarregandoSkeleton`, `ErroInline`, `EstadoVazio`) em `components/ui/`.
+  Verifier independente: sensor 0/3 killed (esperado — projeto não tem suíte de teste de componente de
+  UI, débito preexistente documentado no `design.md`), gate `npm run build` ✅ (15/15 rotas),
+  `lint:all` ❌ mas só por 35 problemas pré-existentes fora do escopo desta feature (lint escopado aos
+  8 arquivos da feature: 0 erros).
+- **Completed**: instalar deps (`1374f26`) → provider+Toaster (`d19c59f`) → `CarregandoSkeleton`
+  (`f581d82`) → `ErroInline` (`dd45087`) → `EstadoVazio` (`266dfba`) → rastreabilidade do spec
+  atualizada (`932c1fd`) → Verifier independente (`bd160be`).
+- **O bug que esta feature corrige**: `sonner` já estava instalado e chamado (`toast.success`/
+  `toast.error`) em 5 telas (`mandatos`, `coalizoes`, `usuarios`, `contratos`, `mandatos/[id]`), mas
+  nenhum `<Toaster/>` estava montado em lugar nenhum da árvore — essas chamadas não produziam nada
+  visível. Corrigido montando exatamente 1 `<Toaster/>` no layout raiz.
+- **Next step — UAT manual obrigatório antes de considerar PUI-06 fechado** (nenhum dos itens abaixo é
+  gap de código, é confirmação visual que só um humano faz):
+  1. Abrir `/mandatos`, excluir um registro de teste, confirmar que o aviso de sucesso aparece.
+  2. Forçar uma exclusão negada por permissão, confirmar que o aviso de erro aparece.
+  3. Abrir `/mandatos`, `/coalizoes`, `/usuarios`, `/contratos` e confirmar que continuam funcionando
+     exatamente como antes (nenhuma tela existente foi tocada pelos 6 commits desta feature).
+  4. Renderizar os 3 componentes de estado com dado de exemplo e confirmar visualmente os 3 estados.
+- **Blockers**: none (os itens de UAT acima são recomendados, não bloqueantes).
+- **Uncommitted files**: none.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: outras duas features
+  (`cadastro-mandato-contrato-unificado`, `catalogos-referencia`) commitaram intercaladas neste mesmo
+  branch `develop` durante a execução desta feature. Nenhum arquivo desta feature colidiu — mas a
+  própria seção de handoff deste bloco colidiu (ver nota de reconstrução no topo). Qualquer sessão
+  futura que escreva em `STATE.md`/`.specs/roadmap.md` enquanto outra sessão pode estar rodando em
+  paralelo deve **renomear a seção `## Handoff` genérica existente antes de substituí-la**, nunca
+  sobrescrever direto.
+
+---
+
 **Correção (2026-07-31, mesma sessão)**: a entrada anterior deste arquivo dizia "Fase 5 pendente (T29-T37)" — **isso estava errado**, herdado sem verificação de um handoff represado mais antigo (ver nota de manutenção abaixo, agora obsoleta). Conferido direto em `tasks.md`: as 5 fases (T1-T37) estão **completas**, e `validation.md` da própria feature já existe (Verifier PASS com ressalvas: 20/26 requisitos ✅ Verified, 5 "Needs Fix" conhecidos e não-bloqueantes, 1 conflito spec/schema documentado — ver `.specs/features/fundacao-entidades-pessoas/validation.md`). Rotas `/mandatos/novo`, `/mandatos/[id]`, `/coalizoes/novo`, `/coalizoes/[id]`, `/usuarios`, `/contratos/[id]/vinculos` já existem e funcionam (não são placeholder).
 
 ## Handoff (Fundação — Entidades e Pessoas — CONCLUÍDA e validada)
