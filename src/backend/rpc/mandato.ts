@@ -51,7 +51,7 @@ export async function criarMandato(
     p_ignorar_duplicata: input.ignorarDuplicata ?? false,
     p_contrato: input.contrato ?? null,
     p_coalizao: input.coalizao ?? null,
-    p_id_contratante_existente: input.idContratanteExistente ?? null,
+    p_id_contratante_existente: input.idContratanteExistente,
   });
 
   if (error) throw mapeiaErroRpc(error);

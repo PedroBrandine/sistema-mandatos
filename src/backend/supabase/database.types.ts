@@ -45,9 +45,12 @@ export type Database = {
       criar_mandato: {
         Args: {
           p_candidatura?: Json
-          p_contratante: Json
+          p_coalizao?: Json
+          p_contratante?: Json
+          p_contrato?: Json
+          p_id_contratante_existente?: number
           p_ignorar_duplicata?: boolean
-          p_mandato: Json
+          p_mandato?: Json
         }
         Returns: Json
       }
@@ -109,18 +112,24 @@ export type Database = {
     Tables: {
       dim_coalizao: {
         Row: {
+          agenda_tematica: string[] | null
+          classificacao: string | null
           id_coalizao: number
           id_contratante: number
           id_projeto_origem: number | null
           possui_planejamento_proprio: boolean
         }
         Insert: {
+          agenda_tematica?: string[] | null
+          classificacao?: string | null
           id_coalizao?: number
           id_contratante: number
           id_projeto_origem?: number | null
           possui_planejamento_proprio?: boolean
         }
         Update: {
+          agenda_tematica?: string[] | null
+          classificacao?: string | null
           id_coalizao?: number
           id_contratante?: number
           id_projeto_origem?: number | null
@@ -1158,6 +1167,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ref_agenda_tematica: {
+        Row: {
+          ativo: boolean
+          id_agenda: number
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          id_agenda?: number
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          id_agenda?: number
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
       ref_cargo: {
         Row: {
           ativo: boolean
@@ -1179,6 +1209,204 @@ export type Database = {
           id_cargo?: number
           nivel_federativo?: string
           nome?: string
+        }
+        Relationships: []
+      }
+      ref_dimensao_gip: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          id_dimensao: number
+          nome: string
+          ordem: number
+          valor_max: number
+          valor_min: number
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          id_dimensao?: number
+          nome: string
+          ordem: number
+          valor_max?: number
+          valor_min?: number
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          id_dimensao?: number
+          nome?: string
+          ordem?: number
+          valor_max?: number
+          valor_min?: number
+        }
+        Relationships: []
+      }
+      ref_etapa: {
+        Row: {
+          codigo: string
+          duracao_prevista_dias: number | null
+          gera_registro: boolean
+          id_etapa: number
+          id_produto: number
+          nome: string
+          ordem: number
+        }
+        Insert: {
+          codigo: string
+          duracao_prevista_dias?: number | null
+          gera_registro?: boolean
+          id_etapa?: number
+          id_produto: number
+          nome: string
+          ordem: number
+        }
+        Update: {
+          codigo?: string
+          duracao_prevista_dias?: number | null
+          gera_registro?: boolean
+          id_etapa?: number
+          id_produto?: number
+          nome?: string
+          ordem?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ref_etapa_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+        ]
+      }
+      ref_formulario: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          exige_anexo: boolean
+          id_etapa: number
+          id_formulario: number
+          nome: string
+          permite_edicao_aberta: boolean
+          respondente: string | null
+          schema_campos: Json
+          versao: number
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          exige_anexo?: boolean
+          id_etapa: number
+          id_formulario?: number
+          nome: string
+          permite_edicao_aberta?: boolean
+          respondente?: string | null
+          schema_campos?: Json
+          versao?: number
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          exige_anexo?: boolean
+          id_etapa?: number
+          id_formulario?: number
+          nome?: string
+          permite_edicao_aberta?: boolean
+          respondente?: string | null
+          schema_campos?: Json
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ref_formulario_id_etapa_fkey"
+            columns: ["id_etapa"]
+            isOneToOne: false
+            referencedRelation: "ref_etapa"
+            referencedColumns: ["id_etapa"]
+          },
+        ]
+      }
+      ref_indicador: {
+        Row: {
+          ativo: boolean
+          id_indicador: number
+          nome: string
+          peso_iip: number
+        }
+        Insert: {
+          ativo?: boolean
+          id_indicador?: number
+          nome: string
+          peso_iip: number
+        }
+        Update: {
+          ativo?: boolean
+          id_indicador?: number
+          nome?: string
+          peso_iip?: number
+        }
+        Relationships: []
+      }
+      ref_metrica_formulario: {
+        Row: {
+          agrupador: string | null
+          ativo: boolean
+          codigo_campo: string
+          eh_nps: boolean
+          id_formulario: number
+          id_metrica: number
+          rotulo: string
+          tipo: string
+        }
+        Insert: {
+          agrupador?: string | null
+          ativo?: boolean
+          codigo_campo: string
+          eh_nps?: boolean
+          id_formulario: number
+          id_metrica?: number
+          rotulo: string
+          tipo: string
+        }
+        Update: {
+          agrupador?: string | null
+          ativo?: boolean
+          codigo_campo?: string
+          eh_nps?: boolean
+          id_formulario?: number
+          id_metrica?: number
+          rotulo?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ref_metrica_formulario_id_formulario_fkey"
+            columns: ["id_formulario"]
+            isOneToOne: false
+            referencedRelation: "ref_formulario"
+            referencedColumns: ["id_formulario"]
+          },
+        ]
+      }
+      ref_nivel_iip: {
+        Row: {
+          codigo: string
+          ordem: number
+          rotulo: string
+          valor: number
+        }
+        Insert: {
+          codigo: string
+          ordem: number
+          rotulo: string
+          valor: number
+        }
+        Update: {
+          codigo?: string
+          ordem?: number
+          rotulo?: string
+          valor?: number
         }
         Relationships: []
       }
@@ -1209,6 +1437,72 @@ export type Database = {
           nome?: string | null
           numero?: number | null
           sigla?: string
+        }
+        Relationships: []
+      }
+      ref_perfil_atuacao: {
+        Row: {
+          ativo: boolean
+          id_perfil: number
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          id_perfil?: number
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          id_perfil?: number
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
+      ref_pilar_insight: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          id_pilar: number
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          id_pilar?: number
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          id_pilar?: number
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
+      ref_preditor: {
+        Row: {
+          ativo: boolean
+          id_preditor: number
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          id_preditor?: number
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          id_preditor?: number
+          nome?: string
+          ordem?: number | null
         }
         Relationships: []
       }
@@ -1268,6 +1562,135 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_produto"
             referencedColumns: ["id_produto"]
+          },
+        ]
+      }
+      ref_tipo_registro: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          id_etapa: number
+          id_tipo_registro: number
+          nome: string
+          permite_multiplos: boolean
+          qtd_prevista: number | null
+          schema_campos: Json
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          id_etapa: number
+          id_tipo_registro?: number
+          nome: string
+          permite_multiplos?: boolean
+          qtd_prevista?: number | null
+          schema_campos?: Json
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          id_etapa?: number
+          id_tipo_registro?: number
+          nome?: string
+          permite_multiplos?: boolean
+          qtd_prevista?: number | null
+          schema_campos?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ref_tipo_registro_id_etapa_fkey"
+            columns: ["id_etapa"]
+            isOneToOne: false
+            referencedRelation: "ref_etapa"
+            referencedColumns: ["id_etapa"]
+          },
+        ]
+      }
+      ref_tipologia: {
+        Row: {
+          ativo: boolean
+          estado: string
+          grupo: string
+          id_indicador: number | null
+          id_preditor_1: number | null
+          id_preditor_2: number | null
+          id_tipologia: number
+          nivel_d1_padrao: string | null
+          nivel_d2_padrao: string | null
+          nivel_d3_padrao: string | null
+          observacao: string | null
+          tipologia: string
+        }
+        Insert: {
+          ativo?: boolean
+          estado: string
+          grupo: string
+          id_indicador?: number | null
+          id_preditor_1?: number | null
+          id_preditor_2?: number | null
+          id_tipologia?: number
+          nivel_d1_padrao?: string | null
+          nivel_d2_padrao?: string | null
+          nivel_d3_padrao?: string | null
+          observacao?: string | null
+          tipologia: string
+        }
+        Update: {
+          ativo?: boolean
+          estado?: string
+          grupo?: string
+          id_indicador?: number | null
+          id_preditor_1?: number | null
+          id_preditor_2?: number | null
+          id_tipologia?: number
+          nivel_d1_padrao?: string | null
+          nivel_d2_padrao?: string | null
+          nivel_d3_padrao?: string | null
+          observacao?: string | null
+          tipologia?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ref_tipologia_id_indicador_fkey"
+            columns: ["id_indicador"]
+            isOneToOne: false
+            referencedRelation: "ref_indicador"
+            referencedColumns: ["id_indicador"]
+          },
+          {
+            foreignKeyName: "ref_tipologia_id_preditor_1_fkey"
+            columns: ["id_preditor_1"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+          {
+            foreignKeyName: "ref_tipologia_id_preditor_2_fkey"
+            columns: ["id_preditor_2"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+          {
+            foreignKeyName: "ref_tipologia_nivel_d1_padrao_fkey"
+            columns: ["nivel_d1_padrao"]
+            isOneToOne: false
+            referencedRelation: "ref_nivel_iip"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "ref_tipologia_nivel_d2_padrao_fkey"
+            columns: ["nivel_d2_padrao"]
+            isOneToOne: false
+            referencedRelation: "ref_nivel_iip"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "ref_tipologia_nivel_d3_padrao_fkey"
+            columns: ["nivel_d3_padrao"]
+            isOneToOne: false
+            referencedRelation: "ref_nivel_iip"
+            referencedColumns: ["codigo"]
           },
         ]
       }
