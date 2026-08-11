@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { ContratanteFields } from "./contratante-fields";
@@ -76,6 +77,13 @@ type Passo =
 
 export interface MandatoWizardProps {
   onCriado: (mandato: MandatoCriado) => void;
+  // produtoTravado (NAV-09 AC1): quando presente, substitui o
+  // id_produto: 1 hardcoded e o campo Produto vira rótulo fixo -- usado pela
+  // aba "Cadastro de novo Contrato" (design.md, MandatoWizard -- alterações).
+  produtoTravado?: { id: number; nome: string };
+  // destino (NAV-09 AC3): resolve o path de navegação pós-criação. Default
+  // preserva o comportamento atual de /mandatos/novo.
+  destino?: (resultado: MandatoCriado) => string;
 }
 
 const racas = ["Branca", "Preta", "Parda", "Amarela", "Indígena"];
@@ -107,7 +115,11 @@ function hoje(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function MandatoWizard({ onCriado }: MandatoWizardProps) {
+export function MandatoWizard({
+  onCriado,
+  produtoTravado,
+  destino = (r) => `/mandatos/${r.idMandato}`,
+}: MandatoWizardProps) {
   const router = useRouter();
   const [passo, setPasso] = useState<Passo>({ tipo: "buscar" });
   const [cargos, setCargos] = useState<RefOption[]>([]);
@@ -128,10 +140,10 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
   const form = useForm<WizardFormValues>({
     resolver: zodResolver(wizardSchema),
     mode: "onChange",
-    defaultValues: { 
-      contratante: { nome: "" }, 
-      mandato: {}, 
-      contrato: { id_produto: 1, dt_inicio: hoje() },
+    defaultValues: {
+      contratante: { nome: "" },
+      mandato: {},
+      contrato: { id_produto: produtoTravado?.id ?? 1, dt_inicio: hoje() },
       coalizao: {}
     },
   });
@@ -168,7 +180,7 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
           sg_uf: null,
           nm_municipio: null,
         },
-        contrato: { id_produto: 1, dt_inicio: hoje() },
+        contrato: { id_produto: produtoTravado?.id ?? 1, dt_inicio: hoje() },
         coalizao: {},
       });
       setPasso({ tipo: "existente", mandato: existente });
@@ -220,7 +232,7 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
         ds_genero: generoTse,
         ds_raca: racaTse,
       },
-      contrato: { id_produto: 1, dt_inicio: hoje() },
+      contrato: { id_produto: produtoTravado?.id ?? 1, dt_inicio: hoje() },
       coalizao: {}
     });
     setErro(null);
@@ -228,10 +240,10 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
   }
 
   function iniciarManual() {
-    form.reset({ 
-      contratante: { nome: "" }, 
-      mandato: {}, 
-      contrato: { id_produto: 1, dt_inicio: hoje() },
+    form.reset({
+      contratante: { nome: "" },
+      mandato: {},
+      contrato: { id_produto: produtoTravado?.id ?? 1, dt_inicio: hoje() },
       coalizao: {}
     });
     setErro(null);
@@ -289,7 +301,7 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
       });
       setSimilares(null);
       onCriado(resultado);
-      router.push(`/mandatos/${resultado.idMandato}`);
+      router.push(destino(resultado));
     } catch (e) {
       if (e instanceof DuplicataDetectadaError) {
         setSimilares(e.similares);
@@ -731,23 +743,29 @@ export function MandatoWizard({ onCriado }: MandatoWizardProps) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Produto <span className="text-destructive">*</span></FormLabel>
-                        <Select
-                          value={field.value ? String(field.value) : undefined}
-                          onValueChange={(v) => field.onChange(Number(v))}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full bg-background">
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {produtos.map((p) => (
-                              <SelectItem key={p.id} value={String(p.id)}>
-                                {p.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {produtoTravado ? (
+                          <div>
+                            <Badge variant="secondary">{produtoTravado.nome}</Badge>
+                          </div>
+                        ) : (
+                          <Select
+                            value={field.value ? String(field.value) : undefined}
+                            onValueChange={(v) => field.onChange(Number(v))}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full bg-background">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {produtos.map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
