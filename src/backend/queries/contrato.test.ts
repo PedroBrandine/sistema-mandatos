@@ -98,7 +98,7 @@ describe("buscarContratoParaFicha", () => {
         error: null,
       },
       dim_mandato: {
-        data: { ref_cargo: { nome: "Vereador" }, ref_partido: { sigla: "PT" } },
+        data: { id_mandato: 42, ref_cargo: { nome: "Vereador" }, ref_partido: { sigla: "PT" } },
         error: null,
       },
     });
@@ -112,6 +112,7 @@ describe("buscarContratoParaFicha", () => {
       idContratante: 3,
       nomeContratante: "Fulano",
       tipoContratante: "mandato",
+      idMandato: 42,
       cargoAtual: "Vereador",
       partidoAtual: "PT",
       sgUf: "SP",

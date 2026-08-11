@@ -12,6 +12,7 @@ export interface ContratoParaFicha {
   nomeContratante: string;
   tipoContratante: string; // 'mandato' | 'coalizao' | outro (edge case)
   // presentes só quando tipoContratante === 'mandato':
+  idMandato?: number | null;
   cargoAtual?: string | null;
   partidoAtual?: string | null;
   sgUf?: string | null;
@@ -71,7 +72,7 @@ export async function buscarContratoParaFicha(
   if (base.tipoContratante === "mandato") {
     const { data: mandato, error: erroMandato } = await client
       .from("dim_mandato")
-      .select("ref_cargo(nome), ref_partido(sigla)")
+      .select("id_mandato, ref_cargo(nome), ref_partido(sigla)")
       .eq("id_contratante", data.id_contratante)
       .maybeSingle();
     if (erroMandato) throw erroMandato;
@@ -81,6 +82,7 @@ export async function buscarContratoParaFicha(
 
     return {
       ...base,
+      idMandato: mandato?.id_mandato ?? null,
       cargoAtual: cargo?.nome ?? null,
       partidoAtual: partido?.sigla ?? null,
       sgUf: contratante?.sg_uf ?? null,
