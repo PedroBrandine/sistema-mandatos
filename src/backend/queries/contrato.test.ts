@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarContratoParaFicha, buscarEtapasDoProduto } from "./contrato";
+import { buscarContratoParaFicha, buscarContratosAtivosPorProduto, buscarEtapasDoProduto } from "./contrato";
 
 type Chamada = { tabela: string; metodo: string; args: unknown[] };
 type RespostaTabela = { data: unknown; error: { message: string } | null };
@@ -23,6 +23,10 @@ function criarClienteMock(respostas: Record<string, RespostaTabela>) {
       },
       eq: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "eq", args });
+        return builder;
+      },
+      in: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "in", args });
         return builder;
       },
       order: (...args: unknown[]) => {
@@ -173,6 +177,46 @@ describe("buscarEtapasDoProduto", () => {
   it("retorna lista vazia quando o produto não tem etapa cadastrada", async () => {
     const { client } = criarClienteMock({ ref_etapa: { data: [], error: null } });
     const resultado = await buscarEtapasDoProduto(client, 999);
+    expect(resultado).toEqual([]);
+  });
+});
+
+describe("buscarContratosAtivosPorProduto", () => {
+  // Done-when: "Filtra corretamente por id_produto e status='ativo' (nunca outro status)"
+  it("retorna os contratos ativos do produto com o nome do contratante", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: {
+        data: [
+          { id_contrato: 10, id_contratante: 1, dt_inicio: "2026-01-01" },
+          { id_contrato: 11, id_contratante: 2, dt_inicio: "2026-02-01" },
+        ],
+        error: null,
+      },
+      dim_contratante: {
+        data: [
+          { id_contratante: 1, nome: "Fulano" },
+          { id_contratante: 2, nome: "Coalizão X" },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarContratosAtivosPorProduto(client, 2);
+
+    expect(resultado).toEqual([
+      { idContrato: 10, nomeContratante: "Fulano", dtInicio: "2026-01-01" },
+      { idContrato: 11, nomeContratante: "Coalizão X", dtInicio: "2026-02-01" },
+    ]);
+
+    const eqsContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
+    expect(eqsContrato).toContainEqual(["id_produto", 2]);
+    expect(eqsContrato).toContainEqual(["status", "ativo"]);
+  });
+
+  // Done-when: "Retorna [] (não lança) quando não há contrato ativo"
+  it("retorna lista vazia quando não há contrato ativo do produto", async () => {
+    const { client } = criarClienteMock({ fat_contrato: { data: [], error: null } });
+    const resultado = await buscarContratosAtivosPorProduto(client, 2);
     expect(resultado).toEqual([]);
   });
 });

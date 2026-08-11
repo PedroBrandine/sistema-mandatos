@@ -26,6 +26,12 @@ export interface EtapaResumo {
   ordem: number;
 }
 
+export interface ContratoAtivoResumo {
+  idContrato: number;
+  nomeContratante: string;
+  dtInicio: string;
+}
+
 // NAV-04. Monta a ficha do contrato por 2-3 queries encadeadas (fat_contrato
 // +dim_contratante+ref_produto primeiro via embed do PostgREST, depois
 // dim_mandato OU dim_coalizao conforme tipo_contratante) -- nunca via
@@ -116,5 +122,38 @@ export async function buscarEtapasDoProduto(
     codigo: linha.codigo,
     nome: linha.nome,
     ordem: linha.ordem,
+  }));
+}
+
+// NAV-03. Contratos ativos do produto -- join manual com dim_contratante em
+// TypeScript (mesmo padrão de app/(app)/contratos/page.tsx hoje, sem
+// vw_contrato).
+export async function buscarContratosAtivosPorProduto(
+  client: SupabaseClient<Database>,
+  idProduto: number
+): Promise<ContratoAtivoResumo[]> {
+  const { data: contratos, error } = await client
+    .from("fat_contrato")
+    .select("id_contrato, id_contratante, dt_inicio")
+    .eq("id_produto", idProduto)
+    .eq("status", "ativo");
+
+  if (error) throw error;
+  if (!contratos || contratos.length === 0) return [];
+
+  const idsContratante = contratos.map((c) => c.id_contratante);
+  const { data: contratantes, error: erroContratantes } = await client
+    .from("dim_contratante")
+    .select("id_contratante, nome")
+    .in("id_contratante", idsContratante);
+
+  if (erroContratantes) throw erroContratantes;
+
+  const nomesPorId = new Map((contratantes ?? []).map((c) => [c.id_contratante, c.nome]));
+
+  return contratos.map((c) => ({
+    idContrato: c.id_contrato,
+    nomeContratante: nomesPorId.get(c.id_contratante) ?? "",
+    dtInicio: c.dt_inicio,
   }));
 }
