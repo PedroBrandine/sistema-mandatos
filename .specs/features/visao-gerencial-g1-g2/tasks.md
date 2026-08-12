@@ -176,10 +176,10 @@ some a linha).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] View criada, `security_invoker = true`
-- [ ] `WHERE c.status = 'ativo'`
-- [ ] `LEFT JOIN ref_peso_etapa` (peso `NULL` quando falta seed, linha não desaparece)
-- [ ] Teste de integração: fixture com 2 contratos ativos em etapas de peso diferente confirma peso correto por linha; fixture com `id_etapa_atual IS NULL` confirma peso da 1ª etapa (`ordem = 1`)
+- [x] View criada, `security_invoker = true`
+- [x] `WHERE c.status = 'ativo'`
+- [x] `LEFT JOIN ref_peso_etapa` (peso `NULL` quando falta seed, linha não desaparece)
+- [x] Teste de integração: fixture com 2 contratos ativos em etapas de peso diferente confirma peso correto por linha; fixture com `id_etapa_atual IS NULL` confirma peso da 1ª etapa (`ordem = 1`)
 
 **Tests**: integration
 **Gate**: full
