@@ -269,3 +269,10 @@ consumir.
 **Ranked gaps** (informativo, não impede PASS):
 1. Fix 1 — cobertura de teste do Edge Case "contrato encerrado continua visível" —
    `src/backend/queries/kanban.test.ts` (Minor).
+
+**Fix aplicado** (orquestrador, mesma sessão, pós-Validate): `ccb0694` — novo teste com fixture
+`status: 'concluido'` em `kanban.test.ts` (13 testes agora, era 12). `npm run test:unit`: 216/216
+verde. Mutante #4 (linha 128 acima) seria morto por este teste caso reaplicado — não reexecutado
+formalmente (seria a 4ª vez mutando o mesmo trecho na mesma sessão), mas a asserção nova
+(`statusContrato` presente e preservado, card não removido) é logicamente a asserção que faltava
+exatamente para capturar aquele mutante.
