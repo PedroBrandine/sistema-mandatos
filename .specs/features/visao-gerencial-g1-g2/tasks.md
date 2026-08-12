@@ -104,11 +104,11 @@ T11 → T12 → T13
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `authenticated` + 5 roles `legisla_*` têm `SELECT`
-- [ ] `legisla_app/admin/gestora` têm `INSERT/UPDATE/DELETE`
-- [ ] `anon` não tem nenhum privilégio (`REVOKE ALL`)
-- [ ] `authenticated` não tem `INSERT/UPDATE/DELETE`
-- [ ] Teste de integração cobre os 4 pontos acima via `has_table_privilege` (mesmo padrão de `catalogos-referencia-grants.integration.test.ts`)
+- [x] `authenticated` + 5 roles `legisla_*` têm `SELECT`
+- [x] `legisla_app/admin/gestora` têm `INSERT/UPDATE/DELETE`
+- [x] `anon` não tem nenhum privilégio (`REVOKE ALL`)
+- [x] `authenticated` não tem `INSERT/UPDATE/DELETE`
+- [x] Teste de integração cobre os 4 pontos acima via `has_table_privilege` (mesmo padrão de `catalogos-referencia-grants.integration.test.ts`)
 
 **Tests**: integration
 **Gate**: full
