@@ -1,6 +1,38 @@
 import { describe, expect, it } from "vitest";
 
-import { metaSchema, objetivoEspecificoSchema, sucessoMensalSchema } from "./planejamento";
+import { dadosPlanejamentoSchema, metaSchema, objetivoEspecificoSchema, sucessoMensalSchema } from "./planejamento";
+
+describe("dadosPlanejamentoSchema", () => {
+  it("aceita todos os campos ausentes (planejamento recém-instanciado, tudo NULL)", () => {
+    const resultado = dadosPlanejamentoSchema.safeParse({});
+    expect(resultado.success).toBe(true);
+  });
+
+  it("aceita objetivo_ano/legado/analise_conjuntura preenchidos e id_perfil_atuacao selecionado", () => {
+    const resultado = dadosPlanejamentoSchema.safeParse({
+      objetivo_ano: "Consolidar a base eleitoral",
+      legado: "Reformar a lei de licitações municipal",
+      analise_conjuntura: "Ano pré-eleitoral, pauta de segurança em alta",
+      id_perfil_atuacao: 3,
+    });
+    expect(resultado.success).toBe(true);
+  });
+
+  it("aceita explicitamente null nos 4 campos", () => {
+    const resultado = dadosPlanejamentoSchema.safeParse({
+      objetivo_ano: null,
+      legado: null,
+      analise_conjuntura: null,
+      id_perfil_atuacao: null,
+    });
+    expect(resultado.success).toBe(true);
+  });
+
+  it("rejeita id_perfil_atuacao não positivo", () => {
+    const resultado = dadosPlanejamentoSchema.safeParse({ id_perfil_atuacao: 0 });
+    expect(resultado.success).toBe(false);
+  });
+});
 
 describe("objetivoEspecificoSchema", () => {
   it("aceita um objetivo válido mínimo", () => {

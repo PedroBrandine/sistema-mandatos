@@ -5,6 +5,21 @@ import { z } from "zod";
 // contrato.ts: campos snake_case espelhando a coluna do banco, .refine() por
 // CHECK constraint (comentado com a constraint de origem).
 
+// PLM-15. Espelha dim_planejamento (docs/schema_sistema.sql:877-889) -- só os
+// campos editáveis por Gestora/Admin (id_planejamento/id_contrato são
+// identidade, não campo de formulário; pct_atingimento/atingimento_desatualizado
+// são derivados pela cascata, nunca digitados -- AD-005). Sem .refine(): a
+// única constraint da tabela (ck_planejamento_pct) é sobre pct_atingimento,
+// fora deste formulário.
+export const dadosPlanejamentoSchema = z.object({
+  objetivo_ano: z.string().nullable().optional(),
+  legado: z.string().nullable().optional(),
+  analise_conjuntura: z.string().nullable().optional(),
+  id_perfil_atuacao: z.number().int().positive().nullable().optional(),
+});
+
+export type DadosPlanejamentoInput = z.infer<typeof dadosPlanejamentoSchema>;
+
 export const objetivoEspecificoSchema = z
   .object({
     id_objetivo: z.number().int().positive().nullable().optional(),
