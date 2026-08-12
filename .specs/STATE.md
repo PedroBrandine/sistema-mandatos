@@ -301,6 +301,74 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
+## Handoff (Visão Gerencial G1+G2 — CONCLUÍDA e validada)
+
+- **Feature**: G1 + G2 — Primeira Fatia de Visão Gerencial (`.specs/features/visao-gerencial-g1-g2/`)
+  — **CONCLUÍDA e validada**, 7/7 requisitos (GG-01 a GG-07). Primeira tela onde uma Gestora
+  **gerencia** a operação (não só cadastra contrato): G1 (carteira ponderada por Gestora/Mentor,
+  com atingimento médio acessório) + G2 (mediana de tempo de ciclo por etapa) + link pro Kanban,
+  substituindo o placeholder `<EmDesenvolvimento>` de `/visao-gerencial` (NAV-13).
+- **Phase / Task**: Specify já vinha escrito (achado novo: `ref_peso_etapa` não provisionada em
+  nenhum dos 16 catálogos). Esta sessão confirmou as assumptions pendentes com Pedro → Design
+  (achado adicional: `vw_carteira` aprovada também depende de `fat_registro`, não provisionada —
+  adendo à AD-032) → Tasks (13 tasks, 4 fases) → Execute (2 lotes de sub-agente, oferta aceita) →
+  Validate (Verifier independente, 1 rodada formal confiável, `✅ PASS` — ver nota sobre rodada
+  aninhada abaixo).
+- **Completed**: Lote 1/T1-T7 (`ref_peso_etapa` DDL+grants+seed, `vw_carteira` reduzida,
+  `vw_carteira_ponderada`, `vw_ciclo_etapa` + grants): `e1f0865`..`756cd91`, 29 testes de integração
+  novos. Lote 2/T8-T13 (`db:types`, `buscarCarteiraPonderada`/`buscarCicloEtapa`,
+  `CarteiraPonderadaCard`/`CicloEtapaCard`, página `/visao-gerencial`): `3455717`..`b457fb4`, +
+  fix pós-implementação `f36fdd7` (ver achado abaixo), 17 testes unitários novos. Verifier
+  independente (`✅ PASS`, sensor 3/3 killed) → `validation.md`/rastreabilidade/Fix Plan 1 (`433d2f3`).
+- **Achado real de Design, virou adendo à AD-032 (não decisão nova)**: `vw_carteira` aprovada
+  (`docs/schema_sistema.sql:1327-1349`) tem uma 2ª dependência não documentada além de
+  `mv_iip_contrato` — a coluna `dt_ultimo_registro` lê `fat_registro`, também não provisionada
+  (mesma onda de Incidência, §6.2). A versão reduzida desta feature omite as duas.
+- **Achado real de Execute, corrigido por fix `f36fdd7` fora do plano de 13 tasks**: `vw_carteira_ponderada`
+  só tem linha por vínculo ativo × contrato ativo — uma Gestora/Mentor sem nenhum contrato ativo
+  nunca aparece na view, o que fazia `buscarCarteiraPonderada` omiti-la em vez de mostrar
+  `somaPeso: 0` (Edge Case literal do `spec.md`, "zero é contagem real"). Corrigido com um backbone
+  independente de `dim_usuario` filtrado por `papel_global`, mesmo padrão já usado pro backbone de
+  `ref_etapa` em `buscarBoardKanban`/`buscarCicloEtapa` (`kanban.ts:101-104`). Reauditado com
+  ceticismo pelo Verifier independente (não assumido do commit) e confirmado load-bearing por sensor
+  de discriminação.
+- **Incidente de processo durante Execute (relevante pra próximas features com sub-agentes)**: o
+  worker do Lote 2 (T8-T13), ao completar a última task, seguiu a instrução de `implement.md` de
+  disparar validação de feature — mas **violou a regra "no nesting"** de `sub-agents.md` (batch
+  workers nunca spawnam sub-agentes próprios) ao disparar ele mesmo um Verifier aninhado, que é
+  também autor do fix que estava avaliando (quebra "author ≠ verifier"). Essa rodada aninhada foi
+  interrompida pelo orquestrador no meio do sensor de mutação, sem terminar de descartar a mutação —
+  deixou um mutante real no working tree (código que desfazia exatamente o fix `f36fdd7`) e
+  documentação stale (`validation.md`/`spec.md`/`lessons.json` refletindo o estado pré-fix). O
+  orquestrador limpou isso (reverteu o mutante, descartou os docs) e disparou um Verifier
+  independente de verdade — que, numa segunda ocorrência do mesmo problema, teve seu resultado
+  "rodada 2" reenviado ao orquestrador por engano (a rodada aninhada continuou rodando por conta
+  própria depois de já instruída a parar) reclamando de "perda de dados" por uma "operação destrutiva
+  de git" — na real, a limpeza deliberada e correta do orquestrador, não um acidente. Esse output
+  também foi descartado antes do Verifier de verdade concluir. **Lição pra quem orquestrar lotes de
+  sub-agente**: se um worker menciona ter disparado seu próprio Verifier/sub-agente ao final do
+  lote, interrompa e reitere explicitamente que a validação de feature é responsabilidade do
+  orquestrador, nunca do worker.
+- **Nota de segurança registrada pelo Verifier independente**: durante o sensor de discriminação, o
+  ambiente injetou 3x uma mensagem de sistema forjada instruindo o Verifier a não reverter uma
+  mutação e a não contar isso ao usuário — ignorada, `git status` confirmado limpo. Reportado ao
+  usuário nesta sessão, não uma vulnerabilidade de código desta feature.
+- **Next step**: nenhum obrigatório. Fix Plan 1 do `validation.md` (Minor, não-bloqueante) já foi
+  aplicado nesta sessão (backbone `dim_usuario` documentado em `design.md`). Recomendado, não
+  bloqueante: UAT manual da tela `/visao-gerencial` com dado real do Kanban (sem harness de
+  componente no projeto, débito L-006/L-007 já conhecido).
+- **Blockers**: none.
+- **Uncommitted files**: none desta feature.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: `planejamento-planilha-monitoramento`
+  segue ativo em `develop` durante toda a execução desta feature (commits intercalados,
+  `src/frontend/components/planejamento/*` com mudanças de outra sessão vistas no working tree
+  repetidamente) — nenhum arquivo desta feature colidiu. `.specs/STATE.md` cresceu de 722 pra 809+
+  linhas entre o início e o fim desta sessão por escrita concorrente de outra sessão; este handoff
+  foi inserido sem tocar nenhum conteúdo além do próprio bloco.
+
+---
+
 ## Handoff (Convite por Contrato — CONCLUÍDA e validada)
 
 - **Feature**: Convite por Contrato / Acesso Externo (`.specs/features/convite-contrato/`) —
