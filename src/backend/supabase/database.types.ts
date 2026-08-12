@@ -20,6 +20,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      atualiza_sucessos_mensais_lote: {
+        Args: { p_valores: Json }
+        Returns: undefined
+      }
       checar_rate_limit_convite: { Args: { p_ip: unknown }; Returns: boolean }
       consumir_convite: {
         Args: { p_nome: string; p_token_hash: string }
@@ -90,6 +94,11 @@ export type Database = {
       normaliza_nome: { Args: { "": string }; Returns: string }
       papel_atual: { Args: never; Returns: string }
       pre_request: { Args: never; Returns: undefined }
+      recalcula_atingimento: {
+        Args: { p_id_planejamento: number }
+        Returns: undefined
+      }
+      recalcula_pendentes: { Args: { p_limite?: number }; Returns: number }
       substituir_vinculo: {
         Args: {
           p_areas?: string[]
@@ -637,6 +646,218 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_etapa"
             referencedColumns: ["id_etapa"]
+          },
+        ]
+      }
+      fat_meta: {
+        Row: {
+          classe: string | null
+          criado_em: string
+          descricao: string
+          id_agenda: number | null
+          id_meta: number
+          id_objetivo: number
+          id_preditor_primario: number | null
+          id_preditor_secundario: number | null
+          id_usuario_responsavel: number | null
+          ordem: number | null
+          pct_atingimento: number | null
+          prioridade: string | null
+          status: string
+        }
+        Insert: {
+          classe?: string | null
+          criado_em?: string
+          descricao: string
+          id_agenda?: number | null
+          id_meta?: number
+          id_objetivo: number
+          id_preditor_primario?: number | null
+          id_preditor_secundario?: number | null
+          id_usuario_responsavel?: number | null
+          ordem?: number | null
+          pct_atingimento?: number | null
+          prioridade?: string | null
+          status?: string
+        }
+        Update: {
+          classe?: string | null
+          criado_em?: string
+          descricao?: string
+          id_agenda?: number | null
+          id_meta?: number
+          id_objetivo?: number
+          id_preditor_primario?: number | null
+          id_preditor_secundario?: number | null
+          id_usuario_responsavel?: number | null
+          ordem?: number | null
+          pct_atingimento?: number | null
+          prioridade?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_meta_id_agenda_fkey"
+            columns: ["id_agenda"]
+            isOneToOne: false
+            referencedRelation: "ref_agenda_tematica"
+            referencedColumns: ["id_agenda"]
+          },
+          {
+            foreignKeyName: "fat_meta_id_objetivo_fkey"
+            columns: ["id_objetivo"]
+            isOneToOne: false
+            referencedRelation: "fat_objetivo_especifico"
+            referencedColumns: ["id_objetivo"]
+          },
+          {
+            foreignKeyName: "fat_meta_id_preditor_primario_fkey"
+            columns: ["id_preditor_primario"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+          {
+            foreignKeyName: "fat_meta_id_preditor_secundario_fkey"
+            columns: ["id_preditor_secundario"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+          {
+            foreignKeyName: "fat_meta_id_usuario_responsavel_fkey"
+            columns: ["id_usuario_responsavel"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
+      fat_objetivo_especifico: {
+        Row: {
+          ameaca: string | null
+          criado_em: string
+          descricao: string
+          id_agenda: number | null
+          id_objetivo: number
+          id_planejamento: number
+          id_preditor_primario: number | null
+          id_preditor_secundario: number | null
+          oportunidade: string | null
+          ordem: number | null
+          pct_atingimento: number | null
+        }
+        Insert: {
+          ameaca?: string | null
+          criado_em?: string
+          descricao: string
+          id_agenda?: number | null
+          id_objetivo?: number
+          id_planejamento: number
+          id_preditor_primario?: number | null
+          id_preditor_secundario?: number | null
+          oportunidade?: string | null
+          ordem?: number | null
+          pct_atingimento?: number | null
+        }
+        Update: {
+          ameaca?: string | null
+          criado_em?: string
+          descricao?: string
+          id_agenda?: number | null
+          id_objetivo?: number
+          id_planejamento?: number
+          id_preditor_primario?: number | null
+          id_preditor_secundario?: number | null
+          oportunidade?: string | null
+          ordem?: number | null
+          pct_atingimento?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_objetivo_especifico_id_agenda_fkey"
+            columns: ["id_agenda"]
+            isOneToOne: false
+            referencedRelation: "ref_agenda_tematica"
+            referencedColumns: ["id_agenda"]
+          },
+          {
+            foreignKeyName: "fat_objetivo_especifico_id_planejamento_fkey"
+            columns: ["id_planejamento"]
+            isOneToOne: false
+            referencedRelation: "dim_planejamento"
+            referencedColumns: ["id_planejamento"]
+          },
+          {
+            foreignKeyName: "fat_objetivo_especifico_id_preditor_primario_fkey"
+            columns: ["id_preditor_primario"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+          {
+            foreignKeyName: "fat_objetivo_especifico_id_preditor_secundario_fkey"
+            columns: ["id_preditor_secundario"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+        ]
+      }
+      fat_sucesso_mensal: {
+        Row: {
+          atualizado_em: string | null
+          atualizado_por: number | null
+          criado_em: string
+          descricao: string
+          dt_limite: string | null
+          id_meta: number
+          id_sucesso: number
+          mes_referencia: string
+          pct_atingimento: number | null
+          peso: number
+          status: string
+        }
+        Insert: {
+          atualizado_em?: string | null
+          atualizado_por?: number | null
+          criado_em?: string
+          descricao: string
+          dt_limite?: string | null
+          id_meta: number
+          id_sucesso?: number
+          mes_referencia: string
+          pct_atingimento?: number | null
+          peso: number
+          status?: string
+        }
+        Update: {
+          atualizado_em?: string | null
+          atualizado_por?: number | null
+          criado_em?: string
+          descricao?: string
+          dt_limite?: string | null
+          id_meta?: number
+          id_sucesso?: number
+          mes_referencia?: string
+          pct_atingimento?: number | null
+          peso?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_sucesso_mensal_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+          {
+            foreignKeyName: "fat_sucesso_mensal_id_meta_fkey"
+            columns: ["id_meta"]
+            isOneToOne: false
+            referencedRelation: "fat_meta"
+            referencedColumns: ["id_meta"]
           },
         ]
       }
@@ -2059,6 +2280,39 @@ export type Database = {
           },
         ]
       }
+      rel_planejamento_preditor: {
+        Row: {
+          id_planejamento: number
+          id_preditor: number
+          ordem: number
+        }
+        Insert: {
+          id_planejamento: number
+          id_preditor: number
+          ordem: number
+        }
+        Update: {
+          id_planejamento?: number
+          id_preditor?: number
+          ordem?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rel_planejamento_preditor_id_planejamento_fkey"
+            columns: ["id_planejamento"]
+            isOneToOne: false
+            referencedRelation: "dim_planejamento"
+            referencedColumns: ["id_planejamento"]
+          },
+          {
+            foreignKeyName: "rel_planejamento_preditor_id_preditor_fkey"
+            columns: ["id_preditor"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+        ]
+      }
       rel_usuario_contrato: {
         Row: {
           areas: string[] | null
@@ -2146,6 +2400,69 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_etapa"
             referencedColumns: ["id_etapa"]
+          },
+        ]
+      }
+      vw_sucesso_mensal: {
+        Row: {
+          atualizado_em: string | null
+          atualizado_por: number | null
+          criado_em: string | null
+          descricao: string | null
+          dias_atraso: number | null
+          dt_limite: string | null
+          esta_atrasado: boolean | null
+          id_meta: number | null
+          id_sucesso: number | null
+          mes_referencia: string | null
+          pct_atingimento: number | null
+          peso: number | null
+          status: string | null
+        }
+        Insert: {
+          atualizado_em?: string | null
+          atualizado_por?: number | null
+          criado_em?: string | null
+          descricao?: string | null
+          dias_atraso?: never
+          dt_limite?: string | null
+          esta_atrasado?: never
+          id_meta?: number | null
+          id_sucesso?: number | null
+          mes_referencia?: string | null
+          pct_atingimento?: number | null
+          peso?: number | null
+          status?: string | null
+        }
+        Update: {
+          atualizado_em?: string | null
+          atualizado_por?: number | null
+          criado_em?: string | null
+          descricao?: string | null
+          dias_atraso?: never
+          dt_limite?: string | null
+          esta_atrasado?: never
+          id_meta?: number | null
+          id_sucesso?: number | null
+          mes_referencia?: string | null
+          pct_atingimento?: number | null
+          peso?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_sucesso_mensal_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+          {
+            foreignKeyName: "fat_sucesso_mensal_id_meta_fkey"
+            columns: ["id_meta"]
+            isOneToOne: false
+            referencedRelation: "fat_meta"
+            referencedColumns: ["id_meta"]
           },
         ]
       }
