@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 16,
+  "next_id": 19,
   "lessons": [
     {
       "id": "L-001",
@@ -274,6 +274,60 @@
       ],
       "created": "2026-08-12T02:24:26Z",
       "last_seen": "2026-08-12T02:24:26Z"
+    },
+    {
+      "id": "L-016",
+      "key": "surviving_mutant::when a query must include rows regardless of a status flag field an inclusion guarantee add a test fixture with that field set to an excluded looking value and assert the row is still returned omission of filter behavior has no natural test unless a fixture exercises the excluded case",
+      "text": "When a query must include rows regardless of a status/flag field (an inclusion guarantee), add a test fixture with that field set to an excluded-looking value and assert the row is still returned -- omission-of-filter behavior has no natural test unless a fixture exercises the excluded case.",
+      "signal": "surviving_mutant",
+      "scope": "backend-queries",
+      "status": "candidate",
+      "features": [
+        "kanban-etapas"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md mutant #4, src/backend/queries/kanban.ts:140 (backend-queries)"
+      ],
+      "created": "2026-08-12T15:29:41Z",
+      "last_seen": "2026-08-12T15:29:41Z"
+    },
+    {
+      "id": "L-017",
+      "key": "spec_precision_gap::when an acceptance criterion s outcome is an architectural property e g no full page reload rather than a data value flag it as a spec precision gap satisfied by construction instead of forcing a dedicated runtime assertion that would only restate the architecture",
+      "text": "When an acceptance criterion's outcome is an architectural property (e.g. no full page reload) rather than a data value, flag it as a spec-precision gap satisfied by construction instead of forcing a dedicated runtime assertion that would only restate the architecture.",
+      "signal": "spec_precision_gap",
+      "scope": "frontend",
+      "status": "candidate",
+      "features": [
+        "kanban-etapas"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md, P1 Board AC3 (spec.md) (frontend)"
+      ],
+      "created": "2026-08-12T15:29:52Z",
+      "last_seen": "2026-08-12T15:29:52Z"
+    },
+    {
+      "id": "L-018",
+      "key": "spec_deviation::before assuming a design md listed shadcn ui component is installed check components ui directly for the wrapper file if missing check whether the underlying primitive package e g radix ui is already a dependency before running a new npm install the primitive is often already present and only the wrapper file needs authoring",
+      "text": "Before assuming a design.md-listed shadcn UI component is installed, check components/ui/ directly for the wrapper file -- if missing, check whether the underlying primitive package (e.g. radix-ui) is already a dependency before running a new npm install; the primitive is often already present and only the wrapper file needs authoring.",
+      "signal": "spec_deviation",
+      "scope": "frontend-ui",
+      "status": "candidate",
+      "features": [
+        "kanban-etapas"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "src/frontend/components/ui/switch.tsx SPEC_DEVIATION comment, commit 8655c3d (frontend-ui)"
+      ],
+      "created": "2026-08-12T15:30:09Z",
+      "last_seen": "2026-08-12T15:30:09Z"
     }
   ]
 }

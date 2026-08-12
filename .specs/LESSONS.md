@@ -104,6 +104,24 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: validation.md rodada 2 mutante #9 -- src/backend/supabase/proxy.ts:43-60 (isPublicRoute) (frontend/routing)
 - last seen: 2026-08-12T02:24:26Z
 
+### L-016 — When a query must include rows regardless of a status/flag field (an inclusion guarantee), add a test fixture with that field set to an excluded-looking value and assert the row is still returned -- omission-of-filter behavior has no natural test unless a fixture exercises the excluded case.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `backend-queries` · harmful: 0
+- features: kanban-etapas
+- evidence: validation.md mutant #4, src/backend/queries/kanban.ts:140 (backend-queries)
+- last seen: 2026-08-12T15:29:41Z
+
+### L-017 — When an acceptance criterion's outcome is an architectural property (e.g. no full page reload) rather than a data value, flag it as a spec-precision gap satisfied by construction instead of forcing a dedicated runtime assertion that would only restate the architecture.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `frontend` · harmful: 0
+- features: kanban-etapas
+- evidence: validation.md, P1 Board AC3 (spec.md) (frontend)
+- last seen: 2026-08-12T15:29:52Z
+
+### L-018 — Before assuming a design.md-listed shadcn UI component is installed, check components/ui/ directly for the wrapper file -- if missing, check whether the underlying primitive package (e.g. radix-ui) is already a dependency before running a new npm install; the primitive is often already present and only the wrapper file needs authoring.
+- signal: `spec_deviation` · recurrence: 1 feature(s) · scope: `frontend-ui` · harmful: 0
+- features: kanban-etapas
+- evidence: src/frontend/components/ui/switch.tsx SPEC_DEVIATION comment, commit 8655c3d (frontend-ui)
+- last seen: 2026-08-12T15:30:09Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
