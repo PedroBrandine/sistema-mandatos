@@ -99,6 +99,12 @@ export default function MandatosPage() {
         // Excluir vínculos de usuários e membros de coalizão desses contratos
         await supabase.from("rel_usuario_contrato").delete().in("id_contrato", idsContratos);
         await supabase.from("rel_coalizao_membro").delete().in("id_contrato", idsContratos);
+        // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
+        // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+        // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
+        await supabase.from("fat_etapa_contrato").delete().in("id_contrato", idsContratos);
+        await supabase.from("rel_formulario_contrato").delete().in("id_contrato", idsContratos);
+        await supabase.from("dim_planejamento").delete().in("id_contrato", idsContratos);
         // Excluir os contratos
         await supabase.from("fat_contrato").delete().eq("id_contratante", idContratante);
       }

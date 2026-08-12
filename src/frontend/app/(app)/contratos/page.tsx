@@ -98,6 +98,12 @@ export default function ContratosPage() {
     try {
       await supabase.from("rel_usuario_contrato").delete().eq("id_contrato", idContrato);
       await supabase.from("rel_coalizao_membro").delete().eq("id_contrato", idContrato);
+      // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
+      // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+      // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
+      await supabase.from("fat_etapa_contrato").delete().eq("id_contrato", idContrato);
+      await supabase.from("rel_formulario_contrato").delete().eq("id_contrato", idContrato);
+      await supabase.from("dim_planejamento").delete().eq("id_contrato", idContrato);
 
       const { error } = await supabase.from("fat_contrato").delete().eq("id_contrato", idContrato);
       if (error) throw error;
