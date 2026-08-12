@@ -11,6 +11,8 @@ interface MockConfig {
   rpcData?: { id_usuario: number; conta_nova: boolean } | null;
   rpcError?: { message: string; code?: string } | null;
   signInError?: { message: string } | null;
+  /** spec.md Edge Cases: convidado já tem sessão ativa no navegador (ex.: Admin testando o link). */
+  sessaoAtivaExistente?: boolean;
 }
 
 function criarDeps(config: MockConfig): { deps: ConsumirConviteDeps; spies: Record<string, ReturnType<typeof vi.fn>> } {
@@ -25,6 +27,10 @@ function criarDeps(config: MockConfig): { deps: ConsumirConviteDeps; spies: Reco
     error: config.rpcError ?? null,
   });
   const signInWithPassword = vi.fn().mockResolvedValue({ data: {}, error: config.signInError ?? null });
+  const getUser = vi.fn().mockResolvedValue({
+    data: { user: config.sessaoAtivaExistente ? { id: "sessao-existente" } : null },
+    error: null,
+  });
 
   function builderPara(tabela: string) {
     return {
@@ -49,11 +55,11 @@ function criarDeps(config: MockConfig): { deps: ConsumirConviteDeps; spies: Reco
     auth: { admin: { createUser } },
     schema: (_nome: string) => ({ rpc }),
   };
-  const server = { auth: { signInWithPassword } };
+  const server = { auth: { signInWithPassword, getUser } };
 
   return {
     deps: { admin: admin as unknown as SupabaseClient<Database>, server: server as unknown as SupabaseClient<Database> },
-    spies: { createUser, rpc, signInWithPassword },
+    spies: { createUser, rpc, signInWithPassword, getUser },
   };
 }
 
@@ -133,5 +139,48 @@ describe("consumirConvite", () => {
     const resultado = await consumirConvite(deps, { tokenHash: "hash1", nome: "Novo", senha: "senha123" });
 
     expect(resultado).toEqual({ tipo: "sucesso_sem_login" });
+  });
+
+  // spec.md Edge Cases: "convidado já tem sessão ativa (ex.: é Admin
+  // testando o link) -- ainda processar o convite normalmente, sem
+  // misturar com a sessão corrente". Achado do Verifier independente
+  // (validation.md): sem esta checagem, signInWithPassword substituía a
+  // sessão de quem já estava logado pela do convidado.
+  it("já existe sessão ativa no navegador: conta+vínculo são criados, mas nunca tenta signInWithPassword -- sucesso_sem_login", async () => {
+    const { deps, spies } = criarDeps({
+      usuarioExistente: null,
+      rpcData: { id_usuario: 5, conta_nova: true },
+      sessaoAtivaExistente: true,
+    });
+
+    const resultado = await consumirConvite(deps, { tokenHash: "hash1", nome: "Novo", senha: "senha123" });
+
+    expect(resultado).toEqual({ tipo: "sucesso_sem_login" });
+    expect(spies.getUser).toHaveBeenCalled();
+    expect(spies.signInWithPassword).not.toHaveBeenCalled();
+    // a conta ainda foi criada -- não é um erro, só não assume a sessão.
+    expect(spies.createUser).toHaveBeenCalled();
+    expect(spies.rpc).toHaveBeenCalled();
+  });
+
+  // CVT-09. Mapeamento de erro do RPC pra mensagem -- cada código testado
+  // individualmente (mutante sobrevivente do Verifier independente: só
+  // CNV02 tinha teste; trocar o mapeamento de CNV01/03/04 passava sem
+  // nenhum teste falhar).
+  it.each([
+    ["CNV01", "Convite inválido."],
+    ["CNV02", "Convite já utilizado."],
+    ["CNV03", "Convite expirado. Peça um novo à Gestora."],
+    ["CNV04", "Convite inválido."],
+    ["OUTRO_CODIGO_QUALQUER", "Erro ao processar convite."],
+  ])("RPC recusa com código %s: mensagem exata '%s'", async (codigo, mensagemEsperada) => {
+    const { deps } = criarDeps({
+      usuarioExistente: null,
+      rpcError: { message: "erro do RPC", code: codigo },
+    });
+
+    const resultado = await consumirConvite(deps, { tokenHash: "hash1", nome: "X", senha: "senha123" });
+
+    expect(resultado).toEqual({ tipo: "erro", mensagem: mensagemEsperada });
   });
 });

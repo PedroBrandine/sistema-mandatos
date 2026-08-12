@@ -108,6 +108,19 @@ export async function consumirConvite(
     return { tipo: "sucesso_sem_login" };
   }
 
+  // spec.md Edge Cases: "convidado já tem sessão ativa (ex.: Admin testando
+  // o link) -- processar o convite normalmente, sem misturar com a sessão
+  // corrente". signInWithPassword no client cookie-aware (`deps.server`)
+  // troca a sessão do navegador -- se já existe uma sessão, NÃO tenta logar
+  // (a conta e o vínculo já foram criados pelo RPC acima; só não assume a
+  // sessão de quem enviou o request). Achado do Verifier independente
+  // (validation.md): sem esta checagem, abrir o link logado como Admin
+  // encerrava a sessão do Admin e a substituía pela do convidado.
+  const { data: sessaoAtual } = await deps.server.auth.getUser();
+  if (sessaoAtual.user) {
+    return { tipo: "sucesso_sem_login" };
+  }
+
   const { error: erroLogin } = await deps.server.auth.signInWithPassword({ email, password: params.senha });
   return erroLogin ? { tipo: "sucesso_sem_login" } : { tipo: "sucesso_logado" };
 }
