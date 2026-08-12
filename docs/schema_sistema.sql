@@ -2219,31 +2219,41 @@ INSERT INTO ref_cargo (nome, nivel_federativo, cd_cargo_tse) VALUES
   ('Não se aplica',            'nao_se_aplica', NULL)
 ON CONFLICT (nome) DO NOTHING;
 
--- Régua da Estratégia: 7 blocos do checklist.
+-- Régua da Estratégia: 6 blocos do checklist.
 -- duracao_prevista_dias são valores iniciais sugeridos — calibrar com a operação.
+--
+-- Correção (2026-08-12, UAT de kanban-etapas, confirmada por Pedro): a linha
+-- 'cadastro' que constava aqui não é uma etapa real da régua -- é o ato de
+-- cadastrar o contrato no sistema, não um estágio que o contrato "passa por"
+-- depois de existir. Pontapé é a primeira etapa real. Corrigido no dado (não
+-- redesenho de schema, AD-008) via 20260812163617_kanban_etapas_correcao_ref_etapa.sql.
 INSERT INTO ref_etapa (id_produto, codigo, nome, ordem, duracao_prevista_dias, gera_registro)
 SELECT p.id_produto, v.codigo, v.nome, v.ordem, v.dias, v.gera
   FROM ref_produto p, (VALUES
-    ('cadastro',       'Cadastro',                   1::smallint,   7::smallint, false),
-    ('pontape',        'Pontapé',                    2,            14,           true),
-    ('raio_x',         'Raio-X',                     3,            21,           true),
-    ('imersao',        'Imersão',                    4,            14,           true),
-    ('governanca',     'Governança / Organograma',   5,            45,           true),
-    ('monitoramento',  'Monitoramento',              6,           120,           true),
-    ('replicacao',     'Replicação',                 7,            14,           true)
+    ('pontape',        'Pontapé',                    1::smallint,  14::smallint, true),
+    ('raio_x',         'Raio-X',                     2,            21,           true),
+    ('imersao',        'Imersão',                    3,            14,           true),
+    ('governanca',     'Governança / Organograma',   4,            45,           true),
+    ('monitoramento',  'Monitoramento',              5,           120,           true),
+    ('replicacao',     'Replicação',                 6,            14,           true)
   ) AS v(codigo, nome, ordem, dias, gera)
  WHERE p.nome = 'Estratégia'
 ON CONFLICT (id_produto, codigo) DO NOTHING;
 
--- Régua do PLL: 5 blocos do checklist.
+-- Régua do PLL: 3 blocos do checklist.
+--
+-- Correção (2026-08-12, UAT de kanban-etapas, confirmada por Pedro): as
+-- linhas 'recrutamento'/'selecao' que constavam aqui são processos externos
+-- ao sistema (acontecem antes do contrato existir), não etapas da régua.
+-- Pontapé é a primeira etapa real, igual à Estratégia/Coalizão. Os 3
+-- formulários que estavam vinculados a essas 2 etapas (ver INSERT INTO
+-- ref_formulario abaixo) foram reatribuídos pro Pontapé, não apagados.
 INSERT INTO ref_etapa (id_produto, codigo, nome, ordem, duracao_prevista_dias, gera_registro)
 SELECT p.id_produto, v.codigo, v.nome, v.ordem, v.dias, v.gera
   FROM ref_produto p, (VALUES
-    ('recrutamento', 'Recrutamento e seleção de participantes', 1::smallint, 30::smallint, false),
-    ('selecao',      'Seleção e formação de mentores',          2,           30,           false),
-    ('pontape',      'Pontapé',                                 3,           14,           false),
-    ('imersao',      'Imersão e construção do planejamento',    4,            7,           true),
-    ('mentorias',    'Mentorias e monitoramento',               5,          120,           true)
+    ('pontape',      'Pontapé',                                 1::smallint,  14::smallint, false),
+    ('imersao',      'Imersão e construção do planejamento',    2,             7,           true),
+    ('mentorias',    'Mentorias e monitoramento',               3,           120,           true)
   ) AS v(codigo, nome, ordem, dias, gera)
  WHERE p.nome = 'PLL'
 ON CONFLICT (id_produto, codigo) DO NOTHING;
@@ -2296,9 +2306,10 @@ SELECT e.id_etapa, v.codigo, v.nome, v.respondente, v.anexo
     ('Estratégia','raio_x',       'gip',                            'GIP (Início/Meio/Fim)',                 'gestora',             false),
     ('Estratégia','imersao',      'avaliacao_imersao',              'Avaliação da Imersão',                  'assessor',            false),
     ('Estratégia','replicacao',   'avaliacao_fim_ciclo',            'Avaliação de Fim de Ciclo',             'mandato',             false),
-    ('PLL',       'recrutamento', 'inscricao_mentorado',            'Inscrição de Mentorados',               'mentorado',           false),
-    ('PLL',       'recrutamento', 'diagnostico_tematicas',          'Diagnóstico e Temáticas de Interesse',  'mentorado',           false),
-    ('PLL',       'selecao',      'inscricao_mentor',               'Inscrição de Mentores',                 'mentor',              false),
+    -- Correção 2026-08-12: reatribuídos pro Pontapé ('recrutamento'/'selecao' removidas acima).
+    ('PLL',       'pontape',      'inscricao_mentorado',            'Inscrição de Mentorados',               'mentorado',           false),
+    ('PLL',       'pontape',      'diagnostico_tematicas',          'Diagnóstico e Temáticas de Interesse',  'mentorado',           false),
+    ('PLL',       'pontape',      'inscricao_mentor',               'Inscrição de Mentores',                 'mentor',              false),
     ('PLL',       'imersao',      'avaliacao_imersao_pll',          'Avaliação da Imersão (PLL)',            'mentorado',           false),
     ('PLL',       'mentorias',    'avaliacao_parcial_participante', 'Avaliação Parcial — Participantes',     'mentorado',           false),
     ('PLL',       'mentorias',    'avaliacao_parcial_mentor',       'Avaliação Parcial — Mentores',          'mentor',              false),

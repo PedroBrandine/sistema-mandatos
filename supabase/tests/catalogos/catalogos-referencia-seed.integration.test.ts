@@ -6,6 +6,13 @@ import { runSql } from "../helpers/sql";
 // docs/schema_sistema.sql:2178-2316 (9 tabelas) + :2254-2259 (clonagem
 // Coalizão, D9). Migrações: 20260810193327_catalogos_referencia_seed.sql
 // (T3) e a próxima de T4 (seed_coalizao).
+//
+// Contagens de ref_etapa/ref_formulario corrigidas nesta sessão (achado de
+// UAT em kanban-etapas, 2026-08-12): 'cadastro' (Estratégia/Coalizão) e
+// 'recrutamento'/'selecao' (PLL) não são etapas reais da régua -- removidas
+// por 20260812163617_kanban_etapas_correcao_ref_etapa.sql. Os 3 formulários
+// de recrutamento/selecao foram reatribuídos pro Pontapé do PLL (não
+// apagados), então a contagem de ref_formulario (16) não muda.
 
 describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () => {
   it("CAT-15 AC1: ref_nivel_iip tem baixo/medio/alto com valor 1/2/3 e ordem 1/2/3", async () => {
@@ -76,7 +83,7 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
     }
   });
 
-  it("CAT-15 AC6: ref_etapa tem exatamente 7 etapas de Estratégia e 5 de PLL (12, sem Coalizão ainda)", async () => {
+  it("CAT-15 AC6: ref_etapa tem exatamente 6 etapas de Estratégia e 3 de PLL (9, sem Coalizão ainda)", async () => {
     const rows = await runSql<{ nome_produto: string; qtd: number }>(`
       SELECT p.nome AS nome_produto, count(*)::int AS qtd
         FROM ref_etapa e JOIN ref_produto p ON p.id_produto = e.id_produto
@@ -84,8 +91,8 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
        GROUP BY p.nome ORDER BY p.nome;
     `);
     expect(rows).toEqual([
-      { nome_produto: "Estratégia", qtd: 7 },
-      { nome_produto: "PLL", qtd: 5 },
+      { nome_produto: "Estratégia", qtd: 6 },
+      { nome_produto: "PLL", qtd: 3 },
     ]);
   });
 
@@ -164,28 +171,30 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
         ('autonomia_metodologia',   'Autonomia sobre a metodologia',   1, 4, 4)
       ON CONFLICT (codigo) DO NOTHING;
 
+      -- Correção 20260812163617 (UAT kanban-etapas): 'cadastro' removida (não é
+      -- etapa real da régua) -- ordem renumerada a partir de Pontapé.
       INSERT INTO ref_etapa (id_produto, codigo, nome, ordem, duracao_prevista_dias, gera_registro)
       SELECT p.id_produto, v.codigo, v.nome, v.ordem, v.dias, v.gera
         FROM ref_produto p, (VALUES
-          ('cadastro',       'Cadastro',                   1::smallint,   7::smallint, false),
-          ('pontape',        'Pontapé',                    2,            14,           true),
-          ('raio_x',         'Raio-X',                     3,            21,           true),
-          ('imersao',        'Imersão',                    4,            14,           true),
-          ('governanca',     'Governança / Organograma',   5,            45,           true),
-          ('monitoramento',  'Monitoramento',              6,           120,           true),
-          ('replicacao',     'Replicação',                 7,            14,           true)
+          ('pontape',        'Pontapé',                    1::smallint,  14::smallint, true),
+          ('raio_x',         'Raio-X',                     2,            21,           true),
+          ('imersao',        'Imersão',                    3,            14,           true),
+          ('governanca',     'Governança / Organograma',   4,            45,           true),
+          ('monitoramento',  'Monitoramento',              5,           120,           true),
+          ('replicacao',     'Replicação',                 6,            14,           true)
         ) AS v(codigo, nome, ordem, dias, gera)
        WHERE p.nome = 'Estratégia'
       ON CONFLICT (id_produto, codigo) DO NOTHING;
 
+      -- Correção 20260812163617 (UAT kanban-etapas): 'recrutamento'/'selecao'
+      -- removidas (processos externos ao sistema, não são etapas da régua) --
+      -- ordem renumerada a partir de Pontapé.
       INSERT INTO ref_etapa (id_produto, codigo, nome, ordem, duracao_prevista_dias, gera_registro)
       SELECT p.id_produto, v.codigo, v.nome, v.ordem, v.dias, v.gera
         FROM ref_produto p, (VALUES
-          ('recrutamento', 'Recrutamento e seleção de participantes', 1::smallint, 30::smallint, false),
-          ('selecao',      'Seleção e formação de mentores',          2,           30,           false),
-          ('pontape',      'Pontapé',                                 3,           14,           false),
-          ('imersao',      'Imersão e construção do planejamento',    4,            7,           true),
-          ('mentorias',    'Mentorias e monitoramento',               5,          120,           true)
+          ('pontape',      'Pontapé',                                 1::smallint,  14::smallint, false),
+          ('imersao',      'Imersão e construção do planejamento',    2,             7,           true),
+          ('mentorias',    'Mentorias e monitoramento',               3,           120,           true)
         ) AS v(codigo, nome, ordem, dias, gera)
        WHERE p.nome = 'PLL'
       ON CONFLICT (id_produto, codigo) DO NOTHING;
@@ -223,9 +232,12 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
           ('Estratégia','raio_x',       'gip',                            'GIP (Início/Meio/Fim)',                 'gestora',             false),
           ('Estratégia','imersao',      'avaliacao_imersao',              'Avaliação da Imersão',                  'assessor',            false),
           ('Estratégia','replicacao',   'avaliacao_fim_ciclo',            'Avaliação de Fim de Ciclo',             'mandato',             false),
-          ('PLL',       'recrutamento', 'inscricao_mentorado',            'Inscrição de Mentorados',               'mentorado',           false),
-          ('PLL',       'recrutamento', 'diagnostico_tematicas',          'Diagnóstico e Temáticas de Interesse',  'mentorado',           false),
-          ('PLL',       'selecao',      'inscricao_mentor',               'Inscrição de Mentores',                 'mentor',              false),
+          -- Correção 20260812163617: 'recrutamento'/'selecao' removidas -- os 3
+          -- formulários abaixo foram reatribuídos pro Pontapé do PLL (etapa que
+          -- existe de fato), não apagados.
+          ('PLL',       'pontape',      'inscricao_mentorado',            'Inscrição de Mentorados',               'mentorado',           false),
+          ('PLL',       'pontape',      'diagnostico_tematicas',          'Diagnóstico e Temáticas de Interesse',  'mentorado',           false),
+          ('PLL',       'pontape',      'inscricao_mentor',               'Inscrição de Mentores',                 'mentor',              false),
           ('PLL',       'imersao',      'avaliacao_imersao_pll',          'Avaliação da Imersão (PLL)',            'mentorado',           false),
           ('PLL',       'mentorias',    'avaliacao_parcial_participante', 'Avaliação Parcial — Participantes',     'mentorado',           false),
           ('PLL',       'mentorias',    'avaliacao_parcial_mentor',       'Avaliação Parcial — Mentores',          'mentor',              false),
@@ -267,8 +279,8 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
       perfil: 3,
       pilar: 4,
       dimensao: 4,
-      etapa_estrategia: 7,
-      etapa_pll: 5,
+      etapa_estrategia: 6,
+      etapa_pll: 3,
       tipo_registro: 11,
       formulario: 16,
     });
@@ -283,7 +295,7 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
 });
 
 describe("Catálogos de Referência -- régua da Coalizão clonada da Estratégia (D9, CAT-17)", () => {
-  it("CAT-17 AC1/Independent Test: Coalizão tem as mesmas 7 etapas da Estratégia, nomes e ordem idênticos", async () => {
+  it("CAT-17 AC1/Independent Test: Coalizão tem as mesmas 6 etapas da Estratégia, nomes e ordem idênticos", async () => {
     const rows = await runSql<{ produto: string; codigo: string; nome: string; ordem: number }>(`
       SELECT p.nome AS produto, e.codigo, e.nome, e.ordem
         FROM ref_etapa e JOIN ref_produto p ON p.id_produto = e.id_produto
@@ -292,8 +304,8 @@ describe("Catálogos de Referência -- régua da Coalizão clonada da Estratégi
     `);
     const estrategia = rows.filter((r) => r.produto === "Estratégia");
     const coalizao = rows.filter((r) => r.produto === "Coalizão");
-    expect(estrategia).toHaveLength(7);
-    expect(coalizao).toHaveLength(7);
+    expect(estrategia).toHaveLength(6);
+    expect(coalizao).toHaveLength(6);
     expect(coalizao.map(({ produto: _produto, ...resto }) => resto)).toEqual(
       estrategia.map(({ produto: _produto, ...resto }) => resto)
     );
@@ -313,10 +325,10 @@ describe("Catálogos de Referência -- régua da Coalizão clonada da Estratégi
         JOIN ref_produto p ON p.id_produto = e.id_produto
        WHERE p.nome = 'Coalizão';
     `);
-    expect(qtd).toBe(7);
+    expect(qtd).toBe(6);
   });
 
-  it("CAT-17 AC3: Estratégia e PLL continuam com suas 7/5 linhas, sem regressão", async () => {
+  it("CAT-17 AC3: Estratégia e PLL continuam com suas 6/3 linhas, sem regressão", async () => {
     const rows = await runSql<{ produto: string; qtd: number }>(`
       SELECT p.nome AS produto, count(*)::int AS qtd
         FROM ref_etapa e JOIN ref_produto p ON p.id_produto = e.id_produto
@@ -324,8 +336,8 @@ describe("Catálogos de Referência -- régua da Coalizão clonada da Estratégi
        GROUP BY p.nome ORDER BY p.nome;
     `);
     expect(rows).toEqual([
-      { produto: "Estratégia", qtd: 7 },
-      { produto: "PLL", qtd: 5 },
+      { produto: "Estratégia", qtd: 6 },
+      { produto: "PLL", qtd: 3 },
     ]);
   });
 });

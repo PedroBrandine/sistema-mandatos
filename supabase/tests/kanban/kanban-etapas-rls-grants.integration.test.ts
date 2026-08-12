@@ -48,7 +48,7 @@ async function makeFixture(label: string): Promise<Fixture> {
 
 let a: Fixture; // contrato com vínculo ativo do mentor
 let b: Fixture; // contrato fora da carteira do mentor
-let idEtapaCadastro: number;
+let idEtapaPontape: number;
 
 describe("kanban-etapas T1 -- WITH CHECK explícito em fat_contrato + GRANT UPDATE column-scoped (KAN-08)", () => {
   beforeAll(async () => {
@@ -81,10 +81,10 @@ describe("kanban-etapas T1 -- WITH CHECK explícito em fat_contrato + GRANT UPDA
       ON CONFLICT (id_contrato, id_usuario, papel_no_contrato) DO NOTHING;
     `);
 
-    idEtapaCadastro = (
+    idEtapaPontape = (
       await runSql<{ id_etapa: number }>(`
       SELECT id_etapa FROM ref_etapa
-       WHERE id_produto = (SELECT id_produto FROM ref_produto WHERE nome = 'Estratégia') AND codigo = 'cadastro';
+       WHERE id_produto = (SELECT id_produto FROM ref_produto WHERE nome = 'Estratégia') AND codigo = 'pontape';
     `)
     )[0].id_etapa;
   }, 120000);
@@ -134,11 +134,11 @@ describe("kanban-etapas T1 -- WITH CHECK explícito em fat_contrato + GRANT UPDA
       .from("fat_etapa_contrato")
       .update({ status: "em_andamento", dt_inicio: hoje })
       .eq("id_contrato", a.idContrato)
-      .eq("id_etapa", idEtapaCadastro);
+      .eq("id_etapa", idEtapaPontape);
     expect(error).toBeNull();
 
     const rows = await runSql<{ status: string; dt_inicio: string }>(`
-      SELECT status, dt_inicio FROM fat_etapa_contrato WHERE id_contrato = ${a.idContrato} AND id_etapa = ${idEtapaCadastro};
+      SELECT status, dt_inicio FROM fat_etapa_contrato WHERE id_contrato = ${a.idContrato} AND id_etapa = ${idEtapaPontape};
     `);
     expect(rows[0].status).toBe("em_andamento");
     expect(rows[0].dt_inicio).toBe(hoje);
@@ -151,10 +151,10 @@ describe("kanban-etapas T1 -- WITH CHECK explícito em fat_contrato + GRANT UPDA
       .from("fat_etapa_contrato")
       .update({ status: "em_andamento" })
       .eq("id_contrato", b.idContrato)
-      .eq("id_etapa", idEtapaCadastro);
+      .eq("id_etapa", idEtapaPontape);
 
     const rows = await runSql<{ status: string }>(`
-      SELECT status FROM fat_etapa_contrato WHERE id_contrato = ${b.idContrato} AND id_etapa = ${idEtapaCadastro};
+      SELECT status FROM fat_etapa_contrato WHERE id_contrato = ${b.idContrato} AND id_etapa = ${idEtapaPontape};
     `);
     expect(rows[0].status).toBe("nao_iniciada");
   });
@@ -164,14 +164,14 @@ describe("kanban-etapas T1 -- WITH CHECK explícito em fat_contrato + GRANT UPDA
 
     const { error: erroEtapaAtual } = await client
       .from("fat_contrato")
-      .update({ id_etapa_atual: idEtapaCadastro })
+      .update({ id_etapa_atual: idEtapaPontape })
       .eq("id_contrato", a.idContrato);
     expect(erroEtapaAtual).toBeNull();
 
     const rows = await runSql<{ id_etapa_atual: number }>(`
       SELECT id_etapa_atual FROM fat_contrato WHERE id_contrato = ${a.idContrato};
     `);
-    expect(rows[0].id_etapa_atual).toBe(idEtapaCadastro);
+    expect(rows[0].id_etapa_atual).toBe(idEtapaPontape);
 
     const { error: erroStatus } = await client.from("fat_contrato").update({ status: "ativo" }).eq("id_contrato", a.idContrato);
     expect(erroStatus).not.toBeNull();

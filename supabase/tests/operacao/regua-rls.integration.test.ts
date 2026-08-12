@@ -181,7 +181,7 @@ describe("operacao-regua-instanciacao -- RLS p_por_contrato (RGI-07/RGI-08)", ()
     const idEtapa = (
       await runSql<{ id_etapa: number }>(`
       SELECT id_etapa FROM ref_etapa
-       WHERE id_produto = (SELECT id_produto FROM ref_produto WHERE nome = 'Estratégia') AND codigo = 'cadastro';
+       WHERE id_produto = (SELECT id_produto FROM ref_produto WHERE nome = 'Estratégia') AND codigo = 'pontape';
     `)
     )[0].id_etapa;
 

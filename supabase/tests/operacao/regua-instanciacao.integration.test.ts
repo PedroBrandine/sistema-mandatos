@@ -11,9 +11,12 @@ import { runSql } from "../helpers/sql";
 //  - idempotência via ON CONFLICT DO NOTHING, tanto reinvocando a função direto (RGI-05)
 //    quanto simulando o backfill de novo (RGI-06 AC2 -- o backfill É a mesma função em loop).
 //
-// Produto usado: Estratégia -- 7 etapas seedadas (20260810193327_catalogos_referencia_seed.sql):
-// cadastro(7d) > pontape(14d) > raio_x(21d) > imersao(14d) > governanca(45d) > monitoramento(120d)
-// > replicacao(14d), soma 235 dias; 8 ref_formulario ativos vinculados a essas etapas.
+// Produto usado: Estratégia -- 6 etapas seedadas (20260810193327_catalogos_referencia_seed.sql,
+// corrigida por 20260812163617_kanban_etapas_correcao_ref_etapa.sql -- 'cadastro' removida do
+// catálogo, não é etapa real da régua, achado de UAT):
+// pontape(14d) > raio_x(21d) > imersao(14d) > governanca(45d) > monitoramento(120d) >
+// replicacao(14d), soma 228 dias; 8 ref_formulario ativos vinculados a essas etapas (nenhum
+// vinculado a 'cadastro', a contagem não muda com a remoção).
 
 let idContratante: number;
 let idContrato: number;
@@ -46,7 +49,7 @@ describe("operacao-regua-instanciacao -- trigger + backfill (RGI-01 a 06)", () =
 
   it("RGI-01: o INSERT em fat_contrato já dispara a instanciação, sem chamada manual", async () => {
     const rows = await runSql<{ n: string }>(`SELECT count(*)::text AS n FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
-    expect(Number(rows[0].n)).toBe(7);
+    expect(Number(rows[0].n)).toBe(6);
   });
 
   it("RGI-02: 1 linha por ref_etapa, todas nao_iniciada, datas previstas acumuladas em sequência", async () => {
@@ -63,20 +66,21 @@ describe("operacao-regua-instanciacao -- trigger + backfill (RGI-01 a 06)", () =
        ORDER BY e.ordem;
     `);
 
-    expect(rows).toHaveLength(7);
+    expect(rows).toHaveLength(6);
     expect(rows.every((r) => r.status === "nao_iniciada")).toBe(true);
 
-    // 1ª etapa: dt_prevista_inicio = fat_contrato.dt_inicio, literal.
-    expect(rows[0].codigo_etapa).toBe("cadastro");
+    // 1ª etapa (pontape, desde a correção de 20260812163617): dt_prevista_inicio =
+    // fat_contrato.dt_inicio, literal.
+    expect(rows[0].codigo_etapa).toBe("pontape");
     expect(rows[0].dt_prevista_inicio).toBe("2026-01-01");
-    expect(rows[0].dt_prevista_conclusao).toBe("2026-01-08"); // +7 dias
+    expect(rows[0].dt_prevista_conclusao).toBe("2026-01-15"); // +14 dias
 
-    // Última etapa (replicacao): acumulado de 7+14+21+14+45+120 = 221 dias de início,
-    // +14 de duração própria = 235 dias de conclusão prevista.
+    // Última etapa (replicacao): acumulado de 14+21+14+45+120 = 214 dias de início,
+    // +14 de duração própria = 228 dias de conclusão prevista.
     const ultima = rows[rows.length - 1];
     expect(ultima.codigo_etapa).toBe("replicacao");
-    expect(ultima.dt_prevista_inicio).toBe("2026-08-10"); // 2026-01-01 + 221 dias
-    expect(ultima.dt_prevista_conclusao).toBe("2026-08-24"); // + 14 dias
+    expect(ultima.dt_prevista_inicio).toBe("2026-08-03"); // 2026-01-01 + 214 dias
+    expect(ultima.dt_prevista_conclusao).toBe("2026-08-17"); // + 14 dias
   });
 
   it("RGI-03: exatamente 1 linha em dim_planejamento, demais colunas NULL", async () => {
@@ -120,7 +124,7 @@ describe("operacao-regua-instanciacao -- trigger + backfill (RGI-01 a 06)", () =
         (SELECT count(*)::text FROM dim_planejamento WHERE id_contrato = ${idContrato}) AS planejamentos,
         (SELECT count(*)::text FROM rel_formulario_contrato WHERE id_contrato = ${idContrato}) AS formularios;
     `);
-    expect(Number(rows[0].etapas)).toBe(7);
+    expect(Number(rows[0].etapas)).toBe(6);
     expect(Number(rows[0].planejamentos)).toBe(1);
     expect(Number(rows[0].formularios)).toBe(8);
   });
@@ -142,16 +146,16 @@ describe("operacao-regua-instanciacao -- trigger + backfill (RGI-01 a 06)", () =
         (SELECT count(*)::text FROM fat_etapa_contrato WHERE id_contrato = ${idContrato}) AS etapas,
         (SELECT count(*)::text FROM dim_planejamento WHERE id_contrato = ${idContrato}) AS planejamentos;
     `);
-    expect(Number(rows[0].etapas)).toBe(7);
+    expect(Number(rows[0].etapas)).toBe(6);
     expect(Number(rows[0].planejamentos)).toBe(1);
   });
 
   it("vw_etapa_contrato deriva dias_atraso/esta_atrasada sem coluna armazenada (C2)", async () => {
     const rows = await runSql<{ esta_atrasada: boolean; dias_atraso: number }>(`
       SELECT esta_atrasada, dias_atraso FROM vw_etapa_contrato
-       WHERE id_contrato = ${idContrato} AND codigo_etapa = 'cadastro';
+       WHERE id_contrato = ${idContrato} AND codigo_etapa = 'pontape';
     `);
-    // dt_prevista_conclusao = 2026-01-08, já passada frente a CURRENT_DATE real -> atrasada,
+    // dt_prevista_conclusao = 2026-01-15, já passada frente a CURRENT_DATE real -> atrasada,
     // sem nenhuma etapa concluída ainda (todas nao_iniciada).
     expect(rows[0].esta_atrasada).toBe(true);
     expect(rows[0].dias_atraso).toBeGreaterThan(0);
