@@ -329,3 +329,174 @@ sem sinal: build, lint e testes não exercitam o proxy.
 
 **Next steps**: aplicar Fix 1 (Blocker) e Fix 2–4 (Major), depois re-verificar. Fix 5–7 (Minor)
 podem entrar na mesma rodada — são todos aumento de asserção, sem mudança de código de produção.
+
+---
+
+## Re-verificação (Rodada 2)
+
+**Date**: 2026-08-11
+**Diff range**: `ba3aa67`..`34e4117` (4 commits de fix + 1 de docs), HEAD = `34e4117`
+**Verifier**: independent sub-agent (author ≠ verifier), evidence-or-zero
+**Escopo**: re-verificação dirigida dos 5 fixes aplicados — não uma re-auditoria da feature
+inteira. Os itens já ✅ PASS da rodada 1 não foram reexaminados, exceto onde um fix os tocava.
+**Verdict**: ✅ **PASS** — 5/5 fixes confirmados, 2/2 remutações mortas, gate completo verde.
+2 gaps residuais Minor (sensor/cosmética), nenhum bloqueante.
+
+### Os 5 fixes
+
+| # | Fix | Evidência | Confirmado? |
+| --- | --- | --- | --- |
+| 1 | **Blocker** — proxy bloqueava `/convite` | `src/backend/supabase/proxy.ts:60` — `pathname.startsWith("/convite")` em `isPublicRoute`, com racional AD-033 em `:51-59`. **Empírico** (`next dev`, sem cookies): `GET /convite/token-que-nao-existe` → **200**, corpo renderiza `<h1>Convite inválido</h1>` + "Verifique o link recebido."; `POST /convite/token-que-nao-existe/consumir -d "nome=x&senha=senha123"` → **303**, `location: /convite/token-que-nao-existe?erro=Convite%20inv%C3%A1lido.` — volta pro convite, nunca pro login. **Controles de não-regressão**: `GET /contratos` → `307 → /login` (AD-002 intacta pro resto do sistema); `GET /login` → 200 | ✅ |
+| 2 | **Major** — sessão ativa sobrescrita | `src/backend/rpc/consumir-convite.ts:119-122` — `deps.server.auth.getUser()` antes do `signInWithPassword` de `:124`; com sessão vigente devolve `sucesso_sem_login` sem tocar o cookie. Teste novo: `consumir-convite.test.ts:149-164` (`sessaoAtivaExistente`), que assere `signInWithPassword` **não** chamado e `createUser`/`rpc` **chamados** (o convite é processado normalmente — as duas metades do edge case do spec). Verde em `npm run test:unit -- consumir-convite` (12/12) | ✅ |
+| 3 | **Major / mutante #8** — mensagem por código | `consumir-convite.test.ts:170-185` — `it.each` com CNV01/CNV02/CNV03/CNV04/default assertando a string exata. Remutação abaixo: **killed** | ✅ |
+| 4 | **Major / mutante #5** — precedência usado-vs-expirado | `queries/convite.test.ts:68-81` — fixture com `dt_uso` preenchido **e** `dt_expiracao` no passado, assertando `estado: "usado"`. Precedência agora documentada em `queries/convite.ts:28-34`, com ponteiro explícito pra manter `app.consumir_convite` em sincronia. Remutação abaixo: **killed** | ✅ |
+| 5 | **Minor** — auditoria (CVT-11) | `fn-emitir-convite.integration.test.ts:185-194` — linha de `log_auditoria` com `tabela='convite_contrato'`, `id_registro_alvo = id_convite`, `acao='insert'`; `fn-consumir-convite.integration.test.ts:206-215` — idem com `acao='update'`. Ambas discriminantes: sem o trigger, o destructuring devolve `undefined` e `toBeDefined()` falha antes do `.acao`. Timeouts de 60s/90s adicionados com motivo documentado (latência do round-trip via Management API), sem enfraquecer nenhuma asserção | ✅ |
+
+### Gate completo
+
+| Gate | Rodada 1 | Rodada 2 | Resultado |
+| --- | --- | --- | --- |
+| `npm run test:unit` | 149 passed (18 arquivos) | **156 passed, 0 failed, 0 skipped** (18 arquivos) | ✅ +7, nenhum removido |
+| `npx vitest run --config vitest.integration.config.ts supabase/tests/convite` | 17 passed | **17 passed, 0 failed** (3 arquivos, 327s) | ✅ |
+| `npm run build` | verde | **verde** — `/convite/[token]` e `/convite/[token]/consumir` na tabela de rotas | ✅ |
+| `npm run lint:all` | 27 problems (13 errors, 14 warnings) | **27 problems (13 errors, 14 warnings)** — baseline exata, `grep -i convite` na saída: vazio | ✅ |
+
+**Delta de testes (+7)**: `consumir-convite.test.ts` 6→12 (+1 sessão ativa, +5 do `it.each`),
+`queries/convite.test.ts` 6→7 (+1 precedência). Nenhum teste removido, nenhum `skip`, nenhuma
+asserção pré-existente enfraquecida.
+
+**Projeto Supabase alvo**: `npnvoolkebhabjkjzqwn` (**dev**), confirmado em
+`supabase/.temp/project-ref` imediatamente antes da execução de integração. Nada rodou contra
+produção. **Nenhuma função/migration Postgres foi mutada** — restrição de banco compartilhado
+mantida, igual à rodada 1.
+
+### Remutações
+
+Aplicadas só na camada TypeScript, por script em scratchpad, com
+`git checkout -- <arquivo>` na mesma invocação de shell — o arquivo nunca ficou mutado entre
+chamadas. Árvore confirmada limpa após cada uma (`git status --porcelain -- src/` vazio).
+
+| # | Mutação | Comando | Killed? |
+| --- | --- | --- | --- |
+| #8 (rodada 1) | `consumir-convite.ts` — `case "CNV03"` devolve `"Convite inválido."` | `npm run test:unit -- consumir-convite` | ✅ **Killed** — 1 failed / 11 passed, em `consumir-convite.test.ts:184` (`- "Convite expirado. Peça um novo à Gestora." / + "Convite inválido."`) |
+| #5 (rodada 1) | `queries/convite.ts` — checa `dt_expiracao` antes de `dt_uso` | `npm run test:unit -- queries/convite` | ✅ **Killed** — 1 failed / 6 passed, em `queries/convite.test.ts:80` (`- "usado" / + "expirado"`) |
+| #9 (**nova**, rodada 2) | `proxy.ts` — remove `pathname.startsWith("/convite")` de `isPublicRoute` (desfaz o Blocker Fix 1) | `npm run test:unit` (suíte inteira) | ❌ **Survived** — 156/156 passam. Ver Gap Residual 1 |
+
+**Result**: 2/2 das remutações exigidas — ✅ os dois mutantes sobreviventes da rodada 1 estão
+mortos. A mutação #9 é acréscimo do Verifier desta rodada e não invalida os fixes (o
+comportamento está empiricamente correto hoje), mas mede o risco de regressão silenciosa.
+
+### Code Quality (seção 6 de validate.md) — arquivos tocados pelos fixes
+
+| Check | Pass? |
+| --- | --- |
+| No features beyond what was asked | ✅ — nenhum fix adicionou superfície nova |
+| No abstractions for single-use code | ✅ — `sessaoAtivaExistente` entra como flag na `MockConfig` já existente; nenhuma factory nova |
+| No unnecessary "flexibility" added | ✅ |
+| Only touched files required for task | ✅ — 3 de produção (`proxy.ts` +1 condição, `consumir-convite.ts` +4 linhas de código, `queries/convite.ts` **só comentário**) + 4 de teste |
+| Didn't "improve" unrelated code | ✅ |
+| Matches existing patterns/style | ✅ — a entrada de `/convite` em `isPublicRoute` segue o mesmo formato e racional comentado do `/admin/acesso` logo acima |
+| Would senior engineer approve? | ✅ — cada fix cita o achado do Verifier no comentário, explicando *por que* a linha existe (protege contra remoção acidental por leitura) |
+| Tests map to ACs, não-shallow | ✅ — `it.each` assere string exata por código; o teste de precedência combina as duas condições; as asserções de auditoria falham de verdade se o trigger não disparar |
+| Spec-anchored outcome check | ✅ — corrigido: os 3 valores que a rodada 1 apontou sem asserção agora têm asserção sobre o valor exato |
+| Per-layer Coverage Expectation met | ✅ — a expectativa "1:1 a CVT-06/07/08/09" de `rpc/consumir-convite.ts` agora é atendida (CNV01/02/03/04 + default) |
+| Every test maps to um requisito | ✅ — os +7 mapeiam a CVT-09 e ao edge case 4 do `spec.md` |
+| Documented guidelines followed | ✅ — nenhuma migration nova nesta rodada; `docs/ambientes.md` (ref dev conferida antes da integração) |
+
+### Débito aceito — confirmação de que não há afirmação falsa
+
+- **Fix 6 (guarda de papel camada 2, `CNV04`)** — inalcançável enquanto `ck_convite_papel`
+  existir. Confirmado: a **única** menção a `CNV04` em teste é
+  `consumir-convite.test.ts:174`, que cobre o *mapeamento de mensagem* em TypeScript, não a
+  guarda SQL. Nenhum teste, comentário ou doc afirma que a guarda de `fn_consumir_convite.sql:51-53`
+  foi exercitada. Sem regressão de honestidade. ✅
+- **Fix 7 (Gestora perde vínculo antes do consumo)** — correto por construção. Confirmado:
+  `grep -ni "perde|transferencia de carteira" supabase/tests/convite/` não retorna nada —
+  nenhum teste alega cobrir este caso. ✅
+
+Ambos seguem listados como Fix Plans 6 e 7 acima, com prioridade Minor — a decisão de aceitá-los
+como débito está registrada, e nada no código ou nos docs os apresenta como cobertos.
+
+### Gaps residuais (nenhum bloqueante)
+
+**1. (Minor, sensor) — a lista de rotas públicas do proxy continua sem teste de regressão.**
+A segunda metade do critério "Verify" do Fix 1 da rodada 1 ("um teste que trave a lista de rotas
+públicas") não foi entregue. Evidência empírica: a mutação #9 acima — remover
+`pathname.startsWith("/convite")` de `proxy.ts` — passa nos **156/156** testes unitários, e
+(conforme já estabelecido na rodada 1) `build` e `lint` também não exercitam o proxy. Ou seja, o
+Blocker que custou 16 tasks e 4 gate checks pra ser detectado pode ser reintroduzido hoje sem
+nenhum sinal automatizado. Não é defeito de comportamento — o comportamento está verificado por
+HTTP direto nesta rodada — é ausência de sensor. Atenuantes: o projeto **inteiro** não tem
+harness pra middleware Next (nenhum arquivo `*proxy*.test.ts` existe), então o item é dívida de
+infraestrutura de teste, não um teste esquecido; e a classe de erro já está destilada como
+**L-009** em `.specs/LESSONS.md`. Recomendação (fora do escopo do Verifier): um unitário que
+importe `updateSession` e assere `200`/redirect pra um conjunto congelado de pathnames.
+
+**2. (Minor, cosmética, pré-existente) — `?msg=conta_existente` nunca é renderizado.**
+`consumir/route.ts:48` redireciona pra `/login?msg=conta_existente`, mas
+`src/frontend/app/login/page.tsx` (36 linhas) não lê `searchParams` em lugar nenhum — o
+parâmetro é descartado. O usuário cai numa tela de login sem explicação. Já existia na rodada 1
+(não foi introduzido pelos fixes) e não viola nenhuma AC — o `spec.md` US2 AC4 só exige
+"redirecionar pro login (ou logar automaticamente)", o que acontece. Mas o Fix 2 passou a mandar
+uma **classe nova** de usuário por esse caminho (Admin testando o link, agora com a sessão
+preservada), então a imprecisão da mensagem ficou mais visível: para uma conta recém-criada,
+"conta_existente" também é o rótulo errado.
+
+### Requirement Traceability Update
+
+| Requirement | Rodada 1 | Rodada 2 |
+| --- | --- | --- |
+| CVT-01 | ✅ Verified | ✅ Verified |
+| CVT-02 | ✅ Verified | ✅ Verified |
+| CVT-03 | ✅ Verified | ✅ Verified |
+| CVT-04 | ✅ Verified | ✅ Verified |
+| CVT-05 | ✅ Verified | ✅ Verified |
+| CVT-06 | ❌ Needs Fix (rota inalcançável) | ✅ Verified — rota alcançável (200/303 empíricos) |
+| CVT-07 | ⚠️ com ressalva (Fix 6) | ✅ Verified — camadas 1 + client; camada 2 aceita como débito documentado |
+| CVT-08 | ✅ (lógica) / bloqueado ponta a ponta | ✅ Verified |
+| CVT-09 | ❌ Needs Fix (Fix 1, 3, 4) | ✅ Verified — 3 mensagens distintas + precedência, mutantes #8 e #5 mortos |
+| CVT-10 | ❌ Needs Fix (rota inalcançável) | ✅ Verified — função ✅ + rota alcançável |
+| CVT-11 | ❌ sem evidência | ✅ Verified — `log_auditoria` assertado na emissão e no consumo |
+
+### Summary
+
+**Overall**: ✅ **Ready**
+
+**Spec-anchored check**: os 2 ACs que a rodada 1 marcou como ❌ GAP (US2 AC1 e AC4, bloqueados
+por inalcançabilidade de rota) agora passam com evidência empírica de HTTP; os 4 ⚠️ parciais
+viraram ✅, exceto pela não-reexibição da URL em `convite-form.tsx` (matriz declara `none` pra
+componentes — mesma posição da rodada 1). Dos 11 CVT: **11 ✅ Verified**.
+**Sensor**: 2/2 remutações exigidas mortas. 1 mutação nova (#9, proxy) sobrevive → Gap Residual 1.
+**Gate**: unit 156/156 ✅ · integration 17/17 ✅ · build ✅ · lint 27 = baseline ✅
+
+**O que mudou desde a rodada 1**: o Blocker era de uma linha e está corrigido com o racional
+documentado inline; a sessão ativa deixou de ser sobrescrita (a conta e o vínculo ainda são
+criados — as duas metades do edge case); os dois pontos cegos do sensor viraram asserções sobre
+valores exatos; e a auditoria (CVT-11) saiu de "nenhuma evidência" para asserção nos dois
+sentidos. Os 5 fixes somam ~20 linhas de produção e 7 testes.
+
+**Recomendação**: liberar a feature. Os 2 gaps residuais são dívida rastreada (o #1 já virou
+L-009), não impedem o Success Criteria do `spec.md`.
+
+---
+
+## Pós-PASS: os 2 gaps residuais foram fechados (sessão principal, não pelo Verifier)
+
+Depois do PASS da rodada 2, os dois itens listados como "dívida rastreada" acima foram corrigidos
+na mesma sessão (commit `33b6a3a`), fora do laço fix→re-verify formal (nenhum dos dois era
+bloqueante pro PASS):
+
+1. **Gap Residual 1 (mutação #9, proxy sem sensor)** — `isPublicRoute` extraída de `proxy.ts` pra
+   função pura exportada + `proxy.test.ts` novo (2 casos: rotas liberadas, rotas negadas). Agora
+   remover `/convite` da allowlist quebra a suíte unitária, fechando exatamente a lacuna que a
+   mutação #9 expôs.
+2. **Gap Residual 2 (`?msg=conta_existente` incorreto pra conta nova)** — `ResultadoConsumo.sucesso_sem_login`
+   ganhou `motivo: "conta_existente" | "sessao_ativa" | "login_automatico_falhou"`; `route.ts`
+   repassa o motivo em `?msg=`; `login/page.tsx` (que nunca lia `searchParams`) passou a ler e
+   mostrar a mensagem certa por motivo.
+
+Gate após os dois fixes: unit **158/158** (156 + 2 novos), build ✅ (`/login` virou rota dinâmica,
+esperado — agora lê `searchParams`), lint 27 = baseline exata. Nenhuma re-execução do Verifier foi
+feita pra esta rodada (mudança estritamente aditiva sobre um PASS já confirmado, sem tocar nenhum
+comportamento coberto pelas 2 remutações da rodada 2) — se uma auditoria futura quiser confirmar,
+o commit `33b6a3a` é o ponto de partida.

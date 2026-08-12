@@ -98,6 +98,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: tasks.md SPEC_DEVIATION (T15) -- app/convite/[token]/consumir/route.ts (frontend/routing)
 - last seen: 2026-08-12T01:35:02Z
 
+### L-015 — When a fix's only evidence is a manual HTTP/CLI check because no test harness covers that layer, add a test that freezes the value the fix set, since a fix nothing asserts can be reverted as silently as the bug it replaced.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `frontend/routing` · harmful: 0
+- features: convite-contrato
+- evidence: validation.md rodada 2 mutante #9 -- src/backend/supabase/proxy.ts:43-60 (isPublicRoute) (frontend/routing)
+- last seen: 2026-08-12T02:24:26Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

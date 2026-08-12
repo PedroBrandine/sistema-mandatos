@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 15,
+  "next_id": 16,
   "lessons": [
     {
       "id": "L-001",
@@ -256,6 +256,24 @@
       ],
       "created": "2026-08-12T01:35:02Z",
       "last_seen": "2026-08-12T01:35:02Z"
+    },
+    {
+      "id": "L-015",
+      "key": "surviving_mutant::when a fix s only evidence is a manual http cli check because no test harness covers that layer add a test that freezes the value the fix set since a fix nothing asserts can be reverted as silently as the bug it replaced",
+      "text": "When a fix's only evidence is a manual HTTP/CLI check because no test harness covers that layer, add a test that freezes the value the fix set, since a fix nothing asserts can be reverted as silently as the bug it replaced.",
+      "signal": "surviving_mutant",
+      "scope": "frontend/routing",
+      "status": "candidate",
+      "features": [
+        "convite-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md rodada 2 mutante #9 -- src/backend/supabase/proxy.ts:43-60 (isPublicRoute) (frontend/routing)"
+      ],
+      "created": "2026-08-12T02:24:26Z",
+      "last_seen": "2026-08-12T02:24:26Z"
     }
   ]
 }

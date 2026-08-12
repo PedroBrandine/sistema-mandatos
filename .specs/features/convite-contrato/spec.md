@@ -159,23 +159,26 @@ pra cada caso; confirmar que nenhuma mensagem revela detalhe que ajude a adivinh
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| CVT-01 | P1: Emissão do convite | Tasks | In Tasks (T2, T8, T11, T12) |
-| CVT-02 | P1: Token — hash, nunca claro | Tasks | In Tasks (T1, T2, T6, T8) |
-| CVT-03 | P1: Expiração de 7 dias | Tasks | In Tasks (T1, T2) |
-| CVT-04 | P1: Invalida convite pendente duplicado | Tasks | In Tasks (T1, T2) |
-| CVT-05 | P1: RLS — só quem tem vínculo/Admin convida | Tasks | In Tasks (T1, T2) |
-| CVT-06 | P1: Consumo — cria conta + vínculo numa passagem | Tasks | In Tasks (T3, T10, T14, T15) |
-| CVT-07 | P1: Guarda de papel — nunca admin/gestora via convite | Tasks | In Tasks (T1, T3, T7, T10) |
-| CVT-08 | P1: Falha parcial — idempotência de conta já criada | Tasks | In Tasks (T3, T10, T15) |
-| CVT-09 | P1: Token inválido/expirado/usado — mensagens distintas | Tasks | In Tasks (T3, T9, T10, T13) |
-| CVT-10 | P1: Rate limit na rota de consumo | Tasks | In Tasks (T4, T9, T13, T15) |
-| CVT-11 | P1: Auditoria de emissão e consumo | Tasks | In Tasks (T1 — reusa `app.trg_auditoria()`) |
+| CVT-01 | P1: Emissão do convite | Validate | ✅ Verified |
+| CVT-02 | P1: Token — hash, nunca claro | Validate | ✅ Verified |
+| CVT-03 | P1: Expiração de 7 dias | Validate | ✅ Verified |
+| CVT-04 | P1: Invalida convite pendente duplicado | Validate | ✅ Verified |
+| CVT-05 | P1: RLS — só quem tem vínculo/Admin convida | Validate | ✅ Verified |
+| CVT-06 | P1: Consumo — cria conta + vínculo numa passagem | Validate | ✅ Verified |
+| CVT-07 | P1: Guarda de papel — nunca admin/gestora via convite | Validate | ✅ Verified (camada 2 `CNV04` aceita como débito documentado — Fix 6) |
+| CVT-08 | P1: Falha parcial — idempotência de conta já criada | Validate | ✅ Verified |
+| CVT-09 | P1: Token inválido/expirado/usado — mensagens distintas | Validate | ✅ Verified |
+| CVT-10 | P1: Rate limit na rota de consumo | Validate | ✅ Verified |
+| CVT-11 | P1: Auditoria de emissão e consumo | Validate | ✅ Verified |
 
 **ID format:** `CVT-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 11 total, 11 mapped to tasks, 0 unmapped — ver `tasks.md` (T1-T16, 5 fases)
+**Coverage:** 11 total, 11 mapped to tasks, 0 unmapped — ver `tasks.md` (T1-T16, 5 fases).
+Verificação independente concluída em 2026-08-11: rodada 1 (`ccc4ca4`..`d522668`) FAIL com
+1 Blocker + 3 Major + 3 Minor; rodada 2 (`ba3aa67`..`34e4117`) **PASS** — 5/5 fixes
+confirmados, 2/2 remutações mortas, gate completo verde. Relatório em `validation.md`.
 
 ---
 
