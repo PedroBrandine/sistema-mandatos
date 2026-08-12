@@ -47,6 +47,15 @@ export class PermissaoNegadaError extends Error {
   }
 }
 
+/** KAN01: app.mover_etapa_kanban rejeitou um salto de coluna não-adjacente
+ * (kanban-etapas/design.md, Error Handling Strategy). */
+export class TransicaoInvalidaError extends Error {
+  constructor() {
+    super("Não é possível pular etapas — mova o card para a coluna adjacente.");
+    this.name = "TransicaoInvalidaError";
+  }
+}
+
 // Mensagens de campo por constraint (ck_*) alcançáveis pelas 4 funções RPC de
 // T20-T23. Constraint não mapeada cai no fallback genérico -- nunca lança sem
 // mensagem.
@@ -103,6 +112,10 @@ export function mapeiaErroRpc(error: PostgrestError): Error {
 
   if (error.code === "42501") {
     return new PermissaoNegadaError();
+  }
+
+  if (error.code === "KAN01") {
+    return new TransicaoInvalidaError();
   }
 
   return error;
