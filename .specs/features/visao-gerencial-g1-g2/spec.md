@@ -167,19 +167,19 @@ do Kanban e confirmar a navegação.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| GG-01 | P1: `vw_carteira` reduzida (AD-032) | Design | Designed |
-| GG-02 | P1: `ref_peso_etapa` — nova tabela de catálogo | Design | Designed |
-| GG-03 | P1: G2 — mediana por etapa | Design | Designed |
-| GG-04 | P1: G2 — cortes por produto/Gestora | Design | Designed |
-| GG-05 | P1: G1 — soma ponderada por Gestora/Mentor | Design | Designed |
-| GG-06 | P1: G1 — atingimento médio acessório | Design | Designed |
-| GG-07 | P2: Página mínima — G1+G2+link Kanban | Design | Designed |
+| GG-01 | P1: `vw_carteira` reduzida (AD-032) | Execute | ✅ Verified |
+| GG-02 | P1: `ref_peso_etapa` — nova tabela de catálogo | Execute | ✅ Verified |
+| GG-03 | P1: G2 — mediana por etapa | Execute | ✅ Verified |
+| GG-04 | P1: G2 — cortes por produto/Gestora | Execute | ✅ Verified |
+| GG-05 | P1: G1 — soma ponderada por Gestora/Mentor | Execute | ✅ Verified |
+| GG-06 | P1: G1 — atingimento médio acessório | Execute | ✅ Verified |
+| GG-07 | P2: Página mínima — G1+G2+link Kanban | Execute | ✅ Verified |
 
 **ID format:** `GG-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 7 total, 0 mapped to tasks, 7 designed em `design.md` — próxima fase é Tasks.
+**Coverage:** 7 total, 7 verified (`.specs/features/visao-gerencial-g1-g2/validation.md`, 2026-08-12). GG-01 AC2 é débito documentado (AD-032 adendo), condicionado a feature futura (Incidência); GG-07 AC1-AC3 cobertos por build+inspeção (sem harness de componente, débito de projeto já aceito, L-006/L-007).
 
 ---
 

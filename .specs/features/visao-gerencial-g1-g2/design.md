@@ -105,6 +105,14 @@ adicional).
   - `buscarCicloEtapa(client, filtro: { idProduto?: number; idGestora?: number }): Promise<LinhaCicloEtapa[]>` — 1 linha por etapa, `mediana` (`null` quando amostra vazia) + `amostra` (contagem).
 - **Dependencies**: `database.types.ts` regenerado.
 - **Reuses**: padrão de `filtroVinculoAtivo`/agregação em `Map` de `kanban.ts`.
+- **Achado do Execute (T9, fix `f36fdd7`, pós-Validate)**: `vw_carteira_ponderada` só tem linha para
+  usuário com pelo menos 1 vínculo ativo × contrato ativo — uma Gestora/Mentor sem nenhum contrato
+  ativo nunca aparece na view, o que faria `buscarCarteiraPonderada` omiti-la em vez de mostrar
+  `somaPeso: 0` (Edge Case do spec.md, "zero é contagem real"). Corrigido lendo um backbone
+  independente de `dim_usuario` filtrado por `papel_global` (mesmo papel do filtro) antes de agregar
+  — mesmo padrão já usado pro backbone de `ref_etapa` em `buscarBoardKanban`/`buscarCicloEtapa`
+  (`kanban.ts:101-104`). Não é uma 2ª fonte de dado nova, é o mesmo catálogo (`dim_usuario`) já lido
+  em `vw_carteira_ponderada`/`vw_ciclo_etapa`, só consultado direto pra garantir a linha zero.
 
 ### `src/frontend/app/(app)/visao-gerencial/page.tsx` (substitui o placeholder)
 
