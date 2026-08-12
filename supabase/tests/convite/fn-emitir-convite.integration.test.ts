@@ -109,7 +109,7 @@ describe("T2 -- app.emitir_convite", () => {
 
     gestoraClient = await signInAs(GESTORA_EMAIL);
     outsiderClient = await signInAs(OUTSIDER_EMAIL);
-  }, 60000);
+  }, 90000);
 
   afterAll(async () => {
     if (idsConvite.length) {
@@ -142,7 +142,7 @@ describe("T2 -- app.emitir_convite", () => {
     for (const id of authUserIds) {
       await admin.auth.admin.deleteUser(id).catch(() => undefined);
     }
-  }, 60000);
+  }, 90000);
 
   it("app.emitir_convite is SECURITY INVOKER (prosecdef = false)", async () => {
     const rows = await runSql<{ prosecdef: boolean }>(`
@@ -181,6 +181,17 @@ describe("T2 -- app.emitir_convite", () => {
     expect(linha.papel_no_contrato).toBe("assessor");
     expect(linha.dt_uso).toBeNull();
     expect(Number(linha.dias_para_expirar)).toBe(7);
+
+    // CVT-11: emissão gera linha em log_auditoria (trg_audit_convite_contrato,
+    // T1) -- reusa o trigger genérico, sem código de auditoria novo. Achado
+    // do Verifier independente: nenhum teste anterior afirmava isto.
+    const [auditoria] = await runSql<{ acao: string; id_registro_alvo: number }>(`
+      SELECT acao, id_registro_alvo FROM log_auditoria
+       WHERE tabela = 'convite_contrato' AND id_registro_alvo = ${idConvite}
+       ORDER BY ocorrido_em DESC LIMIT 1;
+    `);
+    expect(auditoria).toBeDefined();
+    expect(auditoria.acao).toBe("insert");
   });
 
   it("emitir de novo pro mesmo e-mail+contrato+papel invalida o convite anterior (dt_expiracao <= now())", async () => {

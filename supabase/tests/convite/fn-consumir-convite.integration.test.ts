@@ -100,10 +100,17 @@ describe("T3 -- app.consumir_convite", () => {
       RETURNING id_contrato;
     `);
     idContrato = idContr;
-  }, 60000);
+  }, 90000);
 
   afterAll(async () => {
     if (idsConvite.length) {
+      // Linhas de log_auditoria do consumo (T3) são atribuídas a
+      // app.id_usuario_sistema() (service_role não seta app.id_usuario) --
+      // não pertencem a nenhum e-mail de fixture, então a limpeza por
+      // id_registro_alvo é a única forma de não deixar resíduo.
+      await runSql(
+        `DELETE FROM log_auditoria WHERE tabela = 'convite_contrato' AND id_registro_alvo IN (${idsConvite.join(",")});`
+      );
       await runSql(`DELETE FROM convite_contrato WHERE id_convite IN (${idsConvite.join(",")});`);
     }
     await runSql(`DELETE FROM rel_usuario_contrato WHERE id_contrato = ${idContrato};`);
@@ -133,7 +140,7 @@ describe("T3 -- app.consumir_convite", () => {
     for (const id of authUserIds) {
       await admin.auth.admin.deleteUser(id).catch(() => undefined);
     }
-  }, 60000);
+  }, 90000);
 
   it("app.consumir_convite is SECURITY INVOKER (prosecdef = false)", async () => {
     const rows = await runSql<{ prosecdef: boolean }>(`
@@ -154,6 +161,11 @@ describe("T3 -- app.consumir_convite", () => {
     expect(error?.code).toBe("42501");
   });
 
+  // Timeout explícito (60s > default 30s): este teste já fazia várias
+  // chamadas sequenciais a `runSql` (--linked, round-trip via Management
+  // API) antes da asserção de auditoria (CVT-11) somar mais uma -- no total
+  // ficou perto do limite padrão e passou a estourar por variação de
+  // latência da API, não por regressão de comportamento.
   it("convite válido: cria dim_usuario novo (conta_nova=true), insere rel_usuario_contrato, marca dt_uso", async () => {
     const token = "t3-token-novo";
     const idConvite = await criarConvite({ email: "t3-convidado-novo@legislabrasil.test", token });
@@ -190,8 +202,20 @@ describe("T3 -- app.consumir_convite", () => {
       `SELECT dt_uso FROM convite_contrato WHERE id_convite = ${idConvite};`
     );
     expect(convite.dt_uso).not.toBeNull();
-  });
 
+    // CVT-11: consumo gera linha de UPDATE em log_auditoria (mesmo trigger
+    // genérico de T1) -- achado do Verifier independente, nenhum teste
+    // anterior afirmava isto.
+    const [auditoria] = await runSql<{ acao: string }>(`
+      SELECT acao FROM log_auditoria
+       WHERE tabela = 'convite_contrato' AND id_registro_alvo = ${idConvite} AND acao = 'update'
+       ORDER BY ocorrido_em DESC LIMIT 1;
+    `);
+    expect(auditoria).toBeDefined();
+    expect(auditoria.acao).toBe("update");
+  }, 60000);
+
+  // Mesmo motivo de timeout explícito do teste anterior.
   it("e-mail já existente com outro papel_global: não sobrescreve papel_global, conta_nova=false, só insere o vínculo novo", async () => {
     await runSql(`
       INSERT INTO dim_usuario (email, nome, papel_global, ativo) VALUES
@@ -218,7 +242,7 @@ describe("T3 -- app.consumir_convite", () => {
        WHERE u.email = 't3-convidado-preexistente@legislabrasil.test' AND v.id_contrato = ${idContrato};
     `);
     expect(Number(rows[0].count)).toBe(1);
-  });
+  }, 60000);
 
   it("convite já usado (dt_uso preenchido) é rejeitado sem alterar nada", async () => {
     const token = "t3-token-usado";
