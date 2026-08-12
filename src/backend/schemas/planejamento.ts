@@ -15,7 +15,7 @@ export const dadosPlanejamentoSchema = z.object({
   objetivo_ano: z.string().nullable().optional(),
   legado: z.string().nullable().optional(),
   analise_conjuntura: z.string().nullable().optional(),
-  id_perfil_atuacao: z.number().int().nullable().optional(),
+  id_perfil_atuacao: z.number().int().positive().nullable().optional(),
 });
 
 export type DadosPlanejamentoInput = z.infer<typeof dadosPlanejamentoSchema>;
