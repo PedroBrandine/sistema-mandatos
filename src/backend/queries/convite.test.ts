@@ -60,6 +60,26 @@ describe("validarConvite", () => {
     expect(resultado).toEqual({ estado: "expirado" });
   });
 
+  // Precedência intencional (comentário em convite.ts): "usado" antes de
+  // "expirado" -- é o caso rotineiro (todo convite consumido expira 7 dias
+  // depois), não a exceção. Mutante sobrevivente do Verifier independente:
+  // trocar a ordem dos dois `if`s em validarConvite passava sem nenhum
+  // teste falhar, porque nenhum fixture combinava as duas condições.
+  it("linha com dt_uso preenchido E dt_expiracao no passado -- estado: usado (precedência sobre expirado)", async () => {
+    const client = criarClienteMockConvite({
+      data: {
+        id_contrato: 1,
+        papel_no_contrato: "assessor",
+        cargo: null,
+        dt_expiracao: new Date(Date.now() - 86400000).toISOString(),
+        dt_uso: new Date(Date.now() - 3600000).toISOString(),
+      },
+      error: null,
+    });
+    const resultado = await validarConvite(client, "hash-usado-e-expirado");
+    expect(resultado).toEqual({ estado: "usado" });
+  });
+
   it("linha válida (não usada, não expirada) -- estado: valido com dados do convite", async () => {
     const client = criarClienteMockConvite({
       data: {

@@ -25,6 +25,13 @@ export async function validarConvite(client: SupabaseClient<Database>, tokenHash
 
   if (error) throw error;
   if (!data) return { estado: "invalido" };
+  // Precedência intencional: "usado" antes de "expirado". Todo convite
+  // consumido também fica com dt_expiracao no passado 7 dias depois
+  // (dt_expiracao nunca se move no consumo) -- é o caso rotineiro, não a
+  // exceção. Mostrar "expirado" pra um convite já usado sugeriria pedir um
+  // novo à Gestora sem necessidade (o acesso já foi criado). Mesma ordem em
+  // app.consumir_convite (supabase/migrations/20260812003455_fn_consumir_convite.sql)
+  // -- mantenha as duas em sincronia se a precedência mudar.
   if (data.dt_uso) return { estado: "usado" };
   if (new Date(data.dt_expiracao) < new Date()) return { estado: "expirado" };
 
