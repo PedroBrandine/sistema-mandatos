@@ -119,6 +119,11 @@ areas mais sensíveis; as 2 restantes seguem sem dúvida levantada, com o defaul
 
 ## Deferred Ideas
 
+- Dialog "editar detalhes" por linha de Sucesso Mensal (`peso`/`descricao`/`mes_referencia`/
+  `dt_limite`) — cortado do escopo em Execute (T15): nenhuma AC do `spec.md` exige uma UI pra esses
+  campos; o GRANT completo do Assessor (PLM-05) já está provado no banco (T11), só não tem
+  superfície de edição pra `peso`/`descricao`/`mes_referencia`/`dt_limite` fora da grade ainda.
+  Candidato a entrar como task própria se a Gestora precisar corrigir esses campos sem SQL direto.
 - GIP (`fat_gip`/`fat_gip_dimensao`) — tabela relacionada mas fora da hierarquia de Sucessos
   Mensais; candidata a feature própria.
 - Migração do histórico das planilhas legadas (escalas 0–1 vs. 0–100) — é INT-04, projeto separado

@@ -82,19 +82,23 @@ describe("objetivoEspecificoSchema", () => {
 });
 
 describe("metaSchema", () => {
-  it("aceita uma meta válida mínima, com status default 'ativa'", () => {
-    const resultado = metaSchema.safeParse({ id_objetivo: 1, descricao: "Realizar 3 audiências" });
+  it("aceita uma meta válida mínima", () => {
+    const resultado = metaSchema.safeParse({ id_objetivo: 1, descricao: "Realizar 3 audiências", status: "ativa" });
     expect(resultado.success).toBe(true);
-    if (resultado.success) expect(resultado.data.status).toBe("ativa");
+  });
+
+  it("rejeita ausência de status (sem .default() -- ver rationale no schema)", () => {
+    const resultado = metaSchema.safeParse({ id_objetivo: 1, descricao: "Realizar 3 audiências" });
+    expect(resultado.success).toBe(false);
   });
 
   it("rejeita ausência de id_objetivo", () => {
-    const resultado = metaSchema.safeParse({ descricao: "Realizar 3 audiências" });
+    const resultado = metaSchema.safeParse({ descricao: "Realizar 3 audiências", status: "ativa" });
     expect(resultado.success).toBe(false);
   });
 
   it("rejeita descricao vazia", () => {
-    const resultado = metaSchema.safeParse({ id_objetivo: 1, descricao: "" });
+    const resultado = metaSchema.safeParse({ id_objetivo: 1, descricao: "", status: "ativa" });
     expect(resultado.success).toBe(false);
   });
 
@@ -105,6 +109,7 @@ describe("metaSchema", () => {
       id_objetivo: 1,
       descricao: "Organograma",
       classe: "governanca",
+      status: "ativa",
     });
     expect(resultado.success).toBe(true);
   });
@@ -114,6 +119,7 @@ describe("metaSchema", () => {
       id_objetivo: 1,
       descricao: "Organograma",
       classe: "outra",
+      status: "ativa",
     });
     expect(resultado.success).toBe(false);
   });
@@ -124,6 +130,7 @@ describe("metaSchema", () => {
       id_objetivo: 1,
       descricao: "Realizar 3 audiências",
       prioridade: "urgente",
+      status: "ativa",
     });
     expect(resultado.success).toBe(false);
   });
@@ -153,6 +160,7 @@ describe("metaSchema", () => {
       id_objetivo: 1,
       descricao: "Realizar 3 audiências",
       id_preditor_secundario: 2,
+      status: "ativa",
     });
     expect(resultado.success).toBe(false);
   });
@@ -163,6 +171,7 @@ describe("metaSchema", () => {
       descricao: "Realizar 3 audiências",
       id_preditor_primario: 5,
       id_preditor_secundario: 5,
+      status: "ativa",
     });
     expect(resultado.success).toBe(false);
   });
@@ -173,21 +182,32 @@ describe("metaSchema", () => {
       id_objetivo: 1,
       descricao: "Realizar 3 audiências",
       pct_atingimento: 101,
+      status: "ativa",
     });
     expect(resultado.success).toBe(false);
   });
 });
 
 describe("sucessoMensalSchema", () => {
-  it("aceita um sucesso mensal válido mínimo, com status default 'pendente'", () => {
+  it("aceita um sucesso mensal válido mínimo", () => {
     const resultado = sucessoMensalSchema.safeParse({
       id_meta: 1,
       descricao: "Publicar post sobre o tema",
       mes_referencia: "2026-08-01",
       peso: 100,
+      status: "pendente",
     });
     expect(resultado.success).toBe(true);
-    if (resultado.success) expect(resultado.data.status).toBe("pendente");
+  });
+
+  it("rejeita ausência de status (sem .default() -- ver rationale no schema)", () => {
+    const resultado = sucessoMensalSchema.safeParse({
+      id_meta: 1,
+      descricao: "Publicar post",
+      mes_referencia: "2026-08-01",
+      peso: 100,
+    });
+    expect(resultado.success).toBe(false);
   });
 
   it("rejeita ausência de id_meta", () => {
@@ -195,6 +215,7 @@ describe("sucessoMensalSchema", () => {
       descricao: "Publicar post",
       mes_referencia: "2026-08-01",
       peso: 100,
+      status: "pendente",
     });
     expect(resultado.success).toBe(false);
   });
@@ -206,6 +227,7 @@ describe("sucessoMensalSchema", () => {
       descricao: "Publicar post",
       mes_referencia: "2026-08-15",
       peso: 100,
+      status: "pendente",
     });
     expect(resultado.success).toBe(false);
   });
@@ -216,6 +238,7 @@ describe("sucessoMensalSchema", () => {
       descricao: "Publicar post",
       mes_referencia: "2026-08-01",
       peso: 100,
+      status: "pendente",
     });
     expect(resultado.success).toBe(true);
   });
@@ -227,6 +250,7 @@ describe("sucessoMensalSchema", () => {
       descricao: "Publicar post",
       mes_referencia: "2026-08-01",
       peso: 150,
+      status: "pendente",
     });
     expect(resultado.success).toBe(false);
   });
@@ -237,6 +261,7 @@ describe("sucessoMensalSchema", () => {
       descricao: "Publicar post",
       mes_referencia: "2026-08-01",
       peso: -10,
+      status: "pendente",
     });
     expect(resultado.success).toBe(false);
   });
@@ -249,6 +274,7 @@ describe("sucessoMensalSchema", () => {
       mes_referencia: "2026-08-01",
       peso: 100,
       pct_atingimento: 150,
+      status: "pendente",
     });
     expect(resultado.success).toBe(false);
   });
@@ -260,6 +286,7 @@ describe("sucessoMensalSchema", () => {
       mes_referencia: "2026-08-01",
       peso: 100,
       pct_atingimento: -1,
+      status: "pendente",
     });
     expect(resultado.success).toBe(false);
   });
@@ -271,6 +298,7 @@ describe("sucessoMensalSchema", () => {
       mes_referencia: "2026-08-01",
       peso: 100,
       pct_atingimento: null,
+      status: "pendente",
     });
     expect(resultado.success).toBe(true);
   });

@@ -43,7 +43,13 @@ export const metaSchema = z
     prioridade: z.enum(["alta", "media", "baixa"]).nullable().optional(),
     classe: z.enum(["programatica", "governanca"]).nullable().optional(),
     id_usuario_responsavel: z.number().int().positive().nullable().optional(),
-    status: z.enum(["ativa", "pausada", "descartada"]).default("ativa"),
+    // Sem .default() (diferente de v8-style Zod comum): @hookform/resolvers/zod
+    // infere o tipo do form pelo INPUT do schema, não pelo OUTPUT -- um campo
+    // com .default() vira opcional no input e obrigatório no output, e
+    // useForm<MetaInput> (que é o output) não bate com o Resolver esperado
+    // pelo form. Mesma convenção de contratoSchema (status sem default,
+    // sempre setado explicitamente em defaultValues do form).
+    status: z.enum(["ativa", "pausada", "descartada"]),
     pct_atingimento: z.number().min(0).max(100).nullable().optional(),
   })
   // ck_meta_preditores: mesma regra de objetivoEspecificoSchema.
@@ -68,7 +74,7 @@ export const sucessoMensalSchema = z
     dt_limite: z.string().nullable().optional(),
     peso: z.number().min(0).max(100),
     pct_atingimento: z.number().min(0).max(100).nullable().optional(),
-    status: z.enum(["pendente", "realizado", "nao_realizado"]).default("pendente"),
+    status: z.enum(["pendente", "realizado", "nao_realizado"]), // sem .default() -- ver metaSchema.status
   })
   // ck_sucesso_mes: EXTRACT(DAY FROM mes_referencia) = 1.
   .refine((valor) => Number(valor.mes_referencia.slice(8, 10)) === 1, {

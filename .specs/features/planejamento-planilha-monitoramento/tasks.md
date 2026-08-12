@@ -433,19 +433,28 @@ recalculado no client).
 
 ---
 
-### T15: Componente `HierarquiaPlanejamento` + dialogs de Objetivo/Meta
+### T15: Componente `HierarquiaPlanejamento` + formulários de Objetivo/Meta
+
+**SPEC_DEVIATION (achado ao implementar, 2 correções)**: (1) não existe precedente de `<Dialog>`
+de criação neste repo — `ContratoForm`/`CoalizaoForm` renderizam condicionalmente **inline** na
+própria página (`coalizoes/[id]/page.tsx:184-190`), só `ConfirmDeleteDialog` usa dialog de verdade
+(pra confirmação de exclusão). `objetivo-form.tsx`/`meta-form.tsx` seguem o padrão real (inline, sem
+`<Dialog>`), renomeados sem o sufixo `-dialog`. (2) O dialog "editar detalhes" por linha de Sucesso
+Mensal (`peso`/`descricao`/`mes_referencia`/`dt_limite`) foi **cortado do escopo** — nenhuma AC do
+`spec.md` exige uma UI de edição desses campos (só PLM-05/06 exigem que o *banco* permita, o que já
+está provado por T11); adicionar um 4º componente sem ancoragem em AC seria escopo além do spec.
+Registrado em `context.md` como Deferred Idea.
 
 **What**: Árvore Objetivo → Meta com `pct_atingimento` de cada nível (`Badge`) e alerta visual
 (não bloqueio) quando a soma de `peso` das Metas de um Objetivo ≠ 100; botões "+ Objetivo"/"+ Meta"
-visíveis só para `gestora`/`mentor`/`admin`; `objetivo-form-dialog.tsx`/`meta-form-dialog.tsx` fazem
-`INSERT` direto (`fat_objetivo_especifico`/`fat_meta` via PostgREST, sem RPC — ver SPEC_DEVIATION de
-T10), erro via `mapeiaErroRpc`, mesmo padrão de `contrato-form.tsx`; `meta-form-dialog.tsx` esconde
-o campo preditor secundário quando o produto do contrato é PLL (PLM-11); dialog "editar detalhes"
-por linha de Sucesso Mensal (`peso`/`descricao`/`mes_referencia`/`dt_limite`, fora da grade).
+visíveis só para `gestora`/`mentor`/`admin`; `objetivo-form.tsx`/`meta-form.tsx` fazem `INSERT`
+direto (`fat_objetivo_especifico`/`fat_meta` via PostgREST, sem RPC — ver SPEC_DEVIATION de T10),
+erro via `mapeiaErroRpc`, mesmo padrão de `contrato-form.tsx`; `meta-form.tsx` esconde o campo
+preditor secundário quando o produto do contrato é PLL (PLM-11).
 **Where**: `src/frontend/components/planejamento/hierarquia-planejamento.tsx`,
-`objetivo-form-dialog.tsx`, `meta-form-dialog.tsx`, `sucesso-mensal-detalhes-dialog.tsx`
+`objetivo-form.tsx`, `meta-form.tsx`
 **Depends on**: T8, T9, T10
-**Reuses**: RHF+Zod (padrão de `convite-form.tsx`), `components/ui/dialog.tsx`
+**Reuses**: RHF+Zod (padrão de `contrato-form.tsx`), `usePapelGlobal` (`kanban-board.tsx`)
 **Requirement**: PLM-08 (exibição), PLM-10, PLM-11
 
 **Tools**: MCP: NONE · Skill: NONE
