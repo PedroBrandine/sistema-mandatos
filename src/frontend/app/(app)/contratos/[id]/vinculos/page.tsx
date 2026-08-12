@@ -6,12 +6,21 @@ import { mapeiaErroRpc } from "@backend/rpc/errors";
 import { createClient } from "@backend/supabase/client";
 import type { Database } from "@backend/supabase/database.types";
 
+import { ConviteForm } from "@/components/fundacao/convite-form";
 import { VinculoForm, type VinculoFormModo } from "@/components/fundacao/vinculo-form";
 import { VinculoTable } from "@/components/fundacao/vinculo-table";
 import { Button } from "@/components/ui/button";
 
 type VinculoRow = Database["public"]["Tables"]["rel_usuario_contrato"]["Row"];
 type UsuarioRow = Database["public"]["Tables"]["dim_usuario"]["Row"];
+
+// CVT-01. "Convidar por e-mail" é uma ação distinta de "Adicionar vínculo":
+// esta cria acesso pra alguém que ainda não tem conta (dim_usuario nasce só
+// no consumo do convite, /convite/[token]); aquela pressupõe que a pessoa já
+// está cadastrada. Painel inline (mesmo modoAtivo já existente) em vez de
+// tela nova -- convite não vira linha em rel_usuario_contrato até ser
+// consumido, então não há nada pra refletir na VinculoTable ao fechar.
+type ModoPainel = VinculoFormModo | { tipo: "convidar" };
 
 // Gestão de vínculos usuário-contrato de um contrato (FND-USR-03 a 08):
 // listar, adicionar, editar, substituir e encerrar -- cobre também o caso do
@@ -23,7 +32,7 @@ export default function VinculosContratoPage({ params }: { params: Promise<{ id:
 
   const [vinculos, setVinculos] = useState<VinculoRow[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
-  const [modoAtivo, setModoAtivo] = useState<VinculoFormModo | null>(null);
+  const [modoAtivo, setModoAtivo] = useState<ModoPainel | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
@@ -74,9 +83,14 @@ export default function VinculosContratoPage({ params }: { params: Promise<{ id:
     <div className="mx-auto grid max-w-3xl gap-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Vínculos do contrato #{idContrato}</h1>
-        <Button type="button" onClick={() => setModoAtivo({ tipo: "adicionar" })}>
-          Adicionar vínculo
-        </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={() => setModoAtivo({ tipo: "convidar" })}>
+            Convidar por e-mail
+          </Button>
+          <Button type="button" onClick={() => setModoAtivo({ tipo: "adicionar" })}>
+            Adicionar vínculo
+          </Button>
+        </div>
       </div>
 
       {mensagem && <p className="text-sm text-red-500">{mensagem}</p>}
@@ -89,7 +103,17 @@ export default function VinculosContratoPage({ params }: { params: Promise<{ id:
         onEncerrar={(v) => void encerrar(v)}
       />
 
-      {modoAtivo && (
+      {modoAtivo?.tipo === "convidar" && (
+        <div className="rounded-lg border p-4">
+          <ConviteForm
+            idContrato={idContrato}
+            onConcluido={() => setModoAtivo(null)}
+            onCancelar={() => setModoAtivo(null)}
+          />
+        </div>
+      )}
+
+      {modoAtivo && modoAtivo.tipo !== "convidar" && (
         <div className="rounded-lg border p-4">
           <VinculoForm
             idContrato={idContrato}
