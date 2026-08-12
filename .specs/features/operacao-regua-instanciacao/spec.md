@@ -190,20 +190,26 @@ confirmar que os dois renderizam corretamente.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| RGI-01 | P1: Instanciação automática via trigger | Design | Pending |
-| RGI-02 | P1: `fat_etapa_contrato` criada por etapa do produto | Design | Pending |
-| RGI-03 | P1: `dim_planejamento` criada vazia | Design | Pending |
-| RGI-04 | P1: `rel_formulario_contrato` criada por formulário aplicável | Design | Pending |
-| RGI-05 | P1: Idempotência (`ON CONFLICT DO NOTHING`) | Design | Pending |
-| RGI-06 | P1: Backfill dos contratos já existentes | Design | Pending |
-| RGI-07 | P1: RLS de leitura por vínculo ao contrato | Design | Pending |
-| RGI-08 | P1: RLS de escrita — `WITH CHECK` explícito | Design | Pending |
-| RGI-09 | P2: Tela da régua — listagem previsto × realizado | Design | Pending |
-| RGI-10 | P2: Tela da régua — atraso derivado, destaque visual | Design | Pending |
+| RGI-01 | P1: Instanciação automática via trigger | Execute | ✅ Verified |
+| RGI-02 | P1: `fat_etapa_contrato` criada por etapa do produto | Execute | ✅ Verified |
+| RGI-03 | P1: `dim_planejamento` criada vazia | Execute | ✅ Verified |
+| RGI-04 | P1: `rel_formulario_contrato` criada por formulário aplicável | Execute | ✅ Verified |
+| RGI-05 | P1: Idempotência (`ON CONFLICT DO NOTHING`) | Execute | ✅ Verified |
+| RGI-06 | P1: Backfill dos contratos já existentes | Execute | ✅ Verified |
+| RGI-07 | P1: RLS de leitura por vínculo ao contrato | Execute | ✅ Verified |
+| RGI-08 | P1: RLS de escrita — `WITH CHECK` explícito | Execute | ✅ Verified |
+| RGI-09 | P2: Tela da régua — listagem previsto × realizado | Execute | ✅ Verified (dados; renderização por leitura de código) |
+| RGI-10 | P2: Tela da régua — atraso derivado, destaque visual | Execute | ✅ Verified (dados; renderização por leitura de código) |
 
 **ID format:** `RGI-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
+
+**Coverage:** 10/10 verificados. Verifier independente (author ≠ verifier): PASS ✅ — 10/10 ACs
+spec-anchored, gate 5/5 comandos verdes (14+53+158 testes automatizados), sensor 3/3 mutações
+mortas, 0 sobreviventes. Relatório completo em `validation.md`. Duas observações Minor não-bloqueantes
+(sem teste de componente para a UI — padrão vigente do projeto inteiro; edge case de coalizão sem
+asserção de contagem dedicada).
 
 **Coverage:** 10 total, 0 mapped to tasks, 10 unmapped ⚠️ (aguardando fase Design/Tasks)
 
