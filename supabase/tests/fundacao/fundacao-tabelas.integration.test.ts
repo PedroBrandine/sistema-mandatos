@@ -244,6 +244,12 @@ describe("T14 -- Fundação e âncora (dim_contratante/dim_mandato/dim_coalizao/
     });
 
     afterAll(async () => {
+      // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
+      // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+      // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
+      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratante};`);
     });
@@ -293,6 +299,10 @@ describe("T14 -- Fundação e âncora (dim_contratante/dim_mandato/dim_coalizao/
 
     afterAll(async () => {
       await runSql(`DELETE FROM rel_coalizao_membro WHERE id_membro = ${idMembro};`);
+      // operacao-regua-instanciacao: mesma correção do bloco anterior (ON DELETE RESTRICT novo).
+      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratanteMandato};`);
       await runSql(`DELETE FROM dim_coalizao WHERE id_coalizao = ${idCoalizao};`);

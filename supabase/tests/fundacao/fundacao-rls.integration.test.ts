@@ -141,6 +141,12 @@ describe("T16 -- RLS de Fundação (p_por_carteira / p_por_contrato)", () => {
     await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idCoalizaoContratante};`);
     await runSql(`DELETE FROM rel_mandato_candidatura WHERE id_vinculo_tse IN (${idCandidaturaA}, ${idCandidaturaB});`);
     await runSql(`DELETE FROM rel_usuario_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
+    // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato agora
+    // popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+    // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
+    await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
+    await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
+    await runSql(`DELETE FROM dim_planejamento WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
     for (const f of [a, b]) {
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${f.idContrato};`);
       await runSql(`DELETE FROM dim_mandato WHERE id_mandato = ${f.idMandato};`);

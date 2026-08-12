@@ -76,6 +76,13 @@ describe("T13 -- rel_usuario_contrato e log_auditoria", () => {
 
     afterAll(async () => {
       await runSql(`DELETE FROM rel_usuario_contrato WHERE id_contrato = ${idContrato};`);
+      // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
+      // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+      // pra todo contrato novo -- as 3 são ON DELETE RESTRICT, então precisam
+      // sair antes de fat_contrato ou o DELETE abaixo falha com 23503.
+      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratante};`);
     });

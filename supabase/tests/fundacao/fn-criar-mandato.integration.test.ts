@@ -242,6 +242,12 @@ describe("T20 -- app.criar_mandato", () => {
         await runSql(`DELETE FROM rel_coalizao_membro WHERE id_membro IN (${membrosCoalizaoIds.join(",")});`);
       }
       if (contratosIds.length) {
+        // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
+        // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+        // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
+        await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato IN (${contratosIds.join(",")});`);
+        await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato IN (${contratosIds.join(",")});`);
+        await runSql(`DELETE FROM dim_planejamento WHERE id_contrato IN (${contratosIds.join(",")});`);
         await runSql(`DELETE FROM fat_contrato WHERE id_contrato IN (${contratosIds.join(",")});`);
       }
       await runSql(`DELETE FROM dim_coalizao WHERE id_coalizao = ${idCoalizao};`);

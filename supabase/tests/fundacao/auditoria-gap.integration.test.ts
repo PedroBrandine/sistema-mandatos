@@ -108,6 +108,12 @@ describe("T17 -- trg_audit_* estendido a dim_contratante/dim_coalizao/rel_coaliz
     });
 
     afterAll(async () => {
+      // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
+      // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+      // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
+      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratanteMandato};`);
       await runSql(`DELETE FROM dim_coalizao WHERE id_coalizao = ${idCoalizao};`);
@@ -171,6 +177,12 @@ describe("T17 (gap adicional) -- trg_audit_* em fat_contrato/dim_mandato/rel_usu
         RETURNING id_contrato;
       `);
       await runSql(`UPDATE fat_contrato SET dt_fim_prevista = CURRENT_DATE + 30 WHERE id_contrato = ${id};`);
+      // operacao-regua-instanciacao: o INSERT acima disparou o trigger que
+      // popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
+      // (ON DELETE RESTRICT) -- precisam sair antes do DELETE de fat_contrato.
+      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${id};`);
+      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${id};`);
+      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${id};`);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${id};`);
 
       const rows = await runSql<{ acao: string }>(`
@@ -231,6 +243,10 @@ describe("T17 (gap adicional) -- trg_audit_* em fat_contrato/dim_mandato/rel_usu
     });
 
     afterAll(async () => {
+      // operacao-regua-instanciacao: mesma correção dos blocos anteriores (ON DELETE RESTRICT novo).
+      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
+      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratante};`);
     });
