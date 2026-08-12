@@ -158,6 +158,24 @@ describe("operacao-regua-instanciacao -- RLS p_por_contrato (RGI-07/RGI-08)", ()
     expect((planejamentos ?? []).map((r: { id_contrato: number }) => r.id_contrato)).toEqual([a.idContrato]);
   });
 
+  // SPEC_DEVIATION (found running kanban-etapas T1's full-suite gate): this
+  // test originally exercised `.update({ status, dt_inicio })`, which failed
+  // with 42501 only because legisla_mentor had zero write GRANT at all on
+  // fat_etapa_contrato at the time. kanban-etapas/T1
+  // (20260812090141_kanban_etapas_rls_grants.sql) deliberately adds
+  // `GRANT UPDATE (status, dt_inicio, dt_conclusao) ... TO legisla_mentor,
+  // legisla_assessor` -- an explicit, documented gap-fix required by
+  // KAN-04/05 (kanban-etapas/design.md "Risks & Concerns": without it,
+  // "Mentor move pra frente" is impossible by GRANT, not RLS). That UPDATE
+  // now legitimately succeeds, so the test as written would regress every
+  // future run, not flake.
+  // Reason: RGI-08's real intent (this file's header comment: "mesmo com
+  // vínculo, INSERT direto (fora de app.instancia_contrato) falha") is that
+  // mentor cannot bypass the sanctioned RPC path by writing rows into this
+  // table directly -- switched the exercised action to an actual INSERT
+  // (matching the test's own title, which the original UPDATE never did),
+  // which kanban-etapas/T1 never grants. The invariant this AC protects
+  // still holds; only the previously mismatched action changes.
   it("RGI-08: mentor com vínculo NÃO consegue INSERT direto em fat_etapa_contrato (só SELECT concedido)", async () => {
     const client = await signInAs(MENTOR_EMAIL);
     const idEtapa = (
@@ -169,9 +187,7 @@ describe("operacao-regua-instanciacao -- RLS p_por_contrato (RGI-07/RGI-08)", ()
 
     const { error } = await client
       .from("fat_etapa_contrato")
-      .update({ status: "em_andamento", dt_inicio: new Date().toISOString().slice(0, 10) })
-      .eq("id_contrato", a.idContrato)
-      .eq("id_etapa", idEtapa);
+      .insert({ id_contrato: a.idContrato, id_etapa: idEtapa, status: "em_andamento" });
     expect(error).not.toBeNull();
     expect(error?.code).toBe("42501");
   });
