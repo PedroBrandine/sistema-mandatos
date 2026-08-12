@@ -73,6 +73,13 @@ const MENSAGENS_CHECK: Record<string, string> = {
   ck_convite_papel: "Papel do convite não é uma opção válida (só mentor/assessor).",
   ck_convite_cargo: "Cargo informado não é uma opção válida.",
   ck_convite_email: "E-mail do convite deve estar em minúsculas e sem espaço nas bordas.",
+  // PLM-02/04/10/11: planejamento-planilha-monitoramento (docs/schema_sistema.sql:895-980)
+  ck_sucesso_pct: "Valor deve estar entre 0 e 100.",
+  ck_sucesso_mes: "Mês de referência deve ser o primeiro dia do mês.",
+  ck_objetivo_pct: "Valor deve estar entre 0 e 100.",
+  ck_meta_pct: "Valor deve estar entre 0 e 100.",
+  ck_meta_preditores: "Preditor secundário não pode repetir o primário.",
+  ck_objetivo_preditores: "Preditor secundário não pode repetir o primário.",
 };
 
 // Mensagens de conflito por constraint UNIQUE alcançáveis pelas 4 funções RPC.
