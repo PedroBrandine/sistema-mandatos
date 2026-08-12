@@ -297,6 +297,28 @@ describe("buscarBoardKanban", () => {
     const resultado = await buscarBoardKanban(client, 5);
     expect(resultado).toEqual([{ idEtapa: 10, codigo: "cadastro", nome: "Cadastro", ordem: 1, cards: [] }]);
   });
+
+  // Edge Case (spec.md): "contrato com status = 'concluido'/'nao_concluido' continua visível no
+  // board, sem ser removido silenciosamente" -- validation.md Fix 1 (mutante #4 sobreviveu: um
+  // filtro extra por status='ativo' passaria pelas outras 12 asserções sem quebrar nenhuma).
+  it("contrato com status 'concluido' continua visível no board, preservando o status", async () => {
+    const { client } = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO], error: null },
+      fat_contrato: {
+        data: [{ id_contrato: 100, id_etapa_atual: null, id_contratante: 1, status: "concluido", dt_inicio: "2026-01-01" }],
+        error: null,
+      },
+      dim_contratante: { data: [{ id_contratante: 1, nome: "Fulano" }], error: null },
+      fat_etapa_contrato: { data: [], error: null },
+    });
+
+    const resultado = await buscarBoardKanban(client, 5);
+
+    const colunaCadastro = resultado.find((c) => c.idEtapa === 10)!;
+    expect(colunaCadastro.cards).toHaveLength(1);
+    expect(colunaCadastro.cards[0].idContrato).toBe(100);
+    expect(colunaCadastro.cards[0].statusContrato).toBe("concluido");
+  });
 });
 
 describe("buscarProjetosDoProduto", () => {
