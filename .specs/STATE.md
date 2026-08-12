@@ -301,10 +301,26 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   tratava o caso de zero etapas — **corrigido em `61568ff`**. Build/lint reconferidos verdes após
   as duas correções, mesma baseline de 27 problemas pré-existentes. Lição `L-008` (candidate)
   registrada sobre o padrão #1 (continua válida como lição, independente da correção pontual).
-- **Next step**: nenhum. Os 2 achados Minor já foram corrigidos nesta sessão. Recomenda-se UAT
-  manual pros itens que o Verifier marcou ⚠️ (destaque visual da aba ativa; comportamento real de
-  404 HTTP em `/produtos/xis` e `/contratos/999999999` sob sessão autenticada — não executável
-  numa verificação estática).
+- **Adição pós-Validate (NAV-16, mesma sessão)**: Pedro pediu, depois do Verifier já ter fechado
+  PASS, uma aba "Informações Gerais" na ficha do contrato de mandato com os dados de TSE (versão
+  completa — accordion por ano + perfil pessoal + gráfico de eleitorado, mesmo conteúdo de
+  `/mandatos/[id]`, confirmado por Pedro em vez de uma versão simplificada). Implementado como
+  componente novo e independente (`InformacoesTseMandato`, `components/fundacao/`) que **não**
+  toca `/mandatos/[id]/page.tsx` (745 linhas, delicado, sem teste de frontend) — duplica ~150
+  linhas de fetch/JSX deliberadamente em vez de arriscar extrair dali. Nova aba é a primeira da
+  barra (antes das etapas) e também virou a tela de chegada padrão da ficha pra contrato de
+  mandato (redirect de `/contratos/[id]`). `buscarContratoParaFicha` ganhou `idMandato` no retorno.
+  Commits: `3dfe907` (idMandato) → `b047c0c` (componente) → `430aace` (rota) → `ffca585`
+  (liga aba+redirect). Build/lint/testes reconferidos verdes a cada commit, mesma baseline (27
+  problemas, 111 testes). **Não passou por um novo ciclo de Verifier independente** — é uma
+  adição pontual pós-fechamento, não uma feature nova; registrado como NAV-16 em `spec.md`
+  (Requirement Traceability) com status "Implemented", não "Verified".
+- **Next step**: nenhum obrigatório. Os 2 achados Minor do Validate original já foram corrigidos
+  nesta sessão, e NAV-16 (acima) também já está implementado e com gate verde. Recomenda-se UAT
+  manual pros itens que o Verifier original marcou ⚠️ (destaque visual da aba ativa; comportamento
+  real de 404 HTTP em `/produtos/xis` e `/contratos/999999999` sob sessão autenticada — não
+  executável numa verificação estática) e, se quiser rigor formal, um Verifier independente sobre
+  NAV-16 especificamente (não rodado ainda).
 - **Blockers**: none.
 - **Uncommitted files**: `.specs/STATE.md`/`.specs/roadmap.md` tinham edições pré-existentes de
   sessão anterior já no working tree antes desta sessão começar (não criadas por esta feature) —

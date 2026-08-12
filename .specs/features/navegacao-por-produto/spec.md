@@ -168,6 +168,16 @@ formulários, registro de insight/fato gerador e link pro planejamento estratég
 6. WHEN o usuário clica em "Planejamento Estratégico" THEN o sistema SHALL navegar para uma rota
    válida (corrigindo o link hoje quebrado para `/contratos/[id]/planejamento`) mostrando "em
    desenvolvimento" — nunca um link morto (404).
+7. WHEN `tipo_contratante = 'mandato'` THEN o sistema SHALL mostrar uma aba "Informações Gerais"
+   (primeira aba, antes das de etapa) com os dados de candidatura do TSE — accordion por ano de
+   eleição, perfil pessoal e gráfico de eleitorado, mesmo conteúdo hoje mostrado em
+   `/mandatos/[id]` — e essa aba SHALL ser a tela de chegada padrão da ficha (o redirect de
+   `/contratos/[id]` leva pra ela em vez da 1ª etapa). WHEN `tipo_contratante = 'coalizao'` (ou
+   outro) THEN essa aba SHALL não existir (nem no chrome nem acessível por URL direta — responde
+   404). *(Adicionado em 2026-08-11, após o fechamento e Validate desta feature — pedido direto de
+   Pedro: "faltou apenas a aba de informações gerais na ficha do mandato trazendo, por hora, os
+   dados do TSE". Confirmado com Pedro: versão completa do TSE, não uma versão simplificada; aba
+   na primeira posição.)*
 
 **Independent Test**: Abrir a ficha de um contrato de mandato e de um contrato de coalizão,
 confirmar cabeçalho correto pros dois, abas de etapa nomeadas de verdade, aba Assessores
@@ -316,6 +326,7 @@ produto funcionando.
 | NAV-13          | P2: Visão Gerencial (placeholder)         | Verify | ✅ Verified |
 | NAV-14          | P2: Remoção da sidebar de entidades       | Verify | ✅ Verified |
 | NAV-15          | P2: Acesso a Usuários reposicionado       | Verify | ✅ Verified |
+| NAV-16          | P1: Ficha do contrato — aba Informações Gerais (TSE, só mandato) | Execute | Implemented (não passou por Verifier independente — pedido pontual pós-Validate, gate de build/lint/testes verde) |
 
 **ID format:** `NAV-NN`
 

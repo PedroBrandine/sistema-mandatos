@@ -106,7 +106,7 @@ aparecem de fato; `<CarregandoSkeleton>`/`<ErroInline>`/`<EstadoVazio>` existem 
 | `cadastro-mandato-contrato-unificado` | ✅ **Validate — PASS** | 16/16 requisitos (CMU-01 a CMU-16), Verifier independente, sensor 3/3 killed. `spec.md`/`validation.md` completos |
 | `catalogos-referencia` | ✅ **Validate — PASS** | 17/17 requisitos de código (CAT-16 permanece `Pending` de propósito — levantamento humano). Verifier rodou 2 rodadas (FAIL 8 gaps → fix → PASS, sensor 3/3) |
 | `plataforma-ui-tanstack` | ✅ **Validate — PASS (com 1 item de UAT manual)** | 11/12 ACs verificados por código; PUI-06 (toast visível) aguarda confirmação visual humana — não é gap de código |
-| `navegacao-por-produto` | ✅ **Validate — PASS** | 15/15 requisitos (NAV-01 a NAV-15), Verifier independente, sensor 3/3 killed, 111 testes unitários (+18). 2 achados Minor não-bloqueantes (ver `validation.md`) |
+| `navegacao-por-produto` | ✅ **Validate — PASS** (15/15) + NAV-16 pós-Validate | 15/15 requisitos (NAV-01 a NAV-15), Verifier independente, sensor 3/3 killed, 111 testes unitários (+18); 2 achados Minor corrigidos na mesma sessão. **NAV-16** (aba "Informações Gerais"/TSE na ficha de mandato) adicionado depois, a pedido de Pedro — gate verde, sem novo ciclo de Verifier |
 
 **Trilha A deixou de ser a descoberta mais importante desta auditoria** — fechou o ciclo completo
 Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto de duas features novas
