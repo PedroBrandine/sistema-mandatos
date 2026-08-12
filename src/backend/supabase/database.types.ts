@@ -83,6 +83,10 @@ export type Database = {
         Args: { p_id_vinculo_tse: number }
         Returns: undefined
       }
+      mover_etapa_kanban: {
+        Args: { p_id_contrato: number; p_id_etapa_destino: number }
+        Returns: undefined
+      }
       normaliza_nome: { Args: { "": string }; Returns: string }
       papel_atual: { Args: never; Returns: string }
       pre_request: { Args: never; Returns: undefined }
