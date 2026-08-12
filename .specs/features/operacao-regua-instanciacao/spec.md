@@ -129,8 +129,16 @@ pular o `WITH CHECK` explícito é o erro mais caro de repetir.
    vínculo.
 
 **Independent Test**: Réplica do padrão de teste de `usuario-with-check.integration.test.ts` —
-Gestora sem vínculo tenta inserir linha em `fat_etapa_contrato` de um contrato de outra carteira e
-recebe erro de RLS; Gestora com vínculo ou Admin conseguem.
+Mentor sem vínculo tenta ler/inserir linha em `fat_etapa_contrato` de um contrato de outra carteira e
+recebe erro de RLS; Mentor com vínculo, Gestora ou Admin conseguem.
+
+**Correção de Design (2026-08-11)**: o texto original deste Independent Test dizia "Gestora sem
+vínculo... recebe erro de RLS" — mas o próprio AC1/AC3 acima (idêntico ao predicado já em produção em
+`fat_contrato`/`dim_contratante` desde `0011_fundacao_rls.sql`) faz `papel_atual() IN ('admin',
+'gestora')` sempre passar, **independente de vínculo** — não existe "Gestora sem vínculo bloqueada"
+em nenhuma tabela deste padrão hoje, de propósito (AD-018: Gestora enxerga tudo). O sujeito correto do
+teste é o Mentor (única role com grant de leitura nestas 3 tabelas e sem o bypass de papel) — corrigido
+aqui antes de escrever `regua-rls.integration.test.ts`, ver `design.md`/`validation.md`.
 
 ---
 
