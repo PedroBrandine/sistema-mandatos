@@ -264,6 +264,12 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Scope**: `vw_carteira`; onda de Operação (§5) e Incidência (§6.2) do roadmap.
 - **Date**: 2026-08-10
 - **Status**: active — resolve quando a Incidência (§6.2) provisionar `mv_iip_contrato`
+- **Adendo (2026-08-12, achado de Design de `visao-gerencial-g1-g2`)**: a coluna `dt_ultimo_registro`
+  da view aprovada (subquery sobre `fat_registro`, `docs/schema_sistema.sql:1340`) tem o **mesmo
+  tipo de bloqueio** — `fat_registro` também não está provisionada (nem `fat_encontro`, de que
+  depende), e as duas nascem na mesma onda de Incidência (§6.2, `.specs/roadmap.md`). Não era
+  mencionado no texto original desta decisão. A versão reduzida desta feature omite `dt_ultimo_registro`
+  junto com `iip_provisorio`/`nr_fatos` — mesmo gatilho de resolução, não é uma decisão nova.
 
 ### AD-033
 - **Decision**: 5ª exceção à lista fechada da AD-010 — **criação de conta via convite por
