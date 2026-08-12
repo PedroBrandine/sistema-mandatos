@@ -10,24 +10,31 @@ import { buscarContratoParaFicha, type ContratoParaFicha } from "@backend/querie
 import {
   buscarCoalizaoInfo,
   buscarGradeSucessosMensais,
+  buscarPessoasVinculadasAoContrato,
   buscarPlanejamentoCompleto,
+  buscarPreditoresPlanejamento,
+  type PessoaVinculada,
   type PlanejamentoCompleto,
+  type PreditorPrioritarioLinha,
   type SucessoMensalGrade,
 } from "@backend/queries/planejamento";
 import { createClient } from "@backend/supabase/client";
 
+import { usePapelGlobal } from "@/hooks/use-papel-global";
+import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
+import { DadosPlanejamentoForm } from "@/components/planejamento/dados-planejamento-form";
 import { GradeSucessosMensais } from "@/components/planejamento/grade-sucessos-mensais";
 import { HierarquiaPlanejamento } from "@/components/planejamento/hierarquia-planejamento";
 import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejamento-agregado-coalizao";
 
-// PLM-01, PLM-07. Substitui o placeholder <EmDesenvolvimento> já reservado
-// pela Trilha F (NAV-08) -- não cria rota nova. Ramifica por
+// PLM-01, PLM-07, PLM-15/16. Substitui o placeholder <EmDesenvolvimento> já
+// reservado pela Trilha F (NAV-08) -- não cria rota nova. Ramifica por
 // tipoContratante/possuiPlanejamentoProprio (design.md "Architecture
 // Overview"): Coalizão sem planejamento próprio mostra a leitura agregada
-// dos membros (PlanejamentoAgregadoCoalizao); todo o resto mostra a
-// hierarquia + grade reais do próprio contrato.
+// dos membros (PlanejamentoAgregadoCoalizao); todo o resto mostra os dados
+// do planejamento + hierarquia + grade reais do próprio contrato.
 //
 // Fetch inline via .then() dentro do próprio efeito (mesmo padrão de
 // etapas/[codigo]/page.tsx) -- não via função extraída chamada de dentro do
@@ -49,15 +56,21 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const { id } = use(params);
   const idContrato = Number(id);
   const mesReferencia = useMemo(() => mesReferenciaCorrente(), []);
+  const { papel } = usePapelGlobal();
+  const podeEditarDadosPlanejamento = papel === "gestora" || papel === "admin";
 
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
   const [coalizaoSemPlanejamentoProprio, setCoalizaoSemPlanejamentoProprio] = useState<number | null>(null);
   const [planejamento, setPlanejamento] = useState<PlanejamentoCompleto | null>(null);
   const [linhasGrade, setLinhasGrade] = useState<SucessoMensalGrade[]>([]);
+  const [pessoasVinculadas, setPessoasVinculadas] = useState<PessoaVinculada[]>([]);
+  const [preditoresAtuais, setPreditoresAtuais] = useState<PreditorPrioritarioLinha[]>([]);
+  const [editandoDadosPlanejamento, setEditandoDadosPlanejamento] = useState(false);
 
   const idPlanejamentoRecalculadoRef = useRef<number | null>(null);
 
-  // Carrega contrato -> decide o ramo (Coalizão sem planejamento próprio ou não).
+  // Carrega contrato -> decide o ramo (Coalizão sem planejamento próprio ou
+  // não) e as pessoas vinculadas (Select de "responsável" da Meta, PLM-13).
   useEffect(() => {
     let cancelado = false;
     const supabase = createClient();
@@ -65,8 +78,11 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     buscarContratoParaFicha(supabase, idContrato).then(async (dados) => {
       if (cancelado) return;
       setContrato(dados);
-      if (!dados || dados.tipoContratante !== "coalizao") return;
 
+      const pessoas = await buscarPessoasVinculadasAoContrato(supabase, idContrato);
+      if (!cancelado) setPessoasVinculadas(pessoas);
+
+      if (!dados || dados.tipoContratante !== "coalizao") return;
       const coalizao = await buscarCoalizaoInfo(supabase, dados.idContratante);
       if (!cancelado && coalizao && !coalizao.possuiPlanejamentoProprio) {
         setCoalizaoSemPlanejamentoProprio(coalizao.idCoalizao);
@@ -78,7 +94,8 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     };
   }, [idContrato]);
 
-  // Carrega hierarquia + grade do próprio contrato (só no ramo não-agregado).
+  // Carrega hierarquia + grade + preditores prioritários do próprio contrato
+  // (só no ramo não-agregado).
   useEffect(() => {
     if (contrato === undefined || coalizaoSemPlanejamentoProprio !== null) return;
     let cancelado = false;
@@ -92,6 +109,11 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
       if (ids.length > 0) {
         const linhas = await buscarGradeSucessosMensais(supabase, ids, mesReferencia);
         if (!cancelado) setLinhasGrade(linhas);
+      }
+
+      if (dados) {
+        const preditores = await buscarPreditoresPlanejamento(supabase, dados.idPlanejamento);
+        if (!cancelado) setPreditoresAtuais(preditores);
       }
 
       // PLM-07: recalcula a cascata síncrono, ao abrir a tela -- 1 vez por
@@ -111,6 +133,22 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   async function recarregarHierarquia() {
     const supabase = createClient();
     setPlanejamento(await buscarPlanejamentoCompleto(supabase, idContrato));
+  }
+
+  async function recarregarPreditores() {
+    if (!planejamento) return;
+    const supabase = createClient();
+    setPreditoresAtuais(await buscarPreditoresPlanejamento(supabase, planejamento.idPlanejamento));
+  }
+
+  // PLM-17/18: criar/editar detalhes de um Sucesso Mensal muda campos que a
+  // atualização otimista de handleEdicaoCelula não cobre -- refetch
+  // completo da grade (ação rara, diferente do fluxo de % da AC PLM-02).
+  async function recarregarGrade() {
+    const ids = idsMetaDoPlanejamento(planejamento);
+    if (ids.length === 0) return;
+    const supabase = createClient();
+    setLinhasGrade(await buscarGradeSucessosMensais(supabase, ids, mesReferencia));
   }
 
   const idsMetaComPesoDivergente = useMemo(() => {
@@ -183,11 +221,52 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
 
   return (
     <div className="grid gap-8">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-medium">Planejamento Estratégico</h2>
-        {planejamento.pctAtingimento != null && (
-          <p className="text-sm text-muted-foreground">Atingimento geral: {planejamento.pctAtingimento}%</p>
-        )}
+      <div className="grid gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-medium">Planejamento Estratégico</h2>
+          {planejamento.pctAtingimento != null && (
+            <p className="text-sm text-muted-foreground">Atingimento geral: {planejamento.pctAtingimento}%</p>
+          )}
+        </div>
+
+        {/* PLM-15/16: objetivo do ano/legado/análise de conjuntura/perfil de
+            atuação + preditores prioritários -- só Gestora/Admin editam
+            (mesmo GRANT de dim_planejamento/rel_planejamento_preditor que
+            justifica o gate de Objetivo/Meta, PLM-14); Mentor/Assessor
+            veem em leitura. */}
+        {podeEditarDadosPlanejamento &&
+          (editandoDadosPlanejamento ? (
+            <DadosPlanejamentoForm
+              planejamento={planejamento}
+              preditoresAtuais={preditoresAtuais}
+              onConcluido={() => {
+                setEditandoDadosPlanejamento(false);
+                void recarregarHierarquia();
+                void recarregarPreditores();
+              }}
+            />
+          ) : (
+            <div className="grid gap-1 rounded-lg border p-4 text-sm">
+              <p>
+                <span className="font-medium">Objetivo do ano:</span> {planejamento.objetivoAno ?? "—"}
+              </p>
+              <p>
+                <span className="font-medium">Legado:</span> {planejamento.legado ?? "—"}
+              </p>
+              <p>
+                <span className="font-medium">Análise de conjuntura:</span> {planejamento.analiseConjuntura ?? "—"}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 w-fit"
+                onClick={() => setEditandoDadosPlanejamento(true)}
+              >
+                Editar dados do Planejamento
+              </Button>
+            </div>
+          ))}
       </div>
 
       {planejamento.objetivos.length === 0 ? (
@@ -197,8 +276,9 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
           idPlanejamento={planejamento.idPlanejamento}
           produtoNome={contrato.nomeProduto}
           objetivos={planejamento.objetivos}
+          pessoasVinculadas={pessoasVinculadas}
           idsMetaComPesoDivergente={idsMetaComPesoDivergente}
-          onCriado={recarregarHierarquia}
+          onAlterado={recarregarHierarquia}
         />
       )}
 
@@ -207,6 +287,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
         linhas={linhasGrade}
         onEdicaoCelula={handleEdicaoCelula}
         onColarFaixa={handleColarFaixa}
+        onAlterado={recarregarGrade}
       />
     </div>
   );

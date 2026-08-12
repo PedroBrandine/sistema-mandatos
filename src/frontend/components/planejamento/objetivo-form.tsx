@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import type { ObjetivoComMetas } from "@backend/queries/planejamento";
 import { mapeiaErroRpc } from "@backend/rpc/errors";
 import { objetivoEspecificoSchema, type ObjetivoEspecificoInput } from "@backend/schemas/planejamento";
 import { createClient } from "@backend/supabase/client";
@@ -13,24 +14,32 @@ import { ErroInline } from "@/components/ui/erro-inline";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 interface RefOption {
   id: number;
   nome: string;
 }
 
-// PLM-10. INSERT direto (fat_objetivo_especifico), sem RPC -- 1 linha só,
-// sem invariante multi-tabela (AD-024), mesmo padrão de ContratoForm.
+// PLM-10/PLM-12. INSERT ou UPDATE direto (fat_objetivo_especifico), sem RPC
+// -- 1 linha só, sem invariante multi-tabela (AD-024), mesmo padrão de
+// ContratoForm (modo "abrir"/"encerrar" -> aqui "criar"/"editar").
 // Renderização inline condicional na página, sem <Dialog> -- não há
 // precedente de dialog de criação neste repo (só ConfirmDeleteDialog); os
 // formulários existentes (ContratoForm, CoalizaoForm) já seguem esse padrão.
+//
+// oportunidade/ameaca (SWOT): "Usa" nos 3 produtos, sem diferença
+// documentada (spec.md, quadro de campos por produto) -- sempre visíveis,
+// sem condicional de produto.
+export type ObjetivoFormModo = { tipo: "criar"; idPlanejamento: number } | { tipo: "editar"; objetivo: ObjetivoComMetas };
+
 export interface ObjetivoFormProps {
-  idPlanejamento: number;
+  modo: ObjetivoFormModo;
   onConcluido: (criado?: { idObjetivo: number }) => void;
   onCancelar: () => void;
 }
 
-export function ObjetivoForm({ idPlanejamento, onConcluido, onCancelar }: ObjetivoFormProps) {
+export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProps) {
   const [preditores, setPreditores] = useState<RefOption[]>([]);
   const [agendas, setAgendas] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
@@ -39,7 +48,19 @@ export function ObjetivoForm({ idPlanejamento, onConcluido, onCancelar }: Objeti
   const form = useForm<ObjetivoEspecificoInput>({
     resolver: zodResolver(objetivoEspecificoSchema),
     mode: "onChange",
-    defaultValues: { id_planejamento: idPlanejamento, descricao: "" },
+    defaultValues:
+      modo.tipo === "criar"
+        ? { id_planejamento: modo.idPlanejamento, descricao: "" }
+        : {
+            id_objetivo: modo.objetivo.idObjetivo,
+            id_planejamento: modo.objetivo.idPlanejamento,
+            descricao: modo.objetivo.descricao,
+            id_preditor_primario: modo.objetivo.idPreditorPrimario,
+            id_preditor_secundario: modo.objetivo.idPreditorSecundario,
+            id_agenda: modo.objetivo.idAgenda,
+            oportunidade: modo.objetivo.oportunidade,
+            ameaca: modo.objetivo.ameaca,
+          },
   });
 
   useEffect(() => {
@@ -60,23 +81,38 @@ export function ObjetivoForm({ idPlanejamento, onConcluido, onCancelar }: Objeti
     setEnviando(true);
     setErro(null);
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("fat_objetivo_especifico")
-      .insert({
-        id_planejamento: valores.id_planejamento,
-        descricao: valores.descricao,
-        id_preditor_primario: valores.id_preditor_primario ?? null,
-        id_preditor_secundario: valores.id_preditor_secundario ?? null,
-        id_agenda: valores.id_agenda ?? null,
-      })
-      .select("id_objetivo")
-      .single();
+
+    const payload = {
+      descricao: valores.descricao,
+      id_preditor_primario: valores.id_preditor_primario ?? null,
+      id_preditor_secundario: valores.id_preditor_secundario ?? null,
+      id_agenda: valores.id_agenda ?? null,
+      oportunidade: valores.oportunidade ?? null,
+      ameaca: valores.ameaca ?? null,
+    };
+
+    if (modo.tipo === "criar") {
+      const { data, error } = await supabase
+        .from("fat_objetivo_especifico")
+        .insert({ id_planejamento: modo.idPlanejamento, ...payload })
+        .select("id_objetivo")
+        .single();
+      setEnviando(false);
+      if (error) {
+        setErro(mapeiaErroRpc(error).message);
+        return;
+      }
+      onConcluido(data ? { idObjetivo: data.id_objetivo } : undefined);
+      return;
+    }
+
+    const { error } = await supabase.from("fat_objetivo_especifico").update(payload).eq("id_objetivo", modo.objetivo.idObjetivo);
     setEnviando(false);
     if (error) {
       setErro(mapeiaErroRpc(error).message);
       return;
     }
-    onConcluido(data ? { idObjetivo: data.id_objetivo } : undefined);
+    onConcluido();
   }
 
   return (
@@ -176,10 +212,36 @@ export function ObjetivoForm({ idPlanejamento, onConcluido, onCancelar }: Objeti
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="oportunidade"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Oportunidade (SWOT, opcional)</FormLabel>
+              <FormControl>
+                <Textarea {...field} value={field.value ?? ""} rows={2} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="ameaca"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Ameaça (SWOT, opcional)</FormLabel>
+              <FormControl>
+                <Textarea {...field} value={field.value ?? ""} rows={2} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         {erro && <ErroInline mensagem={erro} />}
         <div className="flex gap-2">
           <Button type="submit" disabled={enviando || !form.formState.isValid}>
-            {enviando ? "Salvando..." : "Criar Objetivo"}
+            {enviando ? "Salvando..." : modo.tipo === "criar" ? "Criar Objetivo" : "Salvar alterações"}
           </Button>
           <Button type="button" variant="outline" onClick={onCancelar}>
             Cancelar

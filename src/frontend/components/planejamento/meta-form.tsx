@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import type { MetaResumo, PessoaVinculada } from "@backend/queries/planejamento";
 import { mapeiaErroRpc } from "@backend/rpc/errors";
 import { metaSchema, type MetaInput } from "@backend/schemas/planejamento";
 import { createClient } from "@backend/supabase/client";
@@ -19,19 +20,25 @@ interface RefOption {
   nome: string;
 }
 
-// PLM-10/11. INSERT direto (fat_meta), sem RPC (AD-024, mesma razão de
-// ObjetivoForm). PLM-11: campo de preditor secundário some do formulário
-// quando o produto do contrato é PLL -- confirmado por Pedro (spec.md,
-// classe='governanca' e preditor secundário no PLL são restrição só de UI,
-// nunca de schema, AD-008).
+// PLM-10/11/12/13. INSERT ou UPDATE direto (fat_meta), sem RPC (AD-024,
+// mesma razão de ObjetivoForm). PLM-11: campo de preditor secundário some
+// do formulário quando o produto do contrato é PLL -- confirmado por Pedro
+// (spec.md, classe='governanca' e preditor secundário no PLL são restrição
+// só de UI, nunca de schema, AD-008). PLM-13: responsável e status só
+// aparecem no modo "editar" -- uma Meta nova sempre nasce sem responsável
+// definido e status='ativa' (default do schema), não faz sentido pedir
+// isso na criação.
+export type MetaFormModo = { tipo: "criar"; idObjetivo: number } | { tipo: "editar"; meta: MetaResumo };
+
 export interface MetaFormProps {
-  idObjetivo: number;
+  modo: MetaFormModo;
   produtoNome: string;
+  pessoasVinculadas: PessoaVinculada[];
   onConcluido: (criado?: { idMeta: number }) => void;
   onCancelar: () => void;
 }
 
-export function MetaForm({ idObjetivo, produtoNome, onConcluido, onCancelar }: MetaFormProps) {
+export function MetaForm({ modo, produtoNome, pessoasVinculadas, onConcluido, onCancelar }: MetaFormProps) {
   const [preditores, setPreditores] = useState<RefOption[]>([]);
   const [agendas, setAgendas] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
@@ -42,7 +49,21 @@ export function MetaForm({ idObjetivo, produtoNome, onConcluido, onCancelar }: M
   const form = useForm<MetaInput>({
     resolver: zodResolver(metaSchema),
     mode: "onChange",
-    defaultValues: { id_objetivo: idObjetivo, descricao: "", status: "ativa" },
+    defaultValues:
+      modo.tipo === "criar"
+        ? { id_objetivo: modo.idObjetivo, descricao: "", status: "ativa" }
+        : {
+            id_meta: modo.meta.idMeta,
+            id_objetivo: modo.meta.idObjetivo,
+            descricao: modo.meta.descricao,
+            classe: modo.meta.classe,
+            prioridade: modo.meta.prioridade,
+            id_preditor_primario: modo.meta.idPreditorPrimario,
+            id_preditor_secundario: modo.meta.idPreditorSecundario,
+            id_agenda: modo.meta.idAgenda,
+            id_usuario_responsavel: modo.meta.idUsuarioResponsavel,
+            status: modo.meta.status,
+          },
   });
 
   useEffect(() => {
@@ -63,26 +84,40 @@ export function MetaForm({ idObjetivo, produtoNome, onConcluido, onCancelar }: M
     setEnviando(true);
     setErro(null);
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("fat_meta")
-      .insert({
-        id_objetivo: valores.id_objetivo,
-        descricao: valores.descricao,
-        classe: valores.classe ?? null,
-        prioridade: valores.prioridade ?? null,
-        id_preditor_primario: valores.id_preditor_primario ?? null,
-        id_preditor_secundario: usaPreditorSecundario ? (valores.id_preditor_secundario ?? null) : null,
-        id_agenda: valores.id_agenda ?? null,
-        status: valores.status,
-      })
-      .select("id_meta")
-      .single();
+
+    const payload = {
+      descricao: valores.descricao,
+      classe: valores.classe ?? null,
+      prioridade: valores.prioridade ?? null,
+      id_preditor_primario: valores.id_preditor_primario ?? null,
+      id_preditor_secundario: usaPreditorSecundario ? (valores.id_preditor_secundario ?? null) : null,
+      id_agenda: valores.id_agenda ?? null,
+      id_usuario_responsavel: valores.id_usuario_responsavel ?? null,
+      status: valores.status,
+    };
+
+    if (modo.tipo === "criar") {
+      const { data, error } = await supabase
+        .from("fat_meta")
+        .insert({ id_objetivo: modo.idObjetivo, ...payload })
+        .select("id_meta")
+        .single();
+      setEnviando(false);
+      if (error) {
+        setErro(mapeiaErroRpc(error).message);
+        return;
+      }
+      onConcluido(data ? { idMeta: data.id_meta } : undefined);
+      return;
+    }
+
+    const { error } = await supabase.from("fat_meta").update(payload).eq("id_meta", modo.meta.idMeta);
     setEnviando(false);
     if (error) {
       setErro(mapeiaErroRpc(error).message);
       return;
     }
-    onConcluido(data ? { idMeta: data.id_meta } : undefined);
+    onConcluido();
   }
 
   return (
@@ -229,10 +264,63 @@ export function MetaForm({ idObjetivo, produtoNome, onConcluido, onCancelar }: M
             </FormItem>
           )}
         />
+        {modo.tipo === "editar" && (
+          <>
+            <FormField
+              control={form.control}
+              name="id_usuario_responsavel"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Responsável (opcional)</FormLabel>
+                  <Select
+                    value={field.value ? String(field.value) : undefined}
+                    onValueChange={(v) => field.onChange(Number(v))}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Nenhum" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {pessoasVinculadas.map((p) => (
+                        <SelectItem key={p.idUsuario} value={String(p.idUsuario)}>
+                          {p.nome} ({p.papelNoContrato})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="ativa">Ativa</SelectItem>
+                      <SelectItem value="pausada">Pausada</SelectItem>
+                      <SelectItem value="descartada">Descartada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        )}
         {erro && <ErroInline mensagem={erro} />}
         <div className="flex gap-2">
           <Button type="submit" disabled={enviando || !form.formState.isValid}>
-            {enviando ? "Salvando..." : "Criar Meta"}
+            {enviando ? "Salvando..." : modo.tipo === "criar" ? "Criar Meta" : "Salvar alterações"}
           </Button>
           <Button type="button" variant="outline" onClick={onCancelar}>
             Cancelar

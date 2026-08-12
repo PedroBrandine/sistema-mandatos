@@ -107,8 +107,9 @@ function DadosPlanejamentoMembro({
         idPlanejamento={planejamento.idPlanejamento}
         produtoNome="Estratégia"
         objetivos={planejamento.objetivos}
+        pessoasVinculadas={[]}
         idsMetaComPesoDivergente={new Set()}
-        onCriado={() => {}}
+        onAlterado={() => {}}
         somenteLeitura
       />
       {linhasGrade && (

@@ -5,9 +5,13 @@ import { useCallback, useMemo, useState } from "react";
 
 import type { SucessoMensalGrade } from "@backend/queries/planejamento";
 
+import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+
+import { SucessoMensalForm } from "./sucesso-mensal-form";
 
 // PLM-01/02/03/04. Primeiro consumidor real de @tanstack/react-table no
 // repo (design.md "Risks & Concerns" -- sem precedente local de célula
@@ -43,6 +47,12 @@ export interface GradeSucessosMensaisProps {
   somenteLeitura?: boolean;
   onEdicaoCelula: (idSucesso: number, pctAtingimento: number) => Promise<void>;
   onColarFaixa: (valores: { idSucesso: number; pctAtingimento: number }[]) => Promise<void>;
+  // PLM-17/18: criar um Sucesso Mensal novo ou editar peso/descrição/mês/
+  // prazo/status de um existente muda campos que a atualização otimista de
+  // onEdicaoCelula não cobre -- dispara um refetch completo da grade
+  // (diferente de PLM-02, que é sobre o fluxo de edição rápida de %,
+  // exercitado a cada tecla; criar/editar detalhes é ação rara).
+  onAlterado?: () => void;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -109,15 +119,40 @@ function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio }: Cel
 }
 
 interface TabelaMetaProps {
+  idMeta: number;
   descricaoMeta: string;
   linhas: SucessoMensalGrade[];
   erros: Record<number, string>;
   somenteLeitura: boolean;
   onCommitCelula: (idSucesso: number, valorTexto: string) => void;
   onPasteInicio: (idSucesso: number, texto: string) => void;
+  onAlterado?: () => void;
 }
 
-function TabelaMeta({ descricaoMeta, linhas, erros, somenteLeitura, onCommitCelula, onPasteInicio }: TabelaMetaProps) {
+function TabelaMeta({
+  idMeta,
+  descricaoMeta,
+  linhas,
+  erros,
+  somenteLeitura,
+  onCommitCelula,
+  onPasteInicio,
+  onAlterado,
+}: TabelaMetaProps) {
+  // PLM-17/18: "+ Sucesso Mensal" e "Detalhes" por linha -- ações raras
+  // (diferente da edição de % na própria célula), por isso um form
+  // completo abre abaixo da tabela em vez de célula inline (T14 já cobre
+  // o caso frequente).
+  const [criando, setCriando] = useState(false);
+  const [editandoSucesso, setEditandoSucesso] = useState<SucessoMensalGrade | null>(null);
+  // PLM-17 AC2: Assessor não tem GRANT INSERT em fat_sucesso_mensal (só
+  // SELECT, UPDATE, docs/schema_sistema.sql:2093) -- "+ Sucesso Mensal" não
+  // aparece pra esse papel. Editar detalhes (UPDATE) continua pra todo
+  // papel com escrita na linha -- RLS já decide o resto, mesma lógica de
+  // onEdicaoCelula.
+  const { papel } = usePapelGlobal();
+  const podeCriarSucesso = papel === "gestora" || papel === "mentor" || papel === "admin";
+
   const columns = useMemo(
     () =>
       columnHelper.columns([
@@ -155,6 +190,16 @@ function TabelaMeta({ descricaoMeta, linhas, erros, somenteLeitura, onCommitCelu
               <span className="text-muted-foreground">—</span>
             ),
         }),
+        columnHelper.display({
+          id: "acoes",
+          header: "",
+          cell: ({ row }) =>
+            somenteLeitura ? null : (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEditandoSucesso(row.original)}>
+                Detalhes
+              </Button>
+            ),
+        }),
       ]),
     [erros, somenteLeitura, onCommitCelula, onPasteInicio]
   );
@@ -186,6 +231,35 @@ function TabelaMeta({ descricaoMeta, linhas, erros, somenteLeitura, onCommitCelu
           ))}
         </TableBody>
       </Table>
+
+      {editandoSucesso && (
+        <SucessoMensalForm
+          modo={{ tipo: "editar", sucesso: editandoSucesso }}
+          onConcluido={() => {
+            setEditandoSucesso(null);
+            onAlterado?.();
+          }}
+          onCancelar={() => setEditandoSucesso(null)}
+        />
+      )}
+
+      {!somenteLeitura &&
+        podeCriarSucesso &&
+        !editandoSucesso &&
+        (criando ? (
+          <SucessoMensalForm
+            modo={{ tipo: "criar", idMeta }}
+            onConcluido={() => {
+              setCriando(false);
+              onAlterado?.();
+            }}
+            onCancelar={() => setCriando(false)}
+          />
+        ) : (
+          <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setCriando(true)}>
+            + Sucesso Mensal
+          </Button>
+        ))}
     </div>
   );
 }
@@ -196,6 +270,7 @@ export function GradeSucessosMensais({
   somenteLeitura = false,
   onEdicaoCelula,
   onColarFaixa,
+  onAlterado,
 }: GradeSucessosMensaisProps) {
   const [erros, setErros] = useState<Record<number, string>>({});
 
@@ -284,12 +359,14 @@ export function GradeSucessosMensais({
       {metas.map((meta) => (
         <TabelaMeta
           key={meta.idMeta}
+          idMeta={meta.idMeta}
           descricaoMeta={meta.descricao}
           linhas={linhasPorMeta.get(meta.idMeta) ?? []}
           erros={erros}
           somenteLeitura={somenteLeitura}
           onCommitCelula={handleCommitCelula}
           onPasteInicio={handlePasteInicio}
+          onAlterado={onAlterado}
         />
       ))}
     </div>
