@@ -20,6 +20,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consumir_convite: {
+        Args: { p_nome: string; p_token_hash: string }
+        Returns: Json
+      }
       contratante_similar: {
         Args: { p_nm_municipio: string; p_nome: string; p_sg_uf: string }
         Returns: {
@@ -55,9 +59,25 @@ export type Database = {
         Returns: Json
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      emitir_convite: {
+        Args: {
+          p_areas: string[]
+          p_cargo: string
+          p_email: string
+          p_grau_responsabilidade: string
+          p_id_contrato: number
+          p_papel: string
+          p_token_hash: string
+        }
+        Returns: number
+      }
       f_unaccent: { Args: { "": string }; Returns: string }
       id_usuario: { Args: never; Returns: number }
       id_usuario_sistema: { Args: never; Returns: number }
+      instancia_contrato: {
+        Args: { p_id_contrato: number }
+        Returns: undefined
+      }
       marcar_candidatura_vigente: {
         Args: { p_id_vinculo_tse: number }
         Returns: undefined
@@ -110,6 +130,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      convite_contrato: {
+        Row: {
+          areas: string[] | null
+          cargo: string | null
+          criado_em: string
+          dt_expiracao: string
+          dt_uso: string | null
+          email: string
+          grau_responsabilidade: string | null
+          id_contrato: number
+          id_convite: number
+          id_usuario_convidou: number
+          papel_no_contrato: string
+          token_hash: string
+        }
+        Insert: {
+          areas?: string[] | null
+          cargo?: string | null
+          criado_em?: string
+          dt_expiracao: string
+          dt_uso?: string | null
+          email: string
+          grau_responsabilidade?: string | null
+          id_contrato: number
+          id_convite?: number
+          id_usuario_convidou: number
+          papel_no_contrato: string
+          token_hash: string
+        }
+        Update: {
+          areas?: string[] | null
+          cargo?: string | null
+          criado_em?: string
+          dt_expiracao?: string
+          dt_uso?: string | null
+          email?: string
+          grau_responsabilidade?: string | null
+          id_contrato?: number
+          id_convite?: number
+          id_usuario_convidou?: number
+          papel_no_contrato?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convite_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "convite_contrato_id_usuario_convidou_fkey"
+            columns: ["id_usuario_convidou"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
+      convite_tentativa: {
+        Row: {
+          id_tentativa: number
+          ip: unknown
+          ocorrido_em: string
+        }
+        Insert: {
+          id_tentativa?: number
+          ip: unknown
+          ocorrido_em?: string
+        }
+        Update: {
+          id_tentativa?: number
+          ip?: unknown
+          ocorrido_em?: string
+        }
+        Relationships: []
+      }
       dim_coalizao: {
         Row: {
           agenda_tematica: string[] | null
@@ -293,6 +391,60 @@ export type Database = {
           },
         ]
       }
+      dim_planejamento: {
+        Row: {
+          analise_conjuntura: string | null
+          atingimento_desatualizado: boolean
+          atualizado_em: string
+          criado_em: string
+          id_contrato: number
+          id_perfil_atuacao: number | null
+          id_planejamento: number
+          legado: string | null
+          objetivo_ano: string | null
+          pct_atingimento: number | null
+        }
+        Insert: {
+          analise_conjuntura?: string | null
+          atingimento_desatualizado?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          id_contrato: number
+          id_perfil_atuacao?: number | null
+          id_planejamento?: number
+          legado?: string | null
+          objetivo_ano?: string | null
+          pct_atingimento?: number | null
+        }
+        Update: {
+          analise_conjuntura?: string | null
+          atingimento_desatualizado?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          id_contrato?: number
+          id_perfil_atuacao?: number | null
+          id_planejamento?: number
+          legado?: string | null
+          objetivo_ano?: string | null
+          pct_atingimento?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_perfil_atuacao_fkey"
+            columns: ["id_perfil_atuacao"]
+            isOneToOne: false
+            referencedRelation: "ref_perfil_atuacao"
+            referencedColumns: ["id_perfil"]
+          },
+        ]
+      }
       dim_usuario: {
         Row: {
           ativo: boolean
@@ -429,6 +581,57 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_projeto"
             referencedColumns: ["id_projeto"]
+          },
+        ]
+      }
+      fat_etapa_contrato: {
+        Row: {
+          atualizado_em: string
+          dt_conclusao: string | null
+          dt_inicio: string | null
+          dt_prevista_conclusao: string | null
+          dt_prevista_inicio: string | null
+          id_contrato: number
+          id_etapa: number
+          id_etapa_contrato: number
+          status: string
+        }
+        Insert: {
+          atualizado_em?: string
+          dt_conclusao?: string | null
+          dt_inicio?: string | null
+          dt_prevista_conclusao?: string | null
+          dt_prevista_inicio?: string | null
+          id_contrato: number
+          id_etapa: number
+          id_etapa_contrato?: number
+          status?: string
+        }
+        Update: {
+          atualizado_em?: string
+          dt_conclusao?: string | null
+          dt_inicio?: string | null
+          dt_prevista_conclusao?: string | null
+          dt_prevista_inicio?: string | null
+          id_contrato?: number
+          id_etapa?: number
+          id_etapa_contrato?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_etapa_fkey"
+            columns: ["id_etapa"]
+            isOneToOne: false
+            referencedRelation: "ref_etapa"
+            referencedColumns: ["id_etapa"]
           },
         ]
       }
@@ -1739,6 +1942,58 @@ export type Database = {
           },
         ]
       }
+      rel_formulario_contrato: {
+        Row: {
+          dt_abertura: string | null
+          dt_fechamento: string | null
+          estado: string
+          id_abertura: number
+          id_contrato: number
+          id_formulario: number
+          id_usuario_abriu: number | null
+        }
+        Insert: {
+          dt_abertura?: string | null
+          dt_fechamento?: string | null
+          estado?: string
+          id_abertura?: number
+          id_contrato: number
+          id_formulario: number
+          id_usuario_abriu?: number | null
+        }
+        Update: {
+          dt_abertura?: string | null
+          dt_fechamento?: string | null
+          estado?: string
+          id_abertura?: number
+          id_contrato?: number
+          id_formulario?: number
+          id_usuario_abriu?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_formulario_fkey"
+            columns: ["id_formulario"]
+            isOneToOne: false
+            referencedRelation: "ref_formulario"
+            referencedColumns: ["id_formulario"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_usuario_abriu_fkey"
+            columns: ["id_usuario_abriu"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
       rel_mandato_candidatura: {
         Row: {
           ano_eleicao: number
@@ -1855,7 +2110,40 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vw_etapa_contrato: {
+        Row: {
+          atualizado_em: string | null
+          codigo_etapa: string | null
+          dias_atraso: number | null
+          dt_conclusao: string | null
+          dt_inicio: string | null
+          dt_prevista_conclusao: string | null
+          dt_prevista_inicio: string | null
+          esta_atrasada: boolean | null
+          id_contrato: number | null
+          id_etapa: number | null
+          id_etapa_contrato: number | null
+          nome_etapa: string | null
+          ordem: number | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_etapa_fkey"
+            columns: ["id_etapa"]
+            isOneToOne: false
+            referencedRelation: "ref_etapa"
+            referencedColumns: ["id_etapa"]
+          },
+        ]
+      }
     }
     Functions: {
       carrega_tse: { Args: { dados: Json; tabela: string }; Returns: undefined }
