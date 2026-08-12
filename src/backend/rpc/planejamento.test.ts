@@ -3,11 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
 import { PermissaoNegadaError, ViolacaoConstraintError } from "./errors";
-import { atualizarSucessosEmLote, recalcularAtingimento } from "./planejamento";
+import { atualizarSucessosEmLote, recalcularAtingimento, substituirPreditoresPlanejamento } from "./planejamento";
 
-// Spec anchor: PLM-02, PLM-03, PLM-07 (.specs/features/planejamento-planilha-monitoramento/spec.md) --
+// Spec anchor: PLM-02, PLM-03, PLM-07, PLM-16 (.specs/features/planejamento-planilha-monitoramento/spec.md) --
 //  - recalcularAtingimento chama rpc("recalcula_atingimento", { p_id_planejamento })
 //  - atualizarSucessosEmLote chama rpc("atualiza_sucessos_mensais_lote", { p_valores }) serializado em snake_case
+//  - substituirPreditoresPlanejamento chama rpc("substitui_preditores_planejamento", { p_id_planejamento, p_preditores }) serializado em snake_case
 //  - 42501 -> PermissaoNegadaError; 23514 em ck_sucesso_pct -> ViolacaoConstraintError com a mensagem certa
 //  - código não mapeado é relançado sem alteração
 
@@ -87,5 +88,46 @@ describe("atualizarSucessosEmLote", () => {
     await expect(atualizarSucessosEmLote(client, [{ idSucesso: 1, pctAtingimento: 50 }])).rejects.toEqual(
       erroOriginal
     );
+  });
+});
+
+describe("substituirPreditoresPlanejamento", () => {
+  it("sucesso: chama substitui_preditores_planejamento com o array serializado em snake_case", async () => {
+    const { client, chamadas } = criarClienteMock({ data: null, error: null });
+
+    await substituirPreditoresPlanejamento(client, 7, [
+      { idPreditor: 10, ordem: 1 },
+      { idPreditor: 20, ordem: 2 },
+    ]);
+
+    expect(chamadas[0]).toEqual({
+      fn: "substitui_preditores_planejamento",
+      params: {
+        p_id_planejamento: 7,
+        p_preditores: [
+          { id_preditor: 10, ordem: 1 },
+          { id_preditor: 20, ordem: 2 },
+        ],
+      },
+    });
+  });
+
+  it("42501: lança PermissaoNegadaError (Mentor/Assessor sem GRANT em rel_planejamento_preditor)", async () => {
+    const { client } = criarClienteMock({ data: null, error: { code: "42501", message: "permission denied" } });
+
+    await expect(substituirPreditoresPlanejamento(client, 7, [{ idPreditor: 10, ordem: 1 }])).rejects.toThrow(
+      PermissaoNegadaError
+    );
+  });
+
+  it("array vazio: chama a RPC com p_preditores: [] (limpa os preditores prioritários)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: null, error: null });
+
+    await substituirPreditoresPlanejamento(client, 7, []);
+
+    expect(chamadas[0]).toEqual({
+      fn: "substitui_preditores_planejamento",
+      params: { p_id_planejamento: 7, p_preditores: [] },
+    });
   });
 });

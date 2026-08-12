@@ -19,6 +19,26 @@ export interface AtualizacaoSucessoMensal {
   pctAtingimento: number;
 }
 
+export interface PreditorPrioritario {
+  idPreditor: number;
+  ordem: number;
+}
+
+// PLM-16: substitui o conjunto inteiro de preditores prioritários (até 3) num
+// único DELETE+INSERT atômico (app.substitui_preditores_planejamento, T18) --
+// AD-024, escrita que cruza mais de uma linha.
+export async function substituirPreditoresPlanejamento(
+  client: SupabaseClient<Database>,
+  idPlanejamento: number,
+  preditores: PreditorPrioritario[]
+): Promise<void> {
+  const { error } = await client.schema("app").rpc("substitui_preditores_planejamento", {
+    p_id_planejamento: idPlanejamento,
+    p_preditores: preditores.map((p) => ({ id_preditor: p.idPreditor, ordem: p.ordem })),
+  });
+  if (error) throw mapeiaErroRpc(error);
+}
+
 // PLM-03: escreve uma faixa colada de pct_atingimento num único UPDATE
 // atômico (app.atualiza_sucessos_mensais_lote, T6) -- nunca N chamadas
 // soltas, que deixariam estado parcial se uma falhar no meio (AD-024).
