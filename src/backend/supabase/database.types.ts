@@ -20,6 +20,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      checar_rate_limit_convite: { Args: { p_ip: unknown }; Returns: boolean }
       consumir_convite: {
         Args: { p_nome: string; p_token_hash: string }
         Returns: Json
