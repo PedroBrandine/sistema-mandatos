@@ -224,9 +224,9 @@ legisla_admin, legisla_gestora` de novo, agora cobrindo as 3 views) + `GRANT SEL
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `legisla_app/admin/gestora` têm `SELECT` nas 3 views (via re-GRANT em bloco)
-- [ ] `legisla_mentor/assessor` têm `SELECT` explícito nas 3 views
-- [ ] Teste de integração cobre os 5 papéis × 3 views (`has_table_privilege`)
+- [x] `legisla_app/admin/gestora` têm `SELECT` nas 3 views (via re-GRANT em bloco)
+- [x] `legisla_mentor/assessor` têm `SELECT` explícito nas 3 views
+- [x] Teste de integração cobre os 5 papéis × 3 views (`has_table_privilege`)
 
 **Tests**: integration
 **Gate**: full
