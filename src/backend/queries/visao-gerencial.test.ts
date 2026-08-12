@@ -17,6 +17,14 @@ import { buscarCarteiraPonderada, buscarCicloEtapa } from "./visao-gerencial";
 // mesma etapa: peso somado uma vez por contrato, não deduplicado";
 // "ref_peso_etapa sem linha: peso NULL, nunca assumir peso 1"; "zero é uma
 // contagem real, não ausência de dado").
+//
+// Fix (Verifier, rodada 1 de validation.md): "Gestora sem contrato ativo"
+// exige um backbone independente de vw_carteira_ponderada (que só tem linha
+// pra contrato ATIVO) -- dim_usuario.papel_global é esse backbone, mesmo
+// papel de ref_etapa em buscarCicloEtapa/buscarBoardKanban. Sem ele, uma
+// Gestora com zero contratos é omitida do array em vez de aparecer com
+// somaPeso: 0 (achado real: o teste antigo "todos os pesos NULL" testava um
+// cenário diferente -- 1 contrato com peso NULL, não zero contratos).
 
 type Chamada = { tabela: string; metodo: string; args: unknown[] };
 type RespostaTabela = { data: unknown; error: { message: string } | null };
@@ -113,6 +121,21 @@ describe("buscarCarteiraPonderada", () => {
     expect(eqsPapel).toContainEqual(["papel_no_contrato", "mentor"]);
   });
 
+  // Complementa o Edge Case "Gestora sem contrato ativo": o backbone
+  // (dim_usuario) tem que filtrar pelo mesmo papel do corte -- senão uma
+  // Gestora sem carteira apareceria também na lista de Mentor (ou vice-versa).
+  it("filtra o backbone de dim_usuario por papel_global igual ao filtro.papel", async () => {
+    const { client, chamadas } = criarClienteMock({
+      dim_usuario: { data: [{ id_usuario: 9, nome: "Mentor X" }], error: null },
+      vw_carteira_ponderada: { data: [], error: null },
+    });
+
+    await buscarCarteiraPonderada(client, { papel: "mentor" });
+
+    const eqsUsuario = chamadas.filter((c) => c.tabela === "dim_usuario" && c.metodo === "eq").map((c) => c.args);
+    expect(eqsUsuario).toContainEqual(["papel_global", "mentor"]);
+  });
+
   // Done-when: "Atingimento médio ignora NULL (GG-06 AC3)"
   it("calcula atingimentoMedio ignorando linhas com pct_atingimento NULL", async () => {
     const { client } = criarClienteMock({
@@ -151,10 +174,10 @@ describe("buscarCarteiraPonderada", () => {
     expect(resultado[0].qtdContratos).toBe(2);
   });
 
-  // Edge Case (spec.md): "zero é uma contagem real, não ausência de dado" --
-  // quando todos os contratos de uma Gestora presente no filtro têm peso
-  // NULL, a soma é 0 (contagem real), nunca NaN nem uma linha omitida.
-  it("retorna somaPeso: 0 (não NaN, não omitida) quando todos os pesos da Gestora são NULL", async () => {
+  // Caso relacionado (não é o Edge Case "zero contratos" -- ver teste
+  // seguinte): quando o(s) único(s) contrato(s) de uma Gestora têm peso
+  // NULL, a soma é 0 (contagem real), nunca NaN.
+  it("retorna somaPeso: 0 (não NaN) quando todos os pesos da Gestora são NULL", async () => {
     const { client } = criarClienteMock({
       vw_carteira_ponderada: {
         data: [{ id_usuario: 1, nome_usuario: "Gestora A", peso: null, pct_atingimento: null }],
@@ -167,6 +190,48 @@ describe("buscarCarteiraPonderada", () => {
     expect(resultado).toHaveLength(1);
     expect(resultado[0].somaPeso).toBe(0);
     expect(Number.isNaN(resultado[0].somaPeso)).toBe(false);
+  });
+
+  // Edge Case (spec.md, literal): "WHEN uma Gestora não tem nenhum contrato
+  // ativo THEN G1 SHALL mostrar 0" -- zero é uma contagem real, a Gestora
+  // NUNCA é omitida da lista. dim_usuario.papel_global é o backbone (mesmo
+  // papel de ref_etapa em buscarCicloEtapa) -- garante que ela apareça
+  // mesmo sem nenhuma linha em vw_carteira_ponderada.
+  it("mostra uma Gestora sem nenhum contrato ativo com somaPeso: 0, nunca omitida da lista", async () => {
+    const { client } = criarClienteMock({
+      dim_usuario: {
+        data: [
+          { id_usuario: 1, nome: "Gestora Com Carteira" },
+          { id_usuario: 2, nome: "Gestora Sem Carteira" },
+        ],
+        error: null,
+      },
+      vw_carteira_ponderada: {
+        data: [{ id_usuario: 1, nome_usuario: "Gestora Com Carteira", peso: 5, pct_atingimento: null }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+
+    expect(resultado).toEqual([
+      {
+        idUsuario: 1,
+        nomeUsuario: "Gestora Com Carteira",
+        somaPeso: 5,
+        qtdContratos: 1,
+        qtdContratosSemPeso: 0,
+        atingimentoMedio: null,
+      },
+      {
+        idUsuario: 2,
+        nomeUsuario: "Gestora Sem Carteira",
+        somaPeso: 0,
+        qtdContratos: 0,
+        qtdContratosSemPeso: 0,
+        atingimentoMedio: null,
+      },
+    ]);
   });
 
   // Edge Case (spec.md): "dois contratos do mesmo Gestora estão na mesma

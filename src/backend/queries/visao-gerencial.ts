@@ -25,6 +25,11 @@ interface RowCarteiraPonderada {
   pct_atingimento: number | null;
 }
 
+interface RowUsuarioPapelGlobal {
+  id_usuario: number;
+  nome: string;
+}
+
 interface AcumuladorCarteira {
   nomeUsuario: string;
   somaPeso: number;
@@ -34,18 +39,30 @@ interface AcumuladorCarteira {
   qtdAtingimento: number;
 }
 
-// GG-05, GG-06. vw_carteira_ponderada já resolve id_etapa_atual IS NULL -> 1ª
-// etapa do produto (COALESCE na própria view, T5) -- esta função só agrega,
-// nunca reintroduz essa lógica. peso já vem NULL quando falta seed em
-// ref_peso_etapa (LEFT JOIN da view); contratos assim são excluídos da soma e
-// contados em qtdContratosSemPeso, nunca tratados como peso = 1 (spec.md Edge
-// Cases). soma/contagens partem de 0 -- Gestora presente no filtro sem
-// nenhum peso válido soma 0 (contagem real), nunca NaN/omitida (spec.md Edge
-// Cases, "zero é uma contagem real").
+function acumuladorVazio(nomeUsuario: string): AcumuladorCarteira {
+  return { nomeUsuario, somaPeso: 0, qtdContratos: 0, qtdContratosSemPeso: 0, somaAtingimento: 0, qtdAtingimento: 0 };
+}
+
+// GG-05, GG-06. dim_usuario.papel_global é o backbone (mesmo papel de
+// ref_etapa em buscarCicloEtapa/buscarBoardKanban): garante que toda pessoa
+// com esse papel apareça no resultado, mesmo sem nenhum contrato ativo --
+// somaPeso: 0, linha real, nunca omitida (spec.md Edge Cases). vw_carteira_
+// ponderada já resolve id_etapa_atual IS NULL -> 1ª etapa do produto
+// (COALESCE na própria view, T5) -- esta função só agrega, nunca reintroduz
+// essa lógica. peso já vem NULL quando falta seed em ref_peso_etapa (LEFT
+// JOIN da view); contratos assim são excluídos da soma e contados em
+// qtdContratosSemPeso, nunca tratados como peso = 1 (spec.md Edge Cases).
 export async function buscarCarteiraPonderada(
   client: SupabaseClient<Database>,
   filtro: FiltroCarteiraPonderada
 ): Promise<LinhaCarteiraPonderada[]> {
+  const { data: usuariosData, error: erroUsuarios } = await client
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .eq("papel_global", filtro.papel);
+  if (erroUsuarios) throw erroUsuarios;
+  const usuarios = (usuariosData ?? []) as RowUsuarioPapelGlobal[];
+
   let query = client
     .from("vw_carteira_ponderada")
     .select("id_usuario, nome_usuario, peso, pct_atingimento")
@@ -60,17 +77,14 @@ export async function buscarCarteiraPonderada(
 
   const porUsuario = new Map<number, AcumuladorCarteira>();
 
+  for (const usuario of usuarios) {
+    porUsuario.set(usuario.id_usuario, acumuladorVazio(usuario.nome));
+  }
+
   for (const row of rows) {
     if (row.id_usuario === null) continue;
 
-    const acc = porUsuario.get(row.id_usuario) ?? {
-      nomeUsuario: row.nome_usuario ?? "",
-      somaPeso: 0,
-      qtdContratos: 0,
-      qtdContratosSemPeso: 0,
-      somaAtingimento: 0,
-      qtdAtingimento: 0,
-    };
+    const acc = porUsuario.get(row.id_usuario) ?? acumuladorVazio(row.nome_usuario ?? "");
 
     acc.qtdContratos += 1;
     if (row.peso === null) {
