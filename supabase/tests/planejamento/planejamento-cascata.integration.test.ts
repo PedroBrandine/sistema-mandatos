@@ -16,6 +16,11 @@ import { runSql } from "../helpers/sql";
 //   Objetivo 1: Meta A (ativa, 2 sucessos peso 25/75 -> ponderada 50.00)
 //               Meta B (pausada, 1 sucesso peso 100 pct 90 -> própria pct=90.00,
 //                       EXCLUÍDA da média do Objetivo 1)
+//               Meta D (descartada, 1 sucesso peso 100 pct 30 -> própria pct=30.00,
+//                       EXCLUÍDA da média do Objetivo 1 -- achado do Verifier rodada 1,
+//                       'pausada' e 'descartada' têm o mesmo predicado SQL mas nenhum
+//                       teste exercitava 'descartada' antes; fica intocada em todos os
+//                       testes -- só a AC2/AC3 abaixo verifica sua exclusão)
 //   Objetivo 2: Meta C (ativa, 1 sucesso peso 100 pct 70 -> ponderada 70.00)
 // Esperado: Objetivo1.pct = 50.00 (só Meta A); Objetivo2.pct = 70.00 (só Meta C);
 //           Planejamento.pct = ROUND(AVG(50.00, 70.00)) = 60.00.
@@ -29,10 +34,12 @@ interface Fixture {
   idMetaA: number;
   idMetaB: number;
   idMetaC: number;
+  idMetaD: number;
   idSucessoA1: number;
   idSucessoA2: number;
   idSucessoB: number;
   idSucessoC: number;
+  idSucessoD: number;
 }
 
 let f: Fixture;
@@ -84,6 +91,10 @@ describe("planejamento-planilha-monitoramento -- cascata de atingimento (PLM-07/
       INSERT INTO fat_meta (id_objetivo, descricao, status) VALUES (${idObjetivo2}, 'Meta C (ativa)', 'ativa')
       RETURNING id_meta;
     `);
+    const [{ id_meta: idMetaD }] = await runSql<{ id_meta: number }>(`
+      INSERT INTO fat_meta (id_objetivo, descricao, status) VALUES (${idObjetivo1}, 'Meta D (descartada)', 'descartada')
+      RETURNING id_meta;
+    `);
 
     const [{ id_sucesso: idSucessoA1 }] = await runSql<{ id_sucesso: number }>(`
       INSERT INTO fat_sucesso_mensal (id_meta, descricao, mes_referencia, peso, pct_atingimento)
@@ -101,6 +112,10 @@ describe("planejamento-planilha-monitoramento -- cascata de atingimento (PLM-07/
       INSERT INTO fat_sucesso_mensal (id_meta, descricao, mes_referencia, peso, pct_atingimento)
       VALUES (${idMetaC}, 'C1', '2026-08-01', 100, 70) RETURNING id_sucesso;
     `);
+    const [{ id_sucesso: idSucessoD }] = await runSql<{ id_sucesso: number }>(`
+      INSERT INTO fat_sucesso_mensal (id_meta, descricao, mes_referencia, peso, pct_atingimento)
+      VALUES (${idMetaD}, 'D1', '2026-08-01', 100, 30) RETURNING id_sucesso;
+    `);
 
     f = {
       idContratante,
@@ -111,10 +126,12 @@ describe("planejamento-planilha-monitoramento -- cascata de atingimento (PLM-07/
       idMetaA,
       idMetaB,
       idMetaC,
+      idMetaD,
       idSucessoA1,
       idSucessoA2,
       idSucessoB,
       idSucessoC,
+      idSucessoD,
     };
   }, 120000);
 
@@ -144,7 +161,7 @@ describe("planejamento-planilha-monitoramento -- cascata de atingimento (PLM-07/
       await recalcula(f.idPlanejamento);
 
       const metas = await runSql<{ id_meta: number; pct_atingimento: string }>(`
-      SELECT id_meta, pct_atingimento FROM fat_meta WHERE id_meta IN (${f.idMetaA}, ${f.idMetaB}, ${f.idMetaC});
+      SELECT id_meta, pct_atingimento FROM fat_meta WHERE id_meta IN (${f.idMetaA}, ${f.idMetaB}, ${f.idMetaC}, ${f.idMetaD});
     `);
       const pctPorMeta = new Map(metas.map((m) => [m.id_meta, Number(m.pct_atingimento)]));
       // Meta A (ativa): média ponderada por peso -- (25*80 + 75*40)/100 = 50.
@@ -152,12 +169,19 @@ describe("planejamento-planilha-monitoramento -- cascata de atingimento (PLM-07/
       // Meta B (pausada): tem seu próprio pct calculado (100*90/100 = 90)...
       expect(pctPorMeta.get(f.idMetaB)).toBe(90);
       expect(pctPorMeta.get(f.idMetaC)).toBe(70);
+      // Meta D (descartada): mesmo predicado SQL de 'pausada' -- também tem
+      // seu próprio pct calculado (100*30/100 = 30)...
+      expect(pctPorMeta.get(f.idMetaD)).toBe(30);
 
       const objetivos = await runSql<{ id_objetivo: number; pct_atingimento: string }>(`
       SELECT id_objetivo, pct_atingimento FROM fat_objetivo_especifico WHERE id_objetivo IN (${f.idObjetivo1}, ${f.idObjetivo2});
     `);
       const pctPorObjetivo = new Map(objetivos.map((o) => [o.id_objetivo, Number(o.pct_atingimento)]));
-      // AC3: Objetivo1 = só Meta A (50) -- Meta B (pausada, 90) fica de fora.
+      // AC3: Objetivo1 = só Meta A (50) -- Meta B (pausada, 90) E Meta D
+      // (descartada, 30) ficam de fora. Se qualquer uma entrasse na média,
+      // o resultado não seria mais exatamente 50 (prova por valor exato,
+      // não "not null" -- achado do Verifier rodada 1, 'descartada' nunca
+      // tinha sido exercitada antes).
       expect(pctPorObjetivo.get(f.idObjetivo1)).toBe(50);
       expect(pctPorObjetivo.get(f.idObjetivo2)).toBe(70);
 

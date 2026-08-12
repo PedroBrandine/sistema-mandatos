@@ -257,6 +257,25 @@ describe("planejamento-planilha-monitoramento -- RLS p_heranca (PLM-05/PLM-06)",
     expect(row.pct_atingimento).toBeNull();
   });
 
+  // PLM-06.3 (achado do Verifier, rodada 1): INSERT/DELETE também são citados
+  // na AC, não só UPDATE. Diferente do caso acima (rejeição por RLS,
+  // silenciosa), aqui é rejeição por GRANT (docs/schema_sistema.sql:2093 --
+  // Assessor só tem SELECT, UPDATE, nunca INSERT/DELETE) -- por isso 42501
+  // explícito, mesmo no contrato vinculado (a), não precisa nem do contrato B.
+  it("PLM-06.3: Assessor é rejeitado (42501) ao tentar INSERT em fat_sucesso_mensal (sem GRANT, mesmo no contrato vinculado)", async () => {
+    const client = await signInAs(ASSESSOR_EMAIL);
+    const { error } = await client
+      .from("fat_sucesso_mensal")
+      .insert({ id_meta: a.idMeta, descricao: "Tentativa de INSERT pelo Assessor", mes_referencia: "2026-10-01", peso: 10 });
+    expect(error?.code).toBe("42501");
+  });
+
+  it("PLM-06.3: Assessor é rejeitado (42501) ao tentar DELETE em fat_sucesso_mensal (sem GRANT, mesmo no contrato vinculado)", async () => {
+    const client = await signInAs(ASSESSOR_EMAIL);
+    const { error } = await client.from("fat_sucesso_mensal").delete().eq("id_sucesso", a.idSucesso);
+    expect(error?.code).toBe("42501");
+  });
+
   it("Mentor consegue INSERT em fat_sucesso_mensal (prova o fix de GRANT USAGE na sequence)", async () => {
     const client = await signInAs(MENTOR_EMAIL);
     const { data, error } = await client

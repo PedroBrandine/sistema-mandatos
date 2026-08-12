@@ -108,13 +108,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     };
   }, [contrato, coalizaoSemPlanejamentoProprio, idContrato, mesReferencia]);
 
-  async function recarregarGrade() {
-    const ids = idsMetaDoPlanejamento(planejamento);
-    if (ids.length === 0) return;
-    const supabase = createClient();
-    setLinhasGrade(await buscarGradeSucessosMensais(supabase, ids, mesReferencia));
-  }
-
   async function recarregarHierarquia() {
     const supabase = createClient();
     setPlanejamento(await buscarPlanejamentoCompleto(supabase, idContrato));
@@ -137,6 +130,12 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     [planejamento]
   );
 
+  // PLM-02: salva só a célula editada, sem recarregar a grade inteira (AC
+  // literal + risco de adoção AD-028 -- refetch completo a cada tecla é
+  // exatamente o custo de rede que a US inteira existe para evitar).
+  // Atualização otimista do estado local: nenhum outro campo exibido
+  // (status/diasAtraso/estaAtrasado) deriva de pct_atingimento, então
+  // substituir só esse campo na linha em memória é suficiente e correto.
   async function handleEdicaoCelula(idSucesso: number, pctAtingimento: number) {
     const supabase = createClient();
     const { error } = await supabase
@@ -147,14 +146,20 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
       toast.error(mapeiaErroRpc(error).message);
       return;
     }
-    await recarregarGrade();
+    setLinhasGrade((atual) =>
+      atual.map((linha) => (linha.idSucesso === idSucesso ? { ...linha, pctAtingimento } : linha))
+    );
   }
 
+  // Mesmo raciocínio de handleEdicaoCelula, para as N linhas da faixa colada.
   async function handleColarFaixa(valores: { idSucesso: number; pctAtingimento: number }[]) {
     const supabase = createClient();
     try {
       await atualizarSucessosEmLote(supabase, valores);
-      await recarregarGrade();
+      const pctPorId = new Map(valores.map((v) => [v.idSucesso, v.pctAtingimento]));
+      setLinhasGrade((atual) =>
+        atual.map((linha) => (pctPorId.has(linha.idSucesso) ? { ...linha, pctAtingimento: pctPorId.get(linha.idSucesso)! } : linha))
+      );
     } catch (erro) {
       toast.error(erro instanceof Error ? erro.message : "Erro ao salvar a faixa colada.");
     }
