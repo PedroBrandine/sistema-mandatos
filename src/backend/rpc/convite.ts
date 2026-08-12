@@ -31,9 +31,13 @@ export async function emitirConvite(
     p_id_contrato: input.idContrato,
     p_email: input.email.trim().toLowerCase(),
     p_papel: input.papelNoContrato,
-    p_cargo: input.cargo ?? null,
-    p_grau_responsabilidade: input.grauResponsabilidade ?? null,
-    p_areas: input.areas ?? null,
+    // Campos opcionais: DEFAULT NULL no lado do banco (mesmo padrão de
+    // app.substituir_vinculo) -- `undefined` faz o supabase-js omitir a
+    // chave do payload, não `null` (o gerador de types tipa cada parâmetro
+    // como obrigatório e não-nulo sem visibilidade do DEFAULT do Postgres).
+    p_cargo: input.cargo ?? undefined,
+    p_grau_responsabilidade: input.grauResponsabilidade ?? undefined,
+    p_areas: input.areas ?? undefined,
     p_token_hash: tokenHash,
   });
 

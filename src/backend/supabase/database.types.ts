@@ -62,13 +62,13 @@ export type Database = {
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       emitir_convite: {
         Args: {
-          p_areas: string[]
-          p_cargo: string
+          p_areas?: string[]
+          p_cargo?: string
           p_email: string
-          p_grau_responsabilidade: string
+          p_grau_responsabilidade?: string
           p_id_contrato: number
           p_papel: string
-          p_token_hash: string
+          p_token_hash?: string
         }
         Returns: number
       }
