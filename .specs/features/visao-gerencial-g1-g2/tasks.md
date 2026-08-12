@@ -151,10 +151,10 @@ subquery original lê `fat_registro`, não provisionada).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] View criada com as colunas do design.md (sem as 3 omitidas)
-- [ ] `CREATE VIEW` roda sem erro (sem depender de `mv_iip_contrato`/`fat_registro`)
-- [ ] Teste de integração confirma via `information_schema.columns`: as 3 colunas omitidas NÃO existem; as colunas esperadas existem
-- [ ] Teste de integração com fixture real (1 vínculo + 1 contrato ativo) retorna a linha esperada
+- [x] View criada com as colunas do design.md (sem as 3 omitidas)
+- [x] `CREATE VIEW` roda sem erro (sem depender de `mv_iip_contrato`/`fat_registro`)
+- [x] Teste de integração confirma via `information_schema.columns`: as 3 colunas omitidas NÃO existem; as colunas esperadas existem
+- [x] Teste de integração com fixture real (1 vínculo + 1 contrato ativo) retorna a linha esperada
 
 **Tests**: integration
 **Gate**: full
