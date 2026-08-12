@@ -373,10 +373,10 @@ filtro produto + Gestora.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] G1 e G2 na mesma tela, cada um com seu filtro (P2 AC1)
-- [ ] Link pro Kanban navega pro board do produto correto (`/produtos/{slug}/dashboard`) (P2 AC2)
-- [ ] Placeholder "G3-G6 em desenvolvimento" visível (P2 AC3)
-- [ ] `npm run build && npm run lint:all` limpo
+- [x] G1 e G2 na mesma tela, cada um com seu filtro (P2 AC1)
+- [x] Link pro Kanban navega pro board do produto correto (`/produtos/{slug}/dashboard`) (P2 AC2)
+- [x] Placeholder "G3-G6 em desenvolvimento" visível (P2 AC3)
+- [x] `npm run build && npm run lint:all` limpo
 
 **Tests**: none
 **Gate**: build
