@@ -265,6 +265,34 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-08-10
 - **Status**: active — resolve quando a Incidência (§6.2) provisionar `mv_iip_contrato`
 
+### AD-033
+- **Decision**: 5ª exceção à lista fechada da AD-010 — **criação de conta via convite por
+  contrato**. Uma rota de servidor Next.js (Route Handler pré-sessão, `service_role`, nunca exposta
+  ao bundle do cliente — AD-009) pode chamar `auth.admin.createUser` pra criar a conta de um
+  Mentor/Assessor convidado, fora do fluxo normal de RLS, porque quem chega ali não tem sessão
+  nem `dim_usuario` ainda — não existe outro caminho. Mitigações obrigatórias, todas na mesma
+  feature: token de uso único com hash (nunca token em claro), expiração de 7 dias, rate limit por
+  IP na rota de consumo, guarda explícita de papel (RPC de consumo só grava
+  `papel_global IN ('mentor','assessor')`, nunca `admin`/`gestora`, com `CHECK` na tabela **e**
+  validação redundante no RPC), e auditoria de emissão/consumo em `log_auditoria`.
+- **Reason**: AD-010 é lista fechada por design justamente pra impedir que "precisa de privilégio"
+  vire porta dos fundos — mas Mentor/Consultor e Assessor externos nunca tiveram nenhum caminho de
+  acesso ao sistema (nem magic link, nem senha combinada por Slack como o público interno,
+  AD-026), então a Fundação de RBAC pra esses dois papéis (Constituição §3) existe só no modelo de
+  dados. Decisão de Pedro em 2026-08-11, assumindo a opção recomendada em `spec.md`
+  (`.specs/features/convite-contrato/spec.md`, linha "5ª exceção da AD-010").
+- **Trade-off**: A lista de exceções da AD-010 deixa de ser "as 4 originais" e passa a precisar de
+  releitura sempre que alguém cita aquela decisão de cabeça — cada exceção nova é uma superfície
+  de `service_role` adicional a manter auditada. Esta é a primeira vez que o padrão AD-024
+  (RPC `SECURITY INVOKER`, nunca `SECURITY DEFINER`) e a exceção AD-010 (`service_role`) convivem
+  na mesma feature: o RPC de consumo (`app.consumir_convite`) continua `SECURITY INVOKER` — quem o
+  chama sempre é o Route Handler via cliente `service_role`, que já ignora RLS por conta própria;
+  não foi necessário nem desejável usar `SECURITY DEFINER` pra isso.
+- **Scope**: Plataforma (identidade/acesso); feature `convite-contrato`; qualquer feature futura
+  que precise criar conta Auth fora do fluxo normal de sessão.
+- **Date**: 2026-08-11
+- **Status**: active
+
 ---
 
 ## Handoff (Navegação por Produto — Trilha F — CONCLUÍDA e validada)
