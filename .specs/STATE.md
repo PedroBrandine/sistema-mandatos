@@ -361,6 +361,101 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   `design.md`) antes de assumir que uma tabela como `fat_contrato` se comporta como quando a
   feature foi desenhada.
 
+### AD-034
+- **Decision**: `@dnd-kit/core` + `@dnd-kit/utilities` é a biblioteca de drag-and-drop do projeto
+  (primeira feature a precisar de uma). Não `@dnd-kit/sortable` (sem reordenação manual dentro de
+  uma coluna nesta feature), não `@dnd-kit/react` (reescrita pré-1.0, API instável), não
+  `@atlaskit/pragmatic-drag-and-drop` (exige montar a própria camada de acessibilidade/colisão).
+- **Reason**: Design de `kanban-etapas` (`.specs/features/kanban-etapas/design.md`, "Tech
+  Decisions"). Comparados 3 candidatos via web search (Context7 indisponível na sessão — nenhum MCP
+  conectado). `@dnd-kit/core` v6.3.1: maduro (~2.8M downloads/semana), peer dep `react >=16.8.0` sem
+  teto (instala sob React 19.2.4 deste projeto), `KeyboardSensor` de acessibilidade pronto (WCAG),
+  exemplo oficial "multi-container" é literalmente um board Kanban.
+- **Trade-off**: Nenhuma confirmação pública explícita de teste contra React 19 (só ausência de
+  teto no peer range) — risco baixo, aceito, documentado em `design.md` (Risks & Concerns). Se um
+  board futuro precisar de reordenação manual dentro de uma coluna, `@dnd-kit/sortable` é o próximo
+  pacote a avaliar (mesma família, sem reabrir a escolha de biblioteca).
+- **Scope**: Operação dos produtos (Kanban de etapas); qualquer feature futura que precise de
+  drag-and-drop (ex.: reordenar `ref_etapa.ordem` administrativamente, se um dia sair do Out of
+  Scope).
+- **Date**: 2026-08-12
+- **Status**: active
+
+---
+
+## Handoff (Régua de Etapas e Instanciação — CONCLUÍDA e validada)
+
+- **Feature**: Régua de Etapas e Instanciação (`.specs/features/operacao-regua-instanciacao/`) —
+  **CONCLUÍDA e validada**, 10/10 requisitos (RGI-01 a RGI-10). Desbloqueia **`kanban-etapas`** (que
+  já está em Design paralelo nesta mesma sessão de STATE.md — ver AD-034 acima, escolha de
+  `@dnd-kit`) e **`planejamento-planilha-monitoramento`**: as duas dependiam só de `fat_etapa_contrato`
+  / `dim_planejamento` existirem no banco — agora existem.
+- **Phase / Task**: Specify+Discuss já vinham completos de sessão anterior (`spec.md`/`context.md`,
+  7 pontos "a confirmar" resolvidos assumindo o default proposto em cada um, a pedido de Pedro —
+  incluindo correção de um erro de texto no Independent Test do 3º User Story, que dizia "Gestora
+  sem vínculo bloqueada" quando o próprio AC1/AC3 nunca bloqueia Gestora por vínculo). Esta sessão
+  rodou Design (`design.md`) → Execute inline (11 tasks, abaixo do limiar de sub-agente) → Validate
+  (Verifier independente, 1 rodada, `✅ PASS` de primeira).
+- **Completed**: T1-T4 schema (`e643384`..`670346a`, uma migration/commit por task: DDL verbatim →
+  RLS com `WITH CHECK` explícito → grants → função verbatim + trigger + backfill) → T5/T6 fix do
+  achado de Design (`4dea444`, `ca5be45`) → T7/T8 testes de integração novos (`5432d16`, `29d4b59`)
+  → T9 `db:types` (`7dad335`) → T10 query+unit test (`3c53a43`) → T11 tela da régua (`aeb7687`) → T5
+  fix2 de round-trip/timeout achado ao rodar a suíte inteira (`1f35ad8`) → docs/gate check
+  (`2255cb7`) → Verifier independente (`aa6b6e2`, `✅ PASS`, sensor 3/3 killed).
+- **Achado de Design real, fora do spec original**: o trigger novo faz `fat_etapa_contrato`/
+  `rel_formulario_contrato`/`dim_planejamento` (todas `ON DELETE RESTRICT` em `fat_contrato`, verbatim
+  do schema aprovado) nascerem para **todo** contrato — inclusive os das fixtures de teste e os
+  criados pela UI. Isso quebrava, sem nenhuma mudança própria neles, 3 fluxos de exclusão do
+  frontend (`contratos/page.tsx`, `mandatos/page.tsx`, `mandatos/[id]/page.tsx`) e 9 call-sites em 6
+  arquivos de teste pré-existentes (`plataforma-tabelas`, `fundacao-tabelas` ×2, `fundacao-rls`,
+  `fn-substituir-vinculo`, `fn-criar-mandato`, `auditoria-gap` ×3) que faziam `DELETE FROM
+  fat_contrato` sem apagar os filhos antes. Todos os 12 pontos corrigidos (`4dea444`/`ca5be45`), e
+  o Verifier confirmou via grep exaustivo do repositório que não sobrou nenhum ponto residual —
+  inclusive 2 call-sites da feature paralela `convite-contrato`, que já se autocorrigiu citando esta
+  feature em comentário.
+- **2º achado, descoberto só ao rodar `npm run test:integration` completo pela 1ª vez** (não
+  antecipável por leitura de código): os 3 `DELETE` novos de cada fixture de teste, cada um um
+  round-trip próprio via Management API (~4-10s), empurraram 3 fixtures que já estavam perto do
+  limite de 30s (`hookTimeout`/`testTimeout` padrão do Vitest) pra além dele. Nenhuma falha de FK —
+  puro custo de round-trip. Corrigido combinando os 3 `DELETE`s num único `runSql` (1 round-trip) +
+  timeout explícito de 60s nos pontos que ainda ficavam justos (`1f35ad8`). Lição: **qualquer
+  cleanup de teste que ganhe mais de 1-2 statements novos deve ser combinado num único `runSql`, não
+  virar `await` sequenciais** — cada um paga o custo fixo do `supabase db query --linked` via
+  Management API.
+- **Decisão de UI registrada, não pedida no spec**: `etapas/[codigo]/page.tsx` (placeholder deixado
+  pela Trilha F) agora mostra a régua **completa** do produto em toda aba de etapa (não só a etapa
+  do `codigo` da URL), com a linha correspondente destacada — resolve a ambiguidade do AC1 sem
+  inventar rota nova. TanStack Query/Table (mencionado como aspiração em `roadmap.md` §1.3) foi
+  deliberadamente **não** adotado aqui — SPEC_DEVIATION registrada em `design.md`, mantendo
+  consistência com o padrão `useEffect`/`useState` do componente pai (`FichaContratoChrome`).
+- **Verifier**: `PASS ✅` de primeira. Gate 5/5 comandos verdes (14+53+158 testes automatizados,
+  build ok, lint na mesma baseline de 27 problemas pré-existentes). Sensor 3/3 mutações mortas (1 TS
+  em `buscarReguaDoContrato`, 2 SQL em `vw_etapa_contrato`/`app.instancia_contrato`, aplicadas e
+  revertidas ao vivo no banco de dev via `supabase db query --linked`). 2 observações Minor
+  não-bloqueantes: UI sem teste de componente (padrão vigente do projeto — zero testes de UI em todo
+  o repositório, não é regressão desta feature) e edge case de coalizão sem asserção de contagem
+  dedicada (comportamento correto, só falta o teste explícito). Relatório completo em
+  `.specs/features/operacao-regua-instanciacao/validation.md`.
+- **Next step**: nenhum obrigatório de código. Quem abrir `kanban-etapas` (já em Design, AD-034)
+  pode escrever em `fat_etapa_contrato.status`/`id_etapa_atual` (esta feature nunca grava
+  `id_etapa_atual` — é responsabilidade exclusiva do Kanban, por decisão registrada em `context.md`
+  desta feature). Quem abrir `planejamento-planilha-monitoramento` encontra `dim_planejamento` vazia
+  (só `id_contrato`), pronta para receber a hierarquia Objetivo→Meta→Sucesso Mensal. Os 2 Minor do
+  Verifier são candidatos a fechar quando o projeto adotar teste de componente (se algum dia adotar)
+  ou numa passada futura de profundidade de teste — nenhum dos dois impede uso real.
+- **Blockers**: none.
+- **Uncommitted files**: none.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: pelo menos duas outras features
+  commitaram intercaladas neste mesmo branch `develop` durante a execução desta feature —
+  `convite-contrato` (concluída e validada, ver handoff acima) e `kanban-etapas` (em Design, AD-034
+  acima). Nenhum arquivo desta feature colidiu (confirmado por `git status` antes de cada `git add`
+  em toda task). `STATE.md` teve pelo menos 3 sessões escrevendo neste arquivo compartilhado ao
+  longo desta janela — a ordem final das seções `### AD-0NN` e `## Handoff` neste arquivo reflete
+  isso (AD-034 aparece depois do Handoff de `convite-contrato`, não antes — não é erro desta sessão,
+  já estava assim quando este handoff foi inserido; não reordenado de propósito, para não colidir
+  com edição concorrente).
+
 ---
 
 ## Handoff (Navegação por Produto — Trilha F — CONCLUÍDA e validada)
