@@ -11,10 +11,13 @@ export interface MetaResumo {
   idObjetivo: number;
   descricao: string;
   classe: "programatica" | "governanca" | null;
+  prioridade: "alta" | "media" | "baixa" | null;
   status: "ativa" | "pausada" | "descartada";
   pctAtingimento: number | null;
   idPreditorPrimario: number | null;
   idPreditorSecundario: number | null;
+  idAgenda: number | null;
+  idUsuarioResponsavel: number | null;
 }
 
 export interface ObjetivoComMetas {
@@ -23,6 +26,9 @@ export interface ObjetivoComMetas {
   descricao: string;
   idPreditorPrimario: number | null;
   idPreditorSecundario: number | null;
+  idAgenda: number | null;
+  oportunidade: string | null;
+  ameaca: string | null;
   pctAtingimento: number | null;
   metas: MetaResumo[];
 }
@@ -33,6 +39,7 @@ export interface PlanejamentoCompleto {
   objetivoAno: string | null;
   legado: string | null;
   analiseConjuntura: string | null;
+  idPerfilAtuacao: number | null;
   pctAtingimento: number | null;
   atingimentoDesatualizado: boolean;
   objetivos: ObjetivoComMetas[];
@@ -62,7 +69,9 @@ export async function buscarPlanejamentoCompleto(
 ): Promise<PlanejamentoCompleto | null> {
   const { data: planejamento, error: erroPlanejamento } = await client
     .from("dim_planejamento")
-    .select("id_planejamento, id_contrato, objetivo_ano, legado, analise_conjuntura, pct_atingimento, atingimento_desatualizado")
+    .select(
+      "id_planejamento, id_contrato, objetivo_ano, legado, analise_conjuntura, id_perfil_atuacao, pct_atingimento, atingimento_desatualizado"
+    )
     .eq("id_contrato", idContrato)
     .maybeSingle();
   if (erroPlanejamento) throw erroPlanejamento;
@@ -70,7 +79,9 @@ export async function buscarPlanejamentoCompleto(
 
   const { data: objetivosData, error: erroObjetivos } = await client
     .from("fat_objetivo_especifico")
-    .select("id_objetivo, id_planejamento, descricao, id_preditor_primario, id_preditor_secundario, pct_atingimento")
+    .select(
+      "id_objetivo, id_planejamento, descricao, id_preditor_primario, id_preditor_secundario, id_agenda, oportunidade, ameaca, pct_atingimento"
+    )
     .eq("id_planejamento", planejamento.id_planejamento)
     .order("ordem", { ascending: true });
   if (erroObjetivos) throw erroObjetivos;
@@ -82,7 +93,7 @@ export async function buscarPlanejamentoCompleto(
     const { data: metasData, error: erroMetas } = await client
       .from("fat_meta")
       .select(
-        "id_meta, id_objetivo, descricao, classe, status, pct_atingimento, id_preditor_primario, id_preditor_secundario"
+        "id_meta, id_objetivo, descricao, classe, prioridade, status, pct_atingimento, id_preditor_primario, id_preditor_secundario, id_agenda, id_usuario_responsavel"
       )
       .in("id_objetivo", idsObjetivo)
       .order("ordem", { ascending: true });
@@ -96,10 +107,13 @@ export async function buscarPlanejamentoCompleto(
         idObjetivo: m.id_objetivo,
         descricao: m.descricao,
         classe: m.classe as "programatica" | "governanca" | null,
+        prioridade: m.prioridade as "alta" | "media" | "baixa" | null,
         status: m.status as "ativa" | "pausada" | "descartada",
         pctAtingimento: m.pct_atingimento,
         idPreditorPrimario: m.id_preditor_primario,
         idPreditorSecundario: m.id_preditor_secundario,
+        idAgenda: m.id_agenda,
+        idUsuarioResponsavel: m.id_usuario_responsavel,
       });
       metasPorObjetivo.set(m.id_objetivo, lista);
     }
@@ -111,6 +125,7 @@ export async function buscarPlanejamentoCompleto(
     objetivoAno: planejamento.objetivo_ano,
     legado: planejamento.legado,
     analiseConjuntura: planejamento.analise_conjuntura,
+    idPerfilAtuacao: planejamento.id_perfil_atuacao,
     pctAtingimento: planejamento.pct_atingimento,
     atingimentoDesatualizado: planejamento.atingimento_desatualizado,
     objetivos: objetivos.map((o) => ({
@@ -119,6 +134,9 @@ export async function buscarPlanejamentoCompleto(
       descricao: o.descricao,
       idPreditorPrimario: o.id_preditor_primario,
       idPreditorSecundario: o.id_preditor_secundario,
+      idAgenda: o.id_agenda,
+      oportunidade: o.oportunidade,
+      ameaca: o.ameaca,
       pctAtingimento: o.pct_atingimento,
       metas: metasPorObjetivo.get(o.id_objetivo) ?? [],
     })),
@@ -220,5 +238,62 @@ export async function buscarContratosMembros(
   return (contratos ?? []).map((c) => ({
     idContrato: c.id_contrato,
     nomeContratante: nomesPorId.get(c.id_contratante) ?? "",
+  }));
+}
+
+export interface PreditorPrioritarioLinha {
+  idPreditor: number;
+  ordem: number;
+}
+
+// PLM-16. Até 3 preditores prioritários do planejamento, ordenados.
+export async function buscarPreditoresPlanejamento(
+  client: SupabaseClient<Database>,
+  idPlanejamento: number
+): Promise<PreditorPrioritarioLinha[]> {
+  const { data, error } = await client
+    .from("rel_planejamento_preditor")
+    .select("id_preditor, ordem")
+    .eq("id_planejamento", idPlanejamento)
+    .order("ordem", { ascending: true });
+  if (error) throw error;
+  if (!data) return [];
+  return data.map((linha) => ({ idPreditor: linha.id_preditor, ordem: linha.ordem }));
+}
+
+export interface PessoaVinculada {
+  idUsuario: number;
+  nome: string;
+  papelNoContrato: string;
+}
+
+// PLM-13. Pessoas com vínculo ativo neste contrato -- popula o Select de
+// "responsável" da Meta (fat_meta.id_usuario_responsavel). Mesmo filtro de
+// vínculo ativo de contarContratosEAssessoresAtivos (contrato.ts).
+export async function buscarPessoasVinculadasAoContrato(
+  client: SupabaseClient<Database>,
+  idContrato: number
+): Promise<PessoaVinculada[]> {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const { data: vinculos, error } = await client
+    .from("rel_usuario_contrato")
+    .select("id_usuario, papel_no_contrato")
+    .eq("id_contrato", idContrato)
+    .or(`dt_fim.is.null,dt_fim.gte.${hoje}`);
+  if (error) throw error;
+  if (!vinculos || vinculos.length === 0) return [];
+
+  const idsUsuario = Array.from(new Set(vinculos.map((v) => v.id_usuario)));
+  const { data: usuarios, error: erroUsuarios } = await client
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .in("id_usuario", idsUsuario);
+  if (erroUsuarios) throw erroUsuarios;
+  const nomesPorId = new Map((usuarios ?? []).map((u) => [u.id_usuario, u.nome]));
+
+  return vinculos.map((v) => ({
+    idUsuario: v.id_usuario,
+    nome: nomesPorId.get(v.id_usuario) ?? "",
+    papelNoContrato: v.papel_no_contrato,
   }));
 }

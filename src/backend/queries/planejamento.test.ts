@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarGradeSucessosMensais, buscarPlanejamentoCompleto } from "./planejamento";
+import {
+  buscarGradeSucessosMensais,
+  buscarPessoasVinculadasAoContrato,
+  buscarPlanejamentoCompleto,
+  buscarPreditoresPlanejamento,
+} from "./planejamento";
 
 // Spec anchor: PLM-01 (.specs/features/planejamento-planilha-monitoramento/spec.md) --
 //  - buscarPlanejamentoCompleto retorna a árvore Objetivo->Meta de um contrato,
@@ -41,6 +46,10 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | Re
       },
       in: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "in", args });
+        return builder;
+      },
+      or: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "or", args });
         return builder;
       },
       order: (...args: unknown[]) => {
@@ -82,6 +91,7 @@ describe("buscarPlanejamentoCompleto", () => {
           objetivo_ano: "Consolidar mandato",
           legado: null,
           analise_conjuntura: null,
+          id_perfil_atuacao: 3,
           pct_atingimento: 42.5,
           atingimento_desatualizado: false,
         },
@@ -95,6 +105,9 @@ describe("buscarPlanejamentoCompleto", () => {
             descricao: "Aprovar projeto X",
             id_preditor_primario: 5,
             id_preditor_secundario: null,
+            id_agenda: 7,
+            oportunidade: "Janela eleitoral favorável",
+            ameaca: "Oposição articulada",
             pct_atingimento: 50,
           },
         ],
@@ -107,10 +120,13 @@ describe("buscarPlanejamentoCompleto", () => {
             id_objetivo: 100,
             descricao: "Realizar 3 audiências",
             classe: "programatica",
+            prioridade: "alta",
             status: "ativa",
             pct_atingimento: 60,
             id_preditor_primario: 5,
             id_preditor_secundario: null,
+            id_agenda: 7,
+            id_usuario_responsavel: 42,
           },
         ],
         error: null,
@@ -121,6 +137,7 @@ describe("buscarPlanejamentoCompleto", () => {
 
     expect(resultado).not.toBeNull();
     expect(resultado?.idPlanejamento).toBe(1);
+    expect(resultado?.idPerfilAtuacao).toBe(3);
     expect(resultado?.pctAtingimento).toBe(42.5);
     expect(resultado?.objetivos).toHaveLength(1);
     expect(resultado?.objetivos[0]).toEqual({
@@ -129,6 +146,9 @@ describe("buscarPlanejamentoCompleto", () => {
       descricao: "Aprovar projeto X",
       idPreditorPrimario: 5,
       idPreditorSecundario: null,
+      idAgenda: 7,
+      oportunidade: "Janela eleitoral favorável",
+      ameaca: "Oposição articulada",
       pctAtingimento: 50,
       metas: [
         {
@@ -136,10 +156,13 @@ describe("buscarPlanejamentoCompleto", () => {
           idObjetivo: 100,
           descricao: "Realizar 3 audiências",
           classe: "programatica",
+          prioridade: "alta",
           status: "ativa",
           pctAtingimento: 60,
           idPreditorPrimario: 5,
           idPreditorSecundario: null,
+          idAgenda: 7,
+          idUsuarioResponsavel: 42,
         },
       ],
     });
@@ -225,5 +248,60 @@ describe("buscarGradeSucessosMensais", () => {
     const { client } = criarClienteMock({ vw_sucesso_mensal: { data: [], error: null } });
     const resultado = await buscarGradeSucessosMensais(client, [200], "2026-08-01");
     expect(resultado).toEqual([]);
+  });
+});
+
+describe("buscarPreditoresPlanejamento", () => {
+  it("retorna os preditores prioritários ordenados, mapeados para camelCase", async () => {
+    const { client, chamadas } = criarClienteMock({
+      rel_planejamento_preditor: {
+        data: [
+          { id_preditor: 20, ordem: 2 },
+          { id_preditor: 10, ordem: 1 },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarPreditoresPlanejamento(client, 1);
+
+    expect(resultado).toEqual([
+      { idPreditor: 20, ordem: 2 },
+      { idPreditor: 10, ordem: 1 },
+    ]);
+    const chamadaOrder = chamadas.find((c) => c.tabela === "rel_planejamento_preditor" && c.metodo === "order");
+    expect(chamadaOrder?.args).toEqual(["ordem", { ascending: true }]);
+  });
+
+  it("retorna [] quando não há preditores prioritários definidos", async () => {
+    const { client } = criarClienteMock({ rel_planejamento_preditor: { data: [], error: null } });
+    const resultado = await buscarPreditoresPlanejamento(client, 1);
+    expect(resultado).toEqual([]);
+  });
+});
+
+describe("buscarPessoasVinculadasAoContrato", () => {
+  it("retorna as pessoas com vínculo ativo, mapeadas para camelCase", async () => {
+    const { client } = criarClienteMock({
+      rel_usuario_contrato: {
+        data: [{ id_usuario: 42, papel_no_contrato: "mentor" }],
+        error: null,
+      },
+      dim_usuario: {
+        data: [{ id_usuario: 42, nome: "Fulano Mentor" }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarPessoasVinculadasAoContrato(client, 10);
+
+    expect(resultado).toEqual([{ idUsuario: 42, nome: "Fulano Mentor", papelNoContrato: "mentor" }]);
+  });
+
+  it("retorna [] sem consultar dim_usuario quando não há vínculo nenhum", async () => {
+    const { client, chamadas } = criarClienteMock({ rel_usuario_contrato: { data: [], error: null } });
+    const resultado = await buscarPessoasVinculadasAoContrato(client, 10);
+    expect(resultado).toEqual([]);
+    expect(chamadas.some((c) => c.tabela === "dim_usuario")).toBe(false);
   });
 });
