@@ -300,6 +300,29 @@ Decisions, "Paste de faixa".
 
 ---
 
+## Achado de Execute — cascata precisou de SECURITY DEFINER (AD-035)
+
+Não estava previsto neste documento nem no `spec.md` — só apareceu rodando o teste de integração de
+RLS de verdade (T11), não por leitura de código. As 6 funções da cascata (`app.recalcula_atingimento`
++ 5 `trg_marca_*`) foram extraídas verbatim como `SECURITY INVOKER` (T4), mas escrevem em
+`dim_planejamento`/`fat_meta`/`fat_objetivo_especifico` — tabelas onde Mentor/Assessor só têm
+`GRANT SELECT`. Qualquer `UPDATE`/`INSERT` do Assessor/Mentor em `fat_sucesso_mensal` (permitido)
+disparava o trigger de marcação por baixo dos panos, que falhava com `42501` tentando marcar
+`dim_planejamento` — quebrando a própria escrita que deveria funcionar e bloqueando o P1 inteiro.
+
+Corrigido tornando essas 6 funções `SECURITY DEFINER` (`SET search_path` explícito), mesmo padrão já
+usado por `app.trg_auditoria()` para a mesma classe de problema (escrita de sistema em tabela que o
+papel chamador legitimamente não tem `GRANT` direto). Migration própria (forward-only, não edita T4):
+`20260812151909_planejamento_planilha_cascata_security_definer_fix.sql`. Decisão registrada como
+**AD-035** em `.specs/STATE.md` — refina o alcance da AD-024 para esta classe estreita (recômputo
+determinístico de coluna derivada, sem parâmetro de escrita livre do chamador); `app.recalcula_pendentes`
+fica `SECURITY INVOKER` (não escreve nada diretamente) e `app.atualiza_sucessos_mensais_lote` (T6)
+continua `SECURITY INVOKER` (o chamador controla o valor escrito ali, então não se qualifica pra
+exceção). Confirmado explicitamente com o usuário antes de aplicar (mudança de característica de
+segurança de função).
+
+---
+
 ## Tech Decisions
 
 | Decision | Choice | Rationale |

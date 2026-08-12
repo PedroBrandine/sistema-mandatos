@@ -173,6 +173,13 @@ feature — extraída por completude, AD-008) + `app.trg_marca_desatualizado_nov
 - [ ] As 2 funções + os 5 triggers existem (`\df app.*`/`\dy` no psql, ou `supabase db diff`)
 - [ ] `INSERT`/`UPDATE`/`DELETE` cru em `fat_sucesso_mensal` marca `dim_planejamento.atingimento_desatualizado = true` do planejamento correspondente
 
+**T4 fix (achado ao rodar T11)**: as 6 funções (recalcula_atingimento + 5 trg_marca_*) escrevem em
+tabelas onde Mentor/Assessor só têm SELECT — qualquer escrita deles em fat_sucesso_mensal disparava
+o trigger e falhava com 42501 tentando marcar dim_planejamento. Corrigido com migration própria
+(`20260812151909_planejamento_planilha_cascata_security_definer_fix.sql`, `ALTER FUNCTION ...
+SECURITY DEFINER`), confirmado com o usuário antes de aplicar. Registrado como AD-035 em STATE.md.
+Ver design.md "Achado de Execute".
+
 **Tests**: none (exercitado de fato em T12)
 **Gate**: build
 
