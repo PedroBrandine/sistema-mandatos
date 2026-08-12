@@ -1,6 +1,6 @@
 "use client";
 
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -51,6 +51,19 @@ export function KanbanBoard({ idProduto, filtro }: KanbanBoardProps) {
   const { papel } = usePapelGlobal();
   const queryClient = useQueryClient();
   const queryKey = ["kanban-board", idProduto, filtro] as const;
+
+  // Fix (UAT): sem activationConstraint, o dnd-kit trata qualquer pointerdown
+  // como início de drag e o clique nunca chega no <Link> de kanban-card.tsx
+  // -- exigia mover 8px antes de armar o drag, deixando um clique parado
+  // (sem movimento) navegar normalmente pra ficha do contrato.
+  // KeyboardSensor explícito porque especificar `sensors` substitui os
+  // sensores default do DndContext por inteiro -- omiti-lo aqui removeria
+  // a acessibilidade por teclado que foi um dos motivos de escolher
+  // @dnd-kit/core (design.md, Tech Decisions).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor)
+  );
 
   const { data: colunas, isLoading, isError, refetch } = useQuery({
     queryKey,
@@ -131,7 +144,7 @@ export function KanbanBoard({ idProduto, filtro }: KanbanBoardProps) {
   }
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex gap-4 overflow-x-auto pb-2">
         {colunas.map((coluna) => (
           <KanbanColuna key={coluna.idEtapa} coluna={coluna} />
