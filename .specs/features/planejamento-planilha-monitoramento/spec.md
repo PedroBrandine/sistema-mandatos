@@ -318,17 +318,18 @@ Assessor não vê o botão de criar, mas vê e usa o de editar detalhes na sua p
 | PLM-09 | P1: Cascata — só Metas ativas contam | Execute | ✅ Verified |
 | PLM-10 | P2: Criar Objetivo Específico | Execute | ✅ Verified |
 | PLM-11 | P2: Meta — preditor secundário condicional ao produto | Execute | ✅ Verified |
-| PLM-12 | P2: Editar Objetivo Específico existente (descrição/preditores/agenda/SWOT) | Pending | — |
-| PLM-13 | P2: Editar Meta existente (descrição/classe/prioridade/preditores/agenda/responsável/status) | Pending | — |
-| PLM-14 | P2: Gate de papel — Mentor não vê criar/editar Objetivo/Meta (sem GRANT) | Pending | — (corrige bug real de T15) |
-| PLM-15 | P2: Editar dados do Planejamento (objetivo_ano/legado/analise_conjuntura/perfil de atuação) | Pending | — |
-| PLM-16 | P2: Preditores prioritários do Planejamento (até 3) | Pending | — |
-| PLM-17 | P2: Criar novo Sucesso Mensal (mês/descrição/peso/prazo) | Pending | — |
-| PLM-18 | P2: Editar detalhes de Sucesso Mensal existente (peso/descrição/mês/prazo/status) | Pending | — |
+| PLM-12 | P2: Editar Objetivo Específico existente (descrição/preditores/agenda/SWOT) | Execute | Implementing |
+| PLM-13 | P2: Editar Meta existente (descrição/classe/prioridade/preditores/agenda/responsável/status) | Execute | Implementing |
+| PLM-14 | P2: Gate de papel — Mentor não vê criar/editar Objetivo/Meta (sem GRANT) | Execute | Implementing (corrige bug real de T15) |
+| PLM-15 | P2: Editar dados do Planejamento (objetivo_ano/legado/analise_conjuntura/perfil de atuação) | Execute | Implementing |
+| PLM-16 | P2: Preditores prioritários do Planejamento (até 3) | Execute | Implementing |
+| PLM-17 | P2: Criar novo Sucesso Mensal (mês/descrição/peso/prazo) | Execute | Implementing |
+| PLM-18 | P2: Editar detalhes de Sucesso Mensal existente (peso/descrição/mês/prazo/status) | Execute | Implementing |
 
 **Coverage:** 11/11 da rodada P1 `✅ Verified` (Verifier independente, 2 rodadas, PASS —
 `validation.md`). PLM-12 a PLM-18 são a extensão pedida por Pedro em 2026-08-12 ("cadê a tela de
-CRUD do planejamento com todos os campos") — `Pending`, ainda não implementadas.
+CRUD do planejamento com todos os campos") — implementadas (T18-T27), aguardando Verifier
+independente desta rodada.
 
 **ID format:** `PLM-NN`
 
