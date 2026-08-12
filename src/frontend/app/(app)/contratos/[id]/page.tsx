@@ -9,12 +9,11 @@ import { buscarContratoParaFicha, buscarEtapasDoProduto } from "@backend/queries
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
 
-// NAV-04: redireciona para a 1ª etapa (menor ordem) assim que carrega.
-// Cliente, porque a etapa-alvo depende de query (diferente do redirect
-// estático de /produtos/[slug], T14). router.replace dentro de useEffect é
-// o padrão correto aqui -- diferente de notFound() (FichaContratoChrome,
-// T22), que nunca pode ser chamado num efeito. Contrato inexistente já é
-// tratado pelo layout.tsx pai.
+// NAV-04: redireciona pra aba padrão assim que carrega. Cliente, porque o
+// alvo depende de query (diferente do redirect estático de /produtos/[slug],
+// T14). router.replace dentro de useEffect é o padrão correto aqui --
+// diferente de notFound() (FichaContratoChrome, T22), que nunca pode ser
+// chamado num efeito. Contrato inexistente já é tratado pelo layout.tsx pai.
 //
 // Achado do Verifier (validation.md, Fix 2): quando ref_etapa vem vazio pro
 // produto (edge case que "não deveria acontecer" -- régua já seedada pros 3
@@ -22,6 +21,11 @@ import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
 // presa no CarregandoSkeleton pra sempre, mesmo a aba "Nenhuma etapa
 // cadastrada" (FichaContratoChrome) já existindo. `semEtapas` fecha esse
 // estado explicitamente em vez de deixar o efeito morrer em silêncio.
+//
+// Aba padrão pra contrato de mandato virou "Informações Gerais" (dados de
+// TSE) em vez da 1ª etapa -- pedido de Pedro, 2026-08-11: é a primeira aba
+// da barra (ficha-contrato-chrome.tsx), então também é a tela de chegada.
+// Coalizão/tipo genérico continuam indo pra 1ª etapa, sem essa aba.
 export default function ContratoIndexPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const idContrato = Number(id);
@@ -34,6 +38,12 @@ export default function ContratoIndexPage({ params }: { params: Promise<{ id: st
 
     buscarContratoParaFicha(supabase, idContrato).then((contrato) => {
       if (cancelado || !contrato) return;
+
+      if (contrato.tipoContratante === "mandato" && contrato.idMandato != null) {
+        router.replace(`/contratos/${idContrato}/informacoes`);
+        return;
+      }
+
       buscarEtapasDoProduto(supabase, contrato.idProduto).then((etapas) => {
         if (cancelado) return;
         if (etapas.length === 0) {

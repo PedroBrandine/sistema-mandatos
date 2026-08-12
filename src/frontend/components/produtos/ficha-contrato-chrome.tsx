@@ -65,7 +65,13 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
       ? etapas.map((e) => ({ href: `${base}/etapas/${e.codigo}`, label: e.nome }))
       : [{ href: base, label: "Nenhuma etapa cadastrada" }];
 
+  // "Informações Gerais" (dados de TSE) só existe pra contrato de mandato --
+  // coalizão não tem candidatura/perfil TSE. Primeira aba, antes das etapas
+  // (pedido de Pedro, 2026-08-11, após o fechamento da feature).
   const abas: RouteTabItem[] = [
+    ...(contrato.tipoContratante === "mandato"
+      ? [{ href: `${base}/informacoes`, label: "Informações Gerais" }]
+      : []),
     ...abasEtapas,
     { href: `${base}/vinculos`, label: "Assessores" },
     { href: `${base}/formularios`, label: "Formulários" },
