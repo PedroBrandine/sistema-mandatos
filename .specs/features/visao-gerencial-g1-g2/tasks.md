@@ -246,12 +246,21 @@ legisla_admin, legisla_gestora` de novo, agora cobrindo as 3 views) + `GRANT SEL
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `database.types.ts` inclui os 4 objetos novos com as colunas corretas
-- [ ] `npx tsc --noEmit` (ou `npm run build`) não gera erro de tipo relacionado
+- [x] `database.types.ts` inclui os 4 objetos novos com as colunas corretas
+- [x] `npx tsc --noEmit` (ou `npm run build`) não gera erro de tipo relacionado
 
 **Tests**: none
 **Gate**: build
 **Commit**: `chore(visao-gerencial-g1-g2): T8 -- regenera database.types.ts`
+
+**Nota de execução**: `npm run db:types` rodou sem gerar diff -- o arquivo já
+estava atualizado com os 4 objetos novos como efeito colateral do commit
+`aa8e415` (`feat(planejamento-planilha-monitoramento): T18`, de outra
+feature em paralelo, que rodou `db:types` depois que as migrations T1-T7
+desta feature já tinham sido aplicadas no Supabase de dev real). `npm run
+build` confirmou 0 erro de tipo. Sem diff = nada para commitar (git safety
+protocol: não criar commit vazio) -- T8 fica marcada concluída sem commit
+próprio.
 
 ---
 
@@ -268,12 +277,12 @@ filtrada por `papel_no_contrato` + `id_produto` opcional, agrega em TS por `id_u
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Soma pondera corretamente por Gestora/Mentor (GG-05 AC1/AC2)
-- [ ] Atingimento médio ignora `NULL` (GG-06 AC3)
-- [ ] Gestora sem contrato ativo retorna `somaPeso: 0` (Edge Case — zero é contagem real)
-- [ ] Contrato com peso `NULL` (lacuna de seed) é excluído da soma e contado em `qtdContratosSemPeso`, nunca assume peso 1
-- [ ] `id_etapa_atual IS NULL` já resolvido pela view (T5) — teste confirma que a função não reintroduz lógica duplicada
-- [ ] Gate: `npm run test:unit`
+- [x] Soma pondera corretamente por Gestora/Mentor (GG-05 AC1/AC2)
+- [x] Atingimento médio ignora `NULL` (GG-06 AC3)
+- [x] Gestora sem contrato ativo retorna `somaPeso: 0` (Edge Case — zero é contagem real)
+- [x] Contrato com peso `NULL` (lacuna de seed) é excluído da soma e contado em `qtdContratosSemPeso`, nunca assume peso 1
+- [x] `id_etapa_atual IS NULL` já resolvido pela view (T5) — teste confirma que a função não reintroduz lógica duplicada
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit
 **Gate**: quick
@@ -294,10 +303,10 @@ filtrada por `papel_no_contrato` + `id_produto` opcional, agrega em TS por `id_u
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Mediana calculada corretamente sobre 2+ ocorrências concluídas de uma mesma etapa (GG-03 AC1)
-- [ ] Filtro por produto e por Gestora restringe a amostra sem misturar outro produto/Gestora na mesma mediana (GG-04 AC2)
-- [ ] Etapa sem nenhuma ocorrência `concluida` retorna `mediana: null` (nunca `0`) (GG-03 AC3)
-- [ ] Gate: `npm run test:unit`
+- [x] Mediana calculada corretamente sobre 2+ ocorrências concluídas de uma mesma etapa (GG-03 AC1)
+- [x] Filtro por produto e por Gestora restringe a amostra sem misturar outro produto/Gestora na mesma mediana (GG-04 AC2)
+- [x] Etapa sem nenhuma ocorrência `concluida` retorna `mediana: null` (nunca `0`) (GG-03 AC3)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit
 **Gate**: quick
