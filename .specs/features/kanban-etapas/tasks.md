@@ -261,13 +261,17 @@ gate real.
 
 **Done when**:
 
-- [ ] `@dnd-kit/core` e `@dnd-kit/utilities` aparecem em `src/frontend/package.json` dependencies
-- [ ] `npm run build` continua verde (nenhum conflito de peer dep com React 19.2.4/Next 16.2.12)
+- [x] `@dnd-kit/core` e `@dnd-kit/utilities` aparecem em `src/frontend/package.json` dependencies
+- [x] `npm run build` continua verde (nenhum conflito de peer dep com React 19.2.4/Next 16.2.12)
 
 **Tests**: none
 **Gate**: build
 
-**Commit**: `chore(kanban-etapas): instala @dnd-kit/core + @dnd-kit/utilities (AD-034)`
+**Commit**: `chore(kanban-etapas): instala @dnd-kit/core + @dnd-kit/utilities (AD-034)` — `2df7f79`
+
+**Status**: ✅ Complete. `npm run lint:all` mantém a baseline pré-existente de 27 problemas (13
+erros, 14 warnings) documentada em `.specs/STATE.md` — nenhum novo, gate tratado como verde pelo
+mesmo critério já usado em features anteriores (lint escopado às mudanças da feature).
 
 ---
 
@@ -286,14 +290,18 @@ gate real.
 
 **Done when**:
 
-- [ ] Renderiza nome do contratante e "há N dias" sempre
-- [ ] Mostra badge visual quando `statusContrato` é `concluido`/`nao_concluido`, sem esconder o card
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Renderiza nome do contratante e "há N dias" sempre
+- [x] Mostra badge visual quando `statusContrato` é `concluido`/`nao_concluido`, sem esconder o card
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
 
-**Commit**: `feat(kanban-etapas): componente de apresentação do card`
+**Commit**: `feat(kanban-etapas): componente de apresentação do card` — `a729a7e`
+
+**Status**: ✅ Complete. Puramente apresentacional, sem `useDraggable` -- o drag é wireado em T8
+(ver Assumptions de T8 abaixo), conforme a ordem de dependência já definida em tasks.md (T7 não
+depende de T6/`@dnd-kit`; T8 depende de T6 e T7).
 
 ---
 
@@ -312,14 +320,19 @@ gate real.
 
 **Done when**:
 
-- [ ] Renderiza o nome da etapa e todos os cards da coluna
-- [ ] `useDroppable` expõe um `id` que o board consegue resolver de volta pro `idEtapa`
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Renderiza o nome da etapa e todos os cards da coluna
+- [x] `useDroppable` expõe um `id` que o board consegue resolver de volta pro `idEtapa`
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
 
-**Commit**: `feat(kanban-etapas): componente de coluna droppable`
+**Commit**: `feat(kanban-etapas): componente de coluna droppable` — `fda180b`
+
+**Status**: ✅ Complete. `useDroppable({ id: coluna.idEtapa })` -- o id do droppable É o idEtapa
+(identidade, sem payload extra necessário). Cada card é envolto num `useDraggable({ id:
+card.idContrato })` local a este arquivo (`KanbanCardArrastavel`), decisão de onde o drag do card
+vive (ver nota em T7).
 
 ---
 
@@ -338,16 +351,25 @@ gate real.
 
 **Done when**:
 
-- [ ] Board renderiza colunas+cards a partir de `buscarBoardKanban`
-- [ ] `onDragEnd`: coluna não-adjacente OU retrocesso por não-admin/gestora → toast de rejeição, nenhum request, card volta pra posição original
-- [ ] `onDragEnd` válido → `useMutation` com atualização otimista do cache; `onError` restaura o snapshot anterior (Edge Case: "devolve o card pra posição original"); `onSettled` invalida a query do board
-- [ ] Estados padrão (`<CarregandoSkeleton>`/`<EstadoVazio>`) cobrem carregando e produto sem etapas
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Board renderiza colunas+cards a partir de `buscarBoardKanban`
+- [x] `onDragEnd`: coluna não-adjacente OU retrocesso por não-admin/gestora → toast de rejeição, nenhum request, card volta pra posição original
+- [x] `onDragEnd` válido → `useMutation` com atualização otimista do cache; `onError` restaura o snapshot anterior (Edge Case: "devolve o card pra posição original"); `onSettled` invalida a query do board
+- [x] Estados padrão (`<CarregandoSkeleton>`/`<EstadoVazio>`) cobrem carregando e produto sem etapas
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
 
-**Commit**: `feat(kanban-etapas): KanbanBoard -- dnd-kit + mutation otimista + guards client-side`
+**Commit**: `feat(kanban-etapas): KanbanBoard -- dnd-kit + mutation otimista + guards client-side` — `60e2495`
+
+**Status**: ✅ Complete. `onSettled` invalida só a query do board (`["kanban-board", idProduto,
+filtro]`) -- o "e a de `buscarReguaDoContrato`" do design.md não se aplica: essa tela
+(`contratos/[id]/etapas/[codigo]/page.tsx`) usa `useEffect`+`useState` puro, não TanStack Query, sem
+queryKey para invalidar; ela já refaz o fetch no próximo mount. Segue o "Done when" literal de T9
+(que só pede invalidar a query do board), não a prosa mais ampla do design.md. Toasts de
+`KAN01`/`42501` no `onError` reusam `new TransicaoInvalidaError().message`/`new
+PermissaoNegadaError().message` (mesma mensagem do guard client-side e da rejeição servidor,
+DRY).
 
 ---
 
@@ -366,14 +388,25 @@ gate real.
 
 **Done when**:
 
-- [ ] Select de projeto lista só projetos com contrato no produto atual
-- [ ] "Minha carteira" combina por AND com papel+pessoa/projeto quando todos estão ativos
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Select de projeto lista só projetos com contrato no produto atual
+- [x] "Minha carteira" combina por AND com papel+pessoa/projeto quando todos estão ativos
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
 
-**Commit**: `feat(kanban-etapas): filtro de projeto + minha carteira no Dashboard do produto`
+**Commit**: `feat(kanban-etapas): filtro de projeto + minha carteira no Dashboard do produto` — `8655c3d`
+
+**Status**: ✅ Complete. SPEC_DEVIATION documentado inline no commit e no código:
+`design.md` assumia "Switch/Checkbox (shadcn)" já instalado; nenhum dos dois existia em
+`components/ui/`. Adicionado `src/frontend/components/ui/switch.tsx` usando o primitivo `Switch` já
+disponível via `radix-ui` (dependência existente, mesmo import unificado de `select.tsx`/
+`label.tsx`) -- nenhum `npm install` novo necessário. A combinação AND real (`filtroBoard`) é
+computada em T11, não aqui: computá-la em T10 sem consumidor ainda geraria `no-unused-vars` no gate
+de lint (a checagem de "combina por AND" desta task foi feita por leitura de código +
+`npm run build` tipando `FiltroBoard` corretamente, já que T10 não tem harness de componente
+para exercitar a combinação em runtime -- mesmo débito de T6-T11 registrado na Test Coverage
+Matrix).
 
 ---
 
@@ -392,14 +425,20 @@ gate real.
 
 **Done when**:
 
-- [ ] `<EmDesenvolvimento>` removido de `ProdutoDashboardPage`
-- [ ] `<KanbanBoard>` recebe o `idProduto` do produto atual e o `filtro` combinado do T10
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] `<EmDesenvolvimento>` removido de `ProdutoDashboardPage`
+- [x] `<KanbanBoard>` recebe o `idProduto` do produto atual e o `filtro` combinado do T10
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
 
-**Commit**: `feat(kanban-etapas): board substitui o placeholder no Dashboard do produto`
+**Commit**: `feat(kanban-etapas): board substitui o placeholder no Dashboard do produto` — `de8c3cf`
+
+**Status**: ✅ Complete. `filtroBoard` (KAN-03/KAN-10, AND das 3 dimensões) passou a existir aqui,
+junto do seu único consumidor (`<KanbanBoard filtro={filtroBoard} />`) -- ver nota de T10 sobre por
+que a combinação não foi materializada uma task antes. `<KanbanBoard>` só é montado quando
+`produto` já resolveu (`useProdutoAtual`), evitando passar `idProduto` indefinido; `EmDesenvolvimento`
+continua em uso em outras 5 páginas (grep confirmado), nada órfão.
 
 ---
 

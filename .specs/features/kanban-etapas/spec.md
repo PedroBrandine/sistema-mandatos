@@ -204,23 +204,36 @@ confirmar que só os contratos vinculados aparecem.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| KAN-01 | P1: Board — colunas por etapa | T4 | Implementing (backend pronto, T4 `98ba773`; frontend T6-T11 pendente) |
-| KAN-02 | P1: Board — posicionamento do card por `id_etapa_atual` | T4 | Implementing (backend pronto, T4 `98ba773`; frontend T6-T11 pendente) |
-| KAN-03 | P1: Board — filtros combináveis | T4 | Implementing (backend pronto, T4 `98ba773`; frontend T6-T11 pendente) |
-| KAN-04 | P1: Mover pra frente — grava transição | T3, T5 | Implementing (DB+backend completos; frontend T9 pendente) |
-| KAN-05 | P1: Mover pra frente — atualiza `id_etapa_atual` | T3 | Implementing (DB completo `8ede5c1`; frontend T9 pendente) |
+| KAN-01 | P1: Board — colunas por etapa | T4, T7, T8, T9, T11 | Implemented (backend `98ba773`; frontend `a729a7e`/`fda180b`/`60e2495`/`de8c3cf` — sem harness de componente React neste projeto, ver Nota) |
+| KAN-02 | P1: Board — posicionamento do card por `id_etapa_atual` | T4 | Verified (backend — `buscarBoardKanban`, `npm run test:unit` verde, 12 testes) |
+| KAN-03 | P1: Board — filtros combináveis | T4, T10, T11 | Implemented (backend `98ba773` Verified via unit; frontend `8655c3d`/`de8c3cf` sem harness, ver Nota) |
+| KAN-04 | P1: Mover pra frente — grava transição | T3, T5, T9 | Implemented (DB+backend Verified via integration/unit; guard/mutation client-side `60e2495` sem harness, ver Nota) |
+| KAN-05 | P1: Mover pra frente — atualiza `id_etapa_atual` | T3 | Verified (DB — `8ede5c1`, gate `npm run test:integration` verde) |
 | KAN-06 | P1: Mover pra frente — auditoria | T2, T3 | Verified (DB — `c34137c`/`8ede5c1`, gate `npm run test:integration` verde) |
-| KAN-07 | P1: Rejeita salto de coluna não-adjacente | T3, T5 | Implementing (DB+backend completos; guard client-side T9 pendente) |
+| KAN-07 | P1: Rejeita salto de coluna não-adjacente | T3, T5, T9 | Implemented (DB+backend Verified via integration/unit; guard client-side `60e2495` sem harness, ver Nota) |
 | KAN-08 | P1: RLS de escrita por vínculo | T1, T3 | Verified (DB — `d355788`/`8ede5c1`, gate `npm run test:integration` verde) |
-| KAN-09 | P2: Mover pra trás (Admin/Gestora) | T3, T5 | Implementing (DB+backend completos; guard client-side T9 pendente) |
-| KAN-10 | P2: Recorte "Minha carteira" | T4 | Implementing (backend pronto, T4 `98ba773`; frontend T10 pendente) |
+| KAN-09 | P2: Mover pra trás (Admin/Gestora) | T3, T5, T9 | Implemented (DB+backend Verified via integration/unit; guard client-side `60e2495` sem harness, ver Nota) |
+| KAN-10 | P2: Recorte "Minha carteira" | T4, T10, T11 | Implemented (backend `98ba773` Verified via unit; frontend `8655c3d`/`de8c3cf` sem harness, ver Nota) |
 
 **ID format:** `KAN-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 10 total, 5 mapped to tasks concluídas (T1-T5), 5 aguardando frontend (T6-T11) — 2
-(KAN-06, KAN-08) já com evidência completa de ponta a ponta (DB), sem pendência de UI.
+**Nota (T6-T11, sem cobertura automatizada possível):** `vitest.config.ts` só inclui `src/backend/**`
+— não há harness de componente React neste projeto (débito já documentado, lições L-006/L-007).
+Toda a camada de UI do Kanban (`KanbanCard`, `KanbanColuna`, `KanbanBoard`, filtro de projeto/minha
+carteira, integração no Dashboard) é verificada por `npm run build && npm run lint:all` (gate verde,
+baseline de 27 problemas pré-existentes inalterada em cada task) + inspeção de código + o
+discrimination sensor desta validação (rodado só nas camadas com teste automatizado, DB+backend). Por
+isso os requisitos cuja evidência de ponta a ponta depende dessa camada ficam em **Implemented**, não
+**Verified** — `Verified` é reservado para requisitos com evidência de teste automatizado completa
+(DB e/ou backend). Nenhum requisito ficou em `Pending`/`Implementing`: todas as 10 linhas têm código
+funcionando e gate verde; a distinção é puramente sobre o tipo de evidência disponível.
+
+**Coverage:** 10 total. 4 `Verified` de ponta a ponta com teste automatizado (KAN-02, KAN-05, KAN-06,
+KAN-08). 6 `Implemented` (KAN-01, KAN-03, KAN-04, KAN-07, KAN-09, KAN-10) — camada DB/backend
+`Verified` por teste automatizado, camada frontend (T6-T11) coberta só por build/lint/inspeção
+(sem harness de componente, ver Nota acima).
 
 ---
 
