@@ -60,6 +60,10 @@ const MENSAGENS_CHECK: Record<string, string> = {
   ck_match_metodo: "Método de match não é uma opção válida.",
   ck_match_confianca: "Nível de confiança não é uma opção válida.",
   ck_match_status: "Status da candidatura não é uma opção válida.",
+  // CVT-01/07: convite_contrato (supabase/migrations/20260812001921_convite_contrato_estrutura.sql)
+  ck_convite_papel: "Papel do convite não é uma opção válida (só mentor/assessor).",
+  ck_convite_cargo: "Cargo informado não é uma opção válida.",
+  ck_convite_email: "E-mail do convite deve estar em minúsculas e sem espaço nas bordas.",
 };
 
 // Mensagens de conflito por constraint UNIQUE alcançáveis pelas 4 funções RPC.
