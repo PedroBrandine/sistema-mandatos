@@ -317,12 +317,16 @@ Correções pequenas e independentes entre si, encaixáveis em qualquer folga:
 
 ## 5. Onda de Operação — desbloqueada em 2026-08-10 (Trilha C concluída)
 
-### 5.1 Régua de etapas e instanciação (OPR-01) — **candidata principal para amanhã**
+### 5.1 Régua de etapas e instanciação (OPR-01) — ✅ CONCLUÍDA (2026-08-12)
 
-🟡 **Em fase Specify:** `.specs/features/operacao-regua-instanciacao/spec.md` (+ `context.md`) —
-achado relevante já registrado lá: a função aprovada não marca nenhuma etapa como iniciada nem
-grava `fat_contrato.id_etapa_atual` (isso passa a ser trabalho do Kanban, §5.2). Aguardando
-confirmação de Pedro no ponto de integração (trigger) e no backfill antes de Design.
+Ver `.specs/features/operacao-regua-instanciacao/validation.md` (10/10 requisitos, Verifier
+independente PASS de primeira). **Desbloqueia 5.2 e 6.1** — `fat_etapa_contrato` e
+`dim_planejamento` existem no banco agora. Texto original abaixo, mantido para histórico.
+
+🟡 ~~Em fase Specify~~ — achado relevante já registrado lá: a função aprovada não marca nenhuma
+etapa como iniciada nem grava `fat_contrato.id_etapa_atual` (isso passa a ser trabalho do Kanban,
+§5.2). ~~Aguardando confirmação de Pedro no ponto de integração (trigger) e no backfill antes de
+Design.~~ Confirmado (trigger + backfill na mesma migration, ambos como propostos).
 
 ⚠️ **Nota que a versão anterior já registrava e continua válida:** `dim_planejamento` referencia
 `ref_perfil_atuacao` e é criado vazio na instanciação — ou seja, esta feature puxa junto uma fatia
