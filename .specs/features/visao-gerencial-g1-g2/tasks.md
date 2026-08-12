@@ -326,10 +326,10 @@ ponderada + atingimento médio + alerta quando `qtdContratosSemPeso > 0`), filtr
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Mostra soma ponderada + atingimento médio por Gestora/Mentor
-- [ ] Filtro produto + papel funcional
-- [ ] Estados de carregando/erro/vazio cobertos
-- [ ] `npm run build && npm run lint:all` limpo (mesma baseline pré-existente)
+- [x] Mostra soma ponderada + atingimento médio por Gestora/Mentor
+- [x] Filtro produto + papel funcional
+- [x] Estados de carregando/erro/vazio cobertos
+- [x] `npm run build && npm run lint:all` limpo (mesma baseline pré-existente)
 
 **Tests**: none
 **Gate**: build
