@@ -95,3 +95,85 @@ export async function buscarCarteiraPonderada(
     atingimentoMedio: acc.qtdAtingimento > 0 ? acc.somaAtingimento / acc.qtdAtingimento : null,
   }));
 }
+
+export interface LinhaCicloEtapa {
+  idEtapa: number;
+  nomeEtapa: string;
+  ordem: number;
+  mediana: number | null; // null = amostra vazia (AD-005, nunca 0)
+  amostra: number;
+}
+
+export interface FiltroCicloEtapa {
+  idProduto?: number;
+  idGestora?: number;
+}
+
+interface RowRefEtapa {
+  id_etapa: number;
+  nome: string;
+  ordem: number;
+}
+
+interface RowCicloEtapa {
+  id_etapa: number | null;
+  dias_ciclo: number | null;
+}
+
+function mediana(valores: number[]): number | null {
+  if (valores.length === 0) return null;
+  const ordenados = [...valores].sort((a, b) => a - b);
+  const meio = Math.floor(ordenados.length / 2);
+  return ordenados.length % 2 === 0 ? (ordenados[meio - 1] + ordenados[meio]) / 2 : ordenados[meio];
+}
+
+// GG-03, GG-04. ref_etapa é a "forma" do resultado (mesmo padrão de
+// buscarBoardKanban) -- garante que toda etapa apareça, mesmo sem nenhuma
+// ocorrência concluída ainda (mediana: null, amostra: 0), nunca omitindo a
+// etapa nem mostrando 0 (spec.md P1 G2 AC3). vw_ciclo_etapa (já filtrada a
+// status = 'concluida' na própria view) fornece as amostras de dias_ciclo;
+// filtro por produto/Gestora restringe a amostra sem misturar outro
+// produto/Gestora na mesma mediana (AC2).
+export async function buscarCicloEtapa(
+  client: SupabaseClient<Database>,
+  filtro?: FiltroCicloEtapa
+): Promise<LinhaCicloEtapa[]> {
+  let queryEtapas = client.from("ref_etapa").select("id_etapa, nome, ordem").order("ordem", { ascending: true });
+  if (filtro?.idProduto !== undefined) {
+    queryEtapas = queryEtapas.eq("id_produto", filtro.idProduto);
+  }
+  const { data: etapasData, error: erroEtapas } = await queryEtapas;
+  if (erroEtapas) throw erroEtapas;
+  const etapas = (etapasData ?? []) as RowRefEtapa[];
+  if (etapas.length === 0) return [];
+
+  let queryCiclo = client.from("vw_ciclo_etapa").select("id_etapa, dias_ciclo");
+  if (filtro?.idProduto !== undefined) {
+    queryCiclo = queryCiclo.eq("id_produto", filtro.idProduto);
+  }
+  if (filtro?.idGestora !== undefined) {
+    queryCiclo = queryCiclo.eq("id_usuario_gestora", filtro.idGestora);
+  }
+  const { data: ciclosData, error: erroCiclo } = await queryCiclo;
+  if (erroCiclo) throw erroCiclo;
+  const ciclos = (ciclosData ?? []) as RowCicloEtapa[];
+
+  const diasPorEtapa = new Map<number, number[]>();
+  for (const row of ciclos) {
+    if (row.id_etapa === null || row.dias_ciclo === null) continue;
+    const lista = diasPorEtapa.get(row.id_etapa) ?? [];
+    lista.push(row.dias_ciclo);
+    diasPorEtapa.set(row.id_etapa, lista);
+  }
+
+  return etapas.map((e) => {
+    const dias = diasPorEtapa.get(e.id_etapa) ?? [];
+    return {
+      idEtapa: e.id_etapa,
+      nomeEtapa: e.nome,
+      ordem: e.ordem,
+      mediana: mediana(dias),
+      amostra: dias.length,
+    };
+  });
+}

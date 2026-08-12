@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarCarteiraPonderada } from "./visao-gerencial";
+import { buscarCarteiraPonderada, buscarCicloEtapa } from "./visao-gerencial";
 
 // Spec anchor: visao-gerencial-g1-g2 T9 Done-when (.specs/features/visao-gerencial-g1-g2/tasks.md) --
 //  - Soma pondera corretamente por Gestora/Mentor (GG-05 AC1/AC2)
@@ -229,6 +229,122 @@ describe("buscarCarteiraPonderada", () => {
     });
 
     const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    expect(resultado).toEqual([]);
+  });
+});
+
+// Spec anchor: visao-gerencial-g1-g2 T10 Done-when (.specs/features/visao-gerencial-g1-g2/tasks.md) --
+//  - Mediana calculada corretamente sobre 2+ ocorrências concluídas de uma
+//    mesma etapa (GG-03 AC1)
+//  - Filtro por produto e por Gestora restringe a amostra sem misturar outro
+//    produto/Gestora na mesma mediana (GG-04 AC2)
+//  - Etapa sem nenhuma ocorrência concluída retorna mediana: null (nunca 0)
+//    (GG-03 AC3)
+//
+// spec.md P1 G2 (AC1-AC3).
+
+const ETAPA_CADASTRO = { id_etapa: 10, nome: "Cadastro", ordem: 1 };
+const ETAPA_PONTAPE = { id_etapa: 11, nome: "Pontapé", ordem: 2 };
+
+describe("buscarCicloEtapa", () => {
+  // Done-when: "Mediana calculada corretamente sobre 2+ ocorrências
+  // concluídas de uma mesma etapa (GG-03 AC1)"
+  it("calcula a mediana de dias_ciclo sobre 2 ocorrências concluídas da mesma etapa", async () => {
+    const { client } = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO], error: null },
+      vw_ciclo_etapa: {
+        data: [
+          { id_etapa: 10, dias_ciclo: 4 },
+          { id_etapa: 10, dias_ciclo: 10 },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCicloEtapa(client);
+
+    expect(resultado).toEqual([{ idEtapa: 10, nomeEtapa: "Cadastro", ordem: 1, mediana: 7, amostra: 2 }]);
+  });
+
+  // Done-when: "Etapa sem nenhuma ocorrência concluída retorna mediana: null
+  // (nunca 0) (GG-03 AC3)" -- a etapa aparece no resultado (não é omitida),
+  // com amostra: 0.
+  it("retorna mediana: null e amostra: 0 para etapa sem nenhuma ocorrência concluída, nunca 0", async () => {
+    const { client } = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO, ETAPA_PONTAPE], error: null },
+      vw_ciclo_etapa: { data: [{ id_etapa: 10, dias_ciclo: 5 }], error: null },
+    });
+
+    const resultado = await buscarCicloEtapa(client);
+
+    const colunaPontape = resultado.find((r) => r.idEtapa === 11)!;
+    expect(colunaPontape.mediana).toBeNull();
+    expect(colunaPontape.amostra).toBe(0);
+  });
+
+  // Done-when: "Filtro por produto e por Gestora restringe a amostra sem
+  // misturar outro produto/Gestora na mesma mediana (GG-04 AC2)"
+  it("aplica os filtros de produto e Gestora na consulta de vw_ciclo_etapa", async () => {
+    const { client, chamadas } = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO], error: null },
+      vw_ciclo_etapa: { data: [{ id_etapa: 10, dias_ciclo: 5 }], error: null },
+    });
+
+    await buscarCicloEtapa(client, { idProduto: 7, idGestora: 42 });
+
+    const eqsCiclo = chamadas.filter((c) => c.tabela === "vw_ciclo_etapa" && c.metodo === "eq").map((c) => c.args);
+    expect(eqsCiclo).toContainEqual(["id_produto", 7]);
+    expect(eqsCiclo).toContainEqual(["id_usuario_gestora", 42]);
+    const eqsEtapas = chamadas.filter((c) => c.tabela === "ref_etapa" && c.metodo === "eq").map((c) => c.args);
+    expect(eqsEtapas).toContainEqual(["id_produto", 7]);
+  });
+
+  // Edge Case (mesma leitura de AC2): amostra de uma etapa não mistura
+  // ocorrências de outra etapa na mesma mediana.
+  it("não mistura dias_ciclo de outra etapa na mediana da etapa filtrada", async () => {
+    const { client } = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO, ETAPA_PONTAPE], error: null },
+      vw_ciclo_etapa: {
+        data: [
+          { id_etapa: 10, dias_ciclo: 4 },
+          { id_etapa: 10, dias_ciclo: 10 },
+          { id_etapa: 11, dias_ciclo: 100 },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCicloEtapa(client);
+
+    const colunaCadastro = resultado.find((r) => r.idEtapa === 10)!;
+    const colunaPontape = resultado.find((r) => r.idEtapa === 11)!;
+    expect(colunaCadastro.mediana).toBe(7); // (4+10)/2, não afetado pelo 100 da outra etapa
+    expect(colunaCadastro.amostra).toBe(2);
+    expect(colunaPontape.mediana).toBe(100);
+    expect(colunaPontape.amostra).toBe(1);
+  });
+
+  // Done-when implícito (mesmo padrão de buscarBoardKanban): retorna uma
+  // linha por ref_etapa, ordenada por ordem.
+  it("retorna uma linha por ref_etapa, ordenada por ordem", async () => {
+    const { client, chamadas } = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO, ETAPA_PONTAPE], error: null },
+      vw_ciclo_etapa: { data: [], error: null },
+    });
+
+    const resultado = await buscarCicloEtapa(client);
+
+    expect(resultado.map((r) => r.ordem)).toEqual([1, 2]);
+    const chamadaOrder = chamadas.find((c) => c.tabela === "ref_etapa" && c.metodo === "order");
+    expect(chamadaOrder?.args).toEqual(["ordem", { ascending: true }]);
+  });
+
+  it("retorna [] sem lançar quando o produto não tem nenhuma etapa", async () => {
+    const { client } = criarClienteMock({
+      ref_etapa: { data: [], error: null },
+    });
+
+    const resultado = await buscarCicloEtapa(client, { idProduto: 999 });
     expect(resultado).toEqual([]);
   });
 });
