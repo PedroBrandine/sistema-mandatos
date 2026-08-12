@@ -200,10 +200,10 @@ some a linha).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] View criada, `security_invoker = true`
-- [ ] `WHERE vec.status = 'concluida'`
-- [ ] `dias_ciclo` calculado corretamente (`dt_conclusao - dt_inicio`)
-- [ ] Teste de integração: fixture com 2 contratos concluindo a mesma etapa em datas diferentes confirma os 2 `dias_ciclo` esperados; fixture com etapa `nao_iniciada`/`em_andamento` confirma que NÃO aparece na view
+- [x] View criada, `security_invoker = true`
+- [x] `WHERE vec.status = 'concluida'`
+- [x] `dias_ciclo` calculado corretamente (`dt_conclusao - dt_inicio`)
+- [x] Teste de integração: fixture com 2 contratos concluindo a mesma etapa em datas diferentes confirma os 2 `dias_ciclo` esperados; fixture com etapa `nao_iniciada`/`em_andamento` confirma que NÃO aparece na view
 
 **Tests**: integration
 **Gate**: full
