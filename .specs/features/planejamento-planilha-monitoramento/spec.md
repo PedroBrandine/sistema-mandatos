@@ -176,11 +176,16 @@ tela do planejamento e confirmar que os 3 níveis acima batem com o cálculo man
 
 ---
 
-### P2: Gestão da hierarquia (criar Objetivo/Meta)
+### P2: Gestão da hierarquia (criar e editar Objetivo/Meta)
 
-**User Story**: Como Gestora, quero criar Objetivos Específicos e Metas para o planejamento de um
-contrato, definindo descrição, preditores e (quando Estratégia/Coalizão-com-planejamento-próprio)
-o preditor secundário.
+**REVISADO (2026-08-12, achado ao entregar P1)**: o texto original desta US só cobria criação —
+Pedro apontou, ao revisar a tela entregue, que faltava **editar** o que já existe (nenhum campo era
+editável depois de criado, inclusive o SWOT do Objetivo e o responsável/status da Meta, que o schema
+já suportava mas o formulário original nunca expôs). Revisado para cobrir o ciclo completo.
+
+**User Story**: Como Gestora, quero criar **e editar** Objetivos Específicos e Metas do planejamento
+de um contrato — descrição, preditores, agenda, SWOT (Objetivo) e responsável/status (Meta) — e (quando
+Estratégia/Coalizão-com-planejamento-próprio) o preditor secundário.
 
 **Why P2**: É pré-requisito de dado pra US 1 ter o que mostrar, mas a estrutura de um contrato de
 teste pode ser inserida via seed/SQL pra desbloquear as ACs de P1 — não é o caminho crítico de
@@ -189,14 +194,96 @@ demonstrar a grade em si.
 **Acceptance Criteria**:
 
 1. WHEN uma Gestora cria um Objetivo Específico THEN o sistema SHALL exigir descrição e permitir
-   preditor primário/secundário/agenda, todos opcionais exceto descrição.
+   preditor primário/secundário/agenda/oportunidade/ameaça, todos opcionais exceto descrição.
 2. WHEN o produto do contrato é PLL THEN o formulário de Meta SHALL não oferecer o campo preditor
    secundário — só Estratégia e Coalizão-com-planejamento-próprio o oferecem.
 3. WHEN a Gestora tenta salvar um preditor secundário igual ao primário THEN o sistema SHALL
    rejeitar (`ck_meta_preditores`/`ck_objetivo_preditores` já garantem isso no banco).
+4. WHEN uma Gestora ou Admin edita um Objetivo Específico existente THEN o sistema SHALL permitir
+   alterar descrição, preditores, agenda, oportunidade e ameaça — os mesmos campos da criação.
+5. WHEN uma Gestora ou Admin edita uma Meta existente THEN o sistema SHALL permitir alterar
+   descrição, classe, prioridade, preditores, agenda, **responsável** (`id_usuario_responsavel`,
+   dentre as pessoas vinculadas ao contrato) e **status** (`ativa`/`pausada`/`descartada`) — os dois
+   últimos nunca estiveram editáveis antes desta revisão.
+6. WHEN um Mentor abre a tela do planejamento THEN o sistema SHALL **não** oferecer os controles de
+   criar/editar Objetivo/Meta — o GRANT aprovado só dá `SELECT` a Mentor em `fat_objetivo_especifico`/
+   `fat_meta` (`docs/schema_sistema.sql:2084-2089`), então oferecer o botão seria mostrar uma ação
+   que sempre falha com `42501`. Achado de bug real: a primeira versão da tela mostrava o botão pro
+   Mentor também (mesmo gate de `mentor`/`gestora`/`admin` usado pra escrita de Sucesso Mensal, onde
+   Mentor de fato tem `GRANT`) — corrigido nesta revisão.
 
 **Independent Test**: Criar um Objetivo e uma Meta em um contrato de Estratégia (com secundário) e
-em um de PLL (sem o campo aparecer), confirmando os dois casos.
+em um de PLL (sem o campo aparecer); editar um Objetivo já existente alterando o SWOT; editar uma
+Meta já existente mudando o responsável e o status pra `pausada`; confirmar que o botão de
+criar/editar não aparece pro Mentor.
+
+---
+
+### P2: Editar dados do Planejamento (objetivo do ano, legado, conjuntura, preditores prioritários)
+
+**Achado ao entregar P1 (2026-08-12)**: `dim_planejamento.objetivo_ano`/`legado`/
+`analise_conjuntura`/`id_perfil_atuacao` e os até-3 preditores prioritários (`rel_planejamento_preditor`)
+fazem parte do "levantamento de campos por produto" do próprio `spec.md` original ("Usa todos" pros
+3 produtos) mas nenhuma User Story chegou a pedir uma tela pra eles — lacuna do Specify original, não
+scope creep do usuário.
+
+**User Story**: Como Gestora, quero editar o objetivo do ano, o legado, a análise de conjuntura e o
+perfil de atuação do planejamento de um contrato, e definir até 3 preditores prioritários — os
+campos de topo da hierarquia, acima do primeiro Objetivo Específico.
+
+**Why P2**: Mesma razão da gestão de Objetivo/Meta — estrutura, não a grade do dia a dia.
+
+**Acceptance Criteria**:
+
+1. WHEN uma Gestora ou Admin edita os dados do Planejamento THEN o sistema SHALL permitir
+   `objetivo_ano`, `legado`, `analise_conjuntura` (texto livre, opcionais) e `id_perfil_atuacao`
+   (seleção de `ref_perfil_atuacao`, opcional).
+2. WHEN uma Gestora ou Admin define os preditores prioritários THEN o sistema SHALL permitir até 3,
+   sem repetir um preditor já escolhido (`uq_planejamento_preditor_ordem`/PK compostos já garantem
+   isso no banco).
+3. WHEN um Mentor ou Assessor abre a tela THEN esses campos SHALL aparecer só como leitura — mesmo
+   motivo da AC6 da US anterior (`GRANT SELECT` apenas em `dim_planejamento`/`rel_planejamento_preditor`
+   pros dois papéis, nenhum `INSERT`/`UPDATE`).
+
+**Independent Test**: Editar objetivo do ano/legado/conjuntura de um planejamento, definir 2
+preditores prioritários, recarregar a página e confirmar que persistiu; confirmar que Mentor/Assessor
+veem os mesmos campos sem conseguir editá-los.
+
+---
+
+### P2: Gerenciar Sucesso Mensal por completo (criar novo mês, editar detalhes)
+
+**Achado ao entregar P1 (2026-08-12)**: a grade (US 1) só edita `pct_atingimento` de Sucessos Mensais
+que **já existem** para o mês corrente — não existia nenhuma forma de criar um Sucesso Mensal novo
+(pra um mês futuro, ou a estrutura inicial de uma Meta) nem de corrigir `peso`/`descrição`/
+`mes_referencia`/`dt_limite` depois de criado. O Edge Case "a UI SHALL sempre oferecer seletor de
+mês, nunca campo de data livre" do `spec.md` original já antecipava que create existiria — só nunca
+virou User Story própria.
+
+**User Story**: Como Gestora ou Mentor, quero criar um novo Sucesso Mensal pra uma Meta (mês,
+descrição, peso, prazo); como qualquer papel com permissão de escrita na linha (Gestora/Mentor/Admin
+em qualquer contrato, Assessor no seu contrato vinculado), quero editar peso, descrição, mês de
+referência, prazo e status de um Sucesso Mensal existente — fora da edição rápida de % na grade.
+
+**Why P2**: A grade (P1) cobre o uso diário (bater o %); esta US cobre a montagem/correção da
+estrutura por trás dela — mesma relação que Objetivo/Meta tem com a US anterior.
+
+**Acceptance Criteria**:
+
+1. WHEN uma Gestora ou Mentor cria um novo Sucesso Mensal THEN o sistema SHALL exigir mês de
+   referência (seletor de mês, nunca campo de data livre — `ck_sucesso_mes` exige dia 1), descrição
+   e peso, com prazo (`dt_limite`) opcional.
+2. WHEN um Assessor tenta criar um novo Sucesso Mensal THEN o sistema SHALL **não** oferecer a ação
+   — o GRANT aprovado do Assessor em `fat_sucesso_mensal` é só `SELECT, UPDATE`
+   (`docs/schema_sistema.sql:2093`), sem `INSERT`.
+3. WHEN qualquer papel com `GRANT UPDATE` na linha (Gestora/Admin em qualquer uma, Mentor/Assessor
+   só na do próprio contrato vinculado) abre o detalhe de um Sucesso Mensal existente THEN o sistema
+   SHALL permitir editar peso, descrição, mês de referência, prazo e status — os mesmos campos que a
+   decisão do Pedro de 2026-08-12 já autorizou pro Assessor gravar, só sem superfície de UI até agora.
+
+**Independent Test**: Criar um Sucesso Mensal novo pra um mês futuro numa Meta existente; abrir o
+detalhe de um Sucesso Mensal já existente e editar peso/descrição/prazo/status; confirmar que
+Assessor não vê o botão de criar, mas vê e usa o de editar detalhes na sua própria carteira.
 
 ---
 
@@ -220,20 +307,28 @@ em um de PLL (sem o campo aparecer), confirmando os dois casos.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| PLM-01 | P1: Grade — leitura agrupada por Meta | Implementing | T9/T14/T17 |
-| PLM-02 | P1: Grade — edição célula a célula | Implementing | T14/T17 |
-| PLM-03 | P1: Grade — colar em faixa | Implementing | T6/T10/T13/T14 |
-| PLM-04 | P1: Grade — validação 0–100 no cliente e no banco | Implementing | T1/T14 |
-| PLM-05 | P1: GRANT — Assessor escreve todas as colunas de `fat_sucesso_mensal` (linha vinculada) | Implementing | T3/T11 |
-| PLM-06 | P1: RLS/GRANT — Assessor bloqueado em Meta/Objetivo/Planejamento e em contrato não vinculado | Implementing | T2/T3/T11 |
-| PLM-07 | P1: Cascata — marca desatualizado, sem recálculo síncrono | Implementing | T4/T12/T17 |
-| PLM-08 | P1: Cascata — fórmula Meta→Objetivo→Planejamento | Implementing | T4/T12/T15 |
-| PLM-09 | P1: Cascata — só Metas ativas contam | Implementing | T4/T12 |
-| PLM-10 | P2: Criar Objetivo Específico | Implementing | T8/T15 |
-| PLM-11 | P2: Meta — preditor secundário condicional ao produto | Implementing | T8/T15 |
+| PLM-01 | P1: Grade — leitura agrupada por Meta | Execute | ✅ Verified |
+| PLM-02 | P1: Grade — edição célula a célula | Execute | ✅ Verified |
+| PLM-03 | P1: Grade — colar em faixa | Execute | ✅ Verified |
+| PLM-04 | P1: Grade — validação 0–100 no cliente e no banco | Execute | ✅ Verified |
+| PLM-05 | P1: GRANT — Assessor escreve todas as colunas de `fat_sucesso_mensal` (linha vinculada) | Execute | ✅ Verified |
+| PLM-06 | P1: RLS/GRANT — Assessor bloqueado em Meta/Objetivo/Planejamento e em contrato não vinculado | Execute | ✅ Verified |
+| PLM-07 | P1: Cascata — marca desatualizado, sem recálculo síncrono | Execute | ✅ Verified |
+| PLM-08 | P1: Cascata — fórmula Meta→Objetivo→Planejamento | Execute | ✅ Verified |
+| PLM-09 | P1: Cascata — só Metas ativas contam | Execute | ✅ Verified |
+| PLM-10 | P2: Criar Objetivo Específico | Execute | ✅ Verified |
+| PLM-11 | P2: Meta — preditor secundário condicional ao produto | Execute | ✅ Verified |
+| PLM-12 | P2: Editar Objetivo Específico existente (descrição/preditores/agenda/SWOT) | Pending | — |
+| PLM-13 | P2: Editar Meta existente (descrição/classe/prioridade/preditores/agenda/responsável/status) | Pending | — |
+| PLM-14 | P2: Gate de papel — Mentor não vê criar/editar Objetivo/Meta (sem GRANT) | Pending | — (corrige bug real de T15) |
+| PLM-15 | P2: Editar dados do Planejamento (objetivo_ano/legado/analise_conjuntura/perfil de atuação) | Pending | — |
+| PLM-16 | P2: Preditores prioritários do Planejamento (até 3) | Pending | — |
+| PLM-17 | P2: Criar novo Sucesso Mensal (mês/descrição/peso/prazo) | Pending | — |
+| PLM-18 | P2: Editar detalhes de Sucesso Mensal existente (peso/descrição/mês/prazo/status) | Pending | — |
 
-**Coverage:** 11/11 mapeados a tasks, aguardando Verifier independente (fase Validate) antes de
-marcar como `Verified`.
+**Coverage:** 11/11 da rodada P1 `✅ Verified` (Verifier independente, 2 rodadas, PASS —
+`validation.md`). PLM-12 a PLM-18 são a extensão pedida por Pedro em 2026-08-12 ("cadê a tela de
+CRUD do planejamento com todos os campos") — `Pending`, ainda não implementadas.
 
 **ID format:** `PLM-NN`
 
