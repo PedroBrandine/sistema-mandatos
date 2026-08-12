@@ -35,9 +35,11 @@ describe("operacao-regua-instanciacao -- trigger + backfill (RGI-01 a 06)", () =
   }, 60000);
 
   afterAll(async () => {
-    await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
-    await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
-    await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
+    await runSql(`
+      DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};
+      DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};
+      DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};
+    `);
     await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
     await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratante};`);
   }, 60000);

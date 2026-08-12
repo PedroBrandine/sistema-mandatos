@@ -86,9 +86,11 @@ describe("operacao-regua-instanciacao -- RLS p_por_contrato (RGI-07/RGI-08)", ()
 
   afterAll(async () => {
     await runSql(`DELETE FROM rel_usuario_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
-    await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
-    await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
-    await runSql(`DELETE FROM dim_planejamento WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
+    await runSql(`
+      DELETE FROM fat_etapa_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});
+      DELETE FROM rel_formulario_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});
+      DELETE FROM dim_planejamento WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});
+    `);
     for (const f of [a, b]) {
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${f.idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${f.idContratante};`);

@@ -93,10 +93,13 @@ describe("T23 -- app.substituir_vinculo", () => {
     }
     // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato agora
     // popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
-    // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
-    await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
-    await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
-    await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
+    // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato. 1
+    // round-trip para os 3, não 3, pra caber no hookTimeout.
+    await runSql(`
+      DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};
+      DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};
+      DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};
+    `);
     await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
     await runSql(`DELETE FROM dim_mandato WHERE id_mandato = ${idMandato};`);
     await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratante};`);

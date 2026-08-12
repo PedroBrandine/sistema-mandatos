@@ -110,15 +110,18 @@ describe("T17 -- trg_audit_* estendido a dim_contratante/dim_coalizao/rel_coaliz
     afterAll(async () => {
       // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
       // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
-      // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato.
-      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
-      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
-      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
+      // (ON DELETE RESTRICT) -- precisam sair antes de fat_contrato. 1 round-trip
+      // para os 3 (não 3 separados) pra caber no hookTimeout padrão de 30s.
+      await runSql(`
+        DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};
+        DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};
+        DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};
+      `);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratanteMandato};`);
       await runSql(`DELETE FROM dim_coalizao WHERE id_coalizao = ${idCoalizao};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratanteCol};`);
-    });
+    }, 60000);
 
     it("audits INSERT/UPDATE/DELETE on rel_coalizao_membro into log_auditoria", async () => {
       const [{ id_membro: id }] = await runSql<{ id_membro: number }>(`
@@ -180,16 +183,21 @@ describe("T17 (gap adicional) -- trg_audit_* em fat_contrato/dim_mandato/rel_usu
       // operacao-regua-instanciacao: o INSERT acima disparou o trigger que
       // popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
       // (ON DELETE RESTRICT) -- precisam sair antes do DELETE de fat_contrato.
-      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${id};`);
-      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${id};`);
-      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${id};`);
+      // 1 round-trip para os 3 (não 3 separados): com INSERT+UPDATE+SELECT já
+      // no corpo do teste, 3 round-trips a mais estourava o testTimeout padrão
+      // de 30s (achado desta sessão ao rodar a suíte inteira pela 1ª vez).
+      await runSql(`
+        DELETE FROM fat_etapa_contrato WHERE id_contrato = ${id};
+        DELETE FROM rel_formulario_contrato WHERE id_contrato = ${id};
+        DELETE FROM dim_planejamento WHERE id_contrato = ${id};
+      `);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${id};`);
 
       const rows = await runSql<{ acao: string }>(`
         SELECT acao FROM log_auditoria WHERE tabela = 'fat_contrato' AND id_registro_alvo = ${id} ORDER BY ocorrido_em;
       `);
       expect(rows.map((r) => r.acao)).toEqual(["insert", "update", "delete"]);
-    });
+    }, 60000);
   });
 
   describe("dim_mandato fixture", () => {
@@ -243,13 +251,16 @@ describe("T17 (gap adicional) -- trg_audit_* em fat_contrato/dim_mandato/rel_usu
     });
 
     afterAll(async () => {
-      // operacao-regua-instanciacao: mesma correção dos blocos anteriores (ON DELETE RESTRICT novo).
-      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
-      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
-      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
+      // operacao-regua-instanciacao: mesma correção dos blocos anteriores (ON DELETE
+      // RESTRICT novo) -- 1 round-trip para os 3, não 3, pra caber no hookTimeout.
+      await runSql(`
+        DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};
+        DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};
+        DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};
+      `);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratante};`);
-    });
+    }, 60000);
 
     it("audits INSERT/UPDATE/DELETE on rel_usuario_contrato into log_auditoria", async () => {
       const [{ id_vinculo: id }] = await runSql<{ id_vinculo: number }>(`

@@ -79,13 +79,18 @@ describe("T13 -- rel_usuario_contrato e log_auditoria", () => {
       // operacao-regua-instanciacao: trigger AFTER INSERT em fat_contrato
       // agora popula fat_etapa_contrato/rel_formulario_contrato/dim_planejamento
       // pra todo contrato novo -- as 3 são ON DELETE RESTRICT, então precisam
-      // sair antes de fat_contrato ou o DELETE abaixo falha com 23503.
-      await runSql(`DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};`);
-      await runSql(`DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};`);
-      await runSql(`DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};`);
+      // sair antes de fat_contrato ou o DELETE abaixo falha com 23503. Um único
+      // runSql com os 3 (em vez de 3 round-trips separados) evita estourar o
+      // hookTimeout padrão de 30s -- achado desta mesma sessão ao rodar a
+      // suíte inteira pela 1ª vez após a T5.
+      await runSql(`
+        DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};
+        DELETE FROM rel_formulario_contrato WHERE id_contrato = ${idContrato};
+        DELETE FROM dim_planejamento WHERE id_contrato = ${idContrato};
+      `);
       await runSql(`DELETE FROM fat_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${idContratante};`);
-    });
+    }, 60000);
 
     it("rejects a duplicate open (id_contrato, id_usuario, papel_no_contrato)", async () => {
       await runSql(`
