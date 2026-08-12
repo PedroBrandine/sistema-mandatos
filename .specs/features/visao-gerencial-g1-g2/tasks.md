@@ -127,9 +127,9 @@ T11 → T12 → T13
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Toda linha de `ref_etapa` hoje existente tem uma linha correspondente em `ref_peso_etapa` com `peso = 1`
-- [ ] Reexecutar a migration não duplica nem falha (idempotência)
-- [ ] Teste de integração confirma `COUNT(ref_peso_etapa) = COUNT(ref_etapa)` e todo `peso = 1`
+- [x] Toda linha de `ref_etapa` hoje existente tem uma linha correspondente em `ref_peso_etapa` com `peso = 1`
+- [x] Reexecutar a migration não duplica nem falha (idempotência)
+- [x] Teste de integração confirma `COUNT(ref_peso_etapa) = COUNT(ref_etapa)` e todo `peso = 1`
 
 **Tests**: integration
 **Gate**: full
