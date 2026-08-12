@@ -139,7 +139,9 @@ export async function buscarGradeSucessosMensais(
     .from("vw_sucesso_mensal")
     .select("id_sucesso, id_meta, descricao, mes_referencia, dt_limite, peso, pct_atingimento, status, dias_atraso, esta_atrasado")
     .in("id_meta", idsMeta)
-    .eq("mes_referencia", mesReferencia);
+    .eq("mes_referencia", mesReferencia)
+    .order("id_meta", { ascending: true })
+    .order("id_sucesso", { ascending: true });
   if (error) throw error;
   if (!data) return [];
 
