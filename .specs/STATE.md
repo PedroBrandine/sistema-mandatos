@@ -719,3 +719,85 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   - AD-021 (TanStack Table/Query) **ainda não foi cumprida em nenhuma tela** — todas as telas de Fundação usam fetch direto + `useState`, sem `@tanstack/react-table`/`@tanstack/react-query` instalado no projeto. Relevante pra qualquer tela nova que precise de tabela/lista.
 - **Uncommitted files**: `package-lock.json` modificado (resolução do `zod` + dependências `csv-parser`/`iconv-lite`/`pg` de trabalho paralelo do usuário) e `DADOS TSE/` untracked — **não relacionado a nenhuma feature deste projeto, não tocar**.
 - **Branch**: master
+
+---
+
+## Handoff (Planejamento do Contrato / Planilha de Monitoramento — CONCLUÍDA e validada)
+
+- **Feature**: Planejamento do Contrato / Planilha de Monitoramento
+  (`.specs/features/planejamento-planilha-monitoramento/`) — **CONCLUÍDA e validada**, 11/11
+  requisitos (PLM-01 a PLM-11). Provisiona a hierarquia Objetivo Específico → Meta → Sucesso Mensal
+  (que faltava desde `operacao-regua-instanciacao`), a grade editável de Sucessos Mensais (a
+  "Planilha de Monitoramento" — a tela mais acessada do sistema, Constituição §5.1) e a cascata de
+  atingimento assíncrona.
+- **Phase / Task**: Specify já vinha escrito de sessão anterior (quadro campo × produto incluído).
+  Esta sessão confirmou os 4 pontos sensíveis do `spec.md` com o Pedro (fórmula de cascata,
+  `classe='governanca'` só via UI, soma de peso como alerta — e uma **revisão real**: escopo de
+  escrita do Assessor ampliado de 2 colunas pra tabela inteira de `fat_sucesso_mensal`) → Design →
+  Tasks (17 tasks, 3 fases) → Execute inline (17 tasks + 2 fixes, 26 commits) → Validate (Verifier
+  independente, 2 rodadas — rodada 1 `❌ FAIL` com 1 Major + 2 Minor, rodada 2 `✅ PASS` 11/11).
+- **Achado mais importante da sessão** (Design, antes de qualquer código): o `spec.md` original
+  errava ao marcar a fórmula de cascata e o GRANT do Assessor como "não documentados no schema
+  aprovado" — `app.recalcula_atingimento` e `GRANT SELECT, UPDATE ON fat_sucesso_mensal TO
+  legisla_assessor` **já existiam verbatim** em `docs/schema_sistema.sql`, coincidindo exatamente
+  com o que o Pedro confirmou de qualquer forma. Ver design.md "Achado de Design mais importante".
+- **Achado de segurança real, só apareceu rodando o teste de integração** (não por leitura de
+  código): `app.recalcula_atingimento` + os 5 triggers de marcação (`app.trg_marca_*`) foram
+  extraídos verbatim como `SECURITY INVOKER`, mas escrevem em `dim_planejamento`/`fat_meta`/
+  `fat_objetivo_especifico` — tabelas onde Mentor/Assessor só têm `GRANT SELECT`. Qualquer escrita
+  deles em `fat_sucesso_mensal` (permitida) disparava o trigger por baixo e falhava com `42501`,
+  quebrando a própria escrita que deveria funcionar — bloqueava o P1 inteiro. Corrigido com
+  `ALTER FUNCTION ... SECURITY DEFINER SET search_path` (mesmo padrão de `app.trg_auditoria()`),
+  **confirmado explicitamente com o usuário antes de aplicar** (mudança de característica de
+  segurança de função). Registrado como **AD-035** (acima, `## Decisions`) — refina o alcance da
+  AD-024 pra uma classe estreita: recômputo determinístico de coluna derivada, sem parâmetro de
+  escrita livre do chamador.
+- **Completed**: confirmação Specify (`06072bd`) → design.md (`f72a6c1`) → tasks.md (`96eab85`) →
+  T1-T6 schema (`d3c78a5`..`b71069b`, 1 migration/commit: estrutura → RLS `p_heranca` (cadeia
+  `EXISTS` de 4 níveis) → grants → cascata verbatim → auditoria → RPC de lote nova) → T7 `db:types`
+  (`711db21`) → T8-T10 backend TS (`72a43a3`..`a4aed5f`, + SPEC_DEVIATION `04b3539`: criação de
+  Objetivo/Meta é `INSERT` direto, não RPC) → **fix SECURITY DEFINER/AD-035** (`75939af`) → T11-T13
+  testes de integração (`cc6682c`..`d85f9ef`, + fix de ordenação `5cb70d1`) → T14-T17 frontend
+  (`5f31694`..`f0e8016`: `GradeSucessosMensais` primeiro consumidor real de
+  `@tanstack/react-table@9` no repo, `HierarquiaPlanejamento`+forms inline,
+  `PlanejamentoAgregadoCoalizao`, wiring da página) → rastreabilidade (`2db9d45`) → **fix rodada 1
+  do Verifier** (`a2fda44`: grade parava de recarregar tudo após 1 célula editada + 2 reforços de
+  teste) → `validation.md` + 3 lições (`63327a9`).
+- **Achado de API real, evitou alucinação por padrão de treinamento**: `@tanstack/react-table`
+  instalado é **v9.1.2**, com API bem diferente de v8 (`useTable` não `useReactTable`, sem
+  `getCoreRowModel`, features via `tableFeatures()`) — descoberto lendo
+  `node_modules/@tanstack/react-table/skills/migrate-v8-to-v9/SKILL.md` antes de escrever o
+  componente. Relevante pra qualquer feature futura que toque TanStack Table.
+- **Achado do Verifier (rodada 1) mais instrutivo pra próximas features**: uma AC do tipo "salvar
+  sem recarregar a lista inteira" cobre a **estratégia de resync pós-escrita**, não só a chamada de
+  escrita em si — um `UPDATE` corretamente escopado seguido de um refetch completo da coleção ainda
+  viola a AC e reintroduz o custo de rede por edição que ela existe pra evitar. Lição `L-020`.
+  Também: AC que enumera múltiplas operações (`UPDATE`/`INSERT`/`DELETE`) ou múltiplos valores de
+  enum (`pausada`/`descartada`) pede um teste por caso citado, mesmo com mecanismo/predicado
+  compartilhado — `evidence-or-zero` não aceita "cobri um, os outros são análogos". Lição `L-021`.
+- **Escopo cortado conscientemente, não é gap**: dialog "editar detalhes" por linha de Sucesso
+  Mensal (`peso`/`descricao`/`mes_referencia`/`dt_limite`, fora da grade) — nenhuma AC do `spec.md`
+  exige essa UI (só exige que o banco permita, provado em T11); registrado como Deferred Idea em
+  `context.md`. `app.recalcula_pendentes` (job de fundo pra `pg_cron`) extraída verbatim mas sem
+  consumidor — projeto não tem `pg_cron` provisionado; recálculo é síncrono ao abrir a tela.
+- **Next step**: nenhum obrigatório. Se `pg_cron`/Airflow entrar no projeto algum dia, `app.recalcula_pendentes`
+  já existe pronta pra virar job agendado. Se a Gestora precisar corrigir `peso`/`descricao` de um
+  Sucesso Mensal sem SQL direto, o dialog cortado (Deferred Idea) é o próximo candidato natural.
+- **Verifier**: rodada 1 `❌ FAIL` (1 Major — PLM-02, grade recarregava tudo após 1 célula; 2 Minor —
+  PLM-06.3 INSERT/DELETE sem teste, PLM-09 `'descartada'` nunca exercitada). Rodada 2 `✅ PASS`
+  11/11, sensor 3/3 mutações mortas (camada Zod/RPC, via cópia temporária de arquivo — nunca
+  `git stash`, por causa do trabalho paralelo real no repo). Relatório completo (2 rodadas) em
+  `.specs/features/planejamento-planilha-monitoramento/validation.md`.
+- **Blockers**: none.
+- **Uncommitted files**: none (desta feature — ver nota de trabalho paralelo abaixo pra outras).
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: pelo menos duas outras sessões
+  commitaram/trabalharam neste mesmo branch `develop` durante a execução desta feature —
+  `kanban-etapas` (6 testes de integração próprios falhando ao final desta sessão, isolados a
+  `supabase/tests/kanban/fn-mover-etapa-kanban.integration.test.ts`, não investigado por esta sessão
+  por não ser desta feature) e `visao-gerencial-g1-g2` (specs novas + 1 migration + 1 teste de
+  integração, vistos como `??` no `git status` ao final, não tocados). Um commit desta sessão
+  (`75939af`, o único que mexeu em característica de segurança de função) foi bloqueado uma vez pelo
+  classificador de permissão do harness e precisou de confirmação explícita do usuário antes do
+  push — não é trabalho paralelo, mas vale registrar como precedente pra próxima mudança de
+  `SECURITY DEFINER`/`GRANT` sensível.
