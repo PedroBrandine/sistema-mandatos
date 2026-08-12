@@ -158,3 +158,67 @@ export async function buscarGradeSucessosMensais(
     estaAtrasado: linha.esta_atrasado ?? false,
   }));
 }
+
+export interface CoalizaoInfo {
+  idCoalizao: number;
+  possuiPlanejamentoProprio: boolean;
+}
+
+// Edge Case do spec.md ("Coalizão sem planejamento próprio"). Só chamar
+// quando ContratoParaFicha.tipoContratante === 'coalizao' (buscarContratoParaFicha,
+// contrato.ts) -- decide se a página mostra a hierarquia real ou a leitura
+// agregada dos membros.
+export async function buscarCoalizaoInfo(
+  client: SupabaseClient<Database>,
+  idContratante: number
+): Promise<CoalizaoInfo | null> {
+  const { data, error } = await client
+    .from("dim_coalizao")
+    .select("id_coalizao, possui_planejamento_proprio")
+    .eq("id_contratante", idContratante)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { idCoalizao: data.id_coalizao, possuiPlanejamentoProprio: data.possui_planejamento_proprio };
+}
+
+export interface ContratoMembro {
+  idContrato: number;
+  nomeContratante: string;
+}
+
+// Membros ativos (dt_saida IS NULL) de uma Coalizão sem planejamento próprio
+// -- cada um tem seu próprio dim_planejamento (mandato de verdade), a
+// leitura agregada mostra a planilha de cada um sem agregação nova (context.md).
+export async function buscarContratosMembros(
+  client: SupabaseClient<Database>,
+  idCoalizao: number
+): Promise<ContratoMembro[]> {
+  const { data: membros, error } = await client
+    .from("rel_coalizao_membro")
+    .select("id_contrato")
+    .eq("id_coalizao", idCoalizao)
+    .is("dt_saida", null);
+  if (error) throw error;
+  if (!membros || membros.length === 0) return [];
+
+  const idsContrato = membros.map((m) => m.id_contrato);
+  const { data: contratos, error: erroContratos } = await client
+    .from("fat_contrato")
+    .select("id_contrato, id_contratante")
+    .in("id_contrato", idsContrato);
+  if (erroContratos) throw erroContratos;
+
+  const idsContratante = (contratos ?? []).map((c) => c.id_contratante);
+  const { data: contratantes, error: erroContratantes } = await client
+    .from("dim_contratante")
+    .select("id_contratante, nome")
+    .in("id_contratante", idsContratante);
+  if (erroContratantes) throw erroContratantes;
+  const nomesPorId = new Map((contratantes ?? []).map((c) => [c.id_contratante, c.nome]));
+
+  return (contratos ?? []).map((c) => ({
+    idContrato: c.id_contrato,
+    nomeContratante: nomesPorId.get(c.id_contratante) ?? "",
+  }));
+}

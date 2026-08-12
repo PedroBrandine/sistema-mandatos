@@ -25,6 +25,11 @@ export interface HierarquiaPlanejamentoProps {
   // fat_sucesso_mensal.peso).
   idsMetaComPesoDivergente: Set<number>;
   onCriado: () => void;
+  // somenteLeitura (Edge Case do spec.md, "Coalizão sem planejamento
+  // próprio"): a leitura agregada de cada membro nunca oferece criação de
+  // Objetivo/Meta, mesmo pra quem teria papel de escrita -- é leitura, não
+  // a tela de gestão do próprio contrato do membro.
+  somenteLeitura?: boolean;
 }
 
 function formatarPct(valor: number | null): string {
@@ -37,9 +42,10 @@ export function HierarquiaPlanejamento({
   objetivos,
   idsMetaComPesoDivergente,
   onCriado,
+  somenteLeitura = false,
 }: HierarquiaPlanejamentoProps) {
   const { papel } = usePapelGlobal();
-  const podeEditarEstrutura = papel === "gestora" || papel === "mentor" || papel === "admin";
+  const podeEditarEstrutura = !somenteLeitura && (papel === "gestora" || papel === "mentor" || papel === "admin");
 
   const [criandoObjetivo, setCriandoObjetivo] = useState(false);
   const [criandoMetaEm, setCriandoMetaEm] = useState<number | null>(null);
