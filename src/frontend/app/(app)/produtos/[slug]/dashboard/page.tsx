@@ -7,10 +7,10 @@ import {
   buscarPessoasComPapelNoProduto,
   contarContratosEAssessoresAtivos,
 } from "@backend/queries/contrato";
-import { buscarProjetosDoProduto } from "@backend/queries/kanban";
+import { buscarProjetosDoProduto, type FiltroBoard } from "@backend/queries/kanban";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
-import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
+import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -104,6 +104,16 @@ export default function ProdutoDashboardPage({
     };
   }, [produto]);
 
+  // KAN-01 a KAN-10 (T11): filtro combinado que o KanbanBoard consome --
+  // papel+pessoa, projeto e "minha carteira" por AND (T10), cada dimensão só
+  // entra no objeto quando de fato restringe algo.
+  const filtroBoard: FiltroBoard = {
+    ...(papel === "gestora" && idUsuario !== "todos" ? { idGestora: idUsuario } : {}),
+    ...(papel === "mentor" && idUsuario !== "todos" ? { idMentor: idUsuario } : {}),
+    ...(idProjeto !== "todos" ? { idProjeto } : {}),
+    ...(minhaCarteira ? { minhaCarteira: true } : {}),
+  };
+
   return (
     <div className="grid gap-6">
       <div className="grid grid-cols-1 gap-3 rounded-xl border border-border/60 bg-card p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -184,10 +194,7 @@ export default function ProdutoDashboardPage({
         </Card>
       </div>
 
-      <EmDesenvolvimento
-        titulo="Planejamento em desenvolvimento"
-        mensagem="Kanban e indicadores de planejamento chegam em uma próxima etapa."
-      />
+      {produto ? <KanbanBoard idProduto={produto.idProduto} filtro={filtroBoard} /> : null}
     </div>
   );
 }
