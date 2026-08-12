@@ -295,6 +295,74 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
+## Handoff (Convite por Contrato — CONCLUÍDA e validada)
+
+- **Feature**: Convite por Contrato / Acesso Externo (`.specs/features/convite-contrato/`) —
+  **CONCLUÍDA e validada**, 11/11 requisitos (CVT-01 a CVT-11). Mentor/Consultor e Assessor
+  externos, que nunca tiveram nenhum caminho de acesso ao sistema, agora criam conta pela primeira
+  vez por token de uso único (hash gravado, nunca o token em claro) emitido pela Gestora/Admin na
+  tela do contrato, sem depender de SMTP.
+- **Phase / Task**: Specify já vinha escrito de sessão anterior; esta sessão confirmou as 6
+  decisões sensíveis do `spec.md` (assumindo a recomendação em cada uma, sem rodada síncrona —
+  pedido explícito de Pedro), rodou Design (`design.md`) → Tasks (16 tasks formais, `tasks.md`,
+  execução inline sem sub-agentes de batch por pedido de Pedro) → Execute (T1-T16, 1 commit
+  atômico por task) → Validate (Verifier independente, 2 rodadas — rodada 1 `❌ FAIL`, rodada 2
+  `✅ PASS`) → 2 gaps residuais da rodada 2 fechados na mesma sessão.
+- **Nova decisão de arquitetura**: **AD-033** (acima nesta mesma seção `## Decisions`) — 5ª exceção
+  à lista fechada da AD-010, cobrindo a criação de conta via rota de servidor `service_role`
+  pré-sessão.
+- **Completed**: T1 tabelas+RLS (`ccc4ca4`) → T2 `app.emitir_convite` (`c41b0a7`, + fix de GRANT
+  `legisla_*`) → T3 `app.consumir_convite` (`ec0f5d0`) → T4 `app.checar_rate_limit_convite`
+  (`4e9c25b`) → T5 types (`fabf97f`) → T6-T10 backend TS puro (`9159231`..`fbfa892`) → T11-T12
+  emissão (`6475e7a`, `af52a7b`, com fix de `DEFAULT NULL` em `app.emitir_convite`) → T13-T15
+  consumo (`3d1abbe`, `c2c8ff7`, `0b63567`) → T16 comentário `admin.ts` (`d522668`) → Verifier
+  rodada 1 (`❌ FAIL` — 1 Blocker, 3 Major, 3 Minor) → fix→re-verify (`ba3aa67`..`190f89e`) →
+  Verifier rodada 2 (`✅ PASS`, 11/11 CVT) → fixes residuais pós-PASS (`33b6a3a`) →
+  `validation.md`/lições (`9f13fb7`).
+- **Achado real de segurança/arquitetura descoberto em Execute** (não estava em `design.md`,
+  descoberto empiricamente ao rodar o 1º teste de integração de T2): o projeto troca o role
+  Postgres efetivo por sessão via `app.custom_access_token_hook` (`legisla_app/admin/gestora/
+  mentor/assessor`, nunca o `authenticated` genérico do PostgREST) — e todo `GRANT ... ON ALL
+  TABLES IN SCHEMA public` só cobre as tabelas que já existiam no momento em que rodou (mesma
+  exigência de AD-025 já documentada em `catalogos-referencia`, mas fácil de esquecer numa
+  migration nova). T1 tinha concedido a `authenticated`, que nunca é o executor real — corrigido
+  com migration forward-only (`20260812002624_convite_contrato_grants_legisla.sql`).
+- **Achado do Verifier independente que mais importa pra próximas features** (rodada 1, Blocker):
+  o proxy de sessão (`src/backend/supabase/proxy.ts`) bloqueia qualquer rota nova por padrão — sair
+  do route group `(app)/` (AD-027) só remove a sidebar, **não** exime a rota do proxy, que casa por
+  `pathname`. Toda rota pré-sessão nova (a exemplo de `/convite`) precisa entrar explicitamente na
+  allowlist `isPublicRoute` (agora extraída como função pura testável,
+  `src/backend/supabase/proxy.ts` + `proxy.test.ts`) — nenhum gate check (build/lint/testes
+  unitários ou de integração) exercitava essa camada antes, e o Blocker sobreviveu a 16 tasks e 4
+  gate checks sem sinal algum. Lição `L-009` registrada.
+- **5 lições novas registradas** (`L-009` a `L-015`, `.specs/lessons.json`/`LESSONS.md`, candidate,
+  recurrence=1): allowlist de rota pré-sessão nova no proxy; asserção por código de erro (não só um
+  caso representativo); fixture com condições combinadas pra fixar precedência; spec deve declarar
+  precedência quando dois estados de rejeição podem valer ao mesmo tempo; trigger genérico reusado
+  exige asserção própria no destino; App Router não permite `page.tsx`+`route.ts` no mesmo segmento
+  (SPEC_DEVIATION); fix sem asserção própria pode ser revertido em silêncio.
+- **Next step**: nenhum obrigatório. Débito documentado e aceito conscientemente (não bloqueante):
+  guarda de papel camada 2 (`CNV04` em `app.consumir_convite`) inalcançável em teste enquanto
+  `ck_convite_papel` existir; edge case "Gestora perde vínculo antes do consumo" correto por
+  construção, sem teste dedicado (ambos Minor, `validation.md` Fix 6/7). Recomenda-se UAT manual:
+  Gestora convida um Mentor/Assessor de teste real, copia a URL, abre em aba anônima, define
+  senha, confirma login automático e acesso restrito ao contrato — nenhuma verificação estática
+  substitui esse caminho ponta a ponta com navegador real.
+- **Blockers**: none (o único Blocker encontrado, proxy de sessão, foi corrigido e reverificado).
+- **Uncommitted files**: none.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: outra feature (`operacao-regua-instanciacao`)
+  commitou intercalada neste mesmo branch `develop` durante a execução desta feature (T7-T11 dela,
+  visíveis em `git log` entre os commits desta feature) — nenhum arquivo desta feature colidiu, mas
+  um efeito colateral real apareceu: o trigger `trg_fat_contrato_instancia` dela passou a rodar em
+  todo `INSERT` em `fat_contrato`, inclusive os fixtures de teste desta feature, exigindo limpeza
+  adicional (`fat_etapa_contrato`/`rel_formulario_contrato`/`dim_planejamento`) nos `afterAll` dos
+  testes de integração desta feature. Confirme `git status`/`git log` e o schema real (não só o
+  `design.md`) antes de assumir que uma tabela como `fat_contrato` se comporta como quando a
+  feature foi desenhada.
+
+---
+
 ## Handoff (Navegação por Produto — Trilha F — CONCLUÍDA e validada)
 
 - **Feature**: Navegação por Produto (`.specs/features/navegacao-por-produto/`) — **CONCLUÍDA e

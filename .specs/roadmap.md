@@ -107,6 +107,7 @@ aparecem de fato; `<CarregandoSkeleton>`/`<ErroInline>`/`<EstadoVazio>` existem 
 | `catalogos-referencia` | ✅ **Validate — PASS** | 17/17 requisitos de código (CAT-16 permanece `Pending` de propósito — levantamento humano). Verifier rodou 2 rodadas (FAIL 8 gaps → fix → PASS, sensor 3/3) |
 | `plataforma-ui-tanstack` | ✅ **Validate — PASS (com 1 item de UAT manual)** | 11/12 ACs verificados por código; PUI-06 (toast visível) aguarda confirmação visual humana — não é gap de código |
 | `navegacao-por-produto` | ✅ **Validate — PASS** (15/15) + NAV-16 pós-Validate | 15/15 requisitos (NAV-01 a NAV-15), Verifier independente, sensor 3/3 killed, 111 testes unitários (+18); 2 achados Minor corrigidos na mesma sessão. **NAV-16** (aba "Informações Gerais"/TSE na ficha de mandato) adicionado depois, a pedido de Pedro — gate verde, sem novo ciclo de Verifier |
+| `convite-contrato` | ✅ **Validate — PASS** (rodada 2) | 11/11 requisitos (CVT-01 a CVT-11). Verifier independente rodou 2 rodadas — rodada 1 `FAIL` (1 Blocker: proxy de sessão bloqueava `/convite` inteiro; 3 Major; 3 Minor) → fix→re-verify → rodada 2 `PASS`. AD-033 registrada (5ª exceção da AD-010). Ver §4 Trilha B (histórico) e `.specs/features/convite-contrato/validation.md` |
 
 **Trilha A deixou de ser a descoberta mais importante desta auditoria** — fechou o ciclo completo
 Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto de duas features novas
@@ -121,7 +122,9 @@ Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto d
 | `FND-CTR-05` — snapshot de cargo/partido no contrato nunca populado | ❌ Aberto | Baixo impacto enquanto não há relatório que dependa do cargo histórico. Candidato a Trilha E |
 | `FND-TSE-01`/`FND-TSM-01` — filtro de cargo/método de match não exposto na UI de busca | Minoritário, já mitigado em parte pela restrição na origem (migrations 0022/0026, AD-031) | Não bloqueia nada |
 | Dropdowns (Cargo/Partido/Produto/Projeto) relatados como quebrados numa sessão anterior | Aparentam funcionar hoje | **Ainda pendente de confirmação visual humana** — item do roteiro de UAT de 2026-08-10 |
-| Convite por contrato (acesso externo) | ❌ Nunca iniciado — nenhuma migration, nenhuma rota | Ver Trilha B — candidata forte pra amanhã |
+| Convite por contrato (acesso externo) | ✅ Concluída em 2026-08-11 — ver Trilha B e `.specs/features/convite-contrato/validation.md` | Verifier independente PASS (rodada 2), 11/11 CVT |
+| `CNV04` — guarda de papel camada 2 (`app.consumir_convite`) sem teste de regressão | 🟡 Aceito como débito | Inalcançável em teste enquanto `ck_convite_papel` existir sem desabilitar a constraint no banco de dev compartilhado — baixo risco (defesa em profundidade sobre um `CHECK` já testado) |
+| Edge case "Gestora perde vínculo antes do convite ser consumido" sem teste dedicado | 🟡 Aceito como débito | Correto por construção (consumo roda via `service_role`, nunca relê `id_usuario_convidou`) — confirmado por leitura de código pelo Verifier, não por teste |
 | AD-021 (TanStack Query/Table) | 🟡 Parcial — `useQuery` tem primeiro consumidor real (`useProdutoAtual`, Trilha F, 2026-08-11) | `useReactTable` continua sem consumidor; primeiro candidato real segue sendo Kanban/grade de Sucessos Mensais (§5.2/§6.1) |
 | `<ErroInline>` (AD-029) tinha zero consumidores em todo o repositório | ✅ Corrigido em 2026-08-11 (`b8b9445`) — achado pelo Verifier da Trilha F, corrigido na mesma sessão a pedido de Pedro | `ContratoForm`/`MandatoWizard` agora usam `<ErroInline>` no erro de RLS em vez do `<p>` bruto anterior |
 | Aba "Nenhuma etapa cadastrada" da ficha do contrato levava a tela que nunca resolvia se `ref_etapa` vier vazio | ✅ Corrigido em 2026-08-11 (`61568ff`) — achado pelo Verifier da Trilha F, corrigido na mesma sessão a pedido de Pedro | `contratos/[id]/page.tsx` agora mostra a mensagem explicitamente em vez de ficar preso em `<CarregandoSkeleton>` |
@@ -132,7 +135,7 @@ Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto d
 
 | # | Assunto | Situação |
 | :---- | :---- | :---- |
-| **AD-010** | Lista fechada de 4 exceções privilegiadas | O convite por contrato precisa de uma **5ª exceção** → exige AD novo explícito na fase Specify da Trilha B |
+| **AD-010** | ✅ Resolvida — **AD-033** (2026-08-11): 5ª exceção, criação de conta via convite por contrato (rota de servidor `service_role`) | Convite por contrato (Trilha B) concluída e validada |
 | **AD-022** | ✅ Resolvida — superseded por **AD-028** (2026-08-10): gate de protótipo validado com assessor real foi dispensado | A grade de Sucessos Mensais (§6.1) deixa de depender do convite (Trilha B) pra avançar |
 | **D9** | ✅ Resolvida por Pedro em 2026-08-10: régua da Coalizão clona a da Estratégia | CAT-17 (`.specs/features/catalogos-referencia/`) segue para Design/Tasks como seed migration normal, sem bloqueio |
 | **D2** | Aritmética final do IIP | Não bloqueia — o número entra rotulado como provisório na onda de Incidência |
@@ -221,7 +224,13 @@ O trabalho de código já é ~90% feito (§1.4). O que falta:
 **Por que primeiro:** é a menor distância até destravar dívida de processo acumulada, e corrige um
 bug de dado ativo (coalizão aparecendo como opção de membro de contrato).
 
-### Trilha B — Convite por contrato (acesso externo) — **candidata secundária para amanhã**
+### Trilha B — ✅ CONCLUÍDA (2026-08-11) — Convite por contrato (acesso externo)
+
+Ver `.specs/features/convite-contrato/validation.md` (11/11 requisitos CVT-01 a CVT-11, Verifier
+independente — rodada 1 `FAIL` com 1 Blocker real (proxy de sessão bloqueava `/convite` inteiro,
+tornando o consumo inalcançável pra quem não tem sessão — exatamente o público da feature) → fix →
+rodada 2 `PASS`). AD-033 registrada (5ª exceção da AD-010). Texto original abaixo, mantido para
+histórico.
 
 🟡 **Em fase Specify:** `.specs/features/convite-contrato/spec.md` (+ `context.md`) — não é magic
 link (esclarecido direto ao Pedro): é criação de conta nova pra público que nunca teve caminho de
