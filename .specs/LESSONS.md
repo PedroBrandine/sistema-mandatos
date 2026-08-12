@@ -122,6 +122,24 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: src/frontend/components/ui/switch.tsx SPEC_DEVIATION comment, commit 8655c3d (frontend-ui)
 - last seen: 2026-08-12T15:30:09Z
 
+### L-019 — Cascade/trigger functions extracted verbatim as SECURITY INVOKER from an approved schema can fail with 42501 for roles that have a narrow table-level GRANT (e.g. UPDATE on one column-set) but no GRANT at all on the tables the trigger writes to underneath -- check every role allowed to trigger the write against every table the trigger touches, not just the table the role directly writes.
+- signal: `spec_deviation` · recurrence: 1 feature(s) · harmful: 0
+- features: planejamento-planilha-monitoramento
+- evidence: supabase/migrations/20260812151909_planejamento_planilha_cascata_security_definer_fix.sql (AD-035)
+- last seen: 2026-08-12T17:30:35Z
+
+### L-020 — When an AC says a write must happen 'without reloading the whole grid/list', check the post-write state-sync strategy, not just the write call -- an isolated scoped UPDATE followed by a full-collection refetch on every single-row edit still violates the AC and reintroduces the exact per-edit network cost the AC exists to avoid.
+- signal: `ac_gap` · recurrence: 1 feature(s) · harmful: 0
+- features: planejamento-planilha-monitoramento
+- evidence: PLM-02
+- last seen: 2026-08-12T17:30:37Z
+
+### L-021 — When an AC enumerates multiple operations (UPDATE/INSERT/DELETE) or multiple enum values (e.g. status in pausada/descartada) as equally in-scope, write one test per enumerated case even when they share the same underlying predicate/mechanism -- a representative single case leaves the others uncovered under evidence-or-zero even if the shared code path makes the risk low.
+- signal: `ac_gap` · recurrence: 1 feature(s) · harmful: 0
+- features: planejamento-planilha-monitoramento
+- evidence: PLM-06.3, PLM-09
+- last seen: 2026-08-12T17:30:40Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
