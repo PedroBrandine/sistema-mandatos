@@ -17,7 +17,17 @@ aplica aqui porque não há delegação a decidir, só execução direta.
 ---
 
 **Design**: `.specs/features/convite-contrato/design.md`
-**Status**: In Progress
+**Status**: Done — T1-T16 implementadas e comitadas (`ccc4ca4`..`d522668`); rodada 1 de
+fix→re-verify aplicada (`ba3aa67`..`190f89e` — Blocker do proxy + 2 Major de sessão/mutante +
+1 Major de precedência + 1 Minor de auditoria). Ver `validation.md` pro relatório completo
+do Verifier independente e a rodada 2 (re-verificação) para o veredito final.
+
+**SPEC_DEVIATION (T15)**: o Route Handler de consumo vive em
+`/convite/[token]/consumir/route.ts`, não em `/convite/[token]/route.ts` como este
+documento descrevia originalmente — o Next.js App Router não permite `page.tsx` e
+`route.ts` no mesmo segmento (`Conflicting route and page`), descoberto no gate check de
+T15. Mesmo padrão de separação já usado em `admin/acesso/page.tsx` vs.
+`admin/acesso/entrar/route.ts`. `ConviteConsumoForm` (T14) posta para essa rota.
 
 ---
 

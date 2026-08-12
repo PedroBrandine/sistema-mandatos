@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 9,
+  "next_id": 15,
   "lessons": [
     {
       "id": "L-001",
@@ -148,6 +148,114 @@
       ],
       "created": "2026-08-11T13:52:02Z",
       "last_seen": "2026-08-11T13:52:02Z"
+    },
+    {
+      "id": "L-009",
+      "key": "ac_gap::when adding a route that must work without a session add it to the auth middleware s public route allowlist in the same task since being outside the authenticated route group does not exempt a path from middleware that matches by pathname",
+      "text": "When adding a route that must work without a session, add it to the auth middleware's public-route allowlist in the same task, since being outside the authenticated route group does not exempt a path from middleware that matches by pathname.",
+      "signal": "ac_gap",
+      "scope": "frontend/routing",
+      "status": "candidate",
+      "features": [
+        "convite-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md Fix 1 -- src/backend/supabase/proxy.ts:43-50 (isPublicRoute) vs app/convite/[token]/page.tsx (frontend/routing)"
+      ],
+      "created": "2026-08-12T01:34:40Z",
+      "last_seen": "2026-08-12T01:34:40Z"
+    },
+    {
+      "id": "L-010",
+      "key": "surviving_mutant::when a function maps distinct error codes to distinct user facing messages add one assertion per code not just one representative case for the whole switch",
+      "text": "When a function maps distinct error codes to distinct user-facing messages, add one assertion per code, not just one representative case for the whole switch.",
+      "signal": "surviving_mutant",
+      "scope": "backend/rpc",
+      "status": "candidate",
+      "features": [
+        "convite-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md mutant #8 -- src/backend/rpc/consumir-convite.ts:35-47 (mensagemDeErroConsumo) (backend/rpc)"
+      ],
+      "created": "2026-08-12T01:34:49Z",
+      "last_seen": "2026-08-12T01:34:49Z"
+    },
+    {
+      "id": "L-011",
+      "key": "surviving_mutant::when a function checks several mutually non exclusive conditions in a fixed order add a fixture where two conditions hold at once so the precedence is pinned not just one fixture per condition",
+      "text": "When a function checks several mutually-non-exclusive conditions in a fixed order, add a fixture where two conditions hold at once so the precedence is pinned, not just one fixture per condition.",
+      "signal": "surviving_mutant",
+      "scope": "backend/queries",
+      "status": "candidate",
+      "features": [
+        "convite-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md mutant #5 -- src/backend/queries/convite.ts:28-29 (validarConvite) (backend/queries)"
+      ],
+      "created": "2026-08-12T01:34:49Z",
+      "last_seen": "2026-08-12T01:34:49Z"
+    },
+    {
+      "id": "L-012",
+      "key": "spec_precision_gap::when a spec lists several rejection states that can hold simultaneously on the same record state which one wins so the implementation and its test have a defined outcome",
+      "text": "When a spec lists several rejection states that can hold simultaneously on the same record, state which one wins so the implementation and its test have a defined outcome.",
+      "signal": "spec_precision_gap",
+      "scope": "spec-authoring",
+      "status": "candidate",
+      "features": [
+        "convite-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md Edge Cases -- spec.md US3 AC2/AC3 (expirado vs usado quando ambos valem) (spec-authoring)"
+      ],
+      "created": "2026-08-12T01:35:01Z",
+      "last_seen": "2026-08-12T01:35:01Z"
+    },
+    {
+      "id": "L-013",
+      "key": "ac_gap::when a requirement is satisfied by attaching an existing generic trigger assert the resulting row in the target table from a test since reusing a proven mechanism is not evidence that it was wired to this table",
+      "text": "When a requirement is satisfied by attaching an existing generic trigger, assert the resulting row in the target table from a test, since reusing a proven mechanism is not evidence that it was wired to this table.",
+      "signal": "ac_gap",
+      "scope": "supabase/migrations",
+      "status": "candidate",
+      "features": [
+        "convite-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md CVT-11 -- supabase/migrations/20260812001921_convite_contrato_estrutura.sql:95-97 (trg_audit_convite_contrato) (supabase/migrations)"
+      ],
+      "created": "2026-08-12T01:35:02Z",
+      "last_seen": "2026-08-12T01:35:02Z"
+    },
+    {
+      "id": "L-014",
+      "key": "spec_deviation::in this next js app router project a page tsx and a route ts cannot share a path segment so plan a post handler for a rendered page as a child segment from the start",
+      "text": "In this Next.js App Router project a page.tsx and a route.ts cannot share a path segment, so plan a POST handler for a rendered page as a child segment from the start.",
+      "signal": "spec_deviation",
+      "scope": "frontend/routing",
+      "status": "candidate",
+      "features": [
+        "convite-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "tasks.md SPEC_DEVIATION (T15) -- app/convite/[token]/consumir/route.ts (frontend/routing)"
+      ],
+      "created": "2026-08-12T01:35:02Z",
+      "last_seen": "2026-08-12T01:35:02Z"
     }
   ]
 }

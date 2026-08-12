@@ -62,6 +62,42 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: spec.md Edge Cases (RLS nega escrita) / design.md Error Handling Strategy row 5 / src/frontend/components/fundacao/contrato-form.tsx:239 (frontend-error-display)
 - last seen: 2026-08-11T13:52:02Z
 
+### L-009 — When adding a route that must work without a session, add it to the auth middleware's public-route allowlist in the same task, since being outside the authenticated route group does not exempt a path from middleware that matches by pathname.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `frontend/routing` · harmful: 0
+- features: convite-contrato
+- evidence: validation.md Fix 1 -- src/backend/supabase/proxy.ts:43-50 (isPublicRoute) vs app/convite/[token]/page.tsx (frontend/routing)
+- last seen: 2026-08-12T01:34:40Z
+
+### L-010 — When a function maps distinct error codes to distinct user-facing messages, add one assertion per code, not just one representative case for the whole switch.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `backend/rpc` · harmful: 0
+- features: convite-contrato
+- evidence: validation.md mutant #8 -- src/backend/rpc/consumir-convite.ts:35-47 (mensagemDeErroConsumo) (backend/rpc)
+- last seen: 2026-08-12T01:34:49Z
+
+### L-011 — When a function checks several mutually-non-exclusive conditions in a fixed order, add a fixture where two conditions hold at once so the precedence is pinned, not just one fixture per condition.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `backend/queries` · harmful: 0
+- features: convite-contrato
+- evidence: validation.md mutant #5 -- src/backend/queries/convite.ts:28-29 (validarConvite) (backend/queries)
+- last seen: 2026-08-12T01:34:49Z
+
+### L-012 — When a spec lists several rejection states that can hold simultaneously on the same record, state which one wins so the implementation and its test have a defined outcome.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `spec-authoring` · harmful: 0
+- features: convite-contrato
+- evidence: validation.md Edge Cases -- spec.md US3 AC2/AC3 (expirado vs usado quando ambos valem) (spec-authoring)
+- last seen: 2026-08-12T01:35:01Z
+
+### L-013 — When a requirement is satisfied by attaching an existing generic trigger, assert the resulting row in the target table from a test, since reusing a proven mechanism is not evidence that it was wired to this table.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `supabase/migrations` · harmful: 0
+- features: convite-contrato
+- evidence: validation.md CVT-11 -- supabase/migrations/20260812001921_convite_contrato_estrutura.sql:95-97 (trg_audit_convite_contrato) (supabase/migrations)
+- last seen: 2026-08-12T01:35:02Z
+
+### L-014 — In this Next.js App Router project a page.tsx and a route.ts cannot share a path segment, so plan a POST handler for a rendered page as a child segment from the start.
+- signal: `spec_deviation` · recurrence: 1 feature(s) · scope: `frontend/routing` · harmful: 0
+- features: convite-contrato
+- evidence: tasks.md SPEC_DEVIATION (T15) -- app/convite/[token]/consumir/route.ts (frontend/routing)
+- last seen: 2026-08-12T01:35:02Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
