@@ -125,7 +125,7 @@ Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto d
 | Convite por contrato (acesso externo) | ✅ Concluída em 2026-08-11 — ver Trilha B e `.specs/features/convite-contrato/validation.md` | Verifier independente PASS (rodada 2), 11/11 CVT |
 | `CNV04` — guarda de papel camada 2 (`app.consumir_convite`) sem teste de regressão | 🟡 Aceito como débito | Inalcançável em teste enquanto `ck_convite_papel` existir sem desabilitar a constraint no banco de dev compartilhado — baixo risco (defesa em profundidade sobre um `CHECK` já testado) |
 | Edge case "Gestora perde vínculo antes do convite ser consumido" sem teste dedicado | 🟡 Aceito como débito | Correto por construção (consumo roda via `service_role`, nunca relê `id_usuario_convidou`) — confirmado por leitura de código pelo Verifier, não por teste |
-| AD-021 (TanStack Query/Table) | 🟡 Parcial — `useQuery` tem primeiro consumidor real (`useProdutoAtual`, Trilha F, 2026-08-11) | `useReactTable` continua sem consumidor; primeiro candidato real segue sendo Kanban/grade de Sucessos Mensais (§5.2/§6.1) |
+| AD-021 (TanStack Query/Table) | ✅ Cumprida em 2026-08-12 — `useQuery` (`useProdutoAtual`, Trilha F) e `useTable` (`GradeSucessosMensais`, §6.1, `planejamento-planilha-monitoramento`) têm consumidor real | Achado ao implementar: o pacote instalado é `@tanstack/react-table@9`, API bem diferente de v8 (`useTable`, sem `getCoreRowModel`, `tableFeatures()`) — ver `.specs/STATE.md`, handoff da feature |
 | `<ErroInline>` (AD-029) tinha zero consumidores em todo o repositório | ✅ Corrigido em 2026-08-11 (`b8b9445`) — achado pelo Verifier da Trilha F, corrigido na mesma sessão a pedido de Pedro | `ContratoForm`/`MandatoWizard` agora usam `<ErroInline>` no erro de RLS em vez do `<p>` bruto anterior |
 | Aba "Nenhuma etapa cadastrada" da ficha do contrato levava a tela que nunca resolvia se `ref_etapa` vier vazio | ✅ Corrigido em 2026-08-11 (`61568ff`) — achado pelo Verifier da Trilha F, corrigido na mesma sessão a pedido de Pedro | `contratos/[id]/page.tsx` agora mostra a mensagem explicitamente em vez de ficar preso em `<CarregandoSkeleton>` |
 
@@ -405,12 +405,14 @@ As três dependem só da Fundação + dos catálogos (Trilha C) + da régua (§5
 dependem umas das outras** (§2 as define como camadas transversais irmãs, AD-007). É aqui que o
 paralelismo de maior porte do roadmap acontece: três specs, três frentes, sem bloqueio cruzado.
 
-### 6.1 Planejamento do contrato (PLN-01/02/03) — **entra na onda de amanhã, em paralelo com 5.2/5.3**
+### 6.1 Planejamento do contrato (PLN-01/02/03) — ✅ CONCLUÍDA (2026-08-12)
 
-🟡 **Em fase Specify:** `.specs/features/planejamento-planilha-monitoramento/spec.md` (+
-`context.md`) — inclui o levantamento completo de campo × produto pedido por Pedro. Ponto mais
-sensível ainda sem confirmação: a fórmula de cascata Meta→Objetivo→Planejamento (só o nível folha,
-peso do Sucesso Mensal, tem regra explícita no schema aprovado).
+Ver `.specs/features/planejamento-planilha-monitoramento/validation.md` (11/11 requisitos PLM-01 a
+PLM-11, Verifier independente PASS na rodada 2, 1 Major + 2 Minor corrigidos na rodada 1). A fórmula
+de cascata Meta→Objetivo→Planejamento (única pendência real de confirmação) foi validada com Pedro
+**e** coincide com `app.recalcula_atingimento`, já verbatim no schema aprovado (achado de Design —
+o texto abaixo, que dizia "só o nível folha tem regra explícita", estava desatualizado). Handoff
+completo em `.specs/STATE.md`.
 
 Hierarquia Objetivo Específico → Meta → Sucesso Mensal (AD-012, um único conjunto de tabelas
 discriminado por produto — nunca um schema por produto), preditores, agenda temática, SWOT no
