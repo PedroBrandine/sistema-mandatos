@@ -349,10 +349,10 @@ filtro produto + Gestora.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Mostra mediana por etapa, "sem dado suficiente" quando `mediana === null`
-- [ ] Filtro produto + Gestora funcional
-- [ ] Estados de carregando/erro/vazio cobertos
-- [ ] `npm run build && npm run lint:all` limpo
+- [x] Mostra mediana por etapa, "sem dado suficiente" quando `mediana === null`
+- [x] Filtro produto + Gestora funcional
+- [x] Estados de carregando/erro/vazio cobertos
+- [x] `npm run build && npm run lint:all` limpo
 
 **Tests**: none
 **Gate**: build
