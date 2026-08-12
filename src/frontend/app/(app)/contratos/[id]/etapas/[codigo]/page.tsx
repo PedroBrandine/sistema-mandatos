@@ -5,15 +5,43 @@ import { notFound } from "next/navigation";
 
 import { createClient } from "@backend/supabase/client";
 import { buscarContratoParaFicha, buscarEtapasDoProduto, type EtapaResumo } from "@backend/queries/contrato";
+import { buscarReguaDoContrato, type EtapaRegua } from "@backend/queries/etapa-contrato";
 
-import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
+import { Badge } from "@/components/ui/badge";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
-// NAV-04 AC2: cada etapa é uma aba real, vazia de conteúdo por ora (que
-// dependeria de fat_etapa_contrato, não provisionada). codigo que não
-// corresponde a nenhuma etapa do produto responde 404 -- mesma técnica de
-// FichaContratoChrome (T22): notFound() no corpo do render, nunca dentro do
-// useEffect que popula o estado.
+// RGI-09/RGI-10 (.specs/features/operacao-regua-instanciacao/spec.md). Preenche o
+// placeholder que a Trilha F deixou aqui ("vazia de conteúdo por ora, que dependeria
+// de fat_etapa_contrato, não provisionada") -- cada aba de etapa mostra a régua
+// completa do produto (não só a própria etapa), ordenada por ordem, com a linha do
+// `codigo` da URL destacada. Design decidiu por essa leitura em vez de uma rota nova
+// (design.md "Frontend -- Tela da régua"): a barra de abas já é a navegação ordenada
+// que o AC1 pede, o conteúdo de cada aba é a mesma tabela, só a linha em foco muda.
+//
+// Sem TanStack Query/Table de propósito (SPEC_DEVIATION registrada em design.md): o
+// componente pai (FichaContratoChrome) e esta própria página já usam
+// useEffect+useState manual -- migrar só esta folha criaria inconsistência de padrão
+// de fetch sem nenhum ganho pedido pela spec.
+const STATUS_LABEL: Record<string, string> = {
+  nao_iniciada: "Não iniciada",
+  em_andamento: "Em andamento",
+  concluida: "Concluída",
+  dispensada: "Dispensada",
+};
+
+const STATUS_VARIANT: Record<string, "secondary" | "default" | "outline" | "ghost"> = {
+  nao_iniciada: "secondary",
+  em_andamento: "default",
+  concluida: "outline",
+  dispensada: "ghost",
+};
+
+function formatarData(data: string | null): string {
+  return data ? new Date(data).toLocaleDateString("pt-BR") : "—";
+}
+
 export default function EtapaContratoPage({
   params,
 }: {
@@ -23,6 +51,7 @@ export default function EtapaContratoPage({
   const idContrato = Number(id);
 
   const [etapa, setEtapa] = useState<EtapaResumo | null | undefined>(undefined);
+  const [regua, setRegua] = useState<EtapaRegua[]>([]);
 
   useEffect(() => {
     let cancelado = false;
@@ -37,6 +66,9 @@ export default function EtapaContratoPage({
       buscarEtapasDoProduto(supabase, contrato.idProduto).then((etapas) => {
         if (cancelado) return;
         setEtapa(etapas.find((e) => e.codigo === codigo) ?? null);
+      });
+      buscarReguaDoContrato(supabase, idContrato).then((linhas) => {
+        if (!cancelado) setRegua(linhas);
       });
     });
 
@@ -56,7 +88,47 @@ export default function EtapaContratoPage({
   return (
     <div className="grid gap-4">
       <p className="text-xs uppercase tracking-wider text-muted-foreground">Etapa {etapa.ordem}</p>
-      <EmDesenvolvimento titulo={`${etapa.nome} em desenvolvimento`} />
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Etapa</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Previsto</TableHead>
+            <TableHead>Realizado</TableHead>
+            <TableHead>Atraso</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {regua.map((linha) => (
+            <TableRow
+              key={linha.idEtapaContrato}
+              className={cn(linha.codigo === codigo && "bg-muted/50")}
+              aria-current={linha.codigo === codigo ? "step" : undefined}
+            >
+              <TableCell className="font-medium">{linha.nome}</TableCell>
+              <TableCell>
+                <Badge variant={STATUS_VARIANT[linha.status] ?? "secondary"}>
+                  {STATUS_LABEL[linha.status] ?? linha.status}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {formatarData(linha.dtPrevistaInicio)} → {formatarData(linha.dtPrevistaConclusao)}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {formatarData(linha.dtInicio)} → {formatarData(linha.dtConclusao)}
+              </TableCell>
+              <TableCell>
+                {linha.estaAtrasada ? (
+                  <Badge variant="destructive">{linha.diasAtraso} dia(s)</Badge>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
