@@ -28,8 +28,8 @@ describe("dadosPlanejamentoSchema", () => {
     expect(resultado.success).toBe(true);
   });
 
-  it("rejeita id_perfil_atuacao não positivo", () => {
-    const resultado = dadosPlanejamentoSchema.safeParse({ id_perfil_atuacao: 0 });
+  it("rejeita id_perfil_atuacao não inteiro", () => {
+    const resultado = dadosPlanejamentoSchema.safeParse({ id_perfil_atuacao: 1.5 });
     expect(resultado.success).toBe(false);
   });
 });
