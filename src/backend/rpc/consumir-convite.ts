@@ -2,9 +2,16 @@ import type { AuthError, PostgrestError, SupabaseClient } from "@supabase/supaba
 
 import type { Database } from "../supabase/database.types";
 
+// `motivo` diferencia as 3 formas de "sucesso_sem_login" pra
+// /login (T13/route.ts) mostrar a mensagem certa em cada uma -- achado do
+// Verifier independente (rodada 2, validation.md): as 3 caíam no mesmo
+// `?msg=conta_existente`, rótulo incorreto pras outras duas (conta acabou
+// de ser criada, não é uma conta "existente").
+export type MotivoSemLogin = "conta_existente" | "sessao_ativa" | "login_automatico_falhou";
+
 export type ResultadoConsumo =
   | { tipo: "sucesso_logado" }
-  | { tipo: "sucesso_sem_login" }
+  | { tipo: "sucesso_sem_login"; motivo: MotivoSemLogin }
   | { tipo: "erro"; mensagem: string };
 
 export interface ConsumirConviteDeps {
@@ -105,7 +112,7 @@ export async function consumirConvite(
     // Conta pré-existente -- nunca tenta logar com a senha submetida agora
     // (vetor de account-takeover se fizéssemos isso -- design.md Error
     // Handling Strategy).
-    return { tipo: "sucesso_sem_login" };
+    return { tipo: "sucesso_sem_login", motivo: "conta_existente" };
   }
 
   // spec.md Edge Cases: "convidado já tem sessão ativa (ex.: Admin testando
@@ -118,9 +125,9 @@ export async function consumirConvite(
   // encerrava a sessão do Admin e a substituía pela do convidado.
   const { data: sessaoAtual } = await deps.server.auth.getUser();
   if (sessaoAtual.user) {
-    return { tipo: "sucesso_sem_login" };
+    return { tipo: "sucesso_sem_login", motivo: "sessao_ativa" };
   }
 
   const { error: erroLogin } = await deps.server.auth.signInWithPassword({ email, password: params.senha });
-  return erroLogin ? { tipo: "sucesso_sem_login" } : { tipo: "sucesso_logado" };
+  return erroLogin ? { tipo: "sucesso_sem_login", motivo: "login_automatico_falhou" } : { tipo: "sucesso_logado" };
 }

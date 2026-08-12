@@ -100,7 +100,7 @@ describe("consumirConvite", () => {
 
     const resultado = await consumirConvite(deps, { tokenHash: "hash1", nome: "Ignorado", senha: "qualquer" });
 
-    expect(resultado).toEqual({ tipo: "sucesso_sem_login" });
+    expect(resultado).toEqual({ tipo: "sucesso_sem_login", motivo: "conta_existente" });
     expect(spies.createUser).not.toHaveBeenCalled();
     expect(spies.signInWithPassword).not.toHaveBeenCalled();
   });
@@ -129,7 +129,7 @@ describe("consumirConvite", () => {
     expect(spies.rpc).not.toHaveBeenCalled();
   });
 
-  it("signInWithPassword falha depois de conta_nova=true: ainda devolve sucesso_sem_login (vínculo já foi criado)", async () => {
+  it("signInWithPassword falha depois de conta_nova=true: ainda devolve sucesso_sem_login/login_automatico_falhou (vínculo já foi criado)", async () => {
     const { deps } = criarDeps({
       usuarioExistente: null,
       rpcData: { id_usuario: 5, conta_nova: true },
@@ -138,7 +138,7 @@ describe("consumirConvite", () => {
 
     const resultado = await consumirConvite(deps, { tokenHash: "hash1", nome: "Novo", senha: "senha123" });
 
-    expect(resultado).toEqual({ tipo: "sucesso_sem_login" });
+    expect(resultado).toEqual({ tipo: "sucesso_sem_login", motivo: "login_automatico_falhou" });
   });
 
   // spec.md Edge Cases: "convidado já tem sessão ativa (ex.: é Admin
@@ -155,7 +155,7 @@ describe("consumirConvite", () => {
 
     const resultado = await consumirConvite(deps, { tokenHash: "hash1", nome: "Novo", senha: "senha123" });
 
-    expect(resultado).toEqual({ tipo: "sucesso_sem_login" });
+    expect(resultado).toEqual({ tipo: "sucesso_sem_login", motivo: "sessao_ativa" });
     expect(spies.getUser).toHaveBeenCalled();
     expect(spies.signInWithPassword).not.toHaveBeenCalled();
     // a conta ainda foi criada -- não é um erro, só não assume a sessão.

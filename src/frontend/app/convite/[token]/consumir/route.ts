@@ -45,7 +45,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     redirect(`/convite/${token}?erro=${encodeURIComponent(resultado.mensagem)}`);
   }
   if (resultado.tipo === "sucesso_sem_login") {
-    redirect("/login?msg=conta_existente");
+    // `motivo` -- achado do Verifier independente (rodada 2, validation.md):
+    // as 3 causas de "sem login automático" caíam todas no mesmo
+    // ?msg=conta_existente, rótulo incorreto pras outras duas (a conta
+    // acabou de ser criada, não é uma conta "existente").
+    redirect(`/login?msg=${resultado.motivo}`);
   }
   redirect("/");
 }

@@ -1,6 +1,33 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Extraída pra ser testável sem precisar montar um NextRequest completo nem
+// mockar @supabase/ssr (updateSession inteiro exige os dois). Achado do
+// Verifier independente na rodada 2 (validation.md): sem isto, remover
+// qualquer entrada desta lista passa 100% da suíte -- o Blocker do Fix 1
+// poderia ser reintroduzido em silêncio.
+export function isPublicRoute(pathname: string): boolean {
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth") ||
+    // Bypass de login pra dev local (T-adhoc, ver app/admin/acesso) --
+    // liberado do gate de auth aqui pra existir sem sessão prévia, mas
+    // a própria rota se recusa a rodar fora de NODE_ENV=development, então
+    // isto não abre acesso anônimo real em produção/Preview (AD-002).
+    pathname.startsWith("/admin/acesso") ||
+    // AD-033. Convite por contrato é pré-sessão por definição -- Mentor/
+    // Assessor convidado ainda não tem conta nem login (é exatamente o que
+    // esta rota cria). Não é acesso anônimo de propósito genérico (AD-002
+    // continua valendo pro resto do sistema): a própria rota faz seu próprio
+    // gate (token de uso único com hash, expiração, rate limit -- CVT-02/03/10).
+    // Achado do Verifier independente (validation.md): sem esta linha, o
+    // proxy redirecionava toda /convite/* pra /login antes de a página
+    // rodar, tornando o consumo inalcançável pra quem não tem sessão --
+    // exatamente o público que a feature existe pra atender.
+    pathname.startsWith("/convite")
+  );
+}
+
 // Refreshes the Supabase session on every request. Called from the root
 // proxy.ts (Next.js 16 renamed the `middleware` file convention to `proxy` --
 // see node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md).
@@ -40,26 +67,8 @@ export async function updateSession(request: NextRequest) {
   const user = data?.claims;
 
   const { pathname } = request.nextUrl;
-  const isPublicRoute =
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/auth") ||
-    // Bypass de login pra dev local (T-adhoc, ver app/admin/acesso) --
-    // liberado do gate de auth aqui pra existir sem sessão prévia, mas
-    // a própria rota se recusa a rodar fora de NODE_ENV=development, então
-    // isto não abre acesso anônimo real em produção/Preview (AD-002).
-    pathname.startsWith("/admin/acesso") ||
-    // AD-033. Convite por contrato é pré-sessão por definição -- Mentor/
-    // Assessor convidado ainda não tem conta nem login (é exatamente o que
-    // esta rota cria). Não é acesso anônimo de propósito genérico (AD-002
-    // continua valendo pro resto do sistema): a própria rota faz seu próprio
-    // gate (token de uso único com hash, expiração, rate limit -- CVT-02/03/10).
-    // Achado do Verifier independente (validation.md): sem esta linha, o
-    // proxy redirecionava toda /convite/* pra /login antes de a página
-    // rodar, tornando o consumo inalcançável pra quem não tem sessão --
-    // exatamente o público que a feature existe pra atender.
-    pathname.startsWith("/convite");
 
-  if (!user && !isPublicRoute) {
+  if (!user && !isPublicRoute(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
