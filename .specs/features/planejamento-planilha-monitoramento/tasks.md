@@ -12,7 +12,15 @@ Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/planejamento-planilha-monitoramento/design.md`
-**Status**: Draft — aguardando decisão de execução (inline vs. sub-agente de batch, ver nota abaixo)
+**Status**: Done — T1-T17 implementadas e commitadas (execução inline, aceita pelo usuário), +1 fix
+(T4 fix, SECURITY DEFINER/AD-035, confirmado explicitamente com o usuário). Gate final rodando antes
+do Verifier independente.
+
+**Completed**: T1 `d3c78a5` → T2 `84b5643` → T3 `f26b626` → T4 `3e1047a` → T5 `48a9d65` →
+T6 `b71069b` → T7 `711db21` → T8 `72a43a3` → T9 `23881a7` → T10 `a4aed5f`
+(+ SPEC_DEVIATION `04b3539`) → **T4 fix `75939af`** (achado ao rodar T11, SECURITY DEFINER,
+AD-035) → T11 `cc6682c` → T12 `8ddd4f1` → T13 `d85f9ef` (+ fix de ordenação `5cb70d1`) →
+T14 `5f31694` → T15 `c775eb3` → T16 `930ba4b` → T17 `f0e8016`.
 
 **Nota de execução**: 17 tasks > ~8 (limiar de oferta de sub-agente do skill). As duas features mais
 recentes deste mesmo projeto com escopo comparável (`convite-contrato`, 16 tasks; e o próprio

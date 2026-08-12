@@ -220,23 +220,24 @@ em um de PLL (sem o campo aparecer), confirmando os dois casos.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| PLM-01 | P1: Grade — leitura agrupada por Meta | Design | Pending |
-| PLM-02 | P1: Grade — edição célula a célula | Design | Pending |
-| PLM-03 | P1: Grade — colar em faixa | Design | Pending |
-| PLM-04 | P1: Grade — validação 0–100 no cliente e no banco | Design | Pending |
-| PLM-05 | P1: GRANT — Assessor escreve todas as colunas de `fat_sucesso_mensal` (linha vinculada) | Design | Pending |
-| PLM-06 | P1: RLS/GRANT — Assessor bloqueado em Meta/Objetivo/Planejamento e em contrato não vinculado | Design | Pending |
-| PLM-07 | P1: Cascata — marca desatualizado, sem recálculo síncrono | Design | Pending |
-| PLM-08 | P1: Cascata — fórmula Meta→Objetivo→Planejamento | Design | Pending |
-| PLM-09 | P1: Cascata — só Metas ativas contam | Design | Pending |
-| PLM-10 | P2: Criar Objetivo Específico | Design | Pending |
-| PLM-11 | P2: Meta — preditor secundário condicional ao produto | Design | Pending |
+| PLM-01 | P1: Grade — leitura agrupada por Meta | Implementing | T9/T14/T17 |
+| PLM-02 | P1: Grade — edição célula a célula | Implementing | T14/T17 |
+| PLM-03 | P1: Grade — colar em faixa | Implementing | T6/T10/T13/T14 |
+| PLM-04 | P1: Grade — validação 0–100 no cliente e no banco | Implementing | T1/T14 |
+| PLM-05 | P1: GRANT — Assessor escreve todas as colunas de `fat_sucesso_mensal` (linha vinculada) | Implementing | T3/T11 |
+| PLM-06 | P1: RLS/GRANT — Assessor bloqueado em Meta/Objetivo/Planejamento e em contrato não vinculado | Implementing | T2/T3/T11 |
+| PLM-07 | P1: Cascata — marca desatualizado, sem recálculo síncrono | Implementing | T4/T12/T17 |
+| PLM-08 | P1: Cascata — fórmula Meta→Objetivo→Planejamento | Implementing | T4/T12/T15 |
+| PLM-09 | P1: Cascata — só Metas ativas contam | Implementing | T4/T12 |
+| PLM-10 | P2: Criar Objetivo Específico | Implementing | T8/T15 |
+| PLM-11 | P2: Meta — preditor secundário condicional ao produto | Implementing | T8/T15 |
+
+**Coverage:** 11/11 mapeados a tasks, aguardando Verifier independente (fase Validate) antes de
+marcar como `Verified`.
 
 **ID format:** `PLM-NN`
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
-
-**Coverage:** 11 total, 0 mapped to tasks, 11 unmapped ⚠️ (aguardando fase Design/Tasks)
 
 ---
 
