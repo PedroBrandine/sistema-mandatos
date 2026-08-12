@@ -295,16 +295,25 @@ mesReferencia)` (lê `vw_sucesso_mensal` join `fat_meta` filtrado por mês, reto
 
 ---
 
-### T10: RPC wrappers — `recalcularAtingimento`, `atualizarSucessosEmLote`, `criarObjetivoEspecifico`, `criarMeta` (+ entradas em `errors.ts`)
+### T10: RPC wrappers — `recalcularAtingimento`, `atualizarSucessosEmLote` (+ entradas em `errors.ts`)
 
-**What**: `src/backend/rpc/planejamento.ts` com as 4 funções (padrão `(client, input) =>
-Promise<T>`, `client.schema("app").rpc(...)`, erro via `mapeiaErroRpc`) + 6 entradas novas em
-`MENSAGENS_CHECK` (`src/backend/rpc/errors.ts`): `ck_sucesso_pct`, `ck_sucesso_mes`,
-`ck_objetivo_pct`, `ck_meta_pct`, `ck_meta_preditores`, `ck_objetivo_preditores`.
+**SPEC_DEVIATION (achado ao implementar)**: o `design.md`/redação original desta task listava
+também `criarObjetivoEspecifico`/`criarMeta` como RPC wrappers. Não são — são `INSERT` de uma linha
+só (`fat_objetivo_especifico`/`fat_meta`), sem invariante multi-tabela, então AD-024 manda ir
+**direto via PostgREST**, não por função. Confirmado pelo padrão real do repo
+(`contrato-form.tsx:96-115`: `.insert()` inline no componente, erro via `mapeiaErroRpc(error).message`
+mesmo sem ser um RPC de verdade). Essas duas criações movem para T15 (dialogs), inline no componente
+— sem wrapper de backend dedicado, mesma convenção de `contrato-form.tsx`/`usuario-form.tsx`.
+
+**What**: `src/backend/rpc/planejamento.ts` com as 2 funções que são RPC de verdade (padrão
+`(client, input) => Promise<T>`, `client.schema("app").rpc(...)`, erro via `mapeiaErroRpc`) + 6
+entradas novas em `MENSAGENS_CHECK` (`src/backend/rpc/errors.ts`): `ck_sucesso_pct`, `ck_sucesso_mes`,
+`ck_objetivo_pct`, `ck_meta_pct`, `ck_meta_preditores`, `ck_objetivo_preditores` (consumidas pelos
+`INSERT`s diretos de T15 via `mapeiaErroRpc`, mesmo sem RPC).
 **Where**: `src/backend/rpc/planejamento.ts` (+ `.test.ts`), `src/backend/rpc/errors.ts` (edição)
 **Depends on**: T6, T7, T8
 **Reuses**: padrão de `src/backend/rpc/convite.ts`/`kanban.ts`; `mapeiaErroRpc` existente
-**Requirement**: PLM-02, PLM-03, PLM-10, PLM-11
+**Requirement**: PLM-02, PLM-03
 
 **Tools**: MCP: NONE · Skill: NONE
 
@@ -421,9 +430,11 @@ recalculado no client).
 
 **What**: Árvore Objetivo → Meta com `pct_atingimento` de cada nível (`Badge`) e alerta visual
 (não bloqueio) quando a soma de `peso` das Metas de um Objetivo ≠ 100; botões "+ Objetivo"/"+ Meta"
-visíveis só para `gestora`/`mentor`/`admin`; `meta-form-dialog.tsx` esconde o campo preditor
-secundário quando o produto do contrato é PLL (PLM-11); dialog "editar detalhes" por linha de
-Sucesso Mensal (`peso`/`descricao`/`mes_referencia`/`dt_limite`, fora da grade).
+visíveis só para `gestora`/`mentor`/`admin`; `objetivo-form-dialog.tsx`/`meta-form-dialog.tsx` fazem
+`INSERT` direto (`fat_objetivo_especifico`/`fat_meta` via PostgREST, sem RPC — ver SPEC_DEVIATION de
+T10), erro via `mapeiaErroRpc`, mesmo padrão de `contrato-form.tsx`; `meta-form-dialog.tsx` esconde
+o campo preditor secundário quando o produto do contrato é PLL (PLM-11); dialog "editar detalhes"
+por linha de Sucesso Mensal (`peso`/`descricao`/`mes_referencia`/`dt_limite`, fora da grade).
 **Where**: `src/frontend/components/planejamento/hierarquia-planejamento.tsx`,
 `objetivo-form-dialog.tsx`, `meta-form-dialog.tsx`, `sucesso-mensal-detalhes-dialog.tsx`
 **Depends on**: T8, T9, T10
