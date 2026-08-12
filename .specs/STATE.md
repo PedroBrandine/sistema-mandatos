@@ -383,6 +383,112 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
+### AD-035
+- **Decision**: Funções de recômputo determinístico de coluna derivada/cache — que não aceitam
+  nenhum parâmetro do chamador que controle *o que* é escrito, só *quando* recalcular — podem ser
+  `SECURITY DEFINER` (com `SET search_path` explícito), mesmo quando disparadas por trigger a partir
+  de uma escrita de um papel sem `GRANT` direto na tabela-alvo do recômputo. Aplicado a
+  `app.recalcula_atingimento` e às 5 funções `app.trg_marca_desatualizado_*`/`app.trg_marca_por_meta_*`
+  (`planejamento-planilha-monitoramento`, `20260812151909_planejamento_planilha_cascata_security_definer_fix.sql`).
+  `app.recalcula_pendentes` fica `SECURITY INVOKER` — não escreve nada diretamente, só chama
+  `recalcula_atingimento` via `PERFORM`, que já roda como `DEFINER` independente de quem a chamou.
+- **Reason**: Achado de Execute (só apareceu rodando o teste de integração de RLS de verdade, não
+  por leitura de código): as 6 funções foram extraídas verbatim do schema aprovado como
+  `SECURITY INVOKER` (AD-024), mas escrevem em `dim_planejamento`/`fat_meta`/`fat_objetivo_especifico`
+  — tabelas onde Mentor e Assessor só têm `GRANT SELECT` (`docs/schema_sistema.sql:2084-2089/
+  2095-2098`). Qualquer `UPDATE`/`INSERT` do Assessor/Mentor em `fat_sucesso_mensal` (que eles TÊM
+  permissão de escrever) dispara o trigger de marcação por baixo dos panos, que falhava com `42501`
+  tentando marcar `dim_planejamento` como o próprio chamador — quebrando a escrita principal que
+  deveria funcionar. Bloqueava o P1 inteiro da feature (Assessor editando a planilha, a tela mais
+  acessada do sistema). Mesma categoria de exceção já usada por `app.trg_auditoria()`
+  (`0012_fundacao_auditoria_gap.sql`) — escrita de sistema em tabela que o papel chamador
+  legitimamente não tem `GRANT` direto, contra dado derivado do que ele já pode ler.
+- **Trade-off**: Refina o alcance da AD-024 ("SECURITY DEFINER nunca é usado em escrita de negócio
+  multi-tabela") para uma classe estreita e explícita: recômputo determinístico de valor
+  derivado/cache, sem parâmetro de escrita livre. AD-024 continua valendo por padrão para toda RPC
+  de negócio nova — esta exceção não se aplica a funções que aceitam dado arbitrário do chamador
+  (ex.: `app.atualiza_sucessos_mensais_lote` continua `SECURITY INVOKER`, porque ali o chamador
+  controla o valor escrito). Quem escrever a próxima função de recômputo de cache precisa avaliar
+  explicitamente se ela se qualifica para esta exceção ou se é uma RPC de negócio comum.
+- **Scope**: Planejamento & Monitoramento (cascata de atingimento); qualquer feature futura que
+  precise de uma função de recômputo de coluna derivada/cache disparada por papel sem `GRANT` amplo
+  na tabela de destino.
+- **Date**: 2026-08-12
+- **Status**: active
+
+---
+
+## Handoff (Kanban de Etapas — CONCLUÍDA e validada)
+
+- **Feature**: Kanban de Etapas (`.specs/features/kanban-etapas/`) — **CONCLUÍDA e validada**, 10/10
+  requisitos (KAN-01 a KAN-10). Primeira superfície de **escrita** de `fat_etapa_contrato` (AD-023):
+  board por produto, uma coluna por `ref_etapa`, drag-and-drop grava a transição real via
+  `app.mover_etapa_kanban`. Desbloqueia G1/G2 (`visao-gerencial-g1-g2`, próxima da onda), que agora
+  encontra dado real (etapa como fato datado, AD-013) pra consumir.
+- **Phase / Task**: Specify (já vinha escrito) → Discuss embutido (9 assumptions confirmadas por
+  Pedro assumindo o default proposto, sem rodada de perguntas ao vivo) → Design (pesquisa de lib de
+  drag-and-drop via web search, Context7 indisponível → `@dnd-kit/core`+`@dnd-kit/utilities`, AD-034;
+  achados reais de infraestrutura documentados abaixo) → Tasks (11 tasks, 2 batches) → Execute (2
+  batches de sub-agente, oferta aceita por instrução prévia do usuário) → Validate (standalone
+  fallback, PASS de primeira, 1 gap Minor corrigido na mesma sessão).
+- **Completed**: Batch 1 (DB+backend, T1-T5): `d355788` (T1, WITH CHECK+GRANT) → `c34137c` (T2,
+  trigger de auditoria) → `8ede5c1` (T3, `app.mover_etapa_kanban`) → `98ba773` (T4,
+  `buscarBoardKanban`/`buscarProjetosDoProduto`) → `093c46f` (T5, `moverEtapaKanban`+`TransicaoInvalidaError`)
+  → `69774b2` (docs). Batch 2 (frontend, T6-T11): `2df7f79` (T6, instala `@dnd-kit`) → `a729a7e` (T7,
+  `KanbanCard`) → `fda180b` (T8, `KanbanColuna` droppable) → `60e2495` (T9, `KanbanBoard` — DndContext +
+  mutation otimista) → `8655c3d` (T10, filtro projeto+minha carteira) → `de8c3cf` (T11, substitui
+  `<EmDesenvolvimento>` no Dashboard do produto) → `8569c31` (docs) → `93da61f` (validation.md) →
+  `c05de7e` (lições L-016 a L-018). Fix pós-Validate: `ccb0694` + `1592f9b` (mutante sobrevivente
+  fechado — teste de contrato encerrado continuando visível no board).
+- **Achado real de infraestrutura durante Design, corrigido no Batch 1** (não eram assumption — fato
+  do banco, descoberto lendo migrations): (1) `fat_contrato.p_por_carteira`
+  (`0011_fundacao_rls.sql`) nunca teve `WITH CHECK` explícito, só `USING` — mesma categoria de risco
+  da FND-USR-02; (2) `legisla_mentor`/`legisla_assessor` nunca receberam nenhum `GRANT UPDATE` em
+  `fat_contrato`/`fat_etapa_contrato` em nenhuma migration — sem corrigir isso, "Mentor move card pra
+  frente" (P1) era impossível pelo `GRANT`, avaliado antes da RLS. Os dois fechados em `d355788`
+  (`GRANT UPDATE` column-scoped, least privilege). SPEC_DEVIATION colateral no mesmo commit:
+  `regua-rls.integration.test.ts` (RGI-08) exercia um `.update()` que o `GRANT` novo passou a
+  permitir legitimamente — trocado pro `.insert()` que o título do teste sempre disse testar.
+- **Achado real durante Batch 1, sessão travada por limite de API**: o primeiro agente de batch
+  (T1-T5) caiu por limite de sessão no meio da T5 — T1-T4 já estavam implementadas e com gate real
+  passando, mas **nenhum commit tinha sido feito** (T3 já estava aplicada no banco de dev via
+  `db push`, confirmado por `supabase migration list`, mas só chegava a existir como arquivo local
+  não commitado). O orquestrador desta sessão verificou cada entrega com o gate real (não
+  self-assessment) antes de commitar T1-T4 e completou a T5 inline (sem novo sub-agente) —
+  `errors.ts`/`TransicaoInvalidaError`/`rpc/kanban.test.ts` não existiam ainda quando a sessão caiu.
+- **Achado real do Validate (Batch 2, PASS com 1 gap Minor)**: sensor de discriminação (4 mutações,
+  camada backend-unit) matou 3/4; a 4ª (filtro silencioso por `status='ativo'` em `buscarBoardKanban`)
+  sobreviveu — comportamento já estava correto (Edge Case "contrato encerrado continua visível"),
+  só faltava a prova automatizada. Corrigido no mesmo dia (`ccb0694`). O Verifier desta sessão
+  **deliberadamente não mutou a camada DB** (função/policy já implantada no projeto de dev
+  compartilhado) por outra sessão de agente estar committando em paralelo no mesmo repo/banco durante
+  a validação — risco documentado no próprio `validation.md`, mesma categoria de cautela que
+  `CLAUDE.md` pede pra SQL ad-hoc fora do fluxo de migration. A camada DB foi reconfirmada ao vivo
+  (recorte `supabase/tests/kanban`, 15/15 verde) em vez de mutada.
+- **Débito estrutural conhecido, não desta feature**: nenhum componente de UI (T6-T11) tem cobertura
+  automatizada — sem harness de componente React no projeto (mesmo débito já documentado nas lições
+  L-006/L-007, `plataforma-ui-tanstack`/`navegacao-por-produto`). Verificado por `npm run build &&
+  npm run lint:all` (limpo, baseline inalterada de 27 problemas pré-existentes) e inspeção de código.
+- **Next step**: nenhum obrigatório. `visao-gerencial-g1-g2` (próxima da onda) já encontra dado real
+  pra G1/G2. UAT manual recomendado, não bloqueante: arrastar um card de verdade no navegador
+  (avanço, retrocesso como Gestora, tentativa de retrocesso como Mentor, salto de coluna) — nenhum
+  harness de componente cobre isso automaticamente.
+- **Blockers**: none.
+- **Uncommitted files**: none desta feature. `.specs/STATE.md` (este arquivo) e
+  `.specs/features/planejamento-planilha-monitoramento/{design.md,tasks.md}` tinham edições de outra
+  sessão em paralelo (AD-035, acima) já no working tree antes deste Handoff ser escrito — não
+  criadas por `kanban-etapas`, não tocadas por este Handoff.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: `planejamento-planilha-monitoramento`
+  commitou intercalado neste mesmo branch `develop` durante a execução de todo o Batch 2 (commits
+  `84b5643`..`a4aed5f`, ver `git log`) — nenhum arquivo desta feature colidiu (confirmado por
+  `git show --stat` por commit, ver `validation.md`). `.specs/STATE.md` teve a mesma corrida de
+  escrita já documentada em handoffs anteriores (AD-034 desta feature foi commitado pela sessão de
+  `operacao-regua-instanciacao` sem querer, por escrita no mesmo working tree — sem perda de dado,
+  só atribuição de commit "errada").
+
+---
+
 ## Handoff (Régua de Etapas e Instanciação — CONCLUÍDA e validada)
 
 - **Feature**: Régua de Etapas e Instanciação (`.specs/features/operacao-regua-instanciacao/`) —
