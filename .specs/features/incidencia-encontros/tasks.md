@@ -102,11 +102,13 @@ de `ref_preditor` (tabela `VALUES` intermediária), `"—"` → `NULL`.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `ref_nivel_iip` tem 4 linhas (`baixo`/`medio`/`alto`/`maximo`)
-- [ ] `ref_tipologia` tem 51 linhas, nenhuma com `id_preditor_1`/`id_preditor_2` incorreto (spot-check manual de 3 linhas contra o CSV)
-- [ ] `supabase db push` idempotente (rodar 2x não duplica)
+- [x] `ref_nivel_iip` tem 4 linhas (`baixo`/`medio`/`alto`/`maximo`)
+- [x] `ref_tipologia` tem 51 linhas, nenhuma com `id_preditor_1`/`id_preditor_2` incorreto (spot-check manual de 3 linhas contra o CSV)
+- [x] `supabase db push` idempotente (rodar 2x não duplica)
 
 **Tests**: none (validado pela integração de T14) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `0968ee2`.
 
 ---
 
@@ -125,11 +127,13 @@ real de Design"), todos verbatim `docs/schema_sistema.sql` (linhas no design.md)
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] As 7 tabelas + `mv_iip_contrato` existem no dev (`supabase db push` sem erro)
-- [ ] `uq_mv_iip_contrato`, `uq_encontro_sequencia`, `uq_registro_sequencia`, `uq_insight_origem_*`, `uq_fato_origem_*`, `uq_encontro_participante_usuario` existem
-- [ ] Rodar a migration 2x não falha (idempotente)
+- [x] As 7 tabelas + `mv_iip_contrato` existem no dev (`supabase db push` sem erro)
+- [x] `uq_mv_iip_contrato`, `uq_encontro_sequencia`, `uq_registro_sequencia`, `uq_insight_origem_*`, `uq_fato_origem_*`, `uq_encontro_participante_usuario` existem
+- [x] Rodar a migration 2x não falha (idempotente)
 
 **Tests**: none (validado por T11/T14) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `d6ea4d7`.
 
 ---
 
@@ -146,11 +150,15 @@ novo; reaplica `app.trg_auditoria()` às 7 tabelas (padrão idempotente `0012`/k
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `INSERT` em `fat_registro` com tipo de registro fora da régua do produto é rejeitado
-- [ ] `INSERT`/`UPDATE` em `fat_insight.id_registro` de outro contrato é rejeitado
-- [ ] `log_auditoria` recebe linha em `INSERT` nas 7 tabelas
+- [x] `INSERT` em `fat_registro` com tipo de registro fora da régua do produto é rejeitado
+- [x] `INSERT`/`UPDATE` em `fat_insight.id_registro` de outro contrato é rejeitado
+- [x] `log_auditoria` recebe linha em `INSERT` nas 7 tabelas
 
 **Tests**: none (validado por T11) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `66e1e23`. (Checagem viva feita nesta task: rejeição de
+`trg_valida_registro_produto` confirmada contra o banco de dev. Cobertura formal
+completa dos 3 itens fica com os testes de integração de T11/Phase 2.)
 
 ---
 
@@ -168,11 +176,13 @@ novo; reaplica `app.trg_auditoria()` às 7 tabelas (padrão idempotente `0012`/k
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `pg_policies` mostra `qual`+`with_check` não nulos nas 7 tabelas
-- [ ] `relforcerowsecurity = true` nas 7
-- [ ] `fat_registro` tem a cláusula extra de autoria no `with_check`
+- [x] `pg_policies` mostra `qual`+`with_check` não nulos nas 7 tabelas
+- [x] `relforcerowsecurity = true` nas 7
+- [x] `fat_registro` tem a cláusula extra de autoria no `with_check`
 
 **Tests**: none (validado por T10) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `e4ba0d6`.
 
 ---
 
@@ -192,10 +202,15 @@ novo; reaplica `app.trg_auditoria()` às 7 tabelas (padrão idempotente `0012`/k
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `pg_class.relacl` mostra o GRANT esperado por role em cada uma das 7 tabelas
-- [ ] `legisla_assessor` tem `USAGE`+`SELECT` em `ALL SEQUENCES`
+- [x] `pg_class.relacl` mostra o GRANT esperado por role em cada uma das 7 tabelas
+- [x] `legisla_assessor` tem `USAGE`+`SELECT` em `ALL SEQUENCES`
 
 **Tests**: none (validado por T10) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `90faaa7`. Achado documentado no commit: schema
+aprovado (`docs/schema_sistema.sql:2093-2098`) nunca deu ao Assessor nenhum
+acesso a estas 7 tabelas — extensão feita per spec.md P1 + SPEC_DEVIATION de
+Encontro já aprovado em design.md, não é desvio novo desta task.
 
 ---
 
@@ -212,11 +227,13 @@ pra `p_id_meta_origem`/`p_id_insight_origem` (ver design.md, Data Models).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Chamada válida cria 1 linha em `fat_fato_gerador` (+ `rel_fato_origem` quando houver origem)
-- [ ] Meta/Insight de outro contrato é rejeitada com mensagem clara
-- [ ] Nenhum parâmetro aceita `id_usuario_autor` do chamador
+- [x] Chamada válida cria 1 linha em `fat_fato_gerador` (+ `rel_fato_origem` quando houver origem)
+- [x] Meta/Insight de outro contrato é rejeitada com mensagem clara
+- [x] Nenhum parâmetro aceita `id_usuario_autor` do chamador
 
 **Tests**: none (validado por T12) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `2c7fcce`.
 
 ---
 
@@ -233,10 +250,17 @@ até 2 linhas em `rel_insight_origem` (Meta e/ou Sucesso), validando mesmo-contr
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Chamada válida cria 1 linha em `fat_insight` (+ até 2 em `rel_insight_origem`)
-- [ ] Meta/Sucesso/Registro de outro contrato é rejeitado
+- [x] Chamada válida cria 1 linha em `fat_insight` (+ até 2 em `rel_insight_origem`)
+- [x] Meta/Sucesso/Registro de outro contrato é rejeitado
 
 **Tests**: none (validado por T13) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `31b5c35`. Nota de implementação: quando Meta e
+Sucesso são informados juntos, a função grava **1 linha** em
+`rel_insight_origem` com as duas colunas preenchidas (mesmo padrão de T6/
+`rel_fato_origem`), não 2 linhas separadas — `ck_insight_origem` e os 2
+índices UNIQUE parciais aceitam essa forma; comportamento equivalente ao
+descrito em design.md.
 
 ---
 
@@ -254,10 +278,19 @@ view a `legisla_mentor`/`legisla_assessor` (demais já cobertos pelo bloco).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `legisla_mentor` consegue chamar `app.atualiza_iip_contrato()` sem `42501`
-- [ ] `vw_iip_contrato` retorna 1 linha por contrato (nunca 0, mesmo sem Fato Gerador)
+- [x] `legisla_mentor` consegue chamar `app.atualiza_iip_contrato()` sem `42501`
+- [x] `vw_iip_contrato` retorna 1 linha por contrato (nunca 0, mesmo sem Fato Gerador)
 
 **Tests**: none (validado por T14) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `5e62d77`. **Achado real não previsto em design.md/
+tasks.md**: `vw_iip_contrato` é `security_invoker=true`, o que faz o Postgres
+checar GRANT nas tabelas de base (não só na view) contra o papel que chama —
+sem `SELECT` direto em `mv_iip_contrato` (nenhuma role tinha) e em
+`fat_contrato` (Assessor nunca teve), Mentor/Assessor teriam "permission
+denied" ao consultar a view mesmo com o `GRANT SELECT` nela previsto pela
+task. Corrigido nesta mesma migration com os 2 grants que faltavam;
+verificado ao vivo nos dois papéis.
 
 ---
 
@@ -275,10 +308,16 @@ vw_carteira` pela versão completa aprovada (`docs/schema_sistema.sql:1327-1352`
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `vw_carteira` tem as 3 colunas novas
-- [ ] Nenhum consumidor existente quebra (hoje: nenhum — só `database.types.ts`)
+- [x] `vw_carteira` tem as 3 colunas novas
+- [x] Nenhum consumidor existente quebra (hoje: nenhum — só `database.types.ts`)
 
 **Tests**: none (validado por T15) · **Gate**: build (push sem erro)
+
+✅ **Concluída** — commit `e3ee5e4`. Nota: a marcação de AD-032 como resolvida
+em `.specs/STATE.md` (spec.md AC8) ficou **fora** deste lote — esse arquivo é
+de outra sessão em paralelo na mesma branch (fora do escopo de Phase 1:
+Schema, T1-T9); precisa ser feita por quem tiver ownership de `STATE.md`
+nesta janela, ou no handoff final da feature.
 
 ---
 
