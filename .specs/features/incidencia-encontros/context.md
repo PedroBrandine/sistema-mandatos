@@ -52,8 +52,17 @@ tarefa obrigatória de substituir `vw_carteira` reduzida (AD-032) pela versão c
 ### Onde vivem as novas ações de UI
 
 - Os botões "Registrar Insight"/"Registrar Fato Gerador" do chrome (hoje `toast("Em
-  desenvolvimento")`) passam a abrir um `Dialog` de verdade, mesmo padrão de Dialog+React Hook
-  Form já em uso em `objetivo-form.tsx` (`planejamento-planilha-monitoramento`).
+  desenvolvimento")`) passam a abrir um `Dialog` de verdade.
+- **Correção pós-Discuss (achado de Design):** a referência dada na conversa foi
+  `objetivo-form.tsx`, mas esse componente **não** usa `Dialog` — o próprio comentário do arquivo
+  diz "não há precedente de dialog de criação neste repo (só ConfirmDeleteDialog)", renderizado
+  inline condicional na página. O precedente real de `Dialog` envolvendo formulário de criação é
+  `usuarios/page.tsx` (`<Dialog>`+`<DialogTrigger>`+`<DialogContent>`) envolvendo `UsuarioForm` —
+  um componente de formulário "burro" que não sabe que está num Dialog, só recebe callbacks
+  (`onCriado`/`onConcluido`). Os formulários novos desta feature seguem essa composição: cada form
+  (RHF+Zod, shape igual ao de `objetivo-form.tsx`) fica agnóstico de Dialog; o chrome/aba decide se
+  abre em `Dialog` (Insight/Fato Gerador/Encontro) ou inline (Registro na aba de etapa, mais
+  simples por já estar dentro de uma página dedicada).
 - Registro ganha um botão "Registrar" dentro da aba de etapa (`etapas/[codigo]/page.tsx`), abrindo
   o mesmo padrão de Dialog — lista de Registros da etapa abaixo da tabela de régua já existente.
 - Encontro ganha aba própria "Encontros" no chrome (`RouteTabs`), com lista de Encontros do
