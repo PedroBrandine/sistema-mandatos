@@ -23,11 +23,9 @@ import { createClient } from "@backend/supabase/client";
 import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
-import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { DadosPlanejamentoForm } from "@/components/planejamento/dados-planejamento-form";
-import { GradeSucessosMensais } from "@/components/planejamento/grade-sucessos-mensais";
-import { HierarquiaPlanejamento } from "@/components/planejamento/hierarquia-planejamento";
 import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejamento-agregado-coalizao";
+import { PlanejamentoArvore } from "@/components/planejamento/planejamento-arvore";
 
 // PLM-01, PLM-07, PLM-15/16. Substitui o placeholder <EmDesenvolvimento> já
 // reservado pela Trilha F (NAV-08) -- não cria rota nova. Ramifica por
@@ -151,23 +149,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     setLinhasGrade(await buscarGradeSucessosMensais(supabase, ids, mesReferencia));
   }
 
-  const idsMetaComPesoDivergente = useMemo(() => {
-    const somaPorMeta = new Map<number, number>();
-    for (const linha of linhasGrade) {
-      somaPorMeta.set(linha.idMeta, (somaPorMeta.get(linha.idMeta) ?? 0) + linha.peso);
-    }
-    const divergentes = new Set<number>();
-    for (const [idMeta, soma] of somaPorMeta) {
-      if (Math.round(soma * 100) / 100 !== 100) divergentes.add(idMeta);
-    }
-    return divergentes;
-  }, [linhasGrade]);
-
-  const metasParaGrade = useMemo(
-    () => planejamento?.objetivos.flatMap((o) => o.metas.map((m) => ({ idMeta: m.idMeta, descricao: m.descricao }))) ?? [],
-    [planejamento]
-  );
-
   // PLM-02: salva só a célula editada, sem recarregar a grade inteira (AC
   // literal + risco de adoção AD-028 -- refetch completo a cada tecla é
   // exatamente o custo de rede que a US inteira existe para evitar).
@@ -269,25 +250,16 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
           ))}
       </div>
 
-      {planejamento.objetivos.length === 0 ? (
-        <EstadoVazio titulo="Nenhum Objetivo Específico cadastrado ainda" />
-      ) : (
-        <HierarquiaPlanejamento
-          idPlanejamento={planejamento.idPlanejamento}
-          produtoNome={contrato.nomeProduto}
-          objetivos={planejamento.objetivos}
-          pessoasVinculadas={pessoasVinculadas}
-          idsMetaComPesoDivergente={idsMetaComPesoDivergente}
-          onAlterado={recarregarHierarquia}
-        />
-      )}
-
-      <GradeSucessosMensais
-        metas={metasParaGrade}
+      <PlanejamentoArvore
+        idPlanejamento={planejamento.idPlanejamento}
+        produtoNome={contrato.nomeProduto}
+        objetivos={planejamento.objetivos}
         linhas={linhasGrade}
+        pessoasVinculadas={pessoasVinculadas}
         onEdicaoCelula={handleEdicaoCelula}
         onColarFaixa={handleColarFaixa}
-        onAlterado={recarregarGrade}
+        onHierarquiaAlterada={recarregarHierarquia}
+        onGradeAlterada={recarregarGrade}
       />
     </div>
   );

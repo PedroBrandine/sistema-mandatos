@@ -365,3 +365,32 @@ segurança de função).
 
 GIP, migração de planilhas legadas, notificação de Sucesso Mensal não atualizado, `pg_cron`/job de
 recálculo em background, reordenação em lote/drag de Objetivos, deletar Objetivo/Meta.
+
+---
+
+## Achado de refatoração — árvore unificada (2026-08-12, pós-validação)
+
+Pedro, depois de ver a tela pronta: "ficou ruim [...] preciso que a tela do
+planejamento estratégico seja em tree view a partir dos objetivos
+específicos, metas e sucessos mensais". `HierarquiaPlanejamento` (árvore
+Objetivo → Meta) e `GradeSucessosMensais` (grade de Sucesso Mensal agrupada
+por Meta) eram duas seções desconectadas na página — a lista de Metas
+aparecia duas vezes, em dois estilos visuais diferentes, sem nesting real.
+
+Substituídos por um único componente, `src/frontend/components/planejamento/
+planejamento-arvore.tsx` (`PlanejamentoArvore`), com uma árvore de verdade —
+Objetivo Específico → Meta → Sucesso Mensal, cada nível expansível/recolhível
+(chevron), a tabela editável de Sucesso Mensal (TanStack, tab/paste — PLM-01
+a PLM-04) aninhada dentro do próprio nó da Meta. Todas as referências a
+`HierarquiaPlanejamento`/`GradeSucessosMensais` nas seções acima deste
+documento (Components, Architecture Overview, Edge Cases, Testing Strategy)
+descrevem a decisão original — o nome do componente mudou, mas nenhum
+contrato de backend, RLS, GRANT, RPC ou AC de spec.md mudou: é refatoração de
+apresentação, não uma nova feature. `PlanejamentoAgregadoCoalizao` (leitura
+agregada de membros de Coalizão) também passou a reusar `PlanejamentoArvore`
+(somenteLeitura), no lugar dos dois componentes antigos.
+
+Gates: `npm run build` limpo, `npm run lint:all` sem novos problemas nos
+arquivos deste componente (baseline de 27 problemas pré-existentes em
+arquivos de outras sessões, inalterado), `npm run test:unit` 247/247 (sem
+teste de componente dedicado a estes arquivos — nunca existiu um).

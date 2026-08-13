@@ -14,15 +14,14 @@ import { createClient } from "@backend/supabase/client";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 
-import { GradeSucessosMensais } from "./grade-sucessos-mensais";
-import { HierarquiaPlanejamento } from "./hierarquia-planejamento";
+import { PlanejamentoArvore } from "./planejamento-arvore";
 
 // Edge Case do spec.md ("Coalizão sem planejamento próprio"): "SHALL mostrar
 // a leitura agregada dos mandatos membros, nunca um formulário de criação de
 // Objetivo (não existe dim_planejamento própria pra escrever)". Reusa
-// HierarquiaPlanejamento/GradeSucessosMensais 1x por membro, sem agregação
-// nova (context.md) -- e sempre somenteLeitura (é leitura, não a tela de
-// gestão do contrato do membro).
+// PlanejamentoArvore 1x por membro, sem agregação nova (context.md) -- e
+// sempre somenteLeitura (é leitura, não a tela de gestão do contrato do
+// membro).
 export interface PlanejamentoAgregadoCoalizaoProps {
   idCoalizao: number;
   mesReferencia: string;
@@ -98,29 +97,21 @@ function DadosPlanejamentoMembro({
 
   if (!planejamento) return null;
 
-  const metas = planejamento.objetivos.flatMap((o) => o.metas.map((m) => ({ idMeta: m.idMeta, descricao: m.descricao })));
-
   return (
     <section className="grid gap-4 border-t pt-6 first:border-t-0 first:pt-0">
       <h3 className="text-base font-medium">{nomeContratante}</h3>
-      <HierarquiaPlanejamento
+      <PlanejamentoArvore
         idPlanejamento={planejamento.idPlanejamento}
         produtoNome="Estratégia"
         objetivos={planejamento.objetivos}
+        linhas={linhasGrade ?? []}
         pessoasVinculadas={[]}
-        idsMetaComPesoDivergente={new Set()}
-        onAlterado={() => {}}
+        onEdicaoCelula={async () => {}}
+        onColarFaixa={async () => {}}
+        onHierarquiaAlterada={() => {}}
+        onGradeAlterada={() => {}}
         somenteLeitura
       />
-      {linhasGrade && (
-        <GradeSucessosMensais
-          metas={metas}
-          linhas={linhasGrade}
-          somenteLeitura
-          onEdicaoCelula={async () => {}}
-          onColarFaixa={async () => {}}
-        />
-      )}
     </section>
   );
 }
