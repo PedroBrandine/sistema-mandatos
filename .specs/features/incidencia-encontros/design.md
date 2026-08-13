@@ -119,7 +119,15 @@ nova, as 2 RPCs ou a função de refresh existem hoje (`supabase db diff`/intros
    `rel_insight_origem` (`:1080-1085`) + índices (`:1088-1091`)/comentário (`:1093-1094`);
    `fat_fato_gerador` (`:1098-1117`)/comentários (`:1119-1123`) + `rel_fato_origem` (`:1126-1131`) +
    índices (`:1134-1137`)/comentário (`:1139-1140`). `CREATE TABLE IF NOT EXISTS`, mesmo padrão
-   idempotente de toda feature anterior.
+   idempotente de toda feature anterior. **Inclui também `mv_iip_contrato`** (`:1247-1267`,
+   `WITH NO DATA`) + `uq_mv_iip_contrato` (`:1269`) — o escopo original já a cita, só não estava
+   explícita nesta lista de arquivos. **Achado real de Design**: `REFRESH MATERIALIZED VIEW
+   CONCURRENTLY` (usada por `app.atualiza_iip_contrato()`, item 8) exige que a MV já tenha sido
+   populada **sem** `CONCURRENTLY` ao menos uma vez — criar `WITH NO DATA` e só usar `CONCURRENTLY`
+   depois falha com "materialized view has not been populated". Esta migration termina com
+   `REFRESH MATERIALIZED VIEW mv_iip_contrato;` (sem `CONCURRENTLY`, populando 0 linhas — nenhum
+   Fato Gerador existe ainda nesse ponto) logo após o `CREATE`, só pra satisfazer esse requisito do
+   Postgres antes de qualquer `CONCURRENTLY` futuro.
 3. **`incidencia_encontros_triggers`** — `app.trg_valida_registro_produto` (`:1908-1928`) +
    `app.trg_valida_insight_contrato` (`:1931-1945`), verbatim, **sem** `ERRCODE` customizado (ver
    Tech Decisions — não é deviation da AD-008 acrescentar `ERRCODE` a função nova, mas é deviation
