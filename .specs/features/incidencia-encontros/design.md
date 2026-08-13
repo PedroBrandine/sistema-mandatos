@@ -398,6 +398,14 @@ export interface FatoGeradorResumo {
 
 > Nenhum concern acima bloqueia o MVP — todos têm mitigação.
 
+**Achado real de Execute (T8, corrigido na própria migration)**: `vw_iip_contrato` é
+`security_invoker = true` — diferente de uma view "normal", o Postgres checa `GRANT` nas tabelas
+de base contra quem **chama** a view, não contra o owner. `legisla_mentor`/`legisla_assessor`
+nunca tinham `SELECT` em `mv_iip_contrato` (só existe desde T2) e `legisla_assessor` nunca tinha
+`SELECT` em `fat_contrato` (bootstrap deu isso só a `legisla_mentor`, `0011_fundacao_rls.sql`) —
+sem os 2 GRANTs, os dois papéis receberiam `42501` consultando a view mesmo com `GRANT SELECT`
+nela em si. Corrigido em `20260813194110_incidencia_encontros_iip.sql`.
+
 ---
 
 ## Tech Decisions
