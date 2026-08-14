@@ -159,6 +159,24 @@ export function EncontrosLista({ idContrato, atualizarSinal }: EncontrosListaPro
     void carregar();
   }
 
+  // Edição leve de status (context.md: "Dialog de criação/edição de
+  // status") -- direto na lista, sem reabrir EncontroForm inteiro.
+  // ck_encontro_realizado (status='realizado' exige dt_realizada) segue
+  // como defesa de banco -- se status vira 'realizado' sem essa data já
+  // preenchida, o UPDATE falha e mapeiaErroRpc traduz a mensagem.
+  async function alterarStatus(idEncontro: number, novoStatus: string) {
+    setErro(null);
+    const supabase = createClient();
+    const payload: { status: string; dt_realizada?: string } =
+      novoStatus === "realizado" ? { status: novoStatus, dt_realizada: new Date().toISOString() } : { status: novoStatus };
+    const { error } = await supabase.from("fat_encontro").update(payload).eq("id_encontro", idEncontro);
+    if (error) {
+      setErro(mapeiaErroRpc(error).message);
+      return;
+    }
+    void carregar();
+  }
+
   if (encontros.length === 0) {
     return <p className="text-sm text-muted-foreground">Nenhum encontro cadastrado ainda.</p>;
   }
@@ -178,7 +196,20 @@ export function EncontrosLista({ idContrato, atualizarSinal }: EncontrosListaPro
                   {e.dtRealizada ? ` · Realizado em ${new Date(e.dtRealizada).toLocaleDateString("pt-BR")}` : ""}
                 </p>
               </div>
-              <Badge variant="secondary">{STATUS_LABEL[e.status] ?? e.status}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{STATUS_LABEL[e.status] ?? e.status}</Badge>
+                <Select value={e.status} onValueChange={(v) => void alterarStatus(e.idEncontro, v)}>
+                  <SelectTrigger className="h-8 w-36 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="planejado">Planejado</SelectItem>
+                    <SelectItem value="realizado">Realizado (hoje)</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                    <SelectItem value="remarcado">Remarcado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="mt-3 grid gap-2">
