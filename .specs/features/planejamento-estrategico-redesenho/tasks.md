@@ -762,6 +762,116 @@ T1→T2→T3→T4→T5  |  T6→T7→T8→T9→T10  |  T11→T12→T13→T14→T
 
 Execução sequencial dentro de cada fase. Fases em sequência — cada uma assume a anterior aplicada.
 
+---
+
+## Fase 7 — Fixes pós-Verifier (ciclo 1/3, `validation.md`)
+
+Verifier independente (author ≠ verifier) rodou após T24 e retornou **FAIL** — 3 gaps ranqueados,
+nenhum dos 3 é spec-precision gap (outcome do spec era preciso, só não existia no código). Fix
+tasks abaixo, na ordem do relatório.
+
+### T25: Assessor filtrado por padrão ao abrir a tela (Edge Case, spec.md:97-99)
+
+**What**: `soMinhasMetas` nascia `useState(false)` independente do papel — Assessor via a carteira
+inteira até marcar manualmente a caixa da toolbar, o oposto do Edge Case ("modo inicial ... filtrado
+apenas às Metas [do Assessor]").
+**Where**: `src/frontend/app/(app)/contratos/[id]/planejamento/page.tsx`
+**Requirement**: Edge Case (spec.md), gap #3 de `validation.md`
+
+**Done when**:
+- [x] Papel `assessor` abre a tela com "só as minhas metas" já marcado
+- [x] Qualquer outro papel abre com o filtro desmarcado (comportamento anterior preservado)
+- [x] `npm run lint:frontend` sem regressão
+
+**Tests**: none (componente, sem harness — débito conhecido L-006/L-007) · **Gate**: lint + build
+
+✅ **Concluída** — commit `fix(planejamento): T25 -- soMinhasMetas default por papel (assessor)`.
+`papel` chega assíncrono (`usePapelGlobal`) — decidir isso num `useState` inicial exigiria usar o
+fallback "assessor" (que existe só pra nunca mostrar CRUD antes de saber o papel real) também pra
+decidir o default do filtro, ligando-o incorretamente pra todo mundo durante o carregamento. Usa o
+padrão "ajustar estado durante o render" (recomendado pelo React pra derivar estado de uma prop que
+muda — `react-hooks/set-state-in-effect` rejeitaria a versão com `useEffect` + `setState` síncrono,
+mesma classe de erro já corrigida em `modal-historico.tsx` na Fase 4): `papelParaFiltroPadrao` grava
+o último papel já processado, então a checagem só dispara 1x, na primeira vez que `papel` resolve —
+depois disso o usuário controla a caixa livremente pela toolbar. Decide via
+`permissoes.editaPctSóMetasProprias` (única `true` para `assessor` em `PERMISSOES`), nunca por
+`papel === "assessor"` direto (PLR-07: nenhum componente checa papel bruto).
+
+---
+
+### T26: Limpar uma célula de `%` grava `NULL` (Success Criteria, spec.md:124)
+
+**What**: `normalizaEntradaPct("")` retorna `null` — o mesmo valor de "entrada inválida" — então
+`handleCommitCelula` mostrava "Valor deve estar entre 0 e 100" pra um campo vazio e nunca gravava.
+Não havia caminho nenhum pra apagar um Sucesso Mensal preenchido por engano (`sucesso-mensal-form.tsx`
+documenta que `pct_atingimento` é campo da grade, fora do modal).
+**Where**: `src/frontend/components/planejamento/planejamento-grade.tsx` (`handleCommitCelula`,
+`PlanejamentoGradeProps.onEdicaoCelula`); `src/frontend/app/(app)/contratos/[id]/planejamento/page.tsx`
+(`handleEdicaoCelula`)
+**Requirement**: Success Criteria (spec.md), gap #2 de `validation.md`
+
+**Done when**:
+- [x] Apagar o conteúdo de uma célula e sair (blur) grava `pct_atingimento = NULL`
+- [x] Linha volta a exibir "—" e status "pendente" (já era o comportamento de `formatarPct`/status
+      pra `NULL` — nenhuma mudança adicional necessária, só o caminho de escrita faltava)
+- [x] Campo já vazio (já `NULL`) não dispara escrita nem entrada de undo (early return)
+- [x] `onEdicaoCelula`/`handleEdicaoCelula` aceitam `pctAtingimento: number | null`
+- [x] `npm run test:unit`/`build`/`lint:frontend` sem regressão
+
+**Tests**: none novo (componente/página, sem harness) · **Gate**: unit + build + lint
+
+✅ **Concluída** — commit `fix(planejamento): T26 -- limpar celula grava NULL`. `valorTexto.trim() ===
+""` é checado ANTES de `normalizaEntradaPct` em `handleCommitCelula` (que continua tratando
+`""`/inválido igual — a distinção só pode ser feita antes de chamá-la). `pct_atingimento` já é
+nullable no schema (`fat_sucesso_mensal.pct_atingimento: number | null`, AD-005 "NULL nunca
+sentinela") — `handleEdicaoCelula` em `page.tsx` só precisou trocar o tipo do parâmetro, o
+`.update({ pct_atingimento })` já aceitava `null`. Escopo mantido estrito ao pedido do Success
+Criterion (célula única, via blur/paste de valor único) — paste de faixa (`handlePasteInicio`) e
+aplicar em massa continuam sem semântica de "limpar" (nenhum dos dois teve esse requisito no spec);
+undo continua com a limitação já documentada em T23 (não restaura valores que eram `NULL` antes da
+edição) — não expandida aqui, é escopo de D-D, não deste fix.
+
+---
+
+### T27: PLR-19 — salvamento otimista com reversão em erro + indicador de "salvando" por célula
+
+**What**: PLR-19 nunca tinha sido decomposto em task (buraco de planejamento, não só de execução) —
+zero indicador visual de escrita em voo, zero reversão do valor exibido quando a escrita falhava
+(só um `toast.error`, o valor digitado/colado ficava na tela como se tivesse sido salvo).
+**Where**: `src/frontend/components/planejamento/planejamento-grade.tsx` (`CelulaPct`, novo
+`escreverCelulas`/`restaurarComSalvando`, `celulasSalvando`); `src/frontend/app/(app)/contratos/[id]/planejamento/page.tsx`
+(`handleEdicaoCelula`/`handleColarFaixa` relançam o erro após o toast)
+**Requirement**: PLR-19, gap #1 de `validation.md`
+
+**Done when**:
+- [x] Célula em voo (célula única, faixa colada, massa, undo) mostra spinner + fica desabilitada
+      (`aria-busy`, evita 2ª escrita concorrente na mesma célula)
+- [x] Escrita falha → valor exibido reverte pro anterior (não só o toast, que já existia)
+- [x] Comportamento estendido aos 4 caminhos de escrita, não só célula única
+- [x] `onEdicaoCelula`/`onColarFaixa` (page.tsx) relançam o erro depois do toast — sinal que a
+      árvore usa pra decidir reverter
+- [x] `npm run test:unit`/`build`/`lint:frontend` sem regressão
+
+**Tests**: none novo (componente, sem harness) · **Gate**: unit + build + lint
+
+✅ **Concluída** — commit `fix(planejamento): T27 -- PLR-19 salvamento otimista + indicador de salvando`.
+Envelope único `escreverCelulas(ids, valoresAnteriores, acao)` usado pelos 4 caminhos
+(`handleCommitCelula`, `handlePasteInicio`, `aplicarEmMassa` no `useImperativeHandle`, e
+`restaurarComSalvando` — wrapper que o undo agora chama em vez de `onColarFaixa` direto): marca
+`celulasSalvando` antes do `await`, e em erro escreve `valoresAnteriores` de volta no DOM de cada
+`<input>` afetado (`document.getElementById(idCampoPct(id))`, mesma técnica já usada pelo `Escape`
+key handler de T20) — necessário porque `CelulaPct` é descontrolado (`defaultValue`, débito
+conhecido documentado em `validation.md` "Code Quality"), não há outro jeito de reverter um valor
+que o próprio usuário digitou/colou sem essa escrita ter de fato acontecido no banco. SPEC_DEVIATION
+mantida (não introduzida por este fix): faixa/massa revertem em bloco (1 erro da RPC atômica reverte
+todas as células daquele lote) — é o comportamento correto dado que a escrita em si já é atômica
+(AD-024), não uma limitação nova.
+
+---
+
+## Fase 7 concluída — 3/3 gaps do Verifier corrigidos. Novo Verifier roda a seguir (ciclo 2/3 se
+necessário, máx. 3 antes de escalar a Pedro — ver `SKILL.md`).
+
 ## Oferta de lote de sub-agente
 
 24 tasks, 6 fases — acima do limiar de ~8 para execução inline. Proposta: **4 lotes** —
