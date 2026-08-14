@@ -949,3 +949,75 @@ export async function buscarPendencias(
 
   return { linhas, total: count ?? 0 };
 }
+
+export interface PontoCicloMensal {
+  mes: string;
+  mediana: number | null; // null = amostra vazia naquele mês (AD-005)
+  amostra: number;
+}
+
+export interface SerieCicloEtapaMensal {
+  idEtapa: number;
+  nomeEtapa: string;
+  ordem: number;
+  pontos: PontoCicloMensal[];
+}
+
+interface RowCicloEtapaMensal {
+  id_etapa: number;
+  dias_ciclo: number | null;
+  dt_conclusao: string | null;
+  id_contrato: number;
+  id_produto: number;
+}
+
+// GER-13. G2 evolução (small multiples) -- bucket pelo mês em que o ciclo
+// de fato terminou (dt_conclusao, T3), não reconstrução "as of" (mais
+// simples que G1: a data do evento já É o mês certo, sem generate_series).
+// ref_etapa é o backbone (mesma etapa sempre aparece, mesmo sem nenhum
+// ciclo concluído em nenhum mês -- pontos: []).
+export async function buscarCicloEtapaMensal(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<SerieCicloEtapaMensal[]> {
+  let queryEtapas = client.from("ref_etapa").select("id_etapa, nome, ordem").order("ordem", { ascending: true });
+  if (filtro.idProduto !== undefined) queryEtapas = queryEtapas.eq("id_produto", filtro.idProduto);
+  const { data: etapasData, error: erroEtapas } = await queryEtapas;
+  if (erroEtapas) throw erroEtapas;
+  const etapas = (etapasData ?? []) as RowRefEtapaDistribuicao[];
+  if (etapas.length === 0) return [];
+
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+  let query = client.from("vw_ciclo_etapa").select("id_etapa, dias_ciclo, dt_conclusao, id_contrato, id_produto");
+  if (filtro.idProduto !== undefined) query = query.eq("id_produto", filtro.idProduto);
+  if (filtro.idGestora !== undefined) query = query.eq("id_usuario_gestora", filtro.idGestora);
+  if (idsContrato !== undefined) query = query.in("id_contrato", idsContrato);
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = (data ?? []) as RowCicloEtapaMensal[];
+
+  const porEtapaMes = new Map<number, Map<string, number[]>>();
+  for (const row of rows) {
+    if (row.dias_ciclo === null || row.dt_conclusao === null) continue;
+    const mes = `${row.dt_conclusao.slice(0, 7)}-01`;
+    const porMes = porEtapaMes.get(row.id_etapa) ?? new Map<string, number[]>();
+    const lista = porMes.get(mes) ?? [];
+    lista.push(row.dias_ciclo);
+    porMes.set(mes, lista);
+    porEtapaMes.set(row.id_etapa, porMes);
+  }
+
+  return etapas.map((e) => {
+    const porMes = porEtapaMes.get(e.id_etapa) ?? new Map<string, number[]>();
+    const meses = [...porMes.keys()].sort((a, b) => a.localeCompare(b));
+    return {
+      idEtapa: e.id_etapa,
+      nomeEtapa: e.nome,
+      ordem: e.ordem,
+      pontos: meses.map((mes) => {
+        const dias = porMes.get(mes) ?? [];
+        return { mes, mediana: mediana(dias), amostra: dias.length };
+      }),
+    };
+  });
+}

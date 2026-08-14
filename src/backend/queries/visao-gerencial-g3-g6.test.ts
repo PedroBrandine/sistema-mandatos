@@ -11,6 +11,7 @@ import {
   buscarCompletudeCadastro,
   buscarIipConsolidado,
   buscarPendencias,
+  buscarCicloEtapaMensal,
 } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
@@ -555,5 +556,59 @@ describe("buscarPendencias", () => {
 
     expect(resultado.linhas).toEqual([]);
     expect(resultado.total).toBe(0);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-13 +
+// tasks.md T23 (adendo: buscarCicloEtapaMensal, lacuna real achada durante
+// T23 -- G2 evolução mensal nunca tinha função de query própria).
+describe("buscarCicloEtapaMensal", () => {
+  it("etapa sem nenhum ciclo concluído aparece com pontos: [] (backbone ref_etapa), nunca omitida", async () => {
+    const client = criarClienteMock({
+      ref_etapa: {
+        data: [
+          { id_etapa: 10, nome: "Cadastro", ordem: 1 },
+          { id_etapa: 11, nome: "Pontapé", ordem: 2 },
+        ],
+        error: null,
+      },
+      vw_ciclo_etapa: {
+        data: [{ id_etapa: 10, dias_ciclo: 5, dt_conclusao: "2026-06-15", id_contrato: 1, id_produto: 10 }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCicloEtapaMensal(client, {});
+
+    expect(resultado).toHaveLength(2);
+    expect(resultado[0].pontos).toEqual([{ mes: "2026-06-01", mediana: 5, amostra: 1 }]);
+    expect(resultado[1].idEtapa).toBe(11);
+    expect(resultado[1].pontos).toEqual([]);
+  });
+
+  it("bucketiza pelo mês de dt_conclusao (não pelo mês corrente) e calcula mediana por mês", async () => {
+    const client = criarClienteMock({
+      ref_etapa: { data: [{ id_etapa: 10, nome: "Cadastro", ordem: 1 }], error: null },
+      vw_ciclo_etapa: {
+        data: [
+          { id_etapa: 10, dias_ciclo: 4, dt_conclusao: "2026-05-03", id_contrato: 1, id_produto: 10 },
+          { id_etapa: 10, dias_ciclo: 8, dt_conclusao: "2026-05-20", id_contrato: 2, id_produto: 10 },
+          { id_etapa: 10, dias_ciclo: 10, dt_conclusao: "2026-06-01", id_contrato: 3, id_produto: 10 },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCicloEtapaMensal(client, {});
+
+    expect(resultado[0].pontos).toEqual([
+      { mes: "2026-05-01", mediana: 6, amostra: 2 },
+      { mes: "2026-06-01", mediana: 10, amostra: 1 },
+    ]);
+  });
+
+  it("produto sem nenhuma etapa cadastrada -> array vazio", async () => {
+    const client = criarClienteMock({ ref_etapa: { data: [], error: null } });
+    expect(await buscarCicloEtapaMensal(client, { idProduto: 99 })).toEqual([]);
   });
 });
