@@ -84,6 +84,25 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const [quantidadeMarcada, setQuantidadeMarcada] = useState(0);
   const gradeRef = useRef<PlanejamentoGradeHandle>(null);
 
+  // Edge Case (.specs/features/planejamento-estrategico-redesenho/spec.md
+  // "WHEN o papel é assessor e ele abre a tela THEN o modo inicial SHALL ser
+  // Monitorar, filtrado apenas às Metas [dele]"). `papel` chega async
+  // (usePapelGlobal) -- não dá pra decidir no useState inicial de
+  // `soMinhasMetas` sem usar o fallback "assessor" também pra quem NÃO é
+  // assessor (o fallback existe só pra nunca mostrar CRUD/dado sensível
+  // antes de saber o papel real, não pra decidir default de filtro).
+  // "Ajustar estado durante o render" (padrão recomendado pelo React pra
+  // derivar estado de uma prop que muda, em vez de useEffect + setState
+  // síncrono -- react-hooks/set-state-in-effect) -- roda 1x só, na primeira
+  // vez que `papel` resolve (`papelParaFiltroPadrao` grava o último papel já
+  // processado); depois disso o usuário controla a caixa livremente
+  // (toolbar), sem isto voltar a mexer.
+  const [papelParaFiltroPadrao, setPapelParaFiltroPadrao] = useState<typeof papel>(null);
+  if (papel !== null && papel !== papelParaFiltroPadrao) {
+    setPapelParaFiltroPadrao(papel);
+    if (PERMISSOES[papel].editaPctSóMetasProprias) setSoMinhasMetas(true);
+  }
+
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
   const [coalizaoSemPlanejamentoProprio, setCoalizaoSemPlanejamentoProprio] = useState<number | null>(null);
   const [regua, setRegua] = useState<EtapaRegua[]>([]);
