@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { BarraRecorte } from "@/components/visao-gerencial/barra-recorte";
 import { SaudeOperacaoBloco } from "@/components/visao-gerencial/saude-operacao-bloco";
+import { DistribuicaoEtapasBloco } from "@/components/visao-gerencial/distribuicao-etapas-bloco";
 import { CarteiraPonderadaCard } from "@/components/visao-gerencial/carteira-ponderada-card";
 import { CicloEtapaCard } from "@/components/visao-gerencial/ciclo-etapa-card";
 
@@ -74,6 +75,10 @@ export default async function VisaoGerencialPage({
           <SaudeOperacaoBloco filtro={filtro} />
         </Suspense>
 
+        <Suspense fallback={<CarregandoSkeleton variante="list" linhas={4} />}>
+          <DistribuicaoEtapasBloco filtro={filtro} />
+        </Suspense>
+
         <CarteiraPonderadaCard filtro={filtro} />
         <CicloEtapaCard filtro={filtro} />
 
@@ -93,7 +98,7 @@ export default async function VisaoGerencialPage({
           </CardContent>
         </Card>
 
-        <EmDesenvolvimento titulo="Bloco 1 (etapas) e Bloco 3 (gargalos) em desenvolvimento" />
+        <EmDesenvolvimento titulo="Bloco 2 (G5/G6/IIP) e Bloco 3 (gargalos) em desenvolvimento" />
       </div>
     </div>
   );

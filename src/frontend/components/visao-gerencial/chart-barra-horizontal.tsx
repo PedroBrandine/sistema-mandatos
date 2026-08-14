@@ -21,6 +21,7 @@ interface ChartBarraHorizontalProps {
   itens: ItemBarraHorizontal[];
   unidade?: UnidadeValor;
   ordenarPorValor?: boolean; // false quando a ordem já é significativa (ex.: régua de etapas, GER-10)
+  onItemClick?: (id: string) => void; // só passado por Client Component (ex.: DistribuicaoEtapasInterativo, T24) -- nunca por Server Component (achado de T23)
 }
 
 // `unidade` (discriminador serializável, não função) -- mesmo achado real de
@@ -41,6 +42,7 @@ export function ChartBarraHorizontal({
   itens,
   unidade = "numero",
   ordenarPorValor = true,
+  onItemClick,
 }: ChartBarraHorizontalProps) {
   const [comoTabela, setComoTabela] = useState(false);
   const tituloId = useId();
@@ -100,7 +102,19 @@ export function ChartBarraHorizontal({
             <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} />
             <YAxis type="category" dataKey="rotulo" tickLine={false} axisLine={false} fontSize={11} width={110} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="valor" radius={3} isAnimationActive={false}>
+            <Bar
+              dataKey="valor"
+              radius={3}
+              isAnimationActive={false}
+              cursor={onItemClick ? "pointer" : undefined}
+              onClick={
+                onItemClick
+                  ? (data: { payload?: ItemBarraHorizontal }) => {
+                      if (data.payload) onItemClick(data.payload.id);
+                    }
+                  : undefined
+              }
+            >
               {dados.map((item) => (
                 <Cell key={item.id} fill={item.cor ?? "var(--primary)"} />
               ))}
