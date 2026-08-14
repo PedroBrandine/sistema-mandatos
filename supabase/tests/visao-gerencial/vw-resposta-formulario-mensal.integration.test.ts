@@ -3,15 +3,14 @@ import { runSql } from "../helpers/sql";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-08 +
 // tasks.md T6 Done-when -- migração:
-// 20260814212443_visao_gerencial_vw_resposta_formulario_mensal.sql.
+// 20260814213130_visao_gerencial_fix_grao_fino_evolucao_mensal.sql
+// (substitui a definição original de 20260814212443 -- mesmo achado de T5:
+// grão fino por abertura, não pré-agregado por mês).
 
 let idContratante: number;
 let idContrato: number;
 let idFormulario: number;
 let mesAlvo: string;
-let baselineAberturas: number;
-let baselineRespondidas: number;
-let baselineAberturasMesAnterior: number;
 
 beforeAll(async () => {
   const [ctx] = await runSql<{ mes_alvo: string; id_produto: number; id_formulario: number }>(`
@@ -24,17 +23,6 @@ beforeAll(async () => {
   `);
   mesAlvo = ctx.mes_alvo;
   idFormulario = ctx.id_formulario;
-
-  const [baseline] = await runSql<{ qtd_aberturas: number; qtd_respondidas: number }>(`
-    SELECT qtd_aberturas, qtd_respondidas FROM vw_resposta_formulario_mensal WHERE mes_referencia = '${mesAlvo}'::date;
-  `);
-  baselineAberturas = Number(baseline?.qtd_aberturas ?? 0);
-  baselineRespondidas = Number(baseline?.qtd_respondidas ?? 0);
-
-  const [baselineAnterior] = await runSql<{ qtd_aberturas: number }>(`
-    SELECT qtd_aberturas FROM vw_resposta_formulario_mensal WHERE mes_referencia = ('${mesAlvo}'::date - INTERVAL '1 month')::date;
-  `);
-  baselineAberturasMesAnterior = Number(baselineAnterior?.qtd_aberturas ?? 0);
 
   const [entidades] = await runSql<{ id_contratante: number; id_contrato: number }>(`
     WITH ct AS (
@@ -50,8 +38,8 @@ beforeAll(async () => {
   idContratante = entidades.id_contratante;
   idContrato = entidades.id_contrato;
 
-  // Abertura no início de mesAlvo (dentro do mês); submissão registrada no
-  // meio de mesAlvo -- respondida ANTES do fim do mês, deve contar.
+  // Abertura no início de mesAlvo (dentro do mês); submissão registrada 10
+  // dias depois -- respondida ANTES do fim do mês, deve contar.
   await runSql(`
     UPDATE rel_formulario_contrato SET estado = 'aberto', dt_abertura = '${mesAlvo}'::date
      WHERE id_contrato = ${idContrato} AND id_formulario = ${idFormulario};
@@ -71,23 +59,40 @@ afterAll(async () => {
   `);
 }, 60000);
 
-describe("visao-gerencial-g3-g6 T6 -- vw_resposta_formulario_mensal (GER-08)", () => {
-  it("qtd_aberturas sobe em 1, qtd_respondidas sobe em 1 (submissão dentro do mês da abertura)", async () => {
-    const rows = await runSql<{ qtd_aberturas: number; qtd_respondidas: number; taxa_media: string }>(`
-      SELECT qtd_aberturas, qtd_respondidas, taxa_media FROM vw_resposta_formulario_mensal
-       WHERE mes_referencia = '${mesAlvo}'::date;
+describe("visao-gerencial-g3-g6 T6 -- vw_resposta_formulario_mensal (GER-08, grão fino)", () => {
+  it("abertura respondida dentro do mês -> tem_resposta = true", async () => {
+    const rows = await runSql<{ tem_resposta: boolean; id_produto: number }>(`
+      SELECT tem_resposta, id_produto FROM vw_resposta_formulario_mensal
+       WHERE mes_referencia = '${mesAlvo}'::date AND id_contrato = ${idContrato} AND id_formulario = ${idFormulario};
     `);
     expect(rows).toHaveLength(1);
-    expect(Number(rows[0].qtd_aberturas) - baselineAberturas).toBe(1);
-    expect(Number(rows[0].qtd_respondidas) - baselineRespondidas).toBe(1);
+    expect(rows[0].tem_resposta).toBe(true);
+    expect(rows[0].id_produto).not.toBeNull();
   });
 
-  it("mês anterior à abertura não muda (delta 0) -- dt_abertura = mesAlvo nunca é <= fim_do_mes anterior", async () => {
-    const rows = await runSql<{ qtd_aberturas: number }>(`
-      SELECT qtd_aberturas FROM vw_resposta_formulario_mensal
-       WHERE mes_referencia = ('${mesAlvo}'::date - INTERVAL '1 month')::date;
+  it("mês anterior à abertura não tem essa linha (dt_abertura = mesAlvo nunca é <= fim_do_mes anterior)", async () => {
+    const rows = await runSql<{ id_contrato: number }>(`
+      SELECT id_contrato FROM vw_resposta_formulario_mensal
+       WHERE mes_referencia = ('${mesAlvo}'::date - INTERVAL '1 month')::date
+         AND id_contrato = ${idContrato} AND id_formulario = ${idFormulario};
     `);
-    expect(rows).toHaveLength(1); // mês existe na série (nunca omitido, AD-005/T5)
-    expect(Number(rows[0].qtd_aberturas) - baselineAberturasMesAnterior).toBe(0);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("sem submissão até o fim do mês -> tem_resposta = false", async () => {
+    await runSql(`DELETE FROM fat_submissao WHERE id_contrato = ${idContrato};`);
+    try {
+      const rows = await runSql<{ tem_resposta: boolean }>(`
+        SELECT tem_resposta FROM vw_resposta_formulario_mensal
+         WHERE mes_referencia = '${mesAlvo}'::date AND id_contrato = ${idContrato} AND id_formulario = ${idFormulario};
+      `);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].tem_resposta).toBe(false);
+    } finally {
+      await runSql(`
+        INSERT INTO fat_submissao (id_contrato, id_formulario, versao_formulario, respostas, momento, enviada_em)
+        VALUES (${idContrato}, ${idFormulario}, 1, '{}'::jsonb, 'inicio', '${mesAlvo}'::date + INTERVAL '10 days');
+      `);
+    }
   });
 });

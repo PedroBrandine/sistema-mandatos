@@ -3,37 +3,28 @@ import { runSql } from "../helpers/sql";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
 // tasks.md T5 Done-when -- migração:
-// 20260814211954_visao_gerencial_vw_cobertura_registro_mensal.sql.
+// 20260814213130_visao_gerencial_fix_grao_fino_evolucao_mensal.sql
+// (substitui a definição original de 20260814211954 -- achado real ao
+// implementar T9: grão fino por contrato, não pré-agregado por mês, pra
+// permitir filtrar pela barra de recorte antes de agregar em TS).
 //
-//  - contrato com registro há 40 dias do fim do mês conta como coberto
+//  - contrato com registro há 40 dias do fim do mês -> tem_registro = true
 //  - contrato com registro há 50 dias do fim do mês (fora da janela de 45)
-//    não conta
+//    -> tem_registro = false
+//  - contrato só existe na linha do mês em que estava ativo (não antes de
+//    dt_inicio)
 
 let idContratante: number;
 let idContratoCoberto: number;
 let idContratoDescoberto: number;
 let idUsuario: number;
 let mesAlvo: string;
-let baselineAtivos: number;
-let baselineComRegistro: number;
 
 beforeAll(async () => {
   const [{ mes_alvo }] = await runSql<{ mes_alvo: string }>(`
     SELECT (date_trunc('month', CURRENT_DATE) - INTERVAL '2 months')::date AS mes_alvo;
   `);
   mesAlvo = mes_alvo;
-
-  // Baseline ANTES de criar a fixture -- o banco de dev é compartilhado
-  // (outras sessões/fixtures podem ter contrato ativo no mesmo mês), então a
-  // asserção real é sobre o DELTA introduzido por esta fixture, não sobre o
-  // valor absoluto (mesmo raciocínio de vw-pendencias/T1 pra dado
-  // compartilhado).
-  const [baseline] = await runSql<{ qtd_ativos: number; qtd_com_registro: number }>(`
-    SELECT COALESCE(qtd_ativos, 0) AS qtd_ativos, COALESCE(qtd_com_registro, 0) AS qtd_com_registro
-      FROM vw_cobertura_registro_mensal WHERE mes_referencia = '${mesAlvo}'::date;
-  `);
-  baselineAtivos = Number(baseline?.qtd_ativos ?? 0);
-  baselineComRegistro = Number(baseline?.qtd_com_registro ?? 0);
 
   const [entidades] = await runSql<{
     id_contratante: number;
@@ -96,33 +87,33 @@ afterAll(async () => {
   `);
 }, 60000);
 
-describe("visao-gerencial-g3-g6 T5 -- vw_cobertura_registro_mensal (GER-07)", () => {
-  it("qtd_ativos sobe em 2 (os 2 contratos da fixture); qtd_com_registro sobe em 1 (só o coberto, dentro da janela de 45 dias)", async () => {
-    const rows = await runSql<{ qtd_ativos: number; qtd_com_registro: number }>(`
-      SELECT qtd_ativos, qtd_com_registro FROM vw_cobertura_registro_mensal
-       WHERE mes_referencia = '${mesAlvo}'::date;
+describe("visao-gerencial-g3-g6 T5 -- vw_cobertura_registro_mensal (GER-07, grão fino)", () => {
+  it("contrato coberto (registro a 40 dias do fim do mês) -> tem_registro = true; descoberto (50 dias) -> false", async () => {
+    const rows = await runSql<{ id_contrato: number; tem_registro: boolean }>(`
+      SELECT id_contrato, tem_registro FROM vw_cobertura_registro_mensal
+       WHERE mes_referencia = '${mesAlvo}'::date AND id_contrato IN (${idContratoCoberto}, ${idContratoDescoberto})
+       ORDER BY id_contrato;
     `);
-    expect(rows).toHaveLength(1);
-    // Delta contra o baseline (pré-fixture), não valor absoluto -- o banco
-    // de dev é compartilhado, outras fixtures/sessões podem ter contrato
-    // ativo no mesmo mês. Registro a 40 dias do fim do mês (coberto) soma 1;
-    // a 50 dias (fora da janela de 45, descoberto) não soma nenhum.
-    expect(Number(rows[0].qtd_ativos) - baselineAtivos).toBe(2);
-    expect(Number(rows[0].qtd_com_registro) - baselineComRegistro).toBe(1);
+    expect(rows).toHaveLength(2);
+    const porContrato = Object.fromEntries(rows.map((r) => [r.id_contrato, r.tem_registro]));
+    expect(porContrato[idContratoCoberto]).toBe(true);
+    expect(porContrato[idContratoDescoberto]).toBe(false);
   });
 
-  it("série sempre tem as 12 linhas de mês (nenhum mês omitido por falta de contrato ativo naquele mês, AD-005)", async () => {
-    // Achado real de T5: GROUP BY direto sobre contratos ativos omitia o mês
-    // inteiro quando zero contratos estavam ativos -- corrigido com LEFT
-    // JOIN contra os 12 meses gerados. COUNT(*) = 12 prova a garantia,
-    // independente de quantos meses têm contrato ativo de verdade hoje.
-    const rows = await runSql<{ qtd_meses: number; qtd_com_zero_explicito: number }>(`
-      SELECT COUNT(*) AS qtd_meses,
-             COUNT(*) FILTER (WHERE qtd_ativos = 0 AND pct_cobertura IS NULL) AS qtd_com_zero_explicito
-        FROM vw_cobertura_registro_mensal;
+  it("id_produto vem preenchido -- necessário pra filtrar por FiltroRecorte na camada TS", async () => {
+    const rows = await runSql<{ id_produto: number }>(`
+      SELECT DISTINCT id_produto FROM vw_cobertura_registro_mensal
+       WHERE mes_referencia = '${mesAlvo}'::date AND id_contrato = ${idContratoCoberto};
     `);
-    expect(Number(rows[0].qtd_meses)).toBe(12);
-    // Se algum mês tiver qtd_ativos = 0, pct_cobertura tem que ser NULL
-    // nesse mesmo mês (não 0) -- a query acima já garante essa correlação.
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id_produto).not.toBeNull();
+  });
+
+  it("contrato não aparece em mês anterior a dt_inicio", async () => {
+    const rows = await runSql<{ id_contrato: number }>(`
+      SELECT id_contrato FROM vw_cobertura_registro_mensal
+       WHERE mes_referencia = ('${mesAlvo}'::date - INTERVAL '1 month')::date AND id_contrato = ${idContratoCoberto};
+    `);
+    expect(rows).toHaveLength(0);
   });
 });
