@@ -621,11 +621,19 @@ editável da linha.
 **Requirement**: PLR-15
 
 **Done when**:
-- [ ] `Escape` reverte o valor exibido sem chamar `onCommit`
-- [ ] `Enter`/setas navegam sem sair do teclado
-- [ ] `npm run build` limpo
+- [x] `Escape` reverte o valor exibido sem chamar `onCommit`
+- [x] `Enter`/setas navegam sem sair do teclado
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. Navegação por `id` de DOM (`planejamento-pct-<idSucesso>`) +
+`document.getElementById(...)?.focus()` — mais simples que uma `Map` de refs pra uma lista que já
+muda de tamanho a cada filtro/expandir. `ordemVisualIds` deriva de `ordemVisual` (já existente,
+mesma ordem do paste de faixa). `Home`/`End` vão ao primeiro/último item de toda a árvore (não só
+"da mesma linha" — hoje só há 1 célula editável por linha de SM, então não há "fim da linha" além
+da própria célula; nota já documentada em `design.md`). `Tab` continua funcionando nativamente
+(ordem do DOM), sem handler novo.
 
 ---
 

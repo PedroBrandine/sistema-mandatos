@@ -140,12 +140,21 @@ interface CelulaPctProps {
   somenteLeitura: boolean;
   onCommit: (idSucesso: number, valorTexto: string) => void;
   onPasteInicio: (idSucesso: number, texto: string) => void;
+  // PLR-15 (T20): ids na ordem visual da árvore -- só assim `ArrowDown`/
+  // `ArrowUp`/`Home`/`End` sabem pra qual célula ir (não há outra estrutura
+  // de "próxima linha" numa lista achatada por Objetivo/Meta).
+  ordemVisualIds: number[];
 }
 
-function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio }: CelulaPctProps) {
+function idCampoPct(idSucesso: number): string {
+  return `planejamento-pct-${idSucesso}`;
+}
+
+function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio, ordemVisualIds }: CelulaPctProps) {
   return (
     <div className="grid gap-1">
       <input
+        id={idCampoPct(linha.idSucesso)}
         type="number"
         min={0}
         max={100}
@@ -164,6 +173,24 @@ function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio }: Cel
             e.preventDefault();
             onPasteInicio(linha.idSucesso, texto);
           }
+        }}
+        onKeyDown={(e) => {
+          // PLR-15: Tab já funciona nativamente (ordem do DOM) -- estes 4
+          // casos são os únicos que precisam de handler explícito.
+          if (e.key === "Escape") {
+            e.currentTarget.value = String(linha.pctAtingimento ?? "");
+            return;
+          }
+          const indiceAtual = ordemVisualIds.indexOf(linha.idSucesso);
+          if (indiceAtual === -1) return;
+          let alvo: number | undefined;
+          if (e.key === "Enter" || e.key === "ArrowDown") alvo = ordemVisualIds[indiceAtual + 1];
+          else if (e.key === "ArrowUp") alvo = ordemVisualIds[indiceAtual - 1];
+          else if (e.key === "Home") alvo = ordemVisualIds[0];
+          else if (e.key === "End") alvo = ordemVisualIds[ordemVisualIds.length - 1];
+          else return;
+          e.preventDefault();
+          if (alvo != null) document.getElementById(idCampoPct(alvo))?.focus();
         }}
         aria-invalid={Boolean(erro)}
         aria-label={`% Atingimento de ${linha.descricao}`}
@@ -281,6 +308,9 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     () => objetivos.flatMap((o) => o.metas.flatMap((m) => linhasPorMeta.get(m.idMeta) ?? [])),
     [objetivos, linhasPorMeta]
   );
+  // PLR-15 (T20): navegação por teclado da célula de % precisa só dos ids,
+  // na mesma ordem visual já usada pelo paste de faixa (PLM-03/PLR-16).
+  const ordemVisualIds = useMemo(() => ordemVisual.map((l) => l.idSucesso), [ordemVisual]);
 
   const alternar = useCallback((id: string) => {
     setExpandidos((atual) => {
@@ -570,6 +600,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
                 somenteLeitura={somenteLeitura}
                 onCommit={handleCommitCelula}
                 onPasteInicio={handlePasteInicio}
+                ordemVisualIds={ordemVisualIds}
               />
             );
           }
@@ -695,6 +726,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       permissoes.veAuditoria,
       handleCommitCelula,
       handlePasteInicio,
+      ordemVisualIds,
     ]
   );
 
