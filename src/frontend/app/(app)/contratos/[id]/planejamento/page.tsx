@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { notFound } from "next/navigation";
 import { toast } from "sonner";
 
@@ -27,8 +27,9 @@ import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ContextoEstrategico } from "@/components/planejamento/contexto-estrategico";
 import { type ModoPlanejamento, PERMISSOES } from "@/components/planejamento/permissoes";
 import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejamento-agregado-coalizao";
-import { PlanejamentoGrade } from "@/components/planejamento/planejamento-grade";
+import { PlanejamentoGrade, type PlanejamentoGradeHandle } from "@/components/planejamento/planejamento-grade";
 import { PlanejamentoHeader } from "@/components/planejamento/planejamento-header";
+import { PlanejamentoToolbar } from "@/components/planejamento/planejamento-toolbar";
 import { cn } from "@/lib/utils";
 
 // PLM-01, PLM-07, PLM-15/16 (planejamento-planilha-monitoramento) + PLR-01,
@@ -77,6 +78,9 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   // projeto para "carregando" != "sem permissão").
   const permissoes = PERMISSOES[papel ?? "assessor"];
   const [modo, setModo] = useState<ModoPlanejamento>(permissoes.modoPadrao);
+  const [busca, setBusca] = useState("");
+  const [soPendentes, setSoPendentes] = useState(false);
+  const gradeRef = useRef<PlanejamentoGradeHandle>(null);
 
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
   const [coalizaoSemPlanejamentoProprio, setCoalizaoSemPlanejamentoProprio] = useState<number | null>(null);
@@ -294,7 +298,20 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             })}
           </div>
 
+          <PlanejamentoToolbar
+            permissoes={permissoes}
+            modo={modo}
+            busca={busca}
+            onBuscaChange={setBusca}
+            soPendentes={soPendentes}
+            onSoPendentesChange={setSoPendentes}
+            onExpandirTudo={() => gradeRef.current?.expandirTudo()}
+            onRecolherTudo={() => gradeRef.current?.recolherTudo()}
+            onCriarObjetivo={() => gradeRef.current?.criarObjetivo()}
+          />
+
           <PlanejamentoGrade
+            ref={gradeRef}
             idPlanejamento={planejamento.idPlanejamento}
             produtoNome={contrato.nomeProduto}
             objetivos={planejamento.objetivos}
@@ -302,6 +319,8 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             pessoasVinculadas={pessoasVinculadas}
             permissoes={permissoes}
             modo={modo}
+            busca={busca}
+            soPendentes={soPendentes}
             onEdicaoCelula={handleEdicaoCelula}
             onColarFaixa={handleColarFaixa}
             onHierarquiaAlterada={recarregarHierarquia}

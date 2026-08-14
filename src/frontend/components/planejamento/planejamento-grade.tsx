@@ -2,7 +2,7 @@
 
 import { createColumnHelper, flexRender, tableFeatures, useTable } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Flag, Target } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 
 import type { MetaResumo, ObjetivoComMetas, PessoaVinculada, SucessoMensalGrade } from "@backend/queries/planejamento";
 import { createClient } from "@backend/supabase/client";
@@ -72,6 +72,26 @@ export interface PlanejamentoGradeProps {
   // planejamento próprio"): a leitura agregada de cada membro nunca oferece
   // criação/edição -- é leitura, não a tela de gestão do próprio contrato.
   somenteLeitura?: boolean;
+  // PLR-11 (T14/T15, PlanejamentoToolbar): filtros client-side sobre a árvore
+  // já carregada -- nenhum round-trip novo ao banco.
+  busca?: string;
+  soPendentes?: boolean;
+  // idUsuario logado -- "só as minhas metas" (T15) compara com
+  // fat_meta.idUsuarioResponsavel.
+  soMinhasMetas?: boolean;
+  idUsuario?: number | null;
+}
+
+// PLR-11 (T14): expandir/recolher tudo é ação do PlanejamentoToolbar, que
+// vive fora desta árvore -- imperative handle em vez de levantar o estado
+// `expandidos` pro pai (evitaria controlar o Set inteiro de fora sem
+// necessidade real de outro consumidor dele).
+export interface PlanejamentoGradeHandle {
+  expandirTudo: () => void;
+  recolherTudo: () => void;
+  // PLR-11: "+ Objetivo" mora no PlanejamentoToolbar (T14), mas a ação de
+  // criar continua sendo o mesmo estado interno `acaoAtiva` desta árvore.
+  criarObjetivo: () => void;
 }
 
 function formatarPct(valor: number | null): string {
@@ -158,20 +178,27 @@ function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio }: Cel
   );
 }
 
-export function PlanejamentoGrade({
-  idPlanejamento,
-  produtoNome,
-  objetivos,
-  linhas,
-  pessoasVinculadas,
-  permissoes,
-  modo,
-  onEdicaoCelula,
-  onColarFaixa,
-  onHierarquiaAlterada,
-  onGradeAlterada,
-  somenteLeitura = false,
-}: PlanejamentoGradeProps) {
+export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, PlanejamentoGradeProps>(function PlanejamentoGrade(
+  {
+    idPlanejamento,
+    produtoNome,
+    objetivos,
+    linhas,
+    pessoasVinculadas,
+    permissoes,
+    modo,
+    onEdicaoCelula,
+    onColarFaixa,
+    onHierarquiaAlterada,
+    onGradeAlterada,
+    somenteLeitura = false,
+    busca = "",
+    soPendentes = false,
+    soMinhasMetas = false,
+    idUsuario = null,
+  },
+  ref
+) {
   const podeEditarEstrutura = !somenteLeitura && permissoes.crudHierarquia;
   // PLM-17: criar novo Sucesso Mensal é Gestora/Mentor/Admin -- Assessor
   // nunca (GRANT aprovado é só SELECT/UPDATE, sem INSERT, docs/schema_sistema.sql:2093).
@@ -186,6 +213,21 @@ export function PlanejamentoGrade({
   );
   const [acaoAtiva, setAcaoAtiva] = useState<AcaoAtiva>(null);
   const [erros, setErros] = useState<Record<number, string>>({});
+
+  // T14: "expandir/recolher tudo" é ação do PlanejamentoToolbar (fora desta
+  // árvore) -- exposta via ref em vez de levantar `expandidos` pro pai.
+  useImperativeHandle(
+    ref,
+    () => ({
+      expandirTudo: () =>
+        setExpandidos(
+          new Set(objetivos.map((o) => `obj-${o.idObjetivo}`).concat(objetivos.flatMap((o) => o.metas.map((m) => `meta-${m.idMeta}`))))
+        ),
+      recolherTudo: () => setExpandidos(new Set()),
+      criarObjetivo: () => setAcaoAtiva({ tipo: "criar-objetivo" }),
+    }),
+    [objetivos]
+  );
 
   const nomePorUsuario = useMemo(() => new Map(pessoasVinculadas.map((p) => [p.idUsuario, p.nome])), [pessoasVinculadas]);
 
@@ -312,6 +354,18 @@ export function PlanejamentoGrade({
     setAcaoAtiva(null);
   }
 
+  // T14/T15 (PlanejamentoToolbar): busca/só pendentes/só minhas metas são
+  // filtros client-side sobre a árvore já carregada -- nenhuma query nova.
+  // Enquanto algum filtro está ativo, todo nó com filho visível se comporta
+  // como "expandido" independente de `expandidos` (busca revela onde o
+  // resultado está, mesmo que o ramo estivesse recolhido) -- ao limpar os
+  // filtros, o estado de expansão manual volta a valer exatamente como
+  // estava antes.
+  const filtrosAtivos = busca.trim() !== "" || soPendentes || soMinhasMetas;
+  const buscaLower = busca.trim().toLowerCase();
+
+  const smPassaSoPendentes = useCallback((sm: SucessoMensalGrade) => !soPendentes || sm.pctAtingimento == null, [soPendentes]);
+
   // Monta a lista achatada (T11): 1 linha por Objetivo/Meta/Sucesso Mensal,
   // na ordem visual, respeitando `expandidos`; injeta linhas sintéticas
   // "form" (criar/editar) na posição correta -- ver comentário de topo.
@@ -358,10 +412,24 @@ export function PlanejamentoGrade({
         continue;
       }
 
-      resultado.push({ tipo: "obj", id: idObj, nivel: 0, objetivo });
-      if (!expandidos.has(idObj)) continue;
+      // Pré-filtra as Metas deste Objetivo antes de decidir se o próprio
+      // Objetivo é visível -- um Objetivo sem nenhuma Meta que passe nos
+      // filtros ativos fica fora da lista inteira (não só recolhido).
+      const metasFiltradas = objetivo.metas.filter((meta) => {
+        if (soMinhasMetas && meta.idUsuarioResponsavel !== idUsuario) return false;
+        if (!buscaLower) return true;
+        const metaTextoMatch = meta.descricao.toLowerCase().includes(buscaLower);
+        const smDaMeta = (linhasPorMeta.get(meta.idMeta) ?? []).filter(smPassaSoPendentes);
+        const algumSmTextoMatch = smDaMeta.some((sm) => sm.descricao.toLowerCase().includes(buscaLower));
+        return metaTextoMatch || algumSmTextoMatch;
+      });
 
-      for (const meta of objetivo.metas) {
+      if (filtrosAtivos && metasFiltradas.length === 0 && !objetivo.descricao.toLowerCase().includes(buscaLower)) continue;
+
+      resultado.push({ tipo: "obj", id: idObj, nivel: 0, objetivo });
+      if (!filtrosAtivos && !expandidos.has(idObj)) continue;
+
+      for (const meta of filtrosAtivos ? metasFiltradas : objetivo.metas) {
         const idMeta = `meta-${meta.idMeta}`;
 
         if (acaoAtiva?.tipo === "editar-meta" && acaoAtiva.meta.idMeta === meta.idMeta) {
@@ -392,9 +460,9 @@ export function PlanejamentoGrade({
           meta,
           pesoDivergente: idsMetaComPesoDivergente.has(meta.idMeta),
         });
-        if (!expandidos.has(idMeta)) continue;
+        if (!filtrosAtivos && !expandidos.has(idMeta)) continue;
 
-        const smDaMeta = linhasPorMeta.get(meta.idMeta) ?? [];
+        const smDaMeta = (linhasPorMeta.get(meta.idMeta) ?? []).filter(smPassaSoPendentes);
         for (const sm of smDaMeta) {
           if (acaoAtiva?.tipo === "editar-sucesso" && acaoAtiva.sucesso.idSucesso === sm.idSucesso) {
             resultado.push({
@@ -468,6 +536,11 @@ export function PlanejamentoGrade({
     idPlanejamento,
     produtoNome,
     pessoasVinculadas,
+    filtrosAtivos,
+    buscaLower,
+    soMinhasMetas,
+    idUsuario,
+    smPassaSoPendentes,
   ]);
 
   const todasAsColunas = useMemo(
@@ -796,11 +869,6 @@ export function PlanejamentoGrade({
         </Table>
       </div>
 
-      {podeEditarEstrutura && !acaoAtiva && (
-        <Button type="button" variant="outline" className="w-fit" onClick={() => setAcaoAtiva({ tipo: "criar-objetivo" })}>
-          + Objetivo
-        </Button>
-      )}
     </div>
   );
-}
+});

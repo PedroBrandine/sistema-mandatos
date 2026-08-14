@@ -445,11 +445,22 @@ textual (filtra por `descricao` case-insensitive, client-side), "só pendentes" 
 **Requirement**: PLR-11 (parcial — sem "só minhas metas"/"aplicar em massa" ainda)
 
 **Done when**:
-- [ ] Busca filtra a árvore renderizada sem round-trip ao banco
-- [ ] "Criar Objetivo" ausente fora do modo Construir ou sem `crudHierarquia`
-- [ ] `npm run build` limpo
+- [x] Busca filtra a árvore renderizada sem round-trip ao banco
+- [x] "Criar Objetivo" ausente fora do modo Construir ou sem `crudHierarquia`
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `PlanejamentoToolbar` novo (expandir/recolher tudo, busca,
+só pendentes, criar objetivo). `PlanejamentoGrade` vira `forwardRef` expondo
+`{ expandirTudo, recolherTudo, criarObjetivo }` (`PlanejamentoGradeHandle`) — a toolbar vive fora
+da árvore mas dispara ações do estado interno dela (`expandidos`/`acaoAtiva`) sem levantar esse
+estado pro pai. "+ Objetivo" saiu do rodapé da grade (T11) e migrou pra toolbar, mesmo mecanismo.
+Filtro de busca casa por `descricao` (Objetivo/Meta/Sucesso Mensal, case-insensitive) e
+auto-revela ramos recolhidos que contêm um resultado (`filtrosAtivos` bypassa `expandidos`
+enquanto algum filtro está ativo; volta ao estado manual ao limpar). "Só pendentes" filtra
+Sucessos Mensais com `pctAtingimento == null`, e Metas/Objetivos sem nenhum pendente somem da
+lista (não só os Sucessos Mensais individuais).
 
 ---
 
