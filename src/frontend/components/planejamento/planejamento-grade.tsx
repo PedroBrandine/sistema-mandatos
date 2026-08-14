@@ -1,7 +1,7 @@
 "use client";
 
 import { createColumnHelper, flexRender, tableFeatures, useTable } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight, Flag, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, Flag, History, Target } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 
 import type { MetaResumo, ObjetivoComMetas, PessoaVinculada, SucessoMensalGrade } from "@backend/queries/planejamento";
@@ -15,9 +15,8 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { MetaForm } from "./meta-form";
-import { ObjetivoForm } from "./objetivo-form";
-import { SucessoMensalForm } from "./sucesso-mensal-form";
+import { ModalDetalheItem } from "./modal-detalhe-item";
+import { ModalHistorico } from "./modal-historico";
 
 // PLR-09, PLR-10 (.specs/features/planejamento-estrategico-redesenho, T11).
 // Substitui PlanejamentoArvore (pilha de <div> por Objetivo/Meta, com uma
@@ -27,23 +26,17 @@ import { SucessoMensalForm } from "./sucesso-mensal-form";
 // por `nivel`, fundo distinto por tipo. Estado de expandido/recolhido
 // centralizado (um único Set<string>), não mais um useState por nó.
 //
-// Colunas ainda fixas nesta task (T11) -- a matriz colunas-por-modo
-// (Construir/Monitorar/Ler) chega em T12; aqui o objetivo é só a estrutura
-// unificada. `modo`/`permissoes` já são recebidos como prop pra não trocar
-// a assinatura de novo em T12.
-//
-// Edição/criação de Objetivo/Meta/Sucesso Mensal continua inline (mesmo
-// padrão de PlanejamentoArvore) até a Fase 4 (T17-T19) trocar por modal --
-// como agora é 1 tabela só, uma linha "em edição/criação" vira uma linha
-// sintética full-width (`<td colSpan>`), não um <div> substituindo o nó.
+// PLR-12/13/14 (T19): edição/criação de Objetivo/Meta/Sucesso Mensal e o
+// histórico de auditoria abrem em modal (ModalDetalheItem/ModalHistorico),
+// não mais como linha inline -- só 1 dos 2 pode estar aberto por vez (2
+// useState distintos, nunca os dois setados juntos, ver handlers abaixo).
 
 const features = tableFeatures({});
 
 type LinhaObj = { tipo: "obj"; id: string; nivel: 0; objetivo: ObjetivoComMetas };
 type LinhaMeta = { tipo: "meta"; id: string; nivel: 1; meta: MetaResumo; pesoDivergente: boolean };
 type LinhaSm = { tipo: "sm"; id: string; nivel: 2; linha: SucessoMensalGrade };
-type LinhaForm = { tipo: "form"; id: string; nivel: 0 | 1 | 2; conteudo: React.ReactNode };
-type LinhaArvore = LinhaObj | LinhaMeta | LinhaSm | LinhaForm;
+type LinhaArvore = LinhaObj | LinhaMeta | LinhaSm;
 
 const columnHelper = createColumnHelper<typeof features, LinhaArvore>();
 
@@ -214,6 +207,10 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     () => new Set(objetivos.map((o) => `obj-${o.idObjetivo}`).concat(objetivos.flatMap((o) => o.metas.map((m) => `meta-${m.idMeta}`))))
   );
   const [acaoAtiva, setAcaoAtiva] = useState<AcaoAtiva>(null);
+  // PLR-13/14: histórico é um estado independente de `acaoAtiva` -- os 2
+  // nunca abrem juntos na prática (cada botão seta só o seu), mas mantê-los
+  // separados evita que abrir um precise saber fechar o outro.
+  const [historicoAlvo, setHistoricoAlvo] = useState<{ tabela: string; idRegistro: number; titulo: string } | null>(null);
   const [erros, setErros] = useState<Record<number, string>>({});
 
   // T14: "expandir/recolher tudo" é ação do PlanejamentoToolbar (fora desta
@@ -368,51 +365,17 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
 
   const smPassaSoPendentes = useCallback((sm: SucessoMensalGrade) => !soPendentes || sm.pctAtingimento == null, [soPendentes]);
 
-  // Monta a lista achatada (T11): 1 linha por Objetivo/Meta/Sucesso Mensal,
-  // na ordem visual, respeitando `expandidos`; injeta linhas sintéticas
-  // "form" (criar/editar) na posição correta -- ver comentário de topo.
+  // Monta a lista achatada (T11, simplificada em T19): 1 linha por
+  // Objetivo/Meta/Sucesso Mensal, na ordem visual, respeitando `expandidos`.
+  // Até T16 esta função também injetava linhas sintéticas "form"
+  // (criar/editar) na posição do nó -- T19 troca isso por `ModalDetalheItem`
+  // (overlay, fora da árvore), então a lista voltou a refletir só o dado
+  // real, sem ramificar por `acaoAtiva`.
   const linhasArvore = useMemo<LinhaArvore[]>(() => {
     const resultado: LinhaArvore[] = [];
 
-    if (acaoAtiva?.tipo === "criar-objetivo") {
-      resultado.push({
-        tipo: "form",
-        id: "form-criar-objetivo",
-        nivel: 0,
-        conteudo: (
-          <ObjetivoForm
-            modo={{ tipo: "criar", idPlanejamento }}
-            onConcluido={() => {
-              fecharAcao();
-              onHierarquiaAlterada();
-            }}
-            onCancelar={fecharAcao}
-          />
-        ),
-      });
-    }
-
     for (const objetivo of objetivos) {
       const idObj = `obj-${objetivo.idObjetivo}`;
-
-      if (acaoAtiva?.tipo === "editar-objetivo" && acaoAtiva.objetivo.idObjetivo === objetivo.idObjetivo) {
-        resultado.push({
-          tipo: "form",
-          id: `form-${idObj}`,
-          nivel: 0,
-          conteudo: (
-            <ObjetivoForm
-              modo={{ tipo: "editar", objetivo }}
-              onConcluido={() => {
-                fecharAcao();
-                onHierarquiaAlterada();
-              }}
-              onCancelar={fecharAcao}
-            />
-          ),
-        });
-        continue;
-      }
 
       // Pré-filtra as Metas deste Objetivo antes de decidir se o próprio
       // Objetivo é visível -- um Objetivo sem nenhuma Meta que passe nos
@@ -434,27 +397,6 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       for (const meta of filtrosAtivos ? metasFiltradas : objetivo.metas) {
         const idMeta = `meta-${meta.idMeta}`;
 
-        if (acaoAtiva?.tipo === "editar-meta" && acaoAtiva.meta.idMeta === meta.idMeta) {
-          resultado.push({
-            tipo: "form",
-            id: `form-${idMeta}`,
-            nivel: 1,
-            conteudo: (
-              <MetaForm
-                modo={{ tipo: "editar", meta }}
-                produtoNome={produtoNome}
-                pessoasVinculadas={pessoasVinculadas}
-                onConcluido={() => {
-                  fecharAcao();
-                  onHierarquiaAlterada();
-                }}
-                onCancelar={fecharAcao}
-              />
-            ),
-          });
-          continue;
-        }
-
         resultado.push({
           tipo: "meta",
           id: idMeta,
@@ -466,78 +408,17 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
 
         const smDaMeta = (linhasPorMeta.get(meta.idMeta) ?? []).filter(smPassaSoPendentes);
         for (const sm of smDaMeta) {
-          if (acaoAtiva?.tipo === "editar-sucesso" && acaoAtiva.sucesso.idSucesso === sm.idSucesso) {
-            resultado.push({
-              tipo: "form",
-              id: `form-sm-${sm.idSucesso}`,
-              nivel: 2,
-              conteudo: (
-                <SucessoMensalForm
-                  modo={{ tipo: "editar", sucesso: sm }}
-                  onConcluido={() => {
-                    fecharAcao();
-                    onGradeAlterada();
-                  }}
-                  onCancelar={fecharAcao}
-                />
-              ),
-            });
-            continue;
-          }
           resultado.push({ tipo: "sm", id: `sm-${sm.idSucesso}`, nivel: 2, linha: sm });
         }
-
-        if (acaoAtiva?.tipo === "criar-sucesso" && acaoAtiva.idMeta === meta.idMeta) {
-          resultado.push({
-            tipo: "form",
-            id: `form-criar-sucesso-${meta.idMeta}`,
-            nivel: 2,
-            conteudo: (
-              <SucessoMensalForm
-                modo={{ tipo: "criar", idMeta: meta.idMeta }}
-                onConcluido={() => {
-                  fecharAcao();
-                  onGradeAlterada();
-                }}
-                onCancelar={fecharAcao}
-              />
-            ),
-          });
-        }
-      }
-
-      if (acaoAtiva?.tipo === "criar-meta" && acaoAtiva.idObjetivo === objetivo.idObjetivo) {
-        resultado.push({
-          tipo: "form",
-          id: `form-criar-meta-${objetivo.idObjetivo}`,
-          nivel: 1,
-          conteudo: (
-            <MetaForm
-              modo={{ tipo: "criar", idObjetivo: objetivo.idObjetivo }}
-              produtoNome={produtoNome}
-              pessoasVinculadas={pessoasVinculadas}
-              onConcluido={() => {
-                fecharAcao();
-                onHierarquiaAlterada();
-              }}
-              onCancelar={fecharAcao}
-            />
-          ),
-        });
       }
     }
 
     return resultado;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fecharAcao/onHierarquiaAlterada/onGradeAlterada são estáveis o bastante pro propósito (fechamento de linha sintética); incluir todos os callbacks só adiciona ruído sem mudar comportamento.
   }, [
     objetivos,
     linhasPorMeta,
     expandidos,
-    acaoAtiva,
     idsMetaComPesoDivergente,
-    idPlanejamento,
-    produtoNome,
-    pessoasVinculadas,
     filtrosAtivos,
     buscaLower,
     soMinhasMetas,
@@ -552,8 +433,6 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         header: "Objetivo / Meta / Sucesso Mensal",
         cell: ({ row }) => {
           const item = row.original;
-          if (item.tipo === "form") return null;
-
           const idNo = item.tipo === "obj" ? `obj-${item.objetivo.idObjetivo}` : item.tipo === "meta" ? `meta-${item.meta.idMeta}` : null;
           const temFilhos = item.tipo !== "sm";
           const aberto = idNo ? expandidos.has(idNo) : false;
@@ -728,9 +607,33 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       columnHelper.display({
         id: "acoes",
         header: "",
+        // PLR-13: ícone de histórico é discreto, sempre no fim da linha,
+        // gated por `permissoes.veAuditoria` -- independente de
+        // `somenteLeitura` (ver histórico é leitura, não escrita).
         cell: ({ row }) => {
           const item = row.original;
-          if (somenteLeitura || acaoAtiva) return null;
+          const [tabela, idRegistro, titulo] =
+            item.tipo === "obj"
+              ? (["fat_objetivo_especifico", item.objetivo.idObjetivo, item.objetivo.descricao] as const)
+              : item.tipo === "meta"
+                ? (["fat_meta", item.meta.idMeta, item.meta.descricao] as const)
+                : (["fat_sucesso_mensal", item.linha.idSucesso, item.linha.descricao] as const);
+
+          const botaoHistorico = permissoes.veAuditoria && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              title="Ver histórico"
+              aria-label={`Ver histórico de ${titulo}`}
+              onClick={() => setHistoricoAlvo({ tabela, idRegistro, titulo })}
+            >
+              <History className="size-3.5" />
+            </Button>
+          );
+
+          if (somenteLeitura) return botaoHistorico || null;
+
           if (item.tipo === "obj") {
             return (
               <div className="flex items-center gap-1">
@@ -744,6 +647,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
                     + Meta
                   </Button>
                 )}
+                {botaoHistorico}
               </div>
             );
           }
@@ -760,17 +664,20 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
                     + Sucesso
                   </Button>
                 )}
+                {botaoHistorico}
               </div>
             );
           }
-          if (item.tipo === "sm" && podeVerDetalhesSucesso) {
-            return (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setAcaoAtiva({ tipo: "editar-sucesso", sucesso: item.linha })}>
-                Detalhes
-              </Button>
-            );
-          }
-          return null;
+          return (
+            <div className="flex items-center gap-1">
+              {podeVerDetalhesSucesso && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAcaoAtiva({ tipo: "editar-sucesso", sucesso: item.linha })}>
+                  Detalhes
+                </Button>
+              )}
+              {botaoHistorico}
+            </div>
+          );
         },
       }),
     ],
@@ -785,7 +692,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       podeCriarSucesso,
       podeVerDetalhesSucesso,
       podeEditarEstrutura,
-      acaoAtiva,
+      permissoes.veAuditoria,
       handleCommitCelula,
       handlePasteInicio,
     ]
@@ -821,8 +728,40 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
 
   const table = useTable({ features, columns, data: linhasArvore });
 
+  // Modais (PLR-12/13/14) renderizam nos 2 ramos abaixo -- inclusive quando
+  // `objetivos.length === 0` (EstadoVazio): o botão "+ Objetivo" do
+  // PlanejamentoToolbar chama `criarObjetivo()` via ref mesmo com a árvore
+  // vazia, e o modal precisa existir pra abrir.
+  const modais = (
+    <>
+      <ModalDetalheItem
+        acao={acaoAtiva}
+        idPlanejamento={idPlanejamento}
+        produtoNome={produtoNome}
+        pessoasVinculadas={pessoasVinculadas}
+        onFechar={fecharAcao}
+        onHierarquiaAlterada={onHierarquiaAlterada}
+        onGradeAlterada={onGradeAlterada}
+      />
+      {historicoAlvo && (
+        <ModalHistorico
+          tabela={historicoAlvo.tabela}
+          idRegistro={historicoAlvo.idRegistro}
+          titulo={historicoAlvo.titulo}
+          aberto
+          onFechar={() => setHistoricoAlvo(null)}
+        />
+      )}
+    </>
+  );
+
   if (objetivos.length === 0) {
-    return <EstadoVazio titulo="Nenhum Objetivo Específico cadastrado ainda" />;
+    return (
+      <>
+        <EstadoVazio titulo="Nenhum Objetivo Específico cadastrado ainda" />
+        {modais}
+      </>
+    );
   }
 
   return (
@@ -843,15 +782,6 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
           <TableBody>
             {table.getRowModel().rows.map((row) => {
               const item = row.original;
-              if (item.tipo === "form") {
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell colSpan={columns.length} className="bg-muted/20 p-3">
-                      {item.conteudo}
-                    </TableCell>
-                  </TableRow>
-                );
-              }
               return (
                 <TableRow
                   key={row.id}
@@ -871,6 +801,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         </Table>
       </div>
 
+      {modais}
     </div>
   );
 });

@@ -589,10 +589,25 @@ simultâneo.
 **Requirement**: PLR-12, PLR-13, PLR-14
 
 **Done when**:
-- [ ] Nenhum caminho abre os 2 modais ao mesmo tempo (leitura de código confirma 1 `useState`)
-- [ ] `npm run build` limpo
+- [x] Nenhum caminho abre os 2 modais ao mesmo tempo (leitura de código confirma 1 `useState`)
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `linhasArvore` (T11) simplificada de volta a só refletir o dado
+real — as linhas sintéticas "form" (`colSpan`) saem de cena, `ObjetivoForm`/`MetaForm`/
+`SucessoMensalForm` não são mais importados direto neste arquivo (só por `ModalDetalheItem`).
+Ícone de histórico (`lucide-react History`) discreto no fim de cada linha, gated por
+`permissoes.veAuditoria`, independente de `somenteLeitura` (ver é leitura). `acaoAtiva` e
+`historicoAlvo` são 2 `useState` distintos — nenhum caminho de código seta os dois ao mesmo tempo
+(cada botão só mexe no seu). Achado corrigido durante a implementação: os modais precisam
+renderizar também no ramo `objetivos.length === 0` (`EstadoVazio`) — sem isso, "+ Objetivo" da
+toolbar (que funciona via ref mesmo com a árvore vazia) abriria `acaoAtiva` sem nenhum `Dialog`
+montado pra mostrar.
+
+---
+
+## Fase 4 (T17-T19) concluída — modais
 
 ---
 
