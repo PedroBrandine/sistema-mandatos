@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 
 import { createClient } from "@backend/supabase/client";
 import { buscarContratoParaFicha, buscarEtapasDoProduto, type EtapaResumo } from "@backend/queries/contrato";
 import { buscarReguaDoContrato, type EtapaRegua } from "@backend/queries/etapa-contrato";
+import { buscarRegistrosDaEtapa, type RegistroResumo } from "@backend/queries/incidencia";
 
+import { RegistroForm } from "@/components/incidencia/registro-form";
 import { Badge } from "@/components/ui/badge";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -52,6 +54,7 @@ export default function EtapaContratoPage({
 
   const [etapa, setEtapa] = useState<EtapaResumo | null | undefined>(undefined);
   const [regua, setRegua] = useState<EtapaRegua[]>([]);
+  const [registros, setRegistros] = useState<RegistroResumo[]>([]);
 
   useEffect(() => {
     let cancelado = false;
@@ -76,6 +79,21 @@ export default function EtapaContratoPage({
       cancelado = true;
     };
   }, [idContrato, codigo]);
+
+  // INC-09/INC-11: idEtapa (ref_etapa) da linha da régua com este `codigo` --
+  // escopa o Select de Tipo de Registro (buscarTiposRegistroDaEtapa) e a
+  // listagem abaixo da tabela (buscarRegistrosDaEtapa).
+  const idEtapa = regua.find((linha) => linha.codigo === codigo)?.idEtapa ?? null;
+
+  const carregarRegistros = useCallback(() => {
+    if (idEtapa == null) return;
+    const supabase = createClient();
+    void buscarRegistrosDaEtapa(supabase, idContrato, idEtapa).then(setRegistros);
+  }, [idContrato, idEtapa]);
+
+  useEffect(() => {
+    carregarRegistros();
+  }, [carregarRegistros]);
 
   if (etapa === null) {
     notFound();
@@ -129,6 +147,41 @@ export default function EtapaContratoPage({
           ))}
         </TableBody>
       </Table>
+
+      {/* INC-09/INC-10/INC-11: Registros desta etapa -- form inline (sem
+          Dialog, página já dedicada) + lista abaixo, mesmo padrão de
+          design.md "etapas/[codigo]/page.tsx (edita)". */}
+      {idEtapa != null && (
+        <div className="grid gap-3">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Registros</p>
+          <RegistroForm idContrato={idContrato} idEtapa={idEtapa} onConcluido={carregarRegistros} />
+
+          {registros.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum registro nesta etapa ainda.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Ocorrido em</TableHead>
+                  <TableHead>Resumo</TableHead>
+                  <TableHead>Autor</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {registros.map((r) => (
+                  <TableRow key={r.idRegistro}>
+                    <TableCell className="font-medium">{r.tipoRegistro}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatarData(r.ocorridoEm)}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.resumo ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.nomeAutor}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      )}
     </div>
   );
 }
