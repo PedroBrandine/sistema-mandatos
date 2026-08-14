@@ -2,9 +2,10 @@
 
 import { createColumnHelper, flexRender, tableFeatures, useTable } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Flag, Target } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { MetaResumo, ObjetivoComMetas, PessoaVinculada, SucessoMensalGrade } from "@backend/queries/planejamento";
+import { createClient } from "@backend/supabase/client";
 
 import type { ModoPlanejamento, PermissoesModo } from "./permissoes";
 
@@ -164,6 +165,7 @@ export function PlanejamentoGrade({
   linhas,
   pessoasVinculadas,
   permissoes,
+  modo,
   onEdicaoCelula,
   onColarFaixa,
   onHierarquiaAlterada,
@@ -186,6 +188,25 @@ export function PlanejamentoGrade({
   const [erros, setErros] = useState<Record<number, string>>({});
 
   const nomePorUsuario = useMemo(() => new Map(pessoasVinculadas.map((p) => [p.idUsuario, p.nome])), [pessoasVinculadas]);
+
+  // PLR-08 (modo Construir): preditor/agenda são exibidos pelo nome, não
+  // pelo id -- catálogos carregados uma vez (mesmo padrão de fetch client-side
+  // já usado por ObjetivoForm/DadosPlanejamentoForm pros próprios Selects).
+  const [nomePorPreditor, setNomePorPreditor] = useState<Map<number, string>>(new Map());
+  const [nomePorAgenda, setNomePorAgenda] = useState<Map<number, string>>(new Map());
+
+  useEffect(() => {
+    if (modo !== "construir") return;
+    const supabase = createClient();
+    supabase
+      .from("ref_preditor")
+      .select("id_preditor, nome")
+      .then(({ data }) => setNomePorPreditor(new Map((data ?? []).map((p) => [p.id_preditor, p.nome]))));
+    supabase
+      .from("ref_agenda_tematica")
+      .select("id_agenda, nome")
+      .then(({ data }) => setNomePorAgenda(new Map((data ?? []).map((a) => [a.id_agenda, a.nome]))));
+  }, [modo]);
 
   const linhasPorMeta = useMemo(() => {
     const mapa = new Map<number, SucessoMensalGrade[]>();
@@ -449,7 +470,7 @@ export function PlanejamentoGrade({
     pessoasVinculadas,
   ]);
 
-  const columns = useMemo(
+  const todasAsColunas = useMemo(
     () => [
       columnHelper.display({
         id: "arvore",
@@ -493,6 +514,66 @@ export function PlanejamentoGrade({
           if (item.tipo !== "meta") return null;
           const nome = item.meta.idUsuarioResponsavel != null ? nomePorUsuario.get(item.meta.idUsuarioResponsavel) : null;
           return <span className="text-sm text-muted-foreground">{nome ?? "—"}</span>;
+        },
+      }),
+      // PLR-08, modo Construir: preditor 1º/2º, agenda, prioridade, classe --
+      // leitura (edição continua via "Editar", que abre ObjetivoForm/MetaForm
+      // completos) -- ver tasks.md T12 pra rationale do corte de escopo.
+      columnHelper.display({
+        id: "preditor1",
+        header: "Preditor 1º",
+        cell: ({ row }) => {
+          const item = row.original;
+          const idPreditor = item.tipo === "obj" ? item.objetivo.idPreditorPrimario : item.tipo === "meta" ? item.meta.idPreditorPrimario : null;
+          if (item.tipo === "sm") return null;
+          return <span className="text-sm">{idPreditor != null ? (nomePorPreditor.get(idPreditor) ?? "—") : "—"}</span>;
+        },
+      }),
+      columnHelper.display({
+        id: "preditor2",
+        header: "Preditor 2º",
+        cell: ({ row }) => {
+          const item = row.original;
+          const idPreditor = item.tipo === "obj" ? item.objetivo.idPreditorSecundario : item.tipo === "meta" ? item.meta.idPreditorSecundario : null;
+          if (item.tipo === "sm") return null;
+          return <span className="text-sm">{idPreditor != null ? (nomePorPreditor.get(idPreditor) ?? "—") : "—"}</span>;
+        },
+      }),
+      columnHelper.display({
+        id: "agenda",
+        header: "Agenda temática",
+        cell: ({ row }) => {
+          const item = row.original;
+          const idAgenda = item.tipo === "obj" ? item.objetivo.idAgenda : item.tipo === "meta" ? item.meta.idAgenda : null;
+          if (item.tipo === "sm") return null;
+          return <span className="text-sm">{idAgenda != null ? (nomePorAgenda.get(idAgenda) ?? "—") : "—"}</span>;
+        },
+      }),
+      columnHelper.display({
+        id: "prioridade",
+        header: "Prioridade",
+        cell: ({ row }) => {
+          const item = row.original;
+          if (item.tipo !== "meta") return null;
+          return <span className="text-sm capitalize">{item.meta.prioridade ?? "—"}</span>;
+        },
+      }),
+      columnHelper.display({
+        id: "classe",
+        header: "Classe",
+        cell: ({ row }) => {
+          const item = row.original;
+          if (item.tipo !== "meta") return null;
+          return <span className="text-sm capitalize">{item.meta.classe ?? "—"}</span>;
+        },
+      }),
+      columnHelper.display({
+        id: "mes",
+        header: "Mês",
+        cell: ({ row }) => {
+          const item = row.original;
+          if (item.tipo !== "sm") return null;
+          return <span className="text-sm tabular-nums text-muted-foreground">{item.linha.mesReferencia}</span>;
         },
       }),
       columnHelper.display({
@@ -622,6 +703,8 @@ export function PlanejamentoGrade({
       expandidos,
       alternar,
       nomePorUsuario,
+      nomePorPreditor,
+      nomePorAgenda,
       erros,
       somenteLeitura,
       podeCriarSucesso,
@@ -631,6 +714,34 @@ export function PlanejamentoGrade({
       handleCommitCelula,
       handlePasteInicio,
     ]
+  );
+
+  // PLR-08: matriz colunas-por-modo (design.md) -- Construir mostra os
+  // atributos da hierarquia (preditores/agenda/prioridade/classe/mês),
+  // Monitorar mostra o dia a dia da grade (data limite + % editável +
+  // situação), Ler é a versão consolidada só-leitura. `responsavel` some
+  // por completo pra quem não tem `veColunaResponsavel` (Assessor), em
+  // qualquer modo. `preditor2` some no PLL (fat_meta.id_preditor_secundario
+  // só existe pra Estratégia/Coalizão, docs/schema_sistema.sql:953).
+  const colunasVisiveisPorModo: Record<string, boolean> = {
+    arvore: true,
+    responsavel: permissoes.veColunaResponsavel,
+    preditor1: modo === "construir",
+    preditor2: modo === "construir" && produtoNome !== "PLL",
+    agenda: modo === "construir",
+    prioridade: modo === "construir",
+    classe: modo === "construir",
+    mes: modo === "construir" || modo === "ler",
+    dataLimite: modo === "monitorar",
+    peso: true,
+    pct: modo !== "construir",
+    situacao: modo !== "construir",
+    acoes: true,
+  };
+  const columns = useMemo(
+    () => todasAsColunas.filter((coluna) => colunasVisiveisPorModo[coluna.id ?? ""] !== false),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveisPorModo é recriado a cada render (objeto literal), mas só os valores primitivos abaixo importam pra decidir o filtro.
+    [todasAsColunas, modo, permissoes.veColunaResponsavel, produtoNome]
   );
 
   const table = useTable({ features, columns, data: linhasArvore });

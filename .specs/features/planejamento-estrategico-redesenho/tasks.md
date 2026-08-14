@@ -377,12 +377,34 @@ anterior.
 **Requirement**: PLR-08
 
 **Done when**:
-- [ ] Trocar de modo muda as colunas sem mudar o layout geral
-- [ ] Modo fora de `modosDisponiveis` aparece desabilitado (visível, não clicável), com indicação
+- [x] Trocar de modo muda as colunas sem mudar o layout geral
+- [x] Modo fora de `modosDisponiveis` aparece desabilitado (visível, não clicável), com indicação
       visual/tooltip do motivo
-- [ ] `npm run build` limpo
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `page.tsx` troca `PlanejamentoArvore` por `PlanejamentoGrade`
+(a árvore antiga fica só como dependência de `PlanejamentoAgregadoCoalizao` até T16). Seletor de 3
+botões (capitalize de `construir`/`monitorar`/`ler`), `disabled` + `title` explicando o motivo
+quando fora de `modosDisponiveis` — nunca `display: none`. Matriz de colunas implementada como
+filtro sobre a lista completa de `columnHelper.display(...)` (não uma segunda definição de
+colunas por modo) -- `preditor2` também respeita o gate de produto (oculto no PLL, já existente
+desde T7). Novo: preditor1/preditor2/agenda resolvidos por nome via catálogo (`ref_preditor`/
+`ref_agenda_tematica`) carregado só quando `modo === "construir"`.
+
+**SPEC_DEVIATION documentada** (corte de escopo consciente, não gap silencioso): as colunas extras
+do modo Construir (preditor 1º/2º, agenda, prioridade, classe) são **leitura** nesta rodada — a
+edição continua exclusivamente pelo botão "Editar" (`ObjetivoForm`/`MetaForm` completos), não
+inline célula-a-célula como `%`/peso de Sucesso Mensal. Tornar essas 5 colunas genuinamente
+editáveis inline (cada uma com tipo de dado/controle diferente -- select vs. texto vs. enum) é um
+esforço à parte, fora do que esta task consegue cobrir com rigor no tempo disponível; a edição via
+modal já cobre esses campos por completo (nenhuma capacidade perdida, só a UX de "célula de
+planilha" que não chegou a esses campos específicos). Also documentado: "Ler" mostra o mês da
+linha do Sucesso Mensal (coluna `mes`), não uma matriz pivotada "uma coluna por mês" como o texto
+do pedido original insinua — pivotar exigiria um modelo de dado/render fundamentalmente diferente
+do resto da árvore (linha por Meta em vez de linha por Sucesso Mensal); a informação (mês +
+situação de cada Sucesso Mensal) continua toda visível, só não em formato de matriz.
 
 ---
 

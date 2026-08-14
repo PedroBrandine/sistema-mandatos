@@ -22,12 +22,14 @@ import {
 import { createClient } from "@backend/supabase/client";
 
 import { usePapelGlobal } from "@/hooks/use-papel-global";
+import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ContextoEstrategico } from "@/components/planejamento/contexto-estrategico";
-import { PERMISSOES } from "@/components/planejamento/permissoes";
+import { type ModoPlanejamento, PERMISSOES } from "@/components/planejamento/permissoes";
 import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejamento-agregado-coalizao";
-import { PlanejamentoArvore } from "@/components/planejamento/planejamento-arvore";
+import { PlanejamentoGrade } from "@/components/planejamento/planejamento-grade";
 import { PlanejamentoHeader } from "@/components/planejamento/planejamento-header";
+import { cn } from "@/lib/utils";
 
 // PLM-01, PLM-07, PLM-15/16 (planejamento-planilha-monitoramento) + PLR-01,
 // PLR-02, PLR-04, PLR-07 (.specs/features/planejamento-estrategico-redesenho,
@@ -43,10 +45,11 @@ import { PlanejamentoHeader } from "@/components/planejamento/planejamento-heade
 // painel fixo à direita em nenhum estado -- ContextoEstrategico é a coluna
 // ESQUERDA, e mesmo colapsada (<details> fechado) não reserva espaço fixo.
 //
-// PlanejamentoArvore/PlanejamentoGrade (grade em si, seletor de modo,
-// PlanejamentoToolbar) permanece Fase 3 (T11-T16) desta feature -- este
-// componente ainda não existe nesta task; a árvore atual continua em uso
-// até a migração acontecer.
+// PlanejamentoGrade (T11) substitui PlanejamentoArvore -- árvore-grade
+// unificada com modos (T12, PLR-08): 3 botões desabilitados quando fora de
+// `permissoes.modosDisponiveis` (nunca escondidos, regra do pedido
+// original). PlanejamentoToolbar (busca/filtros/aplicar em massa) chega em
+// T14/T15, ainda não existe nesta task.
 //
 // Fetch inline via .then() dentro do próprio efeito (mesmo padrão de
 // etapas/[codigo]/page.tsx) -- não via função extraída chamada de dentro do
@@ -73,6 +76,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   // saber o papel real (mesmo raciocínio já usado em outras telas do
   // projeto para "carregando" != "sem permissão").
   const permissoes = PERMISSOES[papel ?? "assessor"];
+  const [modo, setModo] = useState<ModoPlanejamento>(permissoes.modoPadrao);
 
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
   const [coalizaoSemPlanejamentoProprio, setCoalizaoSemPlanejamentoProprio] = useState<number | null>(null);
@@ -267,13 +271,37 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
           }}
         />
 
-        <div className="min-w-0 flex-1">
-          <PlanejamentoArvore
+        <div className="min-w-0 flex-1 grid gap-3">
+          {/* PLR-08: seletor de modo -- 3 botões, desabilitado (não escondido)
+              quando fora de permissoes.modosDisponiveis. */}
+          <div className="flex w-fit items-center gap-1 rounded-lg border p-1">
+            {(["construir", "monitorar", "ler"] as const).map((opcao) => {
+              const disponivel = permissoes.modosDisponiveis.includes(opcao);
+              return (
+                <Button
+                  key={opcao}
+                  type="button"
+                  variant={modo === opcao ? "default" : "ghost"}
+                  size="sm"
+                  disabled={!disponivel}
+                  title={disponivel ? undefined : "Não disponível para o seu papel"}
+                  onClick={() => setModo(opcao)}
+                  className={cn("capitalize", !disponivel && "opacity-50")}
+                >
+                  {opcao}
+                </Button>
+              );
+            })}
+          </div>
+
+          <PlanejamentoGrade
             idPlanejamento={planejamento.idPlanejamento}
             produtoNome={contrato.nomeProduto}
             objetivos={planejamento.objetivos}
             linhas={linhasGrade}
             pessoasVinculadas={pessoasVinculadas}
+            permissoes={permissoes}
+            modo={modo}
             onEdicaoCelula={handleEdicaoCelula}
             onColarFaixa={handleColarFaixa}
             onHierarquiaAlterada={recarregarHierarquia}
