@@ -55,7 +55,6 @@ let versaoAvaliacaoImersao: number;
 let idMetricaNps: number;
 let idFormOrganograma: number;
 let versaoOrganograma: number;
-let idUsuarioGestora: number;
 let idUsuarioMentor: number;
 let idUsuarioAssessor: number;
 
@@ -124,9 +123,6 @@ describe("formularios-produto T4 -- RLS+GRANT (fat_submissao/fat_resposta_metric
        WHERE id_contrato = ${b.idContrato} AND id_formulario = ${idFormAvaliacaoImersao};
     `);
 
-    idUsuarioGestora = (
-      await runSql<{ id_usuario: number }>(`SELECT id_usuario FROM dim_usuario WHERE email = '${GESTORA_EMAIL}';`)
-    )[0].id_usuario;
     idUsuarioMentor = (
       await runSql<{ id_usuario: number }>(`SELECT id_usuario FROM dim_usuario WHERE email = '${MENTOR_EMAIL}';`)
     )[0].id_usuario;
