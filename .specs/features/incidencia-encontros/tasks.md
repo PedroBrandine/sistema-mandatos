@@ -334,12 +334,21 @@ o `GRANT` scoped + o fix de sequence do Assessor + a cláusula de autoria de `fa
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Assessor consegue `INSERT` em `fat_registro`/`fat_insight`/`fat_fato_gerador`/`fat_encontro` do próprio contrato
-- [ ] Assessor **não** consegue em contrato de outro
-- [ ] `INSERT` em `fat_registro` com `id_usuario_autor` de outra pessoa é rejeitado
-- [ ] `npm run test:integration` verde (contagem de testes documentada no commit)
+- [x] Assessor consegue `INSERT` em `fat_registro`/`fat_insight`/`fat_fato_gerador`/`fat_encontro` do próprio contrato
+- [x] Assessor **não** consegue em contrato de outro
+- [x] `INSERT` em `fat_registro` com `id_usuario_autor` de outra pessoa é rejeitado
+- [x] `npm run test:integration` verde (contagem de testes documentada no commit)
 
 **Tests**: integration · **Gate**: full
+
+✅ **Concluída** — commit `378d194`. 12 casos. **Achado documentado no
+teste** (não bug de migration): `trg_valida_registro_produto` é `SECURITY
+INVOKER` e faz `JOIN fat_contrato` (protegida por RLS) — pro Assessor
+tentando escrever em `fat_registro` de um contrato fora da carteira, o
+trigger dispara primeiro com `P0001` (não `42501`), antes da `WITH CHECK`
+de `p_por_contrato` ser avaliada. Resultado protegido é o mesmo (nenhuma
+linha escrita); só o código/mensagem do erro difere do padrão das outras 3
+tabelas (que não têm trigger tocando `fat_contrato`).
 
 ---
 
@@ -357,10 +366,12 @@ o `GRANT` scoped + o fix de sequence do Assessor + a cláusula de autoria de `fa
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] 1 caso positivo + 1 negativo por constraint listada (9 constraints/triggers, ≥9 casos)
-- [ ] Asserção por código de erro (`23514`/`23505`/mensagem do trigger), não só "deu erro"
+- [x] 1 caso positivo + 1 negativo por constraint listada (9 constraints/triggers, ≥9 casos)
+- [x] Asserção por código de erro (`23514`/`23505`/mensagem do trigger), não só "deu erro"
 
 **Tests**: integration · **Gate**: full
+
+✅ **Concluída** — commit `348924e`. 9 casos (1 positivo + 1 negativo cada).
 
 ---
 
@@ -375,10 +386,14 @@ o `GRANT` scoped + o fix de sequence do Assessor + a cláusula de autoria de `fa
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] ≥4 casos (feliz sem origem, feliz com Meta, feliz com Insight, rejeição cross-contrato)
-- [ ] `npm run test:integration` verde
+- [x] ≥4 casos (feliz sem origem, feliz com Meta, feliz com Insight, rejeição cross-contrato)
+- [x] `npm run test:integration` verde
 
 **Tests**: integration · **Gate**: full
+
+✅ **Concluída** — commit `ee6744b`. 5 casos (feliz sem origem, feliz com
+Meta, feliz com Insight, rejeição de Meta de outro contrato, rejeição de
+Insight de outro contrato).
 
 ---
 
@@ -393,10 +408,13 @@ origem, com Registro, com Meta+Sucesso simultâneos), rejeição cross-contrato 
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] ≥5 casos (feliz sem origem, com Registro, com Meta, com Sucesso, rejeição cross-contrato ×1 pelo menos)
-- [ ] `npm run test:integration` verde
+- [x] ≥5 casos (feliz sem origem, com Registro, com Meta, com Sucesso, rejeição cross-contrato ×1 pelo menos)
+- [x] `npm run test:integration` verde
 
 **Tests**: integration · **Gate**: full
+
+✅ **Concluída** — commit `5c393b7`. 8 casos: os 4 pedidos + Meta+Sucesso
+simultâneos + rejeição nos 3 vínculos (Registro/Meta/Sucesso), não só 1.
 
 ---
 
@@ -413,10 +431,12 @@ origem, com Registro, com Meta+Sucesso simultâneos), rejeição cross-contrato 
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] ≥3 casos (com fato/sem peso → `NULL`; sem fato nenhum → `NULL`; refresh não quebra por role)
-- [ ] `npm run test:integration` verde
+- [x] ≥3 casos (com fato/sem peso → `NULL`; sem fato nenhum → `NULL`; refresh não quebra por role)
+- [x] `npm run test:integration` verde
 
 **Tests**: integration · **Gate**: full
+
+✅ **Concluída** — commit `1a85cef`. 3 casos.
 
 ---
 
@@ -432,10 +452,20 @@ confirmando `iip_provisorio`/`nr_fatos`/`dt_ultimo_registro` presentes e correto
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Casos novos passam sem quebrar os existentes do arquivo
-- [ ] `npm run test:integration` verde (contagem total documentada)
+- [x] Casos novos passam sem quebrar os existentes do arquivo
+- [x] `npm run test:integration` verde (contagem total documentada)
 
 **Tests**: integration · **Gate**: full
+
+✅ **Concluída** — commit `0c7fcfd`. 3 casos no arquivo (1 estrutural +
+2 de fixture, sendo 1 novo). **Achado/decisão**: a asserção estrutural
+original ("as 3 colunas NÃO existem") testava o estado anterior a T9 desta
+mesma feature — corrigida para refletir a versão completa (T9 já a
+substituiu), não é uma mudança especulativa. Novo caso usa `ref_indicador`/
+`ref_tipologia` de teste (isolados, cleanup em `afterAll`) para provar
+`iip_provisorio` com valor real (4, fórmula verbatim calculada manualmente)
+— satisfaz o "Independent Test" de spec.md P1 "Fato Gerador + IIP", que
+pede exatamente essa prova via `vw_carteira`.
 
 ---
 
