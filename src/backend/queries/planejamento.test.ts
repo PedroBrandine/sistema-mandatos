@@ -199,7 +199,7 @@ describe("buscarPlanejamentoCompleto", () => {
 describe("buscarGradeSucessosMensais", () => {
   it("retorna [] sem consultar o banco quando idsMeta está vazio", async () => {
     const { client, chamadas } = criarClienteMock({});
-    const resultado = await buscarGradeSucessosMensais(client, [], "2026-08-01");
+    const resultado = await buscarGradeSucessosMensais(client, []);
     expect(resultado).toEqual([]);
     expect(chamadas).toEqual([]);
   });
@@ -225,7 +225,7 @@ describe("buscarGradeSucessosMensais", () => {
       },
     });
 
-    const resultado = await buscarGradeSucessosMensais(client, [200], "2026-08-01");
+    const resultado = await buscarGradeSucessosMensais(client, [200]);
 
     expect(resultado).toEqual([
       {
@@ -244,13 +244,54 @@ describe("buscarGradeSucessosMensais", () => {
 
     const chamadaIn = chamadas.find((c) => c.tabela === "vw_sucesso_mensal" && c.metodo === "in");
     expect(chamadaIn?.args).toEqual(["id_meta", [200]]);
-    const chamadaEq = chamadas.find((c) => c.tabela === "vw_sucesso_mensal" && c.metodo === "eq");
-    expect(chamadaEq?.args).toEqual(["mes_referencia", "2026-08-01"]);
+  });
+
+  // D-C (context.md): a query deixou de filtrar por mês de referência -- busca todos os
+  // Sucessos Mensais do ciclo das Metas informadas. Substitui o teste antigo de
+  // planejamento-planilha-monitoramento que verificava a chamada `.eq("mes_referencia", ...)`.
+  it("retorna todos os meses do ciclo de uma Meta, sem filtrar por mes_referencia (D-C)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_sucesso_mensal: {
+        data: [
+          {
+            id_sucesso: 300,
+            id_meta: 200,
+            descricao: "Publicar post sobre o tema",
+            mes_referencia: "2026-07-01",
+            dt_limite: "2026-07-15",
+            peso: 50,
+            pct_atingimento: 100,
+            status: "realizado",
+            dias_atraso: 0,
+            esta_atrasado: false,
+          },
+          {
+            id_sucesso: 301,
+            id_meta: 200,
+            descricao: "Publicar post sobre o tema",
+            mes_referencia: "2026-08-01",
+            dt_limite: "2026-08-15",
+            peso: 50,
+            pct_atingimento: null,
+            status: "pendente",
+            dias_atraso: 0,
+            esta_atrasado: false,
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarGradeSucessosMensais(client, [200]);
+
+    expect(resultado).toHaveLength(2);
+    expect(resultado.map((linha) => linha.mesReferencia)).toEqual(["2026-07-01", "2026-08-01"]);
+    expect(chamadas.some((c) => c.tabela === "vw_sucesso_mensal" && c.metodo === "eq")).toBe(false);
   });
 
   it("nunca lança quando a view não retorna linha nenhuma", async () => {
     const { client } = criarClienteMock({ vw_sucesso_mensal: { data: [], error: null } });
-    const resultado = await buscarGradeSucessosMensais(client, [200], "2026-08-01");
+    const resultado = await buscarGradeSucessosMensais(client, [200]);
     expect(resultado).toEqual([]);
   });
 });

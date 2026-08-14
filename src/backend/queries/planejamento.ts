@@ -143,13 +143,19 @@ export async function buscarPlanejamentoCompleto(
   };
 }
 
-// PLM-01 (grade). Sucessos Mensais das Metas informadas, num mês de
-// referência -- idsMeta vem da hierarquia já carregada por
-// buscarPlanejamentoCompleto (evita repetir o join até dim_planejamento).
+// PLM-01 (grade). Sucessos Mensais das Metas informadas -- idsMeta vem da hierarquia já
+// carregada por buscarPlanejamentoCompleto (evita repetir o join até dim_planejamento).
+// TODO(D-C) (.specs/features/planejamento-estrategico-redesenho/context.md): default
+// adotado nesta feature é mostrar todos os Sucessos Mensais do ciclo, não só o mês de
+// referência corrente -- Pedro pode reverter para "só mês corrente" a qualquer momento
+// (é filtro de query, sem custo de migration). `_mesReferencia` fica como parâmetro
+// opcional e não usado no filtro só para os consumidores existentes (page.tsx,
+// planejamento-agregado-coalizao.tsx, ainda não migrados -- Fase 2/T10 desta feature)
+// continuarem compilando com a chamada de 3 argumentos até serem atualizados.
 export async function buscarGradeSucessosMensais(
   client: SupabaseClient<Database>,
   idsMeta: number[],
-  mesReferencia: string
+  _mesReferencia?: string
 ): Promise<SucessoMensalGrade[]> {
   if (idsMeta.length === 0) return [];
 
@@ -157,8 +163,8 @@ export async function buscarGradeSucessosMensais(
     .from("vw_sucesso_mensal")
     .select("id_sucesso, id_meta, descricao, mes_referencia, dt_limite, peso, pct_atingimento, status, dias_atraso, esta_atrasado")
     .in("id_meta", idsMeta)
-    .eq("mes_referencia", mesReferencia)
     .order("id_meta", { ascending: true })
+    .order("mes_referencia", { ascending: true })
     .order("id_sucesso", { ascending: true });
   if (error) throw error;
   if (!data) return [];
