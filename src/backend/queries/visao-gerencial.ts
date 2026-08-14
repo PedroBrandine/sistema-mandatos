@@ -206,3 +206,172 @@ export async function buscarCicloEtapa(
     };
   });
 }
+
+// Resolve o conjunto de id_contrato que casam com o recorte (produto/
+// projeto/Gestora/Mentor) -- undefined significa "sem filtro de contrato",
+// nunca "nenhum contrato" (T9-T17 tratam undefined como "não aplicar .in()").
+// Gestora + Mentor combinam por E lógico, só vínculo ATIVO (dt_fim IS NULL)
+// -- decisão de context.md, "Combinação Gestora + Mentor no filtro". Não
+// reusa vw_carteira (só expõe nome_produto/nome_projeto, não os ids) --
+// lê fat_contrato/rel_usuario_contrato direto, RLS já escopa.
+async function resolverIdsContratoDoRecorte(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<number[] | undefined> {
+  if (
+    filtro.idProduto === undefined &&
+    filtro.idProjeto === undefined &&
+    filtro.idGestora === undefined &&
+    filtro.idMentor === undefined
+  ) {
+    return undefined;
+  }
+
+  let queryContrato = client.from("fat_contrato").select("id_contrato");
+  if (filtro.idProduto !== undefined) queryContrato = queryContrato.eq("id_produto", filtro.idProduto);
+  if (filtro.idProjeto !== undefined) queryContrato = queryContrato.eq("id_projeto", filtro.idProjeto);
+  const { data: contratosData, error: erroContratos } = await queryContrato;
+  if (erroContratos) throw erroContratos;
+  let ids = new Set((contratosData ?? []).map((c) => (c as { id_contrato: number }).id_contrato));
+
+  const vinculos: Array<["gestora" | "mentor", number | undefined]> = [
+    ["gestora", filtro.idGestora],
+    ["mentor", filtro.idMentor],
+  ];
+  for (const [papel, idUsuario] of vinculos) {
+    if (idUsuario === undefined) continue;
+    const { data: vinculosData, error: erroVinculos } = await client
+      .from("rel_usuario_contrato")
+      .select("id_contrato")
+      .eq("id_usuario", idUsuario)
+      .eq("papel_no_contrato", papel)
+      .is("dt_fim", null);
+    if (erroVinculos) throw erroVinculos;
+    const idsVinculo = new Set((vinculosData ?? []).map((v) => (v as { id_contrato: number }).id_contrato));
+    ids = new Set([...ids].filter((id) => idsVinculo.has(id)));
+  }
+
+  return [...ids];
+}
+
+export interface SaudeCobertura {
+  pctCobertura: number | null; // null = 0 contrato ativo no recorte (AD-005)
+  qtdSemRegistro: number;
+  qtdEtapasSemRegistro: number;
+  evolucaoMensal: { mes: string; pct: number | null }[];
+}
+
+interface RowContratoAtivo {
+  id_contrato: number;
+}
+
+interface RowEtapaConcluida {
+  id_contrato: number;
+  dt_inicio: string;
+  dt_conclusao: string | null;
+}
+
+interface RowRegistroData {
+  id_contrato: number;
+  ocorrido_em: string;
+}
+
+interface RowCoberturaMensal {
+  mes_referencia: string;
+  id_contrato: number;
+  id_produto: number;
+  tem_registro: boolean;
+}
+
+function aplicarFiltroContrato<T extends { in: (coluna: string, valores: number[]) => T }>(
+  query: T,
+  idsContrato: number[] | undefined
+): T {
+  return idsContrato !== undefined ? query.in("id_contrato", idsContrato) : query;
+}
+
+// GER-07. Estado atual: % de contratos ativos no recorte com registro nos
+// últimos 45 dias (vw_pendencias categoria sem_registro_recente já aplica a
+// janela -- não replicar o limiar aqui, AD-004), contagem absoluta sem
+// registro, e etapas concluídas sem nenhum fat_registro dentro do período da
+// etapa (agregação em TS, mesmo padrão do resto do arquivo). Evolução:
+// vw_cobertura_registro_mensal (grão fino por contrato), agregada em TS
+// depois de aplicar o mesmo filtro de recorte -- nunca lida já agregada por
+// mês (armadilha documentada em buscarCicloEtapa).
+export async function buscarSaudeCobertura(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<SaudeCobertura> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+
+  const { data: ativosData, error: erroAtivos } = await aplicarFiltroContrato(
+    client.from("fat_contrato").select("id_contrato").eq("status", "ativo"),
+    idsContrato
+  );
+  if (erroAtivos) throw erroAtivos;
+  const qtdAtivos = ((ativosData ?? []) as RowContratoAtivo[]).length;
+
+  const { data: semRegistroData, error: erroSemRegistro } = await aplicarFiltroContrato(
+    client.from("vw_pendencias").select("id_contrato").eq("categoria", "sem_registro_recente"),
+    idsContrato
+  );
+  if (erroSemRegistro) throw erroSemRegistro;
+  const qtdSemRegistro = ((semRegistroData ?? []) as RowContratoAtivo[]).length;
+
+  const { data: etapasData, error: erroEtapas } = await aplicarFiltroContrato(
+    client.from("vw_etapa_contrato").select("id_contrato, dt_inicio, dt_conclusao").eq("status", "concluida"),
+    idsContrato
+  );
+  if (erroEtapas) throw erroEtapas;
+  const etapasConcluidas = (etapasData ?? []) as RowEtapaConcluida[];
+
+  const idsContratoComEtapa = [...new Set(etapasConcluidas.map((e) => e.id_contrato))];
+  let registros: RowRegistroData[] = [];
+  if (idsContratoComEtapa.length > 0) {
+    const { data: registrosData, error: erroRegistros } = await client
+      .from("fat_registro")
+      .select("id_contrato, ocorrido_em")
+      .in("id_contrato", idsContratoComEtapa);
+    if (erroRegistros) throw erroRegistros;
+    registros = (registrosData ?? []) as RowRegistroData[];
+  }
+  const qtdEtapasSemRegistro = etapasConcluidas.filter(
+    (etapa) =>
+      !registros.some(
+        (r) =>
+          r.id_contrato === etapa.id_contrato &&
+          r.ocorrido_em >= etapa.dt_inicio &&
+          (etapa.dt_conclusao === null || r.ocorrido_em <= etapa.dt_conclusao)
+      )
+  ).length;
+
+  const { data: mensalData, error: erroMensal } = await aplicarFiltroContrato(
+    client.from("vw_cobertura_registro_mensal").select("mes_referencia, id_contrato, id_produto, tem_registro"),
+    idsContrato
+  );
+  if (erroMensal) throw erroMensal;
+  const linhasMensal = (mensalData ?? []) as RowCoberturaMensal[];
+  const linhasFiltradas =
+    filtro.idProduto !== undefined ? linhasMensal.filter((l) => l.id_produto === filtro.idProduto) : linhasMensal;
+
+  const porMes = new Map<string, { ativos: number; comRegistro: number }>();
+  for (const linha of linhasFiltradas) {
+    const acc = porMes.get(linha.mes_referencia) ?? { ativos: 0, comRegistro: 0 };
+    acc.ativos += 1;
+    if (linha.tem_registro) acc.comRegistro += 1;
+    porMes.set(linha.mes_referencia, acc);
+  }
+  const evolucaoMensal = [...porMes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([mes, acc]) => ({
+      mes,
+      pct: acc.ativos > 0 ? Math.round((acc.comRegistro / acc.ativos) * 10000) / 100 : null,
+    }));
+
+  return {
+    pctCobertura: qtdAtivos > 0 ? Math.round(((qtdAtivos - qtdSemRegistro) / qtdAtivos) * 10000) / 100 : null,
+    qtdSemRegistro,
+    qtdEtapasSemRegistro,
+    evolucaoMensal,
+  };
+}
