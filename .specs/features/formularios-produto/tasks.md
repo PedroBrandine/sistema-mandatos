@@ -12,9 +12,12 @@ Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/formularios-produto/design.md`
-**Status**: In Progress — Lote A pausado em T4 (ver `.specs/STATE.md`, Handoff "Formulários dos
-Produtos"). T1 ✅ (`337baa9`), T2 ✅ (`11d17e9`), T3 ✅ (`1a44446`), T4 ⏸️ escrito, gate bloqueado por
-disco cheio na máquina — não commitado. T5-T21 não iniciadas.
+**Status**: In Progress — **Lote A (T1-T9) concluído** por decisão do Pedro ("conclua o Lote A e
+pare, retomamos amanhã com os outros lotes"). T1 ✅ (`337baa9`) · T2 ✅ (`11d17e9`) · T3 ✅ (`1a44446`)
+· T4 ✅ (`5941c5f` + fix lint `a5ebaa3`) · T5 ✅ (`49dc295`) · T6 ✅ (`981901a`) · T7 ✅ (`fb19743`) ·
+T8 ✅ (`d2600ac`) · T9 ✅ (`c83a601` + `61ea838`, 2 achados reais corrigidos no caminho — ver
+`.specs/STATE.md`, Handoff "Formulários dos Produtos"). Lote B (T10-T15) e Lote C (T16-T21) não
+iniciados.
 
 ---
 

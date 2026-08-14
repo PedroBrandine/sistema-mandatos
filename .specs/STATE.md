@@ -956,77 +956,83 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
-## Handoff (Formulários dos Produtos — EM ANDAMENTO, pausado por decisão do Pedro)
+## Handoff (Formulários dos Produtos — Lote A CONCLUÍDO, pausado por decisão do Pedro)
 
 - **Feature**: Formulários dos Produtos (`.specs/features/formularios-produto/`) — **spec.md/
   context.md/design.md/tasks.md completos e aprovados** (23 requisitos FRM-01 a FRM-23, 21 tasks em
-  7 fases, 3 lotes de sub-agente). Execute em andamento — **Lote A (T1-T9, schema: mecanismo
-  genérico + GIP) parado no meio de T4**, por pedido explícito do Pedro ("conclua o Lote A e depois
-  pare... amanhã retornaremos com os outros lotes").
-- **Phase / Task**: Execute, Lote A. T1-T3 commitados e com gate verde na hora. T4 escrito
-  (migration + teste) mas **não commitado** — gate não pôde ser confirmado nesta sessão (ver
-  Blockers). T5-T9 (Fase 2, GIP) e os Lotes B (T10-T15, NPS+backend TS) e C (T16-T21, frontend)
-  **não iniciados**.
-- **Completed**: T1 DDL `fat_submissao`+`fat_resposta_metrica` (`337baa9`) → T2 RLS
-  (`11d17e9`) → T3 grants (`1a44446`).
-- **Em andamento, não commitado — T4**: `app.trg_extrai_metricas()` verbatim +
-  `SECURITY DEFINER SET search_path` (conforma AD-035) + trigger, migration
-  `supabase/migrations/20260814032705_formularios_produto_trigger_metricas.sql` (untracked) + teste
-  `supabase/tests/operacao/formularios-submissao.integration.test.ts` (untracked, 7 casos cobrindo
-  FRM-03/08/09/10/11/12/13). **Achado real registrado na própria migration (SPEC_DEVIATION)**: o
-  `design.md` só desenhava a cláusula de autoria no `WITH CHECK` de `fat_submissao` — mas o
-  `Error Handling Strategy`/`spec.md` (P1 AC9/AC13) exigem que a escrita falhe com formulário
-  fechado ou contrato encerrado, e nenhuma policy tinha esse texto (só prosa em design.md). Corrigido
-  com `ALTER POLICY` **nesta mesma migration de T4** (forward-only — T2 não foi editada), não é uma
-  decisão nova, só o SQL que faltava. Li o arquivo inteiro antes desta nota — o conteúdo parece
-  correto e completo, só falta rodar o gate de verdade com o ambiente saudável.
-- **Achado real de infraestrutura, não é bug de código desta feature**: o Lote A rodou por um
-  sub-agente que **travou duas vezes** achando que "esperar um Monitor" resolveria sozinho — na
-  real, o próprio sub-agente tinha rodado o gate check com `run_in_background: true` e encerrado o
-  turno sem recolher o resultado (não existe notificação automática de volta pra ele mesmo nesse
-  caso). Reiterado 2x pra rodar em foreground; na 3ª tentativa, o sub-agente **caiu de vez** por
-  limite de sessão de API ("hit your session limit · resets 4:30am America/Sao_Paulo") — não um erro
-  de código. O orquestrador (esta sessão) assumiu e rodou o gate diretamente: `npm run test:unit`
-  passou limpo (**401/401**, 36 arquivos). `npm run test:integration` (suíte inteira do repo) **não
-  completou** — depois de passar de 600s e ir pra background, voltou com
-  `exit code 1` e o output era literalmente `tail: write error: No space left on device`.
-  `df -h` confirmou: **disco C: em 0 bytes livres (238G/238G, 100% usado)**. Até `du -sh` simples
-  travou tentando rodar. Isso não é falha do código/migration/teste desta feature — é o ambiente da
-  máquina sem espaço, e bloqueia qualquer gate de integração confiável (e possivelmente até
-  `git commit`/`supabase db push`, não testados sob essa condição).
-- **Next step (obrigatório antes de continuar)**: liberar espaço em disco em `C:` (fora do que este
-  agente deveria decidir sozinho numa máquina pessoal — pedir ao Pedro). Depois, nesta ordem: (1)
-  reconfirmar `npm run test:unit` (deve continuar 401/401); (2) rodar
-  `npm run test:integration` de novo — se os testes novos de T4 passarem, completar o Test Adequacy
-  Review (Check A/B/C/D de `implement.md`) e commitar T4
-  (`feat(formularios-produto): T4 -- app.trg_extrai_metricas() SECURITY DEFINER + testes de
-  integração da Fase 1`); (3) seguir com T5-T9 (Fase 2, GIP) exatamente como `tasks.md` já
-  descreve; (4) só depois disso, com o Lote A fechado e reportado, oferecer o Lote B ao Pedro (ele já
-  aprovou rodar em sub-agente, mas cada lote começa só depois do anterior fechar de verdade).
-- **Blockers**: **disco cheio na máquina (0 bytes livres em C:)** — bloqueia qualquer gate de
-  integração confiável a partir de agora, não só desta feature. Limite de sessão de API do sub-agente
-  anterior parece transitório (reset informado pra 4:30am America/Sao_Paulo) — não reconfirmado
-  nesta sessão se já liberou.
-- **Uncommitted files desta feature**:
-  `supabase/migrations/20260814032705_formularios_produto_trigger_metricas.sql` (nova, T4, conteúdo
-  revisado e íntegro, só falta gate real), `supabase/tests/operacao/formularios-submissao.integration.test.ts`
-  (nova, T4).
+  7 fases, 3 lotes de sub-agente). **Lote A (T1-T9, schema: mecanismo genérico + GIP) concluído e
+  commitado nesta sessão**, por pedido explícito do Pedro ("conclua o Lote A e depois pare... amanhã
+  retornaremos com os outros lotes"). Lotes B (T10-T15, NPS+backend TS) e C (T16-T21, frontend)
+  **não iniciados** — Pedro já aprovou rodar em sub-agente, cada lote começa só depois do anterior.
+- **Phase / Task**: Execute, Lote A **completo**. Retomar por Lote B quando Pedro pedir.
+- **Completed**: T1 DDL `fat_submissao`+`fat_resposta_metrica` (`337baa9`) → T2 RLS (`11d17e9`) →
+  T3 grants (`1a44446`) → T4 `app.trg_extrai_metricas()` `SECURITY DEFINER` + 8 testes de
+  integração da Fase 1 (`5941c5f`, + fix de lint `a5ebaa3`) → T5 DDL `fat_gip`/`fat_gip_dimensao`
+  (`49dc295`) → T6 RLS (`981901a`) → T7 grants (`fb19743`) → T8 `app.trg_deriva_gip()`
+  `SECURITY DEFINER` + trigger (`d2600ac`) → T9 `vw_gip_evolucao` + 5 testes de integração da
+  Fase 2, em 2 commits por 2 achados reais no caminho (`c83a601`, `61ea838`).
+- **Sessão anterior tinha travado em T4 por disco cheio (0 bytes livres em C:) — resolvido pelo
+  Pedro nesta sessão**: `df -h` confirmou 24G livres depois; `npm run test:unit` (404/404) e
+  `npm run test:integration` (arquivo isolado de T4, 8/8) rodaram limpos. T4 commitado.
+- **3 achados reais descobertos rodando teste de verdade (não por leitura de código), todos
+  corrigidos no caminho**:
+  1. (T4) `design.md` só desenhava a cláusula de autoria no `WITH CHECK` de `fat_submissao` — spec.md
+     P1 AC9/AC13 também exigem bloqueio por formulário fechado/contrato encerrado, sem SQL exato em
+     lugar nenhum. Corrigido via `ALTER POLICY` na própria migration de T4 (forward-only).
+  2. (T9) `app.trg_valida_gip_dimensao()`/`trg_gip_dimensao_faixa` (verbatim
+     `docs/schema_sistema.sql:1864-1877`) **nunca tinham sido provisionados** — o alvo
+     (`fat_gip_dimensao`) só passou a existir na T5 desta feature, então nenhuma feature anterior
+     poderia tê-los criado; `design.md` assumia errado que já existiam. Sem isso, valor de dimensão
+     fora de 1-4 era aceito silenciosamente (FRM-18 não coberto de fato). Migration nova (`c83a601`).
+  3. (T9) `app.trg_deriva_gip()` só copiava `regua_sonhos` pra dentro de meio/fim **no instante em
+     que eram derivados** — reeditar o início depois que meio/fim já existem (permitido, nenhuma
+     ordem é imposta) deixava a cópia deles desatualizada e `vw_gip_evolucao` mostrava gap errado.
+     Corrigido com propagação nas 2 direções (`61ea838`).
+- **Achado de infraestrutura, não é bug de código desta feature** (contexto para quem ler o histórico
+  de commits): o Lote A começou rodando por sub-agente, que travou 2x achando que "esperar um
+  Monitor" resolveria sozinho (rodava o gate em `run_in_background: true` e encerrava o turno sem
+  recolher o resultado) e na 3ª tentativa caiu de vez por limite de sessão de API. O orquestrador
+  assumiu e completou T4-T9 inline nesta mesma sessão, sem sub-agente.
+- **Poluição de fixture de teste pré-existente, encontrada mas não desta feature**: rodar a suíte
+  `test:integration` completa (antes do disco encher) revelou 16 falhas em `catalogos-referencia` e
+  `convite-contrato` — fixtures órfãs (`fixture_t1_teste_estrutura`, e-mails `t3-convidado-*`),
+  provavelmente vazadas por uma execução anterior interrompida (disco cheio). Tentei limpar via
+  `DELETE` cirúrgico (aprovado pelo Pedro no chat) e o classificador de permissão bloqueou mesmo após
+  aprovação — não é algo que este agente deva contornar. **Débito conhecido, fora do escopo desta
+  feature**: alguém com acesso direto ao SQL Editor do Supabase (ou ajuste de permissão do Claude
+  Code) precisa rodar a limpeza. Detalhe exato das linhas órfãs (`id_etapa` 377/414,
+  `id_formulario` 294, `id_preditor` 116, `dim_contratante` 1638/1705, e-mails `t3-convidado-*@
+  legislabrasil.test`) ficou registrado na conversa desta sessão, não neste arquivo (evitar inchar
+  STATE.md com SQL de limpeza pontual).
+- **Colisão real de commit (não é bug, é corrida no índice do git compartilhado)**: o commit
+  `61ea838` (T9 final) acabou incluindo 2 arquivos de `visao-gerencial-g3-g6`
+  (`20260814211638_visao_gerencial_vw_carteira_ponderada_mensal.sql` +
+  `supabase/tests/visao-gerencial/vw-carteira-ponderada-mensal.integration.test.ts`) — outra sessão
+  rodou `git add` nesses arquivos entre o meu `git add` e `git commit`, e `git commit -m` sem
+  pathspec commita o índice inteiro, não só o que acabei de adicionar. Conteúdo intacto, só
+  attribution de commit "errada" (mesmo padrão já documentado no handoff de `kanban-etapas`) — não
+  reescrevi histórico por ter outra sessão ativa commitando ao mesmo tempo (risco real de rebase).
+  Também: **um commit separado de autoria do próprio Pedro** (`66cc2ab`, "feat: atualizacoes na
+  visao gerencial, formularios de produto e melhorias na UI") varreu o working tree inteiro em algum
+  momento no meio desta sessão (`git add -A`-like), capturando uma cópia mais antiga de
+  `formularios-gip.integration.test.ts` e de `spec.md`/`context.md`/`design.md`/`tasks.md` desta
+  feature — meus commits posteriores (`c83a601`, `61ea838`) já continuam corretamente por cima
+  dessa cópia, nada foi perdido.
+- **Next step**: nenhum obrigatório. Quando Pedro pedir para continuar: Lote B (T10-T15 — `mv_avaliacao_nps`
+  + `app.atualiza_avaliacao_nps()` + `db:types` + `queries/formulario.ts` + `rpc/formulario.ts`,
+  ver `tasks.md`). Antes de rodar `npm run test:integration` completo de novo, ter em mente que as
+  16 falhas de poluição pré-existente (acima) continuam lá até alguém limpar — não são regressão de
+  nenhum trabalho novo.
+- **Blockers**: none (disco resolvido; poluição de fixture é débito conhecido, não bloqueia
+  trabalho novo — só o `test:integration` completo mostra ruído nas 2 features não relacionadas).
+- **Uncommitted files**: none desta feature.
 - **Branch**: develop.
-- **Atenção — trabalho paralelo confirmado nesta sessão**: pelo menos 2 outras trilhas seguiram
-  commitando ativamente neste mesmo branch durante toda a execução do Lote A —
-  `incidencia-encontros` (avançou até pelo menos T35) e uma trilha de planejamento nova
-  (`.specs/features/planejamento-estrategico-redesenho/`, `spec.md`/`context.md`/`design.md`
-  aparecidos como untracked, tasks com prefixo `planejamento` commitando até pelo menos T12).
-  Nenhum arquivo desta feature colidiu (`git log --oneline --all | grep formularios` confirma os 3
-  commits intactos). Outros arquivos modificados/untracked no working tree
-  (`.specs/roadmap.md`, `src/backend/queries/contrato.ts`, `src/frontend/app/(app)/page.tsx`,
-  `src/frontend/app/layout.tsx`, `src/frontend/components/app-shell/route-tabs.tsx`,
-  `src/frontend/components/app-shell/topbar.tsx`, `src/frontend/components/fundacao/contrato-form.tsx`,
-  `src/frontend/components/produtos/produto-shell.tsx`, `src/frontend/components/ui/estado-vazio.tsx`,
-  `supabase/tests/fundacao/fn-criar-mandato.integration.test.ts`,
-  `supabase/migrations/20260813180132_fnd_ctr_05_snapshot_cargo_partido_contrato.sql`) pertencem a
-  outras sessões (Trilha E ainda não commitada + as trilhas paralelas acima) — não criados nem
-  tocados por este trabalho.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: pelo menos 3 outras trilhas commitaram
+  ativamente neste mesmo branch durante toda a execução do Lote A — `incidencia-encontros`
+  (concluída, handoff próprio abaixo), `planejamento-estrategico-redesenho` (concluída e validada,
+  handoff próprio abaixo) e `visao-gerencial-g3-g6` (em andamento, ver colisão de commit acima).
+  Nenhum arquivo de schema/backend desta feature colidiu de verdade (conteúdo sempre correto); a
+  única colisão foi de atribuição de commit no git, documentada acima.
 
 ---
 
