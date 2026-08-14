@@ -170,6 +170,42 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: spec.md:97-99 Edge Case Assessor default filter (validation.md Gap B) (planejamento)
 - last seen: 2026-08-14T13:50:59Z
 
+### L-027 — When a shared filter type gains a field meant to scope a specific downstream behavior (e.g. a date-range field for chart evolution), grep every consumer for that exact field name before marking the feature done -- a field can be parsed from the URL into the shared type and never be read by any query or component, leaving the corresponding UI control fully inert.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `frontend/visao-gerencial` · harmful: 0
+- features: visao-gerencial-g3-g6
+- evidence: src/frontend/app/(app)/visao-gerencial/page.tsx:38 + GER-07/GER-08/GER-12/GER-13 (frontend/visao-gerencial)
+- last seen: 2026-08-14T23:13:53Z
+
+### L-028 — When testing that two independent filters combine by logical AND (intersection of two ID sets), feed each filter query a DIFFERENT non-fully-overlapping mocked dataset and assert the final result is exactly the true intersection -- a test that returns the same mocked rows for both filter queries cannot distinguish intersection from union.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `backend/queries` · harmful: 0
+- features: visao-gerencial-g3-g6
+- evidence: src/backend/queries/visao-gerencial.ts:249 (resolverIdsContratoDoRecorte) -- Mutation A, validation.md (backend/queries)
+- last seen: 2026-08-14T23:13:53Z
+
+### L-029 — When a query-mock builder's chainable methods (e.g. .range()/.limit()) always return the same fixed mocked data regardless of their arguments, any pagination math bug (off-by-one, dropped call) is invisible to every test built on that mock -- capture chained-call arguments in the mock and assert them explicitly whenever correctness depends on the exact values passed to a chainable method.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `backend/queries` · harmful: 0
+- features: visao-gerencial-g3-g6
+- evidence: src/backend/queries/visao-gerencial.ts:932 (buscarPendencias) -- Mutation C, validation.md (backend/queries)
+- last seen: 2026-08-14T23:13:53Z
+
+### L-030 — Before reusing a single-value generic chart/UI primitive to satisfy an AC that describes a stacked or segmented visual (e.g. 'a highlighted segment inside each bar'), check during Design whether the primitive supports that shape -- discovering the mismatch only in Execute forces a same-color-whole-element substitute that needs its own SPEC_DEVIATION note instead of the literal outcome.
+- signal: `spec_deviation` · recurrence: 1 feature(s) · scope: `frontend/dataviz` · harmful: 0
+- features: visao-gerencial-g3-g6
+- evidence: src/frontend/components/visao-gerencial/distribuicao-etapas-interativo.tsx:23-29 (GER-10) (frontend/dataviz)
+- last seen: 2026-08-14T23:14:02Z
+
+### L-031 — When an AC specifies a navigation target that requires an identifier not present in the query's current return shape (e.g. a product slug reachable only from a contract id), decide explicitly during Design whether to add that identifier to the query or accept a different destination -- leaving it to Execute produces a silent AC-outcome substitution instead of a reviewed design trade-off.
+- signal: `spec_deviation` · recurrence: 1 feature(s) · scope: `frontend/visao-gerencial` · harmful: 0
+- features: visao-gerencial-g3-g6
+- evidence: src/frontend/components/visao-gerencial/etapa-contratos-modal.tsx:20-26 (GER-11) (frontend/visao-gerencial)
+- last seen: 2026-08-14T23:14:03Z
+
+### L-032 — Postgres exposes no system catalog for 'when was this materialized view last REFRESHed' -- when a spec asks for a materialized view's refresh timestamp, either add a dedicated metadata table/column that the refresh job writes to, or explicitly label the displayed value as a same-as-freshest-underlying-fact proxy instead of the literal refresh time.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `backend/supabase` · harmful: 0
+- features: visao-gerencial-g3-g6
+- evidence: src/backend/queries/visao-gerencial.ts:819-824 (buscarIipConsolidado, GER-18) (backend/supabase)
+- last seen: 2026-08-14T23:14:23Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
