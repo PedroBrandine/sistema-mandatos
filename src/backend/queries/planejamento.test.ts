@@ -301,8 +301,8 @@ describe("buscarPreditoresPlanejamento", () => {
     const { client, chamadas } = criarClienteMock({
       rel_planejamento_preditor: {
         data: [
-          { id_preditor: 20, ordem: 2 },
-          { id_preditor: 10, ordem: 1 },
+          { id_preditor: 20, ordem: 2, ref_preditor: { nome: "Preditor B" } },
+          { id_preditor: 10, ordem: 1, ref_preditor: { nome: "Preditor A" } },
         ],
         error: null,
       },
@@ -311,8 +311,8 @@ describe("buscarPreditoresPlanejamento", () => {
     const resultado = await buscarPreditoresPlanejamento(client, 1);
 
     expect(resultado).toEqual([
-      { idPreditor: 20, ordem: 2 },
-      { idPreditor: 10, ordem: 1 },
+      { idPreditor: 20, ordem: 2, nomePreditor: "Preditor B" },
+      { idPreditor: 10, ordem: 1, nomePreditor: "Preditor A" },
     ]);
     const chamadaOrder = chamadas.find((c) => c.tabela === "rel_planejamento_preditor" && c.metodo === "order");
     expect(chamadaOrder?.args).toEqual(["ordem", { ascending: true }]);

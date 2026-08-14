@@ -260,11 +260,21 @@ sempre — gap real encontrado nesta feature, ver `spec.md` Success Criteria).
 **Requirement**: PLR-05, PLR-06
 
 **Done when**:
-- [ ] Botão de colapsar funciona (estado local ou prop controlada por `page.tsx`)
-- [ ] Seção GIP mostra o texto placeholder, nunca dado inventado
-- [ ] `npm run build` limpo
+- [x] Botão de colapsar funciona (estado local ou prop controlada por `page.tsx`)
+- [x] Seção GIP mostra o texto placeholder, nunca dado inventado
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente (ver histórico). **SPEC_DEVIATION**: usa `<details>`/`<summary>`
+nativo em vez do par `colapsado`/`onToggle` controlado pelo pai sugerido em `design.md` —
+simplificação deliberada (semântica e teclado nativos, zero JS de estado lifted; a mesma marcação
+já cobre o requisito de accordion de T9, ver nota daquela task). Reason: nenhuma AC exige o
+mecanismo específico, só "colapsável por botão" e "grade ocupa 100% quando colapsada" — `<details>`
+satisfaz os dois sem estado extra no `page.tsx`. `preditoresAtuais` ganhou `nomePreditor`
+(companion edit em `queries/planejamento.ts`/`.test.ts`, join `ref_preditor(nome)` — mesmo padrão
+já usado em `queries/contrato.ts`; sem essa mudança a coluna esquerda só teria o id do preditor
+pra mostrar).
 
 ---
 

@@ -250,6 +250,10 @@ export async function buscarContratosMembros(
 export interface PreditorPrioritarioLinha {
   idPreditor: number;
   ordem: number;
+  // PLR-05 (.specs/features/planejamento-estrategico-redesenho): ContextoEstrategico
+  // exibe os preditores prioritários pelo nome, não pelo id -- embed join em
+  // ref_preditor(nome), mesmo padrão já usado em queries/contrato.ts.
+  nomePreditor: string;
 }
 
 // PLM-16. Até 3 preditores prioritários do planejamento, ordenados.
@@ -259,12 +263,16 @@ export async function buscarPreditoresPlanejamento(
 ): Promise<PreditorPrioritarioLinha[]> {
   const { data, error } = await client
     .from("rel_planejamento_preditor")
-    .select("id_preditor, ordem")
+    .select("id_preditor, ordem, ref_preditor(nome)")
     .eq("id_planejamento", idPlanejamento)
     .order("ordem", { ascending: true });
   if (error) throw error;
   if (!data) return [];
-  return data.map((linha) => ({ idPreditor: linha.id_preditor, ordem: linha.ordem }));
+  return data.map((linha) => ({
+    idPreditor: linha.id_preditor,
+    ordem: linha.ordem,
+    nomePreditor: linha.ref_preditor?.nome ?? "",
+  }));
 }
 
 export interface HistoricoAuditoria {
