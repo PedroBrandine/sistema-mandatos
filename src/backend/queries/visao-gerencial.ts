@@ -782,3 +782,88 @@ export async function buscarCompletudeCadastro(
 
   return CAMPOS_CADASTRO.map((campo) => ({ campo, qtdContratos: porCampo.get(campo) ?? 0 }));
 }
+
+export interface LinhaDistribuicaoIip {
+  nivel: string;
+  qtdContratos: number;
+}
+
+export interface IipConsolidado {
+  distribuicaoPorNivel: LinhaDistribuicaoIip[];
+  valorMedio: number | null; // null = 0 contrato com fato gerador no recorte (AD-005)
+  dtDadoMaisRecente: string | null; // TODO(D2)/proxy de frescor -- ver comentário da função
+}
+
+interface RowNivelIip {
+  codigo: string;
+  rotulo: string;
+  valor: number;
+  ordem: number;
+}
+
+interface RowIipContrato {
+  id_contrato: number;
+  iip_provisorio: number | null;
+  dt_ultimo_fato: string | null;
+}
+
+// TODO(D2): aritmética final do IIP pendente com a área de conhecimento --
+// iip_provisorio é lido tal como a materialized view calcula, nunca
+// recalculado aqui (AD-014, a Incidência calcula, a Saída só lê).
+//
+// "Nível" não é uma FK direta em mv_iip_contrato (o campo é um score
+// contínuo) -- bucketizado contra ref_nivel_iip pelo maior ordem cujo valor
+// <= iip_provisorio (leitura padrão de tier/tabela de nível, também
+// provisória enquanto D2 não fecha).
+//
+// dtDadoMaisRecente: Postgres não expõe em nenhum catálogo de sistema
+// "quando esta materialized view foi atualizada pela última vez" -- não
+// existe mecanismo nativo pra isso. MAX(dt_ultimo_fato) é o proxy mais
+// próximo disponível hoje (data do fato mais recente já processado pela
+// MV), não o timestamp exato do REFRESH. Rastrear o REFRESH de verdade
+// exigiria uma tabela/coluna de metadado nova -- fora do escopo desta task.
+export async function buscarIipConsolidado(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<IipConsolidado> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+
+  const { data: niveisData, error: erroNiveis } = await client
+    .from("ref_nivel_iip")
+    .select("codigo, rotulo, valor, ordem")
+    .order("ordem", { ascending: true });
+  if (erroNiveis) throw erroNiveis;
+  const niveis = (niveisData ?? []) as RowNivelIip[];
+
+  const { data: iipData, error: erroIip } = await aplicarFiltroContrato(
+    client.from("mv_iip_contrato").select("id_contrato, iip_provisorio, dt_ultimo_fato"),
+    idsContrato
+  );
+  if (erroIip) throw erroIip;
+  const linhas = (iipData ?? []) as RowIipContrato[];
+
+  const porNivel = new Map<string, number>(niveis.map((n) => [n.rotulo, 0]));
+  let soma = 0;
+  let qtd = 0;
+  let dtMaisRecente: string | null = null;
+
+  for (const linha of linhas) {
+    if (linha.dt_ultimo_fato !== null && (dtMaisRecente === null || linha.dt_ultimo_fato > dtMaisRecente)) {
+      dtMaisRecente = linha.dt_ultimo_fato;
+    }
+    if (linha.iip_provisorio === null) continue;
+    soma += linha.iip_provisorio;
+    qtd += 1;
+
+    const nivelAplicavel = [...niveis].reverse().find((n) => (linha.iip_provisorio as number) >= n.valor);
+    if (nivelAplicavel !== undefined) {
+      porNivel.set(nivelAplicavel.rotulo, (porNivel.get(nivelAplicavel.rotulo) ?? 0) + 1);
+    }
+  }
+
+  return {
+    distribuicaoPorNivel: niveis.map((n) => ({ nivel: n.rotulo, qtdContratos: porNivel.get(n.rotulo) ?? 0 })),
+    valorMedio: qtd > 0 ? Math.round((soma / qtd) * 100) / 100 : null,
+    dtDadoMaisRecente: dtMaisRecente,
+  };
+}

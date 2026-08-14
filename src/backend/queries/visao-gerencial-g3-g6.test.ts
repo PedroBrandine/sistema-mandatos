@@ -9,6 +9,7 @@ import {
   buscarDistribuicaoEtapas,
   buscarAtingimentoPorRecorte,
   buscarCompletudeCadastro,
+  buscarIipConsolidado,
 } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
@@ -419,5 +420,72 @@ describe("buscarCompletudeCadastro", () => {
 
     expect(resultado.every((r) => r.qtdContratos === 0)).toBe(true);
     expect(resultado).toHaveLength(5);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-18 +
+// tasks.md T16 Done-when.
+describe("buscarIipConsolidado", () => {
+  const NIVEIS = {
+    data: [
+      { codigo: "baixo", rotulo: "Baixo", valor: 0, ordem: 1 },
+      { codigo: "medio", rotulo: "Médio", valor: 30, ordem: 2 },
+      { codigo: "alto", rotulo: "Alto", valor: 60, ordem: 3 },
+      { codigo: "critico", rotulo: "Crítico", valor: 85, ordem: 4 },
+    ],
+    error: null,
+  };
+
+  it("bucketiza cada contrato no maior nível cujo valor <= iip_provisorio; todos os níveis sempre aparecem", async () => {
+    const client = criarClienteMock({
+      ref_nivel_iip: NIVEIS,
+      mv_iip_contrato: {
+        data: [
+          { id_contrato: 1, iip_provisorio: 50, dt_ultimo_fato: "2026-06-01" }, // Médio (30<=50<60)
+          { id_contrato: 2, iip_provisorio: 90, dt_ultimo_fato: "2026-07-01" }, // Crítico
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarIipConsolidado(client, {});
+
+    expect(resultado.distribuicaoPorNivel).toEqual([
+      { nivel: "Baixo", qtdContratos: 0 },
+      { nivel: "Médio", qtdContratos: 1 },
+      { nivel: "Alto", qtdContratos: 0 },
+      { nivel: "Crítico", qtdContratos: 1 },
+    ]);
+  });
+
+  it("valorMedio é a média dos iip_provisorio não-nulos; dtDadoMaisRecente é o maior dt_ultimo_fato", async () => {
+    const client = criarClienteMock({
+      ref_nivel_iip: NIVEIS,
+      mv_iip_contrato: {
+        data: [
+          { id_contrato: 1, iip_provisorio: 40, dt_ultimo_fato: "2026-06-01" },
+          { id_contrato: 2, iip_provisorio: 60, dt_ultimo_fato: "2026-08-01" },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarIipConsolidado(client, {});
+
+    expect(resultado.valorMedio).toBe(50);
+    expect(resultado.dtDadoMaisRecente).toBe("2026-08-01");
+  });
+
+  it("zero contratos com IIP no recorte -> valorMedio null, nunca 0 (AD-005)", async () => {
+    const client = criarClienteMock({
+      ref_nivel_iip: NIVEIS,
+      mv_iip_contrato: { data: [], error: null },
+    });
+
+    const resultado = await buscarIipConsolidado(client, {});
+
+    expect(resultado.valorMedio).toBeNull();
+    expect(resultado.dtDadoMaisRecente).toBeNull();
+    expect(resultado.distribuicaoPorNivel.every((n) => n.qtdContratos === 0)).toBe(true);
   });
 });
