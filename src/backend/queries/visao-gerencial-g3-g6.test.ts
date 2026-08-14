@@ -8,6 +8,7 @@ import {
   buscarCarteiraPonderadaMensal,
   buscarDistribuicaoEtapas,
   buscarAtingimentoPorRecorte,
+  buscarCompletudeCadastro,
 } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
@@ -386,5 +387,37 @@ describe("buscarAtingimentoPorRecorte", () => {
     const resultado = await buscarAtingimentoPorRecorte(client, {});
 
     expect(resultado.qtdSmNaoAtualizadosMesCorrente).toBe(0);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-17 +
+// tasks.md T15 Done-when.
+describe("buscarCompletudeCadastro", () => {
+  it("os 5 campos sempre aparecem, mesmo com contagem 0 (AD-005)", async () => {
+    const client = criarClienteMock({
+      vw_pendencias: {
+        data: [{ detalhe: "ds_genero" }, { detalhe: "ds_genero" }, { detalhe: "fl_pcd" }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCompletudeCadastro(client, {});
+
+    expect(resultado).toEqual([
+      { campo: "ds_genero", qtdContratos: 2 },
+      { campo: "ds_raca", qtdContratos: 0 },
+      { campo: "fl_pcd", qtdContratos: 1 },
+      { campo: "confianca", qtdContratos: 0 },
+      { campo: "titulo_eleitoral", qtdContratos: 0 },
+    ]);
+  });
+
+  it("sem nenhuma pendência de cadastro -> todos os campos com 0, sem lançar", async () => {
+    const client = criarClienteMock({ vw_pendencias: { data: [], error: null } });
+
+    const resultado = await buscarCompletudeCadastro(client, {});
+
+    expect(resultado.every((r) => r.qtdContratos === 0)).toBe(true);
+    expect(resultado).toHaveLength(5);
   });
 });

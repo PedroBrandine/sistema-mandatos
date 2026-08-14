@@ -748,3 +748,37 @@ export async function buscarAtingimentoPorRecorte(
 
   return { porProduto, porProjeto, qtdDesatualizados, qtdSmNaoAtualizadosMesCorrente };
 }
+
+export interface LinhaCompletudeCampo {
+  campo: string;
+  qtdContratos: number;
+}
+
+// Os 5 campos fixos que vw_pendencias categoria 'cadastro' checa (T1) --
+// rótulo 'titulo_eleitoral' é o literal usado na view, não
+// 'nr_titulo_eleitoral' (nome da coluna em dim_mandato).
+const CAMPOS_CADASTRO = ["ds_genero", "ds_raca", "fl_pcd", "confianca", "titulo_eleitoral"] as const;
+
+// GER-17. Os 5 campos sempre aparecem, mesmo com contagem 0 (backbone fixo,
+// não derivado da presença de dado -- AD-005). Contrato de Coalizão nunca
+// entra (já garantido pela view em T1, join contra dim_mandato não casa).
+export async function buscarCompletudeCadastro(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<LinhaCompletudeCampo[]> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+  const { data, error } = await aplicarFiltroContrato(
+    client.from("vw_pendencias").select("detalhe").eq("categoria", "cadastro"),
+    idsContrato
+  );
+  if (error) throw error;
+  const rows = (data ?? []) as { detalhe: string | null }[];
+
+  const porCampo = new Map<string, number>();
+  for (const row of rows) {
+    if (row.detalhe === null) continue;
+    porCampo.set(row.detalhe, (porCampo.get(row.detalhe) ?? 0) + 1);
+  }
+
+  return CAMPOS_CADASTRO.map((campo) => ({ campo, qtdContratos: porCampo.get(campo) ?? 0 }));
+}
