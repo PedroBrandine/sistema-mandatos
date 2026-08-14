@@ -9,6 +9,7 @@ import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { ChartLinhaEvolucao } from "@/components/visao-gerencial/chart-linha-evolucao";
+import { apararUltimosMeses } from "@/components/visao-gerencial/periodo";
 
 // GG-03, GG-04 + visao-gerencial-g3-g6 T23 (GER-09, GER-13). Sem Select
 // próprio de produto/Gestora -- `filtro` vem da barra de recorte global
@@ -79,7 +80,7 @@ export function CicloEtapaCard({ filtro }: { filtro: FiltroRecorte }) {
                       id: String(e.idEtapa),
                       nome: e.nomeEtapa,
                       cor: "var(--primary)",
-                      pontos: e.pontos.map((p) => ({ mes: p.mes, valor: p.mediana })),
+                      pontos: apararUltimosMeses(e.pontos, filtro.mesesEvolucao).map((p) => ({ mes: p.mes, valor: p.mediana })),
                     },
                   ]}
                   unidade="dias"

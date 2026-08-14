@@ -5,6 +5,7 @@ import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { ChartLinhaEvolucao } from "@/components/visao-gerencial/chart-linha-evolucao";
 import { ChartBarraHorizontal } from "@/components/visao-gerencial/chart-barra-horizontal";
+import { apararUltimosMeses } from "@/components/visao-gerencial/periodo";
 
 // visao-gerencial-g3-g6, T22 (Bloco 0, GER-06/07/08). G3+G4 medem o próprio
 // sistema (Constituição §2.6) -- ficam acima de qualquer indicador de
@@ -64,7 +65,7 @@ async function BlocoG3({ filtro }: { filtro: FiltroRecorte }) {
                     id: "cobertura",
                     nome: "Cobertura",
                     cor: "var(--primary)",
-                    pontos: dado.evolucaoMensal.map((p) => ({ mes: p.mes, valor: p.pct })),
+                    pontos: apararUltimosMeses(dado.evolucaoMensal, filtro.mesesEvolucao).map((p) => ({ mes: p.mes, valor: p.pct })),
                   },
                 ]}
                 unidade="pct"
@@ -121,7 +122,7 @@ async function BlocoG4({ filtro }: { filtro: FiltroRecorte }) {
                 id: "taxa",
                 nome: "Taxa média",
                 cor: "var(--primary)",
-                pontos: dado.evolucaoMensal.map((p) => ({ mes: p.mes, valor: p.taxaMedia })),
+                pontos: apararUltimosMeses(dado.evolucaoMensal, filtro.mesesEvolucao).map((p) => ({ mes: p.mes, valor: p.taxaMedia })),
               },
             ]}
             unidade="pct"

@@ -14,6 +14,7 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartLinhaEvolucao } from "@/components/visao-gerencial/chart-linha-evolucao";
 import { corPorId, CorOutras } from "@/components/visao-gerencial/paleta-serie";
+import { apararUltimosMeses } from "@/components/visao-gerencial/periodo";
 
 type Papel = "gestora" | "mentor";
 
@@ -103,7 +104,7 @@ export function CarteiraPonderadaCard({ filtro }: { filtro: FiltroRecorte }) {
               id: s.idUsuarioGestora === null ? "outras" : String(s.idUsuarioGestora),
               nome: s.nomeGestora,
               cor: s.idUsuarioGestora === null ? CorOutras : corPorId(s.idUsuarioGestora),
-              pontos: s.pontos.map((p) => ({ mes: p.mes, valor: p.somaPeso })),
+              pontos: apararUltimosMeses(s.pontos, filtro.mesesEvolucao).map((p) => ({ mes: p.mes, valor: p.somaPeso })),
             }))}
           />
         )}
