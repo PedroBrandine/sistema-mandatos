@@ -166,10 +166,10 @@ uma trilha nova de `visao-gerencial-g3-g6`, e edições em andamento de `planeja
 - **`npm run test:integration` (escopo da feature)**: `npx vitest run --config vitest.integration.config.ts supabase/tests/incidencia/ supabase/tests/visao-gerencial/vw-carteira.integration.test.ts`
   - **1ª rodada (6 arquivos juntos)**: 4/6 arquivos verdes (23 testes passed): `incidencia-rls-grants` (12), `vw-carteira` (3), `fn-criar-fato-gerador` (5), `iip` (3). 2/6 falharam por **timeout de hook** (`beforeAll`/`afterAll`, não falha de asserção): `incidencia-triggers-constraints` (9 skipped) e `fn-criar-insight` (8 skipped).
   - **2ª rodada (retry dos 2 que falharam, juntos)**: `incidencia-triggers-constraints` passou limpo 9/9 (confirma que a 1ª falha foi contenção transitória, não defeito). `fn-criar-insight` falhou de novo, **mesmo padrão exato** (hook timeout em 120000ms no `beforeAll`, depois `TypeError` no `afterAll` por `a`/`b` nunca terem sido atribuídos).
-  - **3ª rodada (retry isolado, só `fn-criar-insight`, sem nenhum outro arquivo rodando junto)**: **[preenchido abaixo, após conclusão]**
-  - **Diagnóstico**: em todas as tentativas, a falha é sempre no **setup** (`beforeAll`, que cria 2 usuários reais via `admin.auth.admin.createUser` + fixtures), nunca numa asserção de teste — os 8 testes do arquivo nunca chegam a rodar (todos `skipped`). Isso é consistente com contenção de rede/DB no projeto Supabase de dev compartilhado (múltiplas outras sessões confirmadas rodando testes de integração e `npm run dev` na mesma janela — ver "Achado crítico de ambiente" acima), não com um defeito de código: o corpo dos 8 testes deste arquivo foi lido integralmente nesta validação e bate exatamente com os ACs (Meta-só/Sucesso-só/ambos em `rel_insight_origem`, rejeição cross-contrato), e o commit que introduziu este arquivo (T13, histórico do PR) tinha gate verde 8/8 no momento do commit.
+  - **3ª rodada (retry isolado, só `fn-criar-insight`, sem nenhum outro arquivo rodando junto)**: **os 8 testes passaram (8/8)** — confirma que as 2 falhas anteriores eram contenção transitória de setup (`beforeAll`), não defeito de código. Os 8 `it()` (sem origem, com Registro, com Meta, com Sucesso, Meta+Sucesso, rejeita Registro/Meta/Sucesso de outro contrato) rodaram e bateram com os valores exatos esperados. A suíte, ainda assim, terminou `FAIL` — não por asserção, mas porque o **`afterAll`** (linha 148, `DELETE FROM dim_usuario WHERE email = '...'`) bateu em `23503 update or delete on table "dim_usuario" violates foreign key constraint "rel_usuario_contrato_id_usuario_fkey"` (ver Gap 3 — bug real, mas no teardown do teste, não no código de produção).
+  - **Diagnóstico consolidado**: as 2 primeiras falhas (hook timeout em `beforeAll`) são contenção de rede/DB no projeto Supabase de dev compartilhado (múltiplas outras sessões confirmadas rodando testes de integração e `npm run dev` na mesma janela — ver "Achado crítico de ambiente" acima). A 3ª falha (FK no `afterAll`) é um bug real e reproduzível de teardown do próprio arquivo de teste (Gap 3), não um defeito do código desta feature — todas as 24 ACs seguem com evidência de valor exato, incluindo as 5 do Insight (P2), agora confirmadas rodando de verdade nesta sessão.
 - **Test count antes da feature**: não aplicável a `test:unit` desta forma (401 já é o número pós-feature documentado nos commits; não há baseline pré-feature isolada disponível sem re-checkout)
-- **Skipped**: 0 no gate final consolidado (ver rodadas acima) — todos os 40 testes do escopo da feature têm pelo menos 1 execução limpa registrada nesta sessão, exceto `fn-criar-insight` (8 testes), cujo resultado desta sessão ficou marcado como não-confirmável sob a contenção atual (ver Gap 3)
+- **Skipped**: 0 no consolidado final — todos os 40 testes do escopo da feature (12+9+8+3+5+3) tiveram sua execução real observada e passando nesta sessão, em pelo menos uma rodada cada; nenhum ficou sem confirmação direta
 
 ---
 
@@ -197,8 +197,31 @@ uma trilha nova de `visao-gerencial-g3-g6`, e edições em andamento de `planeja
    `ck_sucesso_status`/`ck_planejamento_preditor_ordem` também sem teste de violação no banco) —
    não é uma regressão introduzida por esta feature.
 
-Nenhum dos 2 gaps bloqueia o MVP (P1) nem invalida qualquer AC nomeada do spec.md. Nenhum decide
-sozinho um SPEC_DEVIATION — ambos são achados objetivos com evidência, entregues ao orquestrador.
+3. **[Minor, test-infra, não afeta código de produção] `afterAll` de
+   `fn-criar-insight.integration.test.ts` deixa órfãos que travam o próprio teardown em runs
+   futuros** — `ASSESSOR_EMAIL` (linha 19) é uma constante fixa
+   (`inc-t13-assessor@legislabrasil.test`), e o `beforeAll` faz
+   `INSERT ... ON CONFLICT (email) DO UPDATE` (linha 100): o mesmo `id_usuario` persiste entre
+   execuções. O `afterAll` (linha 137) faz
+   `DELETE FROM rel_usuario_contrato WHERE id_contrato IN (a.idContrato, b.idContrato)` — só limpa
+   os vínculos dos 2 contratos **desta** execução. Se uma execução anterior falhar antes de chegar
+   no seu próprio `afterAll` (exatamente o que aconteceu 2x nesta sessão, por timeout no
+   `beforeAll`), o vínculo órfão daquela execução (contrato antigo, já não existe mais) permanece
+   em `rel_usuario_contrato`, referenciando o mesmo `id_usuario` persistente. Na primeira execução
+   subsequente que **conseguir** completar os 8 testes, o `DELETE FROM dim_usuario` final (linha
+   148) falha com `23503` porque ainda existe pelo menos 1 linha órfã de uma tentativa anterior
+   não coberta pelo filtro `id_contrato IN (a,b)` — confirmado ao vivo nesta sessão (`id_usuario=1133`
+   referenciado, rodada 3). **Efeito colateral real**: o banco de dev agora tem 1 `dim_usuario` +
+   ≥1 `rel_usuario_contrato` órfãos sob esse e-mail, que vão continuar quebrando o `afterAll` de
+   toda run futura deste arquivo até alguém limpar manualmente ou corrigir o filtro (trocar por
+   `WHERE id_usuario = idUsuarioAssessor`, que pega todos os vínculos da pessoa, não só os desta
+   execução). Não decidi mexer nisso — é mutação de dado em ambiente compartilhado, fora do escopo
+   read-only do Verifier.
+
+Nenhum dos 3 gaps bloqueia o MVP (P1) nem invalida qualquer AC nomeada do spec.md — o Gap 3 nem
+sequer é uma AC, é um bug de teardown de teste que passou a existir só depois que a contenção da
+sessão o expôs. Nenhum decide sozinho um SPEC_DEVIATION — todos são achados objetivos com
+evidência, entregues ao orquestrador.
 
 ---
 
@@ -214,27 +237,37 @@ sozinho um SPEC_DEVIATION — ambos são achados objetivos com evidência, entre
 
 ## Summary
 
-**Overall**: ⚠️ Issues (não bloqueantes) — 2 gaps de baixa/média severidade, nenhum invalida uma AC
-nomeada do spec.md, nenhum é regressão de código.
+**Overall**: ⚠️ Issues (não bloqueantes) — 3 gaps de baixa/média severidade, nenhum invalida uma AC
+nomeada do spec.md, nenhum é regressão de código de produção.
 
 **Spec-anchored check**: 23/24 ACs batem exatamente com o outcome do spec (valor preciso checado,
-não só "existe asserção"); 1 partial (AC8, metade bookkeeping pendente).
+não só "existe asserção"); 1 partial (AC8, metade bookkeeping pendente em STATE.md).
 
 **Sensor**: 3/3 mutações injetadas, 3/3 mortas (escopo de sensor ajustado para a camada TypeScript
-por segurança — ver nota de ambiente).
+por segurança — banco de dev compartilhado com sessões concorrentes ativas, ver nota de ambiente).
 
-**Gate**: `test:unit` 401/401 ✅; `build` limpo ✅ (após retry por contenção de disco de outra
-sessão); `test:integration` (escopo da feature) — ver seção Gate Check, resultado real anexado
-assim que o run em background concluir.
+**Gate**: `test:unit` 401/401 ✅. `build` limpo ✅ (após retry por contenção de disco de outra
+sessão). `lint:all` — mesma baseline pré-existente (1 erro, arquivo de outra trilha, não tocado por
+esta feature) ✅. `test:integration` (escopo da feature, 6 arquivos/40 testes) — **todos os 40
+testes tiveram sua execução real observada passando nesta sessão** (3 rodadas foram necessárias por
+contenção do ambiente compartilhado, não por defeito de código — detalhe completo em Gate Check).
+Uma suíte (`fn-criar-insight`) segue terminando `FAIL` no relatório do Vitest por um bug real, porém
+de teardown de teste (Gap 3), não de asserção.
 
 **O que funciona**: as 4 User Stories (Fato Gerador+IIP, Registro, Insight, Encontros) têm cobertura
 de teste real e não-superficial — os testes de RPC checam o **valor gravado** (`id_meta`/`id_insight`
 na tabela de vínculo), não só ausência de erro; a fórmula do IIP foi verificada com valor numérico
 exato calculado à mão (4); o edge case AD-005 (NULL nunca 0) está testado tanto no nível de MV
-quanto na `vw_carteira` completa.
+quanto na `vw_carteira` completa; todas as 5 ACs de Insight (P2) foram confirmadas rodando de
+verdade, isoladas de contenção, nesta sessão.
 
-**Issues encontradas**: ver Gaps Ranqueados (2, nenhum bloqueante).
+**Issues encontradas**: ver Gaps Ranqueados (3, nenhum bloqueante — 2 de código/bookkeeping, 1 de
+teardown de teste).
 
 **Next steps**: (1) 1 edição textual em STATE.md pra fechar AD-032 — trabalho do orquestrador, fora
 do meu escopo read-only; (2) opcionalmente, endereçar o Gap 2 numa fatia futura de hardening de
-testes (não urgente, mesmo padrão já aceito em feature irmã).
+testes (não urgente, mesmo padrão já aceito em feature irmã); (3) corrigir o filtro do `afterAll`
+de `fn-criar-insight.integration.test.ts` (Gap 3) e limpar manualmente o `dim_usuario`/
+`rel_usuario_contrato` órfãos de `inc-t13-assessor@legislabrasil.test` no banco de dev, ou a próxima
+run desse arquivo específico vai continuar terminando `FAIL` no teardown mesmo com os 8 testes
+passando.

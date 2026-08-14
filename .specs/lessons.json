@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 23,
+  "next_id": 24,
   "lessons": [
     {
       "id": "L-001",
@@ -400,6 +400,24 @@
       ],
       "created": "2026-08-14T13:13:26Z",
       "last_seen": "2026-08-14T13:13:26Z"
+    },
+    {
+      "id": "L-023",
+      "key": "gate_fail::when integration test fixtures reuse a stable identifying key email code with on conflict do update so the same row persists across runs scope afterall cleanup deletes by that persistent id e g where id usuario not by this run s own freshly generated child ids or a row orphaned by an earlier failed run will fk block cleanup forever",
+      "text": "When integration-test fixtures reuse a stable identifying key (email/code) with ON CONFLICT DO UPDATE so the same row persists across runs, scope afterAll cleanup deletes by that persistent id (e.g. WHERE id_usuario = ...), not by this run's own freshly-generated child ids, or a row orphaned by an earlier failed run will FK-block cleanup forever.",
+      "signal": "gate_fail",
+      "scope": "supabase/tests",
+      "status": "candidate",
+      "features": [
+        "incidencia-encontros"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "supabase/tests/incidencia/fn-criar-insight.integration.test.ts:137,148 / validation.md Gap 3 (supabase/tests)"
+      ],
+      "created": "2026-08-14T13:28:08Z",
+      "last_seen": "2026-08-14T13:28:08Z"
     }
   ]
 }

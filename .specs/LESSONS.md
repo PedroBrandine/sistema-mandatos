@@ -146,6 +146,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: spec.md P1 AC8 / validation.md Gap 1 / STATE.md:266 (STATE.md)
 - last seen: 2026-08-14T13:13:26Z
 
+### L-023 — When integration-test fixtures reuse a stable identifying key (email/code) with ON CONFLICT DO UPDATE so the same row persists across runs, scope afterAll cleanup deletes by that persistent id (e.g. WHERE id_usuario = ...), not by this run's own freshly-generated child ids, or a row orphaned by an earlier failed run will FK-block cleanup forever.
+- signal: `gate_fail` · recurrence: 1 feature(s) · scope: `supabase/tests` · harmful: 0
+- features: incidencia-encontros
+- evidence: supabase/tests/incidencia/fn-criar-insight.integration.test.ts:137,148 / validation.md Gap 3 (supabase/tests)
+- last seen: 2026-08-14T13:28:08Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
