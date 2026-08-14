@@ -375,3 +375,92 @@ export async function buscarSaudeCobertura(
     evolucaoMensal,
   };
 }
+
+export interface SaudeFormularios {
+  porFormulario: { idFormulario: number; nomeFormulario: string; taxaResposta: number | null }[];
+  qtdAbertosMais30Dias: number;
+  evolucaoMensal: { mes: string; taxaMedia: number | null }[];
+}
+
+interface RowRespostaFormulario {
+  id_formulario: number;
+  nome_formulario: string;
+  respondido: boolean;
+}
+
+interface RowRespostaFormularioMensal {
+  mes_referencia: string;
+  id_contrato: number;
+  id_produto: number;
+  tem_resposta: boolean;
+}
+
+// GER-08. Estado atual: taxa de resposta por formulário (agregação em TS,
+// mesmo padrão de buscarCarteiraPonderada), ordenada pela taxa decrescente;
+// contagem de "abertos há mais de 30 dias" vem só de vw_pendencias (categoria
+// formulario_aberto já aplica o limiar -- não replicar, AD-004). Evolução:
+// vw_resposta_formulario_mensal (grão fino), agregada em TS.
+export async function buscarSaudeFormularios(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<SaudeFormularios> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+
+  const { data: respostaData, error: erroResposta } = await aplicarFiltroContrato(
+    client.from("vw_resposta_formulario").select("id_formulario, nome_formulario, respondido"),
+    idsContrato
+  );
+  if (erroResposta) throw erroResposta;
+  const linhasResposta = (respostaData ?? []) as RowRespostaFormulario[];
+
+  const porFormularioMap = new Map<number, { nome: string; total: number; respondidas: number }>();
+  for (const linha of linhasResposta) {
+    const acc = porFormularioMap.get(linha.id_formulario) ?? {
+      nome: linha.nome_formulario,
+      total: 0,
+      respondidas: 0,
+    };
+    acc.total += 1;
+    if (linha.respondido) acc.respondidas += 1;
+    porFormularioMap.set(linha.id_formulario, acc);
+  }
+  const porFormulario = [...porFormularioMap.entries()]
+    .map(([idFormulario, acc]) => ({
+      idFormulario,
+      nomeFormulario: acc.nome,
+      taxaResposta: acc.total > 0 ? Math.round((acc.respondidas / acc.total) * 10000) / 100 : null,
+    }))
+    .sort((a, b) => (b.taxaResposta ?? -1) - (a.taxaResposta ?? -1));
+
+  const { data: pendenciasData, error: erroPendencias } = await aplicarFiltroContrato(
+    client.from("vw_pendencias").select("id_contrato").eq("categoria", "formulario_aberto"),
+    idsContrato
+  );
+  if (erroPendencias) throw erroPendencias;
+  const qtdAbertosMais30Dias = ((pendenciasData ?? []) as RowContratoAtivo[]).length;
+
+  const { data: mensalData, error: erroMensal } = await aplicarFiltroContrato(
+    client.from("vw_resposta_formulario_mensal").select("mes_referencia, id_contrato, id_produto, tem_resposta"),
+    idsContrato
+  );
+  if (erroMensal) throw erroMensal;
+  const linhasMensal = (mensalData ?? []) as RowRespostaFormularioMensal[];
+  const linhasMensalFiltradas =
+    filtro.idProduto !== undefined ? linhasMensal.filter((l) => l.id_produto === filtro.idProduto) : linhasMensal;
+
+  const porMes = new Map<string, { total: number; respondidas: number }>();
+  for (const linha of linhasMensalFiltradas) {
+    const acc = porMes.get(linha.mes_referencia) ?? { total: 0, respondidas: 0 };
+    acc.total += 1;
+    if (linha.tem_resposta) acc.respondidas += 1;
+    porMes.set(linha.mes_referencia, acc);
+  }
+  const evolucaoMensal = [...porMes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([mes, acc]) => ({
+      mes,
+      taxaMedia: acc.total > 0 ? Math.round((acc.respondidas / acc.total) * 10000) / 100 : null,
+    }));
+
+  return { porFormulario, qtdAbertosMais30Dias, evolucaoMensal };
+}

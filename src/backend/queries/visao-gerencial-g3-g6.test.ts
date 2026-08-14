@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarSaudeCobertura } from "./visao-gerencial";
+import { buscarSaudeCobertura, buscarSaudeFormularios } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
 // tasks.md T9 Done-when.
@@ -120,5 +120,64 @@ describe("buscarSaudeCobertura", () => {
     const resultado = await buscarSaudeCobertura(client, { idProduto: 10 });
 
     expect(resultado.evolucaoMensal).toEqual([{ mes: "2026-06-01", pct: 100 }]);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-08 +
+// tasks.md T10 Done-when.
+describe("buscarSaudeFormularios", () => {
+  it("ordena por taxa de resposta decrescente e conta abertos > 30 dias só via vw_pendencias", async () => {
+    const client = criarClienteMock({
+      vw_resposta_formulario: {
+        data: [
+          { id_formulario: 1, nome_formulario: "Diagnóstico", respondido: true },
+          { id_formulario: 1, nome_formulario: "Diagnóstico", respondido: false },
+          { id_formulario: 2, nome_formulario: "Encerramento", respondido: true },
+        ],
+        error: null,
+      },
+      vw_pendencias: { data: [{ id_contrato: 5 }, { id_contrato: 6 }], error: null },
+      vw_resposta_formulario_mensal: { data: [], error: null },
+    });
+
+    const resultado = await buscarSaudeFormularios(client, {});
+
+    expect(resultado.porFormulario).toEqual([
+      { idFormulario: 2, nomeFormulario: "Encerramento", taxaResposta: 100 },
+      { idFormulario: 1, nomeFormulario: "Diagnóstico", taxaResposta: 50 },
+    ]);
+    expect(resultado.qtdAbertosMais30Dias).toBe(2);
+  });
+
+  it("evolução mensal agregada a partir do grão fino, filtrada por idProduto quando presente", async () => {
+    const client = criarClienteMock({
+      vw_resposta_formulario: { data: [], error: null },
+      vw_pendencias: { data: [], error: null },
+      vw_resposta_formulario_mensal: {
+        data: [
+          { mes_referencia: "2026-05-01", id_contrato: 1, id_produto: 10, tem_resposta: true },
+          { mes_referencia: "2026-05-01", id_contrato: 2, id_produto: 20, tem_resposta: false },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarSaudeFormularios(client, { idProduto: 10 });
+
+    expect(resultado.evolucaoMensal).toEqual([{ mes: "2026-05-01", taxaMedia: 100 }]);
+  });
+
+  it("nenhuma abertura -> porFormulario e evolucaoMensal vazios, sem erro", async () => {
+    const client = criarClienteMock({
+      vw_resposta_formulario: { data: [], error: null },
+      vw_pendencias: { data: [], error: null },
+      vw_resposta_formulario_mensal: { data: [], error: null },
+    });
+
+    const resultado = await buscarSaudeFormularios(client, {});
+
+    expect(resultado.porFormulario).toEqual([]);
+    expect(resultado.qtdAbertosMais30Dias).toBe(0);
+    expect(resultado.evolucaoMensal).toEqual([]);
   });
 });
