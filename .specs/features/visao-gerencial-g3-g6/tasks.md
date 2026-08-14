@@ -14,7 +14,70 @@ without it.**
 ---
 
 **Design**: `.specs/features/visao-gerencial-g3-g6/design.md`
-**Status**: Draft
+**Status**: In Progress -- Phases 1-3 concluídas (backend completo), Phases 4-5 pendentes (frontend)
+
+## Progresso
+
+- **Phase 1 (T1-T7) -- ✅ concluída.** T1 `1a0624e`(T2)/commitado dentro de
+  `66cc2ab` (T1, bundled -- corrida com commit direto do usuário, ver nota
+  abaixo) → T2 `1a0624e` → T3 `7e1a2c6` → T4 commitado dentro de `61ea838`
+  (bundled -- corrida com `formularios-produto` T9, ver nota abaixo) → T5
+  `00e3b39` → T6 `44c76e9` → T7 `a60c209`. 6 views novas/alteradas, todas com
+  teste de integração verde, `npm run build` limpo (16 rotas).
+  - **Nota de processo**: o worker de sub-agente original desta fase (T1-T7)
+    travou repetidamente num loop de "aguardando teste em background" e foi
+    encerrado por limite de sessão da API sem produzir o resumo esperado --
+    T1 já estava escrito no disco (consolidado de ~13 pra 5 chamadas
+    `runSql`, achado real próprio) mas não commitado; o restante (T2-T7) foi
+    implementado diretamente pelo orquestrador. Duas corridas de commit
+    aconteceram com sessões paralelas ativas no mesmo `develop` (T1 dentro do
+    commit `66cc2ab` do usuário, T4 dentro do commit `61ea838` de
+    `formularios-produto`) -- conteúdo íntegro nos dois casos, só a mensagem
+    de commit não reflete o escopo real.
+  - **2 achados reais corrigidos durante a fase** (nenhum estava no
+    `design.md`): (1) `fat_submissao.enviada_em` é `NOT NULL DEFAULT now()`,
+    não nullable como o design assumia -- `respondido` em
+    `vw_resposta_formulario`/`vw_resposta_formulario_mensal` virou "existe
+    submissão" / "existe submissão até aquele mês", não uma checagem de
+    campo; (2) `vw_cobertura_registro_mensal` e `vw_resposta_formulario_mensal`
+    tinham o mesmo bug -- `GROUP BY` direto omitia o mês inteiro quando zero
+    linhas existiam, violando AD-005 (nunca omitir, sempre NULL/0 explícito)
+    -- corrigido com `LEFT JOIN` contra a série completa de 12 meses.
+- **Phase 2 (T8-T12) -- ✅ concluída.** T8 `8ad099a` → T9 `310e0bf` → T10
+  `ee4594d` → T11 `59112ba` → T12 `1fb08b5`. `FiltroRecorte` compartilhado +
+  `resolverIdsContratoDoRecorte` (helper interno, E lógico Gestora+Mentor) +
+  `buscarSaudeCobertura`/`buscarSaudeFormularios`/`buscarCarteiraPonderadaMensal`.
+  - **Achado real durante T9, corrigido antes do commit**: `vw_cobertura_registro_mensal`/
+    `vw_resposta_formulario_mensal` (T5/T6) pré-agregavam por mês em SQL,
+    perdendo `id_contrato`/`id_produto` -- impossível filtrar a evolução pela
+    barra de recorte depois, e contradizia o próprio padrão já estabelecido
+    no arquivo ("agregação em TS, nunca em SQL"). Nova migration
+    `20260814213130_visao_gerencial_fix_grao_fino_evolucao_mensal.sql`
+    (`DROP`+`CREATE`, não `CREATE OR REPLACE` -- Postgres recusa renomear/
+    remover coluna de view existente, erro `42P16`) refaz as duas com grão
+    fino (1 linha por contrato/abertura × mês). `db:types` re-executado.
+  - **Achado real durante o teste de T11, corrigido antes do commit**:
+    `resolverIdsContratoDoRecorte` consultava `fat_contrato` incondicionalmente
+    e interseccionava com o resultado -- quando só `idGestora`/`idMentor`
+    eram passados (sem `idProduto`/`idProjeto`), a interseção sempre zerava
+    (começava de um `Set` vazio). Corrigido: cada filtro só interssecciona
+    com o que já foi restringido; `fat_contrato` só é consultada quando
+    `idProduto`/`idProjeto` está presente.
+- **Phase 3 (T13-T17) -- ✅ concluída.** T13 `e55cef3` → T14 `66b88b5` → T15
+  `25fe2e9` → T16 `05f65f7` → T17 `3b5658f`. `buscarDistribuicaoEtapas`/
+  `buscarAtingimentoPorRecorte`/`buscarCompletudeCadastro`/`buscarIipConsolidado`/
+  `buscarPendencias`. IIP: "nível" bucketizado contra `ref_nivel_iip.valor`
+  (não é FK direta na MV, `TODO(D2)`); timestamp de refresh vira
+  `dtDadoMaisRecente` (proxy via `MAX(dt_ultimo_fato)` -- Postgres não expõe
+  timestamp de `REFRESH MATERIALIZED VIEW` em catálogo nenhum, documentado
+  no código). **Backend 100% completo**: 6 views + 9 funções de query, 141
+  testes unitários novos nesta feature (`visao-gerencial-g3-g6.test.ts` +
+  `usuario.test.ts` + ajustes em `visao-gerencial.test.ts`), `npm run
+  test:unit` (438/438) e `npm run build` verdes a cada task.
+- **Phase 4-5 (T18-T30)**: pendentes -- frontend (gate de papel, barra de
+  recorte, Recharts, 4 blocos, wire final).
+
+---
 
 ---
 
