@@ -1,5 +1,191 @@
 # Planejamento Estratégico — Redesenho da Tela Validation
 
+## Ciclo 2/3 (2026-08-14) — reverificação direcionada dos 3 gaps do Ciclo 1
+
+**Verifier**: independente (author ≠ verifier) — sessão fresca nova, sem herdar o modelo mental do
+autor dos fixes T25-T27.
+**Diff range desta rodada**: `43928c3^..d781b53` (`43928c3` T25, `7099e79` docs do relatório do
+ciclo 1, `3d740a4` T26+T27, `d781b53` docs de tasks.md) — âncora por hash explícito (instrução do
+orquestrador), não "desde o último commit da branch", porque `develop` tem sessões paralelas
+(`incidencia-encontros`) commitando concorrentemente. Código tocado nesta fase, confirmado por
+`git diff --stat 9a2d997..3d740a4`: só `src/frontend/app/(app)/contratos/[id]/planejamento/page.tsx`
+(+45/-19) e `src/frontend/components/planejamento/planejamento-grade.tsx` (+242/-76). Nenhum outro
+arquivo de código nesta fase (os demais arquivos do diff — `incidencia-encontros/validation.md`,
+`fn-criar-insight.integration.test.ts` — pertencem a `9644936`/`5b0d807`, commits intercalados de
+sessão paralela, fora do range âncora).
+
+Escopo desta rodada: só os 3 gaps ranqueados no Ciclo 1 + regressão nos arquivos tocados — as 19
+PLR-NN já ✅ Verified no Ciclo 1 não foram reauditadas (não foram tocadas por T25-T27, exceto onde
+os 3 gaps abaixo se sobrepõem a PLR-19/16).
+
+### Gap #1 (PLR-19) — salvamento otimista + indicador de "salvando" + reversão em erro — ✅ CORRIGIDO
+
+**Indicador visual real (não só comentário)**: `CelulaPct` recebe `salvando: boolean`
+(`planejamento-grade.tsx:153`) e renderiza um `<Loader2 className="... animate-spin" />` sobreposto
+ao input (`planejamento-grade.tsx:242-247`) sempre que `salvando === true`; o próprio `<input>` fica
+`disabled={somenteLeitura || salvando}` e `aria-busy={salvando}` (`:191-192`), com opacidade reduzida
+(`salvando && "opacity-60"`, `:198`). `salvando` é lido de `celulasSalvando.has(item.linha.idSucesso)`
+no cell renderer da coluna `pct` (`:792`) — não é um placeholder estático, reflete o `Set` de estado.
+
+**Reversão de fato em erro** (rastreado o caminho completo): `escreverCelulas(ids,
+valoresAnteriores, acao)` (`planejamento-grade.tsx:339-359`) marca `celulasSalvando` antes do
+`await acao()`; no `catch`, reescreve `valoresAnteriores.get(id)` diretamente no DOM de cada
+`<input>` via `document.getElementById(idCampoPct(id))` (`:348-351`) — necessário porque `CelulaPct`
+é não-controlado (`defaultValue`, não `value`). Isso só dispara se `acao()` rejeitar, o que exige que
+`onEdicaoCelula`/`onColarFaixa` (as duas funções passadas de `page.tsx`) relancem o erro depois do
+toast em vez de engolir: confirmado em `page.tsx:235-238`
+(`handleEdicaoCelula` — `toast.error(...)` seguido de `throw error;`) e `page.tsx:250-254`
+(`handleColarFaixa` — `toast.error(...)` seguido de `throw erro;`). Cadeia completa confirmada:
+erro Supabase/RPC → `mapeiaErroRpc`/toast em `page.tsx` → `throw` → `escreverCelulas` catch em
+`planejamento-grade.tsx` → reescreve o DOM. Sem o `throw`, a Promise resolveria "com sucesso" e o
+`catch` nunca rodaria — é exatamente o que a mutação #2 do sensor (abaixo) confirma.
+
+**4 caminhos passam pelo mesmo envelope**: `handleCommitCelula` (célula única, linhas `:511`/`:524`),
+`handlePasteInicio` (faixa colada, `:564-568`), `aplicarEmMassa` no `useImperativeHandle` (massa,
+`:395`), e `restaurarComSalvando` (`:365-375`), que o próprio `useUndoPlanejamento` chama em vez de
+`onColarFaixa` direto (`use-undo-planejamento.ts:46`, `aoRestaurar` = `restaurarComSalvando`, ligado
+em `planejamento-grade.tsx:376`) — os 4 chamam `escreverCelulas`, nenhum bypassa o envelope.
+
+**Veredito**: ✅ Corrigido — indicador real, reversão real, 4/4 caminhos cobertos.
+
+### Gap #2 (Success Criteria "limpar célula grava NULL", spec.md:124) — ✅ CORRIGIDO
+
+`handleCommitCelula` (`planejamento-grade.tsx:499-527`) checa `valorTexto.trim() === ""`
+(`:507`) **antes** de chamar `normalizaEntradaPct` (`:515`) — a única forma de diferenciar "vazio
+intencional" de "inválido", já que a função retorna `null` para os dois casos
+(`planejamento-formato.ts:8`, comportamento inalterado, correto — a distinção é responsabilidade do
+chamador, não da função pura). Ramo do vazio: `if (valorAnterior == null) return;` (`:508`) — célula
+já `NULL`, blur sem digitar nada, não dispara `empilharUndo` nem `escreverCelulas`, confirmando o
+"Done when" de T26 ("campo já vazio ... não dispara escrita nem entrada de undo"). Caso contrário
+(`valorAnterior` não nulo): `empilharUndo([{ idSucesso, valorAnterior }])` +
+`escreverCelulas([idSucesso], ..., () => onEdicaoCelula(idSucesso, null))` (`:509-511`).
+
+Tipagem: `onEdicaoCelula: (idSucesso: number, pctAtingimento: number | null) => Promise<void>`
+(`planejamento-grade.tsx:70`); `handleEdicaoCelula(idSucesso: number, pctAtingimento: number | null)`
+(`page.tsx:229`), que faz `.update({ pct_atingimento: pctAtingimento })` (`page.tsx:233`) sem
+conversão — aceita `null` diretamente. Coluna real aceita `NULL`: `database.types.ts` — `Row.
+pct_atingimento: number | null` e `Update.pct_atingimento?: number | null` confirmados em múltiplos
+pontos (ex. linhas 1183/1196, tabela `fat_sucesso_mensal`), consistente com AD-005 ("NULL nunca
+sentinela").
+
+Escopo do fix mantido estrito ao Success Criterion literal (célula única via blur/paste de valor
+único) — faixa colada e aplicar em massa não ganharam semântica de "limpar" (nenhum dos dois tinha
+esse requisito no spec), e o undo continua com a limitação pré-existente e já documentada em T23 (não
+restaura valores que eram `NULL` antes da edição, porque `atualiza_sucessos_mensais_lote` não aceita
+`NULL`) — nada disso é regressão, é o mesmo corte de escopo já registrado no commit `3d740a4`.
+
+**Veredito**: ✅ Corrigido — `NULL` grava de fato, mensagem de erro incorreta não aparece mais para
+campo vazio, sem escrita/undo desnecessários no caso já-vazio.
+
+### Gap #3 (Edge Case Assessor, spec.md:97-99) — ✅ CORRIGIDO
+
+`page.tsx:100-104`:
+```tsx
+const [papelParaFiltroPadrao, setPapelParaFiltroPadrao] = useState<typeof papel>(null);
+if (papel !== null && papel !== papelParaFiltroPadrao) {
+  setPapelParaFiltroPadrao(papel);
+  if (PERMISSOES[papel].editaPctSóMetasProprias) setSoMinhasMetas(true);
+}
+```
+Padrão "ajustar estado durante o render" (recomendado pelo React para derivar estado de uma prop
+assíncrona, em vez de `useEffect` + `setState` síncrono) — a checagem roda dentro do corpo da função
+do componente, não em um efeito; `papelParaFiltroPadrao` garante que dispara **exatamente 1 vez**, na
+primeira vez que `papel` resolve para não-`null` (depois disso `papel === papelParaFiltroPadrao`
+sempre, o `if` externo nunca mais entra) — confirmado que não é `useEffect` + `setState` síncrono (o
+padrão que `react-hooks/set-state-in-effect` rejeitaria; `npm run lint:frontend` desta rodada confirma
+zero problemas em arquivos `planejamento`, ver Gate abaixo).
+
+Decisão via `PERMISSOES[papel].editaPctSóMetasProprias`, não `papel === "assessor"` direto —
+confirmado em `permissoes.ts`: `assessor.editaPctSóMetasProprias: true` (`:55`), `gestora`/`mentor`/
+`admin` todos `false` (`:33`/`:44`/`:66`) — único papel `true` é `assessor`, satisfaz PLR-07 (nenhuma
+checagem de string de papel bruto decide capacidade).
+
+**Outros papéis não regrediram**: para `gestora`/`mentor`/`admin`, `PERMISSOES[papel].
+editaPctSóMetasProprias` é `false`, então o `if` interno nunca chama `setSoMinhasMetas(true)` — o
+`useState(false)` inicial (`page.tsx:83`) permanece o valor efetivo, idêntico ao comportamento
+pré-fix para esses 3 papéis. Usuário continua livre para ligar/desligar manualmente pela toolbar depois
+(o ajuste roda só 1x, na resolução inicial de `papel`).
+
+**Veredito**: ✅ Corrigido — Assessor abre com "só minhas metas" já marcado; demais papéis preservam o
+comportamento anterior (filtro desligado por padrão).
+
+### Sensor de discriminação (ciclo 2 — reverificação direcionada, escopo pequeno)
+
+Ambas as mutações aplicadas em árvore limpa (`git status` vazio antes, confirmado por
+`git status --short -- src/frontend/components/planejamento/ ".../planejamento/"`), revertidas com
+`git checkout --` imediatamente após avaliar, `git status`/`git diff` vazios confirmados ao final.
+
+| # | File:line | Mutação | Killed? |
+| - | --- | --- | --- |
+| 1 | `planejamento-grade.tsx:507` | `valorTexto.trim() === ""` → `valorTexto.trim() !== ""` (inverte o gate do Gap #2) | ⚠️ Sobrevive a `npm run test:unit` (404/404 continuam verdes) — **esperado**, nenhum teste unitário cobre `handleCommitCelula`/componentes de grade (débito conhecido L-006/L-007, mesma classe já registrada no Ciclo 1). Avaliado por inspeção: a mutação faria QUALQUER texto não-vazio cair no ramo de "limpar" (nunca valida/escreve um `%` real) e o texto vazio cair em `normalizaEntradaPct("")` → erro "Valor deve estar entre 0 e 100" (reintroduz exatamente o bug original do Gap #2) — quebra funcional óbvia e severa, mas sem harness de componente não há teste automatizado capaz de matá-la hoje. |
+| 2 | `page.tsx:237` | Remove `throw error;` de `handleEdicaoCelula` (deixa só o `toast.error`, sem relançar) | ⚠️ Sobrevive a `npm run test:unit` pelo mesmo motivo (sem harness) — avaliado por inspeção: sem o `throw`, a Promise retornada por `onEdicaoCelula` resolveria normalmente após um erro real, `escreverCelulas` nunca entraria no `catch`, e a célula ficaria mostrando o valor digitado como se tivesse sido salvo mesmo com a escrita tendo falhado no banco — quebra exatamente o mecanismo central do Gap #1 (reversão em erro). Confirma por inspeção que o `throw` é o elo indispensável da cadeia erro→reversão. |
+
+**Sensor depth**: lightweight (reverificação direcionada, escopo pequeno conforme instrução do
+orquestrador — 2 mutações, não 1-3 genéricas)
+**Result**: 0/2 mortas por automação (nenhum harness cobre estes arquivos — débito pré-existente,
+não uma lacuna nova desta feature); 2/2 avaliadas por inspeção confirmam que os fixes dos Gaps #1/#2
+são o mecanismo real de comportamento (não código morto/decorativo) — nenhuma ação nova necessária,
+mesma classe de achado do Ciclo 1 (mutação #3, `CelulaCalculada`). Não gera fix task nova: o gap real
+(ausência de harness) já é débito conhecido rastreado como L-006/L-007, não desta rodada.
+
+### Gate (ciclo 2, árvore limpa após reverter o sensor)
+
+- `npm run test:unit` → **404/404 passed**, 36 arquivos de teste, 0 falhas (mesma contagem do Ciclo 1
+  — T25-T27 não adicionaram nem removeram testes, consistente com "Tests: none" declarado nas 3 tasks)
+- `npm run build` → sucesso, Next.js 16.2.12/Turbopack, 30 rotas geradas (16 App Router entries do
+  Ciclo 1 seguem presentes, incluindo `/contratos/[id]/planejamento`), TypeScript limpo. `.next`
+  removido logo em seguida (`rm -rf src/frontend/.next`, disciplina de disco do handoff)
+- `npm run lint:frontend` → 30 problemas (15 erros, 15 avisos) — **idêntico ao Ciclo 1**;
+  `grep -i planejamento` na saída completa retorna **zero ocorrências** — todos os 30 problemas
+  seguem em `incidencia/*` e `fundacao/tse-match-search.tsx` (features paralelas rodando na mesma
+  branch), confirmado por leitura das mensagens (`encontros-lista.tsx`, `iip-card.tsx`,
+  `tse-match-search.tsx`, `encontro-form.tsx`) — nenhum arquivo em `components/planejamento/**` ou
+  `app/.../planejamento/**`
+
+**Nenhuma regressão encontrada** nos arquivos tocados por T25-T27 além dos 3 gaps já fechados — as
+demais PLR-NN (já ✅ Verified no Ciclo 1) não foram tocadas por este fix e permanecem válidas por
+inspeção do diff (`git diff --stat 9a2d997..3d740a4` confirma só os 2 arquivos esperados).
+
+### Lessons
+
+Nenhum sinal novo nesta rodada (os 3 gaps foram corrigidos exatamente como diagnosticado no Ciclo 1,
+sem nova mutação sobrevivente que revele um problema não coberto por L-024/L-025/L-026 já candidatas,
+sem novo `SPEC_DEVIATION`, sem nova lacuna de AC). `.specs/lessons.json`/`.specs/LESSONS.md` não
+foram tocados nesta rodada — nada a distilar além do que o Ciclo 1 já registrou.
+
+### Requirement Traceability Update (ciclo 2)
+
+| Requirement | Status Ciclo 1 | Status Ciclo 2 |
+| --- | --- | --- |
+| PLR-01 a PLR-18 | ✅ Verified | ✅ Verified (inalterado, não retocado) |
+| PLR-19 | ❌ Needs Fix | ✅ Verified |
+
+### Summary (ciclo 2)
+
+**Overall**: ✅ Ready
+
+**Spec-anchored check**: 19/19 requisitos PLR-NN + os 2 achados de Success Criteria/Edge Case fora da
+tabela — todos com outcome do spec batendo com o código, evidência `file:line` para os 3 antes
+marcados FAIL.
+**Sensor**: 2/2 mutações direcionadas avaliadas por inspeção (sem harness, débito conhecido) —
+nenhuma revela comportamento decorativo; ambas confirmam que os fixes são o mecanismo real.
+**Gate**: 3/3 comandos verdes (404/404 testes, build limpo, lint sem regressão — 0 problemas em
+arquivos `planejamento`).
+
+**What works**: os 3 gaps do Ciclo 1 — indicador de "salvando" real + reversão em erro nos 4 caminhos
+de escrita (PLR-19), limpar célula grava `NULL` de fato (Success Criteria), Assessor abre com "só
+minhas metas" já marcado sem regredir os outros papéis (Edge Case) — todos confirmados por leitura de
+código ponta a ponta, não só por existência de código.
+
+**Issues found**: nenhum novo. Nenhuma regressão nos arquivos tocados.
+
+**Next steps**: nenhum — feature pronta para ser considerada `✅ Verified` de ponta a ponta
+(PLR-01 a PLR-19 + Success Criteria + Edge Cases do `spec.md`).
+
+---
+
+## Ciclo 1/3 (2026-08-14) — relatório original (FAIL, 3 gaps)
+
 **Date**: 2026-08-14
 **Spec**: `.specs/features/planejamento-estrategico-redesenho/spec.md`
 **Diff range**: `f7b2df1^..9a2d997` (T1 "objeto PERMISSOES" até T24 "gate final"), filtrado a
