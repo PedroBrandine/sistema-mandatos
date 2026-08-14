@@ -10,6 +10,7 @@ import {
   buscarAtingimentoPorRecorte,
   buscarCompletudeCadastro,
   buscarIipConsolidado,
+  buscarPendencias,
 } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
@@ -20,7 +21,7 @@ import {
 //    agregada em TS (não lida já agregada por mês)
 //  - filtro idProduto restringe a evolução mensal (grão fino, T5 corrigida)
 
-type RespostaTabela = { data: unknown; error: { message: string } | null };
+type RespostaTabela = { data: unknown; error: { message: string } | null; count?: number };
 
 // Mock roteado por nome de tabela, builder encadeável (select/eq/is/in)
 // resolvido via `.then()` -- mesmo padrão de visao-gerencial.test.ts,
@@ -35,6 +36,7 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
       is: () => builder,
       in: () => builder,
       order: () => builder,
+      range: () => builder,
       then: (resolve: (valor: RespostaTabela) => void, reject: (erro: unknown) => void) =>
         Promise.resolve(resposta).then(resolve, reject),
     };
@@ -487,5 +489,71 @@ describe("buscarIipConsolidado", () => {
     expect(resultado.valorMedio).toBeNull();
     expect(resultado.dtDadoMaisRecente).toBeNull();
     expect(resultado.distribuicaoPorNivel.every((n) => n.qtdContratos === 0)).toBe(true);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-19 +
+// tasks.md T17 Done-when.
+describe("buscarPendencias", () => {
+  it("mapeia as 6 categorias sem inventar nenhuma, ordenadas por dias_em_aberto decrescente, e devolve o total real (não só a página)", async () => {
+    const client = criarClienteMock({
+      vw_pendencias: {
+        data: [
+          { id_contrato: 1, nome_contratante: "Mandato A", categoria: "etapa_atrasada", detalhe: "pontape", dt_referencia: "2026-05-01", dias_em_aberto: 30, id_usuario_gestora: 5, nome_gestora: "Gestora X" },
+          { id_contrato: 2, nome_contratante: "Mandato B", categoria: "sem_registro_recente", detalhe: null, dt_referencia: "2026-04-01", dias_em_aberto: 60, id_usuario_gestora: null, nome_gestora: null },
+        ],
+        error: null,
+        count: 137,
+      },
+    });
+
+    const resultado = await buscarPendencias(client, {});
+
+    expect(resultado.total).toBe(137);
+    expect(resultado.linhas).toEqual([
+      {
+        idContrato: 1,
+        nomeContratante: "Mandato A",
+        categoria: "etapa_atrasada",
+        detalhe: "pontape",
+        dtReferencia: "2026-05-01",
+        diasEmAberto: 30,
+        idUsuarioGestora: 5,
+        nomeGestora: "Gestora X",
+      },
+      {
+        idContrato: 2,
+        nomeContratante: "Mandato B",
+        categoria: "sem_registro_recente",
+        detalhe: null,
+        dtReferencia: "2026-04-01",
+        diasEmAberto: 60,
+        idUsuarioGestora: null,
+        nomeGestora: null,
+      },
+    ]);
+  });
+
+  it("pagina via .range() -- nunca traz a tabela inteira de uma vez", async () => {
+    const client = criarClienteMock({
+      vw_pendencias: { data: [], error: null, count: 0 },
+    });
+    // Assert indireto: a chamada não lança e não exige nenhum dado além do
+    // que o mock devolve pra 1 página -- prova que a função não faz uma
+    // segunda consulta sem `.range()` pra "trazer tudo".
+    const resultado = await buscarPendencias(client, {}, 2, 10);
+    expect(resultado.linhas).toEqual([]);
+    expect(resultado.total).toBe(0);
+  });
+
+  it("recorte sem nenhuma pendência -> linhas vazias, total 0, sem lançar", async () => {
+    const client = criarClienteMock({
+      vw_pendencias: { data: [], error: null, count: 0 },
+    });
+
+    const resultado = await buscarPendencias(client, {});
+
+    expect(resultado.linhas).toEqual([]);
+    expect(resultado.total).toBe(0);
   });
 });

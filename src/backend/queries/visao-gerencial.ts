@@ -867,3 +867,85 @@ export async function buscarIipConsolidado(
     dtDadoMaisRecente: dtMaisRecente,
   };
 }
+
+export type CategoriaPendencia =
+  | "cadastro"
+  | "formulario_aberto"
+  | "etapa_atrasada"
+  | "encontro_vencido"
+  | "sem_registro_recente"
+  | "sucesso_mensal_atrasado";
+
+export interface LinhaPendencia {
+  idContrato: number;
+  nomeContratante: string;
+  categoria: CategoriaPendencia;
+  detalhe: string | null; // sem_registro_recente não tem detalhe (T1)
+  dtReferencia: string;
+  diasEmAberto: number;
+  idUsuarioGestora: number | null;
+  nomeGestora: string | null;
+}
+
+export interface ResultadoPendencias {
+  linhas: LinhaPendencia[];
+  total: number;
+}
+
+interface RowPendencia {
+  id_contrato: number;
+  nome_contratante: string;
+  categoria: CategoriaPendencia;
+  detalhe: string | null;
+  dt_referencia: string;
+  dias_em_aberto: number;
+  id_usuario_gestora: number | null;
+  nome_gestora: string | null;
+}
+
+const TAMANHO_PAGINA_PADRAO_PENDENCIAS = 50;
+
+// GER-19 (Bloco 3). As 6 categorias já vêm fechadas de vw_pendencias (T1) --
+// esta função só filtra pelo recorte, pagina (nunca traz a tabela inteira
+// de uma vez, regra de performance do pedido original) e ordena por
+// dias_em_aberto decrescente (ordenação padrão, nunca sobrescrita aqui --
+// reordenação por categoria/Gestora é responsabilidade do frontend,
+// GargalosTabela T29).
+export async function buscarPendencias(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte,
+  pagina = 1,
+  tamanhoPagina = TAMANHO_PAGINA_PADRAO_PENDENCIAS
+): Promise<ResultadoPendencias> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+
+  let query = client
+    .from("vw_pendencias")
+    .select(
+      "id_contrato, nome_contratante, categoria, detalhe, dt_referencia, dias_em_aberto, id_usuario_gestora, nome_gestora",
+      { count: "exact" }
+    )
+    .order("dias_em_aberto", { ascending: false });
+  if (idsContrato !== undefined) query = query.in("id_contrato", idsContrato);
+
+  const inicio = (pagina - 1) * tamanhoPagina;
+  const fim = inicio + tamanhoPagina - 1;
+  query = query.range(inicio, fim);
+
+  const { data, error, count } = await query;
+  if (error) throw error;
+  const rows = (data ?? []) as RowPendencia[];
+
+  const linhas: LinhaPendencia[] = rows.map((r) => ({
+    idContrato: r.id_contrato,
+    nomeContratante: r.nome_contratante,
+    categoria: r.categoria,
+    detalhe: r.detalhe,
+    dtReferencia: r.dt_referencia,
+    diasEmAberto: r.dias_em_aberto,
+    idUsuarioGestora: r.id_usuario_gestora,
+    nomeGestora: r.nome_gestora,
+  }));
+
+  return { linhas, total: count ?? 0 };
+}
