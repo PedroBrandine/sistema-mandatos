@@ -669,10 +669,15 @@ escopo desta feature (ver nota do commit).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste (client mockado) cobre payload correto e propagação de erro mapeado
-- [ ] `npm run test:unit` verde
+- [x] Teste (client mockado) cobre payload correto e propagação de erro mapeado
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `a6213c1`. 5 casos: payload completo, payload
+mínimo (opcionais viram `undefined`, não `null`), `ck_fato_niveis` (23514) ->
+`ViolacaoConstraintError`, 42501 -> `PermissaoNegadaError`, código não
+mapeado relançado sem alteração. `npm run test:unit`: 368 passed (0 failed).
 
 ---
 
@@ -686,10 +691,17 @@ escopo desta feature (ver nota do commit).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre payload correto e erro mapeado
-- [ ] `npm run test:unit` verde
+- [x] Teste cobre payload correto e erro mapeado
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `2bc290b`. 4 casos: payload completo, payload
+mínimo sem origem (opcionais viram `undefined`), 42501 -> `PermissaoNegadaError`,
+erro de validação cross-contrato da própria RPC (`RAISE EXCEPTION` sem
+`ERRCODE`, `P0001`) relançado sem alteração — `ck_insight_origem` não está
+mapeada em `MENSAGENS_CHECK` (por design da Error Handling Strategy, só se
+aplica dentro da RPC). `npm run test:unit`: 376 passed (0 failed).
 
 ---
 
@@ -703,10 +715,15 @@ escopo desta feature (ver nota do commit).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre chamada sem parâmetro e erro mapeado
-- [ ] `npm run test:unit` verde
+- [x] Teste cobre chamada sem parâmetro e erro mapeado
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `a2aaf97`. 3 casos: chamada sem nenhum parâmetro
+(`rpc("atualiza_iip_contrato")`, `Args: never`), 42501 -> `PermissaoNegadaError`,
+código não mapeado relançado sem alteração. `npm run test:unit`: 379 passed
+(0 failed).
 
 ---
 
@@ -722,10 +739,18 @@ escopo desta feature (ver nota do commit).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre `if (!data) return []`/`null` de cada função + mapeamento camelCase
-- [ ] `npm run test:unit` verde
+- [x] Teste cobre `if (!data) return []`/`null` de cada função + mapeamento camelCase
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `e0acd18`. `RefOption` (`{id, nome}`) definido/exportado
+neste arquivo pela 1ª vez no backend — até então só existia duplicado em
+cada form do frontend; `buscarTipologiasAtivas` concatena grupo/tipologia/
+estado em `nome` (catálogo sem campo único de rótulo). 12 casos: cada
+função cobre mapeamento + retorno vazio (`[]`/`null`); `buscarIipContrato`
+cobre também `nrFatos`/`iipProvisorio` `NULL` (nunca `0`, AD-005) e
+propagação de erro. `npm run test:unit`: 391 passed (0 failed).
 
 ---
 
@@ -740,10 +765,20 @@ escopo desta feature (ver nota do commit).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre as 4 funções novas (shape + `[]` vazio)
-- [ ] `npm run test:unit` verde, contagem total do arquivo documentada
+- [x] Teste cobre as 4 funções novas (shape + `[]` vazio)
+- [x] `npm run test:unit` verde, contagem total do arquivo documentada
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `71a912a`. `buscarRegistrosDaEtapa` filtra
+`fat_registro` por `id_contrato` + `id_tipo_registro` pertencente à etapa
+(join client-side com `ref_tipo_registro`, mesmo padrão de
+`buscarBoardKanban`); `buscarInsightsDoContrato`/`buscarFatosGeradoresDoContrato`
+só consultam o catálogo (`ref_pilar_insight`/`ref_tipologia`) quando há
+`id_pilar`/`id_tipologia` presente nos dados. 10 casos novos (22 no arquivo
+`incidencia.test.ts` ao todo): cada função cobre shape + `[]` vazio;
+`buscarInsightsDoContrato` cobre também `pilar: null` sem disparar consulta
+extra. `npm run test:unit`: 401 passed (0 failed).
 
 ---
 
