@@ -559,11 +559,23 @@ por `permissoes.veAuditoria`.
 **Requirement**: PLR-13, PLR-14
 
 **Done when**:
-- [ ] Ausente/não renderizado quando `veAuditoria === false`
-- [ ] Lista ordenada, mais recente primeiro
-- [ ] `npm run build` limpo
+- [x] Ausente/não renderizado quando `veAuditoria === false`
+- [x] Lista ordenada, mais recente primeiro
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. Diff simples por chave entre `valorAnterior`/`valorNovo`
+(snapshots JSONB da linha inteira, achado de T3 — não há coluna "campo" isolada) mostra só os
+campos que mudaram. Gate de `veAuditoria` fica no chamador (T19), não duplicado aqui.
+
+⚠️ **Achado real, não resolvido nesta task (flagueado a Pedro)**: `log_auditoria` tem RLS
+`p_log_admin` restrita a `papel_atual()='admin'` (achado de T3). `PERMISSOES.gestora.veAuditoria =
+true`, mas uma Gestora abrindo este modal recebe lista vazia (RLS filtra silenciosamente) — o
+botão aparece, mas o conteúdo nunca aparece pra esse papel. Não é bug deste componente nem desta
+feature: mudar a RLS de `log_auditoria` é decisão de segurança que exige confirmação explícita
+(mesmo precedente da AD-035), fora do escopo de "construir a UI de leitura". Registrado aqui e no
+resumo final da sessão.
 
 ---
 
