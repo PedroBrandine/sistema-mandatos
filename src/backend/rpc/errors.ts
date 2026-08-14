@@ -80,6 +80,12 @@ const MENSAGENS_CHECK: Record<string, string> = {
   ck_meta_pct: "Valor deve estar entre 0 e 100.",
   ck_meta_preditores: "Preditor secundário não pode repetir o primário.",
   ck_objetivo_preditores: "Preditor secundário não pode repetir o primário.",
+  // INC-01/09/15/16: incidencia-encontros (docs/schema_sistema.sql:786-1140)
+  ck_fato_niveis: "Preencha ao menos um nível (D1, D2 ou D3).",
+  ck_encontro_planejado: "Data prevista de início é obrigatória para encontro planejado.",
+  ck_encontro_realizado: "Data de realização é obrigatória para encontro realizado.",
+  ck_participante_identificacao:
+    "Informe um usuário do sistema OU um nome de participante externo, nunca os dois.",
 };
 
 // Mensagens de conflito por constraint UNIQUE alcançáveis pelas 4 funções RPC.
@@ -90,6 +96,10 @@ const MENSAGENS_UNICA: Record<string, string> = {
   dim_mandato_nr_titulo_eleitoral_key: "Já existe um mandato cadastrado com este título eleitoral.",
   dim_mandato_id_contratante_key: "Este contratante já tem um mandato cadastrado.",
   dim_coalizao_id_contratante_key: "Este contratante já tem uma coalizão cadastrada.",
+  // INC-10/17: incidencia-encontros (docs/schema_sistema.sql:786-1140)
+  uq_registro_sequencia: "Já existe um registro com este número de sequência.",
+  uq_encontro_sequencia: "Já existe um encontro com este número de sequência.",
+  uq_encontro_participante_usuario: "Este participante já está na lista.",
 };
 
 function extraiNomeConstraint(mensagem: string): string | null {
