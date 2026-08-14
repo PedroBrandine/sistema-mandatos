@@ -217,6 +217,8 @@ describe("T20 -- app.criar_mandato", () => {
     let idProdutoEstrategia: number;
     let idContratanteCoalizao: number;
     let idCoalizao: number;
+    let idCargoVereador: number;
+    let idPartido: number;
     const contratosIds: number[] = [];
     const membrosCoalizaoIds: number[] = [];
 
@@ -225,6 +227,15 @@ describe("T20 -- app.criar_mandato", () => {
         `SELECT id_produto FROM ref_produto WHERE nome = 'Estratégia';`
       );
       idProdutoEstrategia = id_produto;
+
+      const [{ id_cargo }] = await runSql<{ id_cargo: number }>(
+        `SELECT id_cargo FROM ref_cargo WHERE nome = 'Vereador(a)';`
+      );
+      idCargoVereador = id_cargo;
+      const [{ id_partido }] = await runSql<{ id_partido: number }>(
+        `SELECT id_partido FROM ref_partido ORDER BY id_partido LIMIT 1;`
+      );
+      idPartido = id_partido;
 
       const [{ id_contratante }] = await runSql<{ id_contratante: number }>(`
         INSERT INTO dim_contratante (tipo_contratante, nome) VALUES ('coalizao', 'T20 CMU Coalizao Fixture')
@@ -306,6 +317,47 @@ describe("T20 -- app.criar_mandato", () => {
       );
       expect(contratosDoMandato).toHaveLength(1);
       expect(contratosDoMandato[0].id_contrato).toBe(segundo.data.id_contrato);
+    });
+
+    it("FND-CTR-05: snapshots dim_mandato.id_cargo_atual/id_partido_atual into fat_contrato when the mandato is created together with p_contrato", async () => {
+      const { data, error } = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_contratante: { nome: "T20 FND-CTR-05 Mandato Novo", sg_uf: "SP" },
+        p_mandato: { id_cargo_atual: idCargoVereador, id_partido_atual: idPartido },
+        p_contrato: { id_produto: idProdutoEstrategia, dt_inicio: "2026-05-01" },
+      });
+      expect(error).toBeNull();
+      contratanteIds.push(data.id_contratante);
+      mandatoIds.push(data.id_mandato);
+      contratosIds.push(data.id_contrato);
+
+      const [row] = await runSql<{ id_cargo_no_contrato: number; id_partido_no_contrato: number }>(`
+        SELECT id_cargo_no_contrato, id_partido_no_contrato FROM fat_contrato WHERE id_contrato = ${data.id_contrato};
+      `);
+      expect(row.id_cargo_no_contrato).toBe(idCargoVereador);
+      expect(row.id_partido_no_contrato).toBe(idPartido);
+    });
+
+    it("FND-CTR-05: reads the snapshot from dim_mandato when a second fat_contrato is opened via p_id_contratante_existente", async () => {
+      const primeiro = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_contratante: { nome: "T20 FND-CTR-05 Mandato Existente", sg_uf: "RS" },
+        p_mandato: { id_cargo_atual: idCargoVereador, id_partido_atual: idPartido },
+      });
+      expect(primeiro.error).toBeNull();
+      contratanteIds.push(primeiro.data.id_contratante);
+      mandatoIds.push(primeiro.data.id_mandato);
+
+      const segundo = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_id_contratante_existente: primeiro.data.id_contratante,
+        p_contrato: { id_produto: idProdutoEstrategia, dt_inicio: "2026-05-02" },
+      });
+      expect(segundo.error).toBeNull();
+      contratosIds.push(segundo.data.id_contrato);
+
+      const [row] = await runSql<{ id_cargo_no_contrato: number; id_partido_no_contrato: number }>(`
+        SELECT id_cargo_no_contrato, id_partido_no_contrato FROM fat_contrato WHERE id_contrato = ${segundo.data.id_contrato};
+      `);
+      expect(row.id_cargo_no_contrato).toBe(idCargoVereador);
+      expect(row.id_partido_no_contrato).toBe(idPartido);
     });
 
     it("CMU-05: creates rel_coalizao_membro together with fat_contrato when p_coalizao is given", async () => {

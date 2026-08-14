@@ -94,6 +94,16 @@ export function ContratoForm({ idContratante, contratosExistentes, modo, produto
     const supabase = createClient();
 
     if (modo.tipo === "abrir") {
+      // FND-CTR-05: snapshot de cargo/partido no momento da contratação --
+      // só existe quando idContratante é de um mandato (dim_mandato); pra
+      // coalizão a busca não acha linha e os dois campos ficam NULL (correto,
+      // coalizão não tem cargo/partido -- docs/schema_sistema.sql:488-489).
+      const { data: mandato } = await supabase
+        .from("dim_mandato")
+        .select("id_cargo_atual, id_partido_atual")
+        .eq("id_contratante", idContratante)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from("fat_contrato")
         .insert({
@@ -103,6 +113,8 @@ export function ContratoForm({ idContratante, contratosExistentes, modo, produto
           id_contrato_anterior: valores.id_contrato_anterior ?? null,
           dt_inicio: valores.dt_inicio,
           status: "ativo",
+          id_cargo_no_contrato: mandato?.id_cargo_atual ?? null,
+          id_partido_no_contrato: mandato?.id_partido_atual ?? null,
         })
         .select("id_contrato")
         .single();

@@ -37,9 +37,12 @@ export interface ContratoAtivoResumo {
 // +dim_contratante+ref_produto primeiro via embed do PostgREST, depois
 // dim_mandato OU dim_coalizao conforme tipo_contratante) -- nunca via
 // vw_contrato, que existe só em docs/schema_sistema.sql e nunca foi migrada
-// (design.md Risks). Cargo/partido vêm de dim_mandato.id_cargo_atual/
-// id_partido_atual (atuais), nunca do snapshot fat_contrato.id_cargo_no_contrato/
-// id_partido_no_contrato (nunca populado, FND-CTR-05).
+// (design.md Risks). Cargo/partido exibidos aqui vêm de propósito de
+// dim_mandato.id_cargo_atual/id_partido_atual (o estado atual do mandato, pra
+// uma ficha que se lê no presente) -- não do snapshot histórico
+// fat_contrato.id_cargo_no_contrato/id_partido_no_contrato (populado no insert
+// desde FND-CTR-05, mas é "o cargo/partido daquele momento da contratação",
+// dado pra número de impacto retroativo, não pra esta tela).
 export async function buscarContratoParaFicha(
   client: SupabaseClient<Database>,
   idContrato: number

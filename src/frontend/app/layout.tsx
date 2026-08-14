@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { Anton, Commissioner } from "next/font/google";
+import { Outfit, Inter } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "@/components/providers";
 
-const anton = Anton({
+const outfit = Outfit({
   variable: "--font-heading",
   subsets: ["latin"],
-  weight: "400",
 });
 
-const commissioner = Commissioner({
+const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
 });
@@ -28,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${anton.variable} ${commissioner.variable} h-full antialiased`}
+      className={`${outfit.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>

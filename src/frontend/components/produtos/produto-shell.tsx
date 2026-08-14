@@ -12,39 +12,39 @@ interface ProdutoShellProps {
   children: React.ReactNode;
 }
 
-// NAV-02: cabeçalho (nome do produto + link "voltar ao hub") + RouteTabs com
-// as 4 abas da área de produto. Abas são rotas reais -- trocar de aba não
-// perde o produto selecionado (AC2), o slug vem sempre da própria URL. Ver
-// design.md, Components -> ProdutoShell.
 export function ProdutoShell({ slug, children }: ProdutoShellProps) {
   const { data: produto } = useProdutoAtual(slug);
   const base = `/produtos/${slug}`;
+  const tituloProduto = produto?.nome ?? PRODUTO_SLUGS[slug].label;
 
   const abas = [
     { href: `${base}/dashboard`, label: "Dashboard" },
     { href: `${base}/agenda`, label: "Agenda" },
     { href: `${base}/contratos`, label: "Contratos" },
-    { href: `${base}/novo-contrato`, label: "Cadastro de novo Contrato" },
+    { href: `${base}/novo-contrato`, label: "Novo Contrato" },
   ];
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-4 p-6">
-      <div className="space-y-1">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8">
+      <div className="flex flex-col gap-3">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex w-fit items-center gap-1.5 rounded-md px-2 py-1 -ml-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
         >
-          <ArrowLeft className="size-3.5" />
+          <ArrowLeft className="size-4" />
           Voltar ao hub
         </Link>
-        <h1 className="font-heading text-2xl font-bold uppercase tracking-tight">
-          {produto?.nome ?? PRODUTO_SLUGS[slug].label}
-        </h1>
+        <div className="flex items-center justify-between">
+           <h1 className="font-heading text-3xl font-semibold tracking-tight text-primary">
+             {tituloProduto}
+           </h1>
+           {/* Futuro botão de ações globais do produto */}
+        </div>
       </div>
 
       <RouteTabs items={abas} />
 
-      <div className="pt-2">{children}</div>
+      <div className="pt-4">{children}</div>
     </div>
   );
 }
