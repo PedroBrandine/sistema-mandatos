@@ -1,10 +1,16 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { buscarInsightsDoContrato, buscarNiveisIip, buscarTipologiasAtivas, type RefOption } from "@backend/queries/incidencia";
+import {
+  buscarInsightsDoContrato,
+  buscarNiveisIip,
+  buscarTipologiasCompletas,
+  type RefOption,
+  type TipologiaCompleta,
+} from "@backend/queries/incidencia";
 import { buscarPlanejamentoCompleto } from "@backend/queries/planejamento";
 import { criarFatoGerador } from "@backend/rpc/fato-gerador";
 import { fatoGeradorSchema, type FatoGeradorInput } from "@backend/schemas/fato-gerador";
@@ -25,6 +31,17 @@ const SEM_VINCULO = "_nenhum";
 // app.criar_fato_gerador (RPC, AD-024) via criarFatoGerador -- fato +
 // vínculo(s) opcional(is) na mesma transação, id_usuario_autor resolvido no
 // servidor (app.id_usuario()), nunca enviado pelo client.
+//
+// Achado de UAT (Pedro, 2026-08-14): a 1ª versão deste form expunha
+// Tipologia como 1 Select achatado (51 itens, "Grupo · Tipologia · Estado"
+// truncado) e Nível D1-D3/Preditor 1-2 como Selects livres. Errado: o CSV
+// real (docs/DB_Fatos_Geradores - Ref_Tipologias.csv) trata Preditor/Nível
+// como atributo FIXO de cada combinação Grupo+Tipologia+Estado, não escolha
+// por ocorrência -- já gravado em ref_tipologia.{nivel_d1_padrao,...,
+// id_preditor_1,id_preditor_2} desde o seed (T1). Refeito como cascata
+// Grupo→Tipologia→Estado (cada passo filtra o próximo) que resolve
+// id_tipologia e deriva nível/preditor automaticamente (somente leitura) --
+// a Gestora não escolhe nível nem preditor.
 export interface FatoGeradorFormProps {
   idContrato: number;
   onConcluido: (criado?: { idFatoGerador: number }) => void;
@@ -32,13 +49,19 @@ export interface FatoGeradorFormProps {
 }
 
 export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGeradorFormProps) {
-  const [tipologias, setTipologias] = useState<RefOption[]>([]);
+  const [tipologias, setTipologias] = useState<TipologiaCompleta[]>([]);
   const [niveis, setNiveis] = useState<{ codigo: string; rotulo: string }[]>([]);
-  const [preditores, setPreditores] = useState<RefOption[]>([]);
   const [metas, setMetas] = useState<RefOption[]>([]);
   const [insights, setInsights] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+
+  // Cascata Grupo -> Tipologia -> Estado -- estado de UI (não campo do
+  // schema); só a combinação completa vira id_tipologia + nível/preditor
+  // derivados (aplicarCombinacao), via form.setValue.
+  const [grupo, setGrupo] = useState<string | null>(null);
+  const [tipologiaNome, setTipologiaNome] = useState<string | null>(null);
+  const [estado, setEstado] = useState<string | null>(null);
 
   const form = useForm<FatoGeradorInput>({
     resolver: zodResolver(fatoGeradorSchema),
@@ -51,25 +74,69 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
 
   useEffect(() => {
     const supabase = createClient();
-
-    // Catálogos -- mesmo padrão inline de objetivo-form.tsx (ref_preditor
-    // fetched direto do form, não centralizado em queries/).
-    void buscarTipologiasAtivas(supabase).then(setTipologias);
+    void buscarTipologiasCompletas(supabase).then(setTipologias);
     void buscarNiveisIip(supabase).then(setNiveis);
     void buscarInsightsDoContrato(supabase, idContrato).then((lista) =>
       setInsights(lista.map((i) => ({ id: i.idInsight, nome: i.conteudo.slice(0, 60) })))
     );
-    supabase
-      .from("ref_preditor")
-      .select("id_preditor, nome")
-      .eq("ativo", true)
-      .then(({ data }) => setPreditores((data ?? []).map((p) => ({ id: p.id_preditor, nome: p.nome }))));
     void buscarPlanejamentoCompleto(supabase, idContrato).then((planejamento) =>
       setMetas(
         (planejamento?.objetivos ?? []).flatMap((o) => o.metas.map((m) => ({ id: m.idMeta, nome: m.descricao })))
       )
     );
   }, [idContrato]);
+
+  // Set() preserva ordem de 1ª ocorrência -- tipologias já vem ordenada por
+  // id_tipologia (ordem do seed = ordem numérica do Grupo no CSV, 1..11).
+  const grupos = useMemo(() => Array.from(new Set(tipologias.map((t) => t.grupo))), [tipologias]);
+  const tipologiasDoGrupo = useMemo(
+    () => Array.from(new Set(tipologias.filter((t) => t.grupo === grupo).map((t) => t.tipologia))),
+    [tipologias, grupo]
+  );
+  const estadosDaTipologia = useMemo(
+    () => tipologias.filter((t) => t.grupo === grupo && t.tipologia === tipologiaNome),
+    [tipologias, grupo, tipologiaNome]
+  );
+  const tipologiaResolvida = estadosDaTipologia.find((t) => t.estado === estado);
+
+  function rotuloNivel(codigo: string | null): string {
+    if (!codigo) return "—";
+    return niveis.find((n) => n.codigo === codigo)?.rotulo ?? codigo;
+  }
+
+  function limparDerivados() {
+    form.setValue("id_tipologia", undefined as unknown as number, { shouldValidate: true });
+    form.setValue("nivel_d1", null, { shouldValidate: true });
+    form.setValue("nivel_d2", null, { shouldValidate: true });
+    form.setValue("nivel_d3", null, { shouldValidate: true });
+    form.setValue("id_preditor_1", null, { shouldValidate: true });
+    form.setValue("id_preditor_2", null, { shouldValidate: true });
+  }
+
+  function selecionarGrupo(v: string) {
+    setGrupo(v);
+    setTipologiaNome(null);
+    setEstado(null);
+    limparDerivados();
+  }
+
+  function selecionarTipologia(v: string) {
+    setTipologiaNome(v);
+    setEstado(null);
+    limparDerivados();
+  }
+
+  function selecionarEstado(v: string) {
+    setEstado(v);
+    const linha = estadosDaTipologia.find((t) => t.estado === v);
+    if (!linha) return;
+    form.setValue("id_tipologia", linha.idTipologia, { shouldValidate: true });
+    form.setValue("nivel_d1", linha.nivelD1Padrao, { shouldValidate: true });
+    form.setValue("nivel_d2", linha.nivelD2Padrao, { shouldValidate: true });
+    form.setValue("nivel_d3", linha.nivelD3Padrao, { shouldValidate: true });
+    form.setValue("id_preditor_1", linha.idPreditor1, { shouldValidate: true });
+    form.setValue("id_preditor_2", linha.idPreditor2, { shouldValidate: true });
+  }
 
   async function enviar(valores: FatoGeradorInput) {
     setEnviando(true);
@@ -101,124 +168,79 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(enviar)} className="grid gap-4">
-        <FormField
-          control={form.control}
-          name="id_tipologia"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipologia</FormLabel>
-              <Select value={field.value ? String(field.value) : undefined} onValueChange={(v) => field.onChange(Number(v))}>
-                <FormControl>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione a tipologia" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {tipologias.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {(["nivel_d1", "nivel_d2", "nivel_d3"] as const).map((nome, i) => (
-            <FormField
-              key={nome}
-              control={form.control}
-              name={nome}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{`Nível D${i + 1}`}</FormLabel>
-                  <Select
-                    value={field.value ?? SEM_VINCULO}
-                    onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : v)}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Nenhum" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
-                      {niveis.map((n) => (
-                        <SelectItem key={n.codigo} value={n.codigo}>
-                          {n.rotulo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
+          <div className="grid gap-1.5">
+            <FormLabel>Grupo</FormLabel>
+            <Select value={grupo ?? undefined} onValueChange={selecionarGrupo}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione o grupo" />
+              </SelectTrigger>
+              <SelectContent>
+                {grupos.map((g) => (
+                  <SelectItem key={g} value={g}>
+                    {g}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <FormLabel>Tipologia</FormLabel>
+            <Select value={tipologiaNome ?? undefined} onValueChange={selecionarTipologia} disabled={!grupo}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={grupo ? "Selecione a tipologia" : "Selecione o grupo primeiro"} />
+              </SelectTrigger>
+              <SelectContent>
+                {tipologiasDoGrupo.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <FormLabel>Estado</FormLabel>
+            <Select value={estado ?? undefined} onValueChange={selecionarEstado} disabled={!tipologiaNome}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={tipologiaNome ? "Selecione o estado" : "Selecione a tipologia primeiro"} />
+              </SelectTrigger>
+              <SelectContent>
+                {estadosDaTipologia.map((t) => (
+                  <SelectItem key={t.idTipologia} value={t.estado}>
+                    {t.estado}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        {/* ck_fato_niveis (ao menos um D1/D2/D3) -- mensagem de refine vive em nivel_d1, mostrada uma vez só */}
+        {form.formState.errors.nivel_d1 && !tipologiaResolvida && (
+          <p className="text-sm text-destructive">Selecione Grupo, Tipologia e Estado.</p>
+        )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="id_preditor_1"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Preditor primário (opcional)</FormLabel>
-                <Select
-                  value={field.value ? String(field.value) : SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
-                    {preditores.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="id_preditor_2"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Preditor secundário (opcional)</FormLabel>
-                <Select
-                  value={field.value ? String(field.value) : SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
-                    {preditores.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        {/* Nível D1-D3 e Preditor 1/2 são derivados da combinação
+            Grupo+Tipologia+Estado (ref_tipologia.*_padrao) -- não são
+            escolha da Gestora (achado de UAT, 2026-08-14). Só leitura. */}
+        {tipologiaResolvida && (
+          <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-md border border-border/60 bg-muted/30 p-3 text-sm sm:grid-cols-3">
+            <p>
+              <span className="text-muted-foreground">Nível D1:</span> {rotuloNivel(tipologiaResolvida.nivelD1Padrao)}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Nível D2:</span> {rotuloNivel(tipologiaResolvida.nivelD2Padrao)}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Nível D3:</span> {rotuloNivel(tipologiaResolvida.nivelD3Padrao)}
+            </p>
+            <p className="sm:col-span-2">
+              <span className="text-muted-foreground">Preditor 1:</span> {tipologiaResolvida.nomePreditor1 ?? "—"}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Preditor 2:</span> {tipologiaResolvida.nomePreditor2 ?? "—"}
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField

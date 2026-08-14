@@ -12,6 +12,7 @@ import {
   buscarRegistrosDaEtapa,
   buscarTiposRegistroDaEtapa,
   buscarTipologiasAtivas,
+  buscarTipologiasCompletas,
 } from "./incidencia";
 
 // Spec anchor: incidencia-encontros T26/T27 Done-when (.specs/features/incidencia-encontros/tasks.md) --
@@ -45,6 +46,10 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
       },
       in: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "in", args });
+        return builder;
+      },
+      order: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "order", args });
         return builder;
       },
       maybeSingle: () => {
@@ -117,6 +122,89 @@ describe("buscarTipologiasAtivas", () => {
   it("retorna [] quando não há nenhuma ref_tipologia ativa", async () => {
     const { client } = criarClienteMock({ ref_tipologia: { data: [], error: null } });
     expect(await buscarTipologiasAtivas(client)).toEqual([]);
+  });
+});
+
+// Achado de UAT (Pedro, 2026-08-14): nível/preditor são atributo fixo da
+// combinação Grupo+Tipologia+Estado (ref_tipologia.*_padrao), não escolha
+// livre por ocorrência -- ver fato-gerador-form.tsx.
+describe("buscarTipologiasCompletas", () => {
+  it("mapeia a linha completa + nome dos preditores (resolvido client-side)", async () => {
+    const { client } = criarClienteMock({
+      ref_tipologia: {
+        data: [
+          {
+            id_tipologia: 3,
+            grupo: "2. Produção Legislativa",
+            tipologia: "Projeto de lei / proposição",
+            estado: "Aprovado em plenário",
+            nivel_d1_padrao: "alto",
+            nivel_d2_padrao: "alto",
+            nivel_d3_padrao: "alto",
+            id_preditor_1: 10,
+            id_preditor_2: 20,
+          },
+        ],
+        error: null,
+      },
+      ref_preditor: {
+        data: [
+          { id_preditor: 10, nome: "Articulam e mobilizam para a entrega de resultados" },
+          { id_preditor: 20, nome: "Pautam os Debates" },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarTipologiasCompletas(client);
+
+    expect(resultado).toEqual([
+      {
+        idTipologia: 3,
+        grupo: "2. Produção Legislativa",
+        tipologia: "Projeto de lei / proposição",
+        estado: "Aprovado em plenário",
+        nivelD1Padrao: "alto",
+        nivelD2Padrao: "alto",
+        nivelD3Padrao: "alto",
+        idPreditor1: 10,
+        idPreditor2: 20,
+        nomePreditor1: "Articulam e mobilizam para a entrega de resultados",
+        nomePreditor2: "Pautam os Debates",
+      },
+    ]);
+  });
+
+  it("nomePreditor1/2 ficam null quando id_preditor_1/2 são null (sem 2ª consulta a ref_preditor)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      ref_tipologia: {
+        data: [
+          {
+            id_tipologia: 1,
+            grupo: "1. Planejamento e Agenda",
+            tipologia: "Planejamento estratégico do mandato",
+            estado: "Diagnóstico realizado",
+            nivel_d1_padrao: "baixo",
+            nivel_d2_padrao: "baixo",
+            nivel_d3_padrao: "baixo",
+            id_preditor_1: null,
+            id_preditor_2: null,
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarTipologiasCompletas(client);
+
+    expect(resultado[0].nomePreditor1).toBeNull();
+    expect(resultado[0].nomePreditor2).toBeNull();
+    expect(chamadas.some((c) => c.tabela === "ref_preditor")).toBe(false);
+  });
+
+  it("retorna [] quando não há nenhuma ref_tipologia ativa", async () => {
+    const { client } = criarClienteMock({ ref_tipologia: { data: [], error: null } });
+    expect(await buscarTipologiasCompletas(client)).toEqual([]);
   });
 });
 

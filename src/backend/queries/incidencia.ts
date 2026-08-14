@@ -48,6 +48,74 @@ export async function buscarTipologiasAtivas(client: SupabaseClient<Database>): 
   return data.map((t) => ({ id: t.id_tipologia, nome: `${t.grupo} · ${t.tipologia} · ${t.estado}` }));
 }
 
+export interface TipologiaCompleta {
+  idTipologia: number;
+  grupo: string;
+  tipologia: string;
+  estado: string;
+  nivelD1Padrao: string | null;
+  nivelD2Padrao: string | null;
+  nivelD3Padrao: string | null;
+  idPreditor1: number | null;
+  idPreditor2: number | null;
+  nomePreditor1: string | null;
+  nomePreditor2: string | null;
+}
+
+// Achado de UAT (Pedro, 2026-08-14): Preditor 1/2 e os níveis D1/D2/D3 do CSV
+// (docs/DB_Fatos_Geradores - Ref_Tipologias.csv) não são escolha livre da
+// Gestora por ocorrência -- são atributo FIXO de cada combinação
+// Grupo+Tipologia+Estado, já gravado em ref_tipologia.{nivel_d1_padrao,
+// nivel_d2_padrao,nivel_d3_padrao,id_preditor_1,id_preditor_2} desde o seed
+// (T1). Esta leitura traz a linha completa (+ nome dos preditores, resolvido
+// client-side, mesmo padrão de buscarFatosGeradoresDoContrato) pra
+// FatoGeradorForm popular a cascata Grupo→Tipologia→Estado e derivar
+// nível/preditor automaticamente, em vez de reexpor os 2 catálogos como
+// Selects independentes.
+export async function buscarTipologiasCompletas(client: SupabaseClient<Database>): Promise<TipologiaCompleta[]> {
+  const { data, error } = await client
+    .from("ref_tipologia")
+    .select(
+      "id_tipologia, grupo, tipologia, estado, nivel_d1_padrao, nivel_d2_padrao, nivel_d3_padrao, id_preditor_1, id_preditor_2"
+    )
+    .eq("ativo", true)
+    // Ordem de inserção do seed (T1) segue a numeração de Grupo do CSV
+    // (1..11) -- ordenar por id preserva essa ordem; ordem alfabética
+    // quebraria ("10."/"11." viriam antes de "2." como string).
+    .order("id_tipologia", { ascending: true });
+  if (error) throw error;
+  if (!data) return [];
+
+  const idsPreditor = Array.from(
+    new Set(
+      data.flatMap((t) => [t.id_preditor_1, t.id_preditor_2]).filter((id): id is number => id != null)
+    )
+  );
+  let nomesPorPreditor = new Map<number, string>();
+  if (idsPreditor.length > 0) {
+    const { data: preditores, error: erroPreditores } = await client
+      .from("ref_preditor")
+      .select("id_preditor, nome")
+      .in("id_preditor", idsPreditor);
+    if (erroPreditores) throw erroPreditores;
+    nomesPorPreditor = new Map((preditores ?? []).map((p) => [p.id_preditor, p.nome]));
+  }
+
+  return data.map((t) => ({
+    idTipologia: t.id_tipologia,
+    grupo: t.grupo,
+    tipologia: t.tipologia,
+    estado: t.estado,
+    nivelD1Padrao: t.nivel_d1_padrao,
+    nivelD2Padrao: t.nivel_d2_padrao,
+    nivelD3Padrao: t.nivel_d3_padrao,
+    idPreditor1: t.id_preditor_1,
+    idPreditor2: t.id_preditor_2,
+    nomePreditor1: t.id_preditor_1 != null ? (nomesPorPreditor.get(t.id_preditor_1) ?? null) : null,
+    nomePreditor2: t.id_preditor_2 != null ? (nomesPorPreditor.get(t.id_preditor_2) ?? null) : null,
+  }));
+}
+
 // INC-14. Catálogo de ref_pilar_insight ativos -- popula o Select de Pilar
 // (opcional) do formulário de Insight.
 export async function buscarPilaresInsight(client: SupabaseClient<Database>): Promise<RefOption[]> {
