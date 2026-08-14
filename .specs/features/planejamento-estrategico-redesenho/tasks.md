@@ -346,11 +346,24 @@ por tipo de linha. Substitui a composição `<NoObjetivo>`/`<NoMeta>`/`<Sucessos
 **Requirement**: PLR-09
 
 **Done when**:
-- [ ] Renderiza os 3 tipos de linha com indentação progressiva e fundo distinto
-- [ ] Expandir/recolher por linha funciona independentemente
-- [ ] `npm run build` limpo
+- [x] Renderiza os 3 tipos de linha com indentação progressiva e fundo distinto
+- [x] Expandir/recolher por linha funciona independentemente
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. Novo arquivo standalone, ainda não consumido por `page.tsx`
+(a troca acontece em T12, junto do seletor de modo) — `npm run build` type-checa mesmo sem
+consumidor (mesmo comportamento já confirmado em T6). Edição/criação de Objetivo/Meta/Sucesso
+Mensal continua inline (reaproveita `ObjetivoForm`/`MetaForm`/`SucessoMensalForm` como antes) via
+uma linha sintética `tipo: "form"` full-width (`colSpan`) — upgrade pra modal fica pra Fase 4
+(T17-T19), como já previsto em `design.md`. Corrigido durante a implementação: gate de "Detalhes"
+de Sucesso Mensal usa `editaPctTodasAsMetas || editaPctSóMetasProprias` (Assessor **pode** editar
+detalhes do que já existe, PLM-18), não `podeCriarSucesso` (que exclui Assessor de propósito,
+PLM-17 — criar é diferente de editar). Célula de `%` do Sucesso Mensal não é mais desabilitada por
+papel na UI — só por `somenteLeitura` (Coalizão agregada) — a permissão real é RLS/GRANT (regra
+§4: "a UI reflete a RLS, não é o mecanismo de segurança"), mesmo comportamento do componente
+anterior.
 
 ---
 
