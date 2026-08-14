@@ -288,11 +288,17 @@ própria task qual arquivo fica dono do breakpoint, documentar a escolha no comm
 **Requirement**: PLR-01
 
 **Done when**:
-- [ ] Nenhum painel fixo à direita em nenhum estado (regra inegociável)
-- [ ] Inspeção manual em 2 larguras (`>1024px`, `<1024px`) confirma o comportamento
-- [ ] `npm run build` limpo
+- [x] Nenhum painel fixo à direita em nenhum estado (regra inegociável)
+- [x] Inspeção manual em 2 larguras (`>1024px`, `<1024px`) confirma o comportamento
+- [x] `npm run build` limpo
 
 **Tests**: none (CSS/layout) · **Gate**: build
+
+✅ **Concluída** — commit pendente, junto de T10 (o breakpoint vive em `page.tsx`, que só existe
+reescrito nesta task — resequenciamento documentado, não skip). `flex flex-col gap-6 lg:flex-row
+lg:items-start`: abaixo de 1024px empilha `ContextoEstrategico` (com seu `<details>` do T8) acima
+da grade; a partir de 1024px vira row com a coluna esquerda em `lg:w-[240px] lg:shrink-0` e a
+grade em `min-w-0 flex-1`. Nenhum estado usa `position: fixed`/`sticky`.
 
 ---
 
@@ -307,12 +313,23 @@ colunas.
 **Requirement**: PLR-01, PLR-04
 
 **Done when**:
-- [ ] Nenhuma chamada a `recalcularAtingimento` fora do handler do botão
-- [ ] Layout 2 colunas visível, coluna direita ocupando a largura restante
-- [ ] `npm run build` limpo (mesmo com `PlanejamentoGrade`/`PlanejamentoToolbar` ainda como
+- [x] Nenhuma chamada a `recalcularAtingimento` fora do handler do botão
+- [x] Layout 2 colunas visível, coluna direita ocupando a largura restante
+- [x] `npm run build` limpo (mesmo com `PlanejamentoGrade`/`PlanejamentoToolbar` ainda como
       placeholder — essas chegam nas próximas fases)
 
 **Tests**: none (página) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `useEffect` de recálculo automático removido; vira
+`handleRecalcular` (chamado só pelo botão do `PlanejamentoHeader`), com refetch de `planejamento`
+depois — a tela mostra o valor antigo até o clique, nunca número novo como se já tivesse
+recalculado (regra inegociável §4). **SPEC_DEVIATION** menor: `PlanejamentoArvore` (não
+`PlanejamentoGrade`) continua em uso — `PlanejamentoGrade` só existe na Fase 3 (T11-T16); esta
+task troca a casca ao redor dela (header/contexto/layout), não a árvore em si. `etapaAtual` = 1ª
+linha da régua com `status === 'em_andamento'` (`ck_etapa_contrato_status`, verbatim schema
+aprovado); `cobertura` calculada sobre todos os SM já carregados (D-C ampliou o escopo pro ciclo
+inteiro, T4). Companion edits mínimos: `buscarGradeSucessosMensais`/`recarregarGrade` param
+`mesReferencia` removido do call site (já opcional desde T4).
 
 ---
 
