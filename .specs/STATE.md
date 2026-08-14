@@ -1096,3 +1096,90 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   feature colidiu (`git log --oneline | grep incidencia-encontros` confirma todos os commits
   intactos). Arquivos modificados/untracked no working tree que **não** são desta feature (mesma
   lista das 2 seções de handoff acima) não foram tocados por este trabalho.
+
+---
+
+## Handoff (Planejamento Estratégico — Redesenho da Tela — CONCLUÍDA e validada)
+
+- **Feature**: Planejamento Estratégico — Redesenho da Tela
+  (`.specs/features/planejamento-estrategico-redesenho/`) — **CONCLUÍDA e validada**, 19/19
+  requisitos (PLR-01 a PLR-19). Redesenha `/contratos/[id]/planejamento` (layout de 2 colunas,
+  3 modos Construir/Monitorar/Ler via objeto `PERMISSOES` único, árvore-grade unificada numa só
+  tabela, modais no lugar de formulário inline, comportamento nível-planilha completo: teclado,
+  colar de faixa vírgula/ponto/`%`, edição em massa, undo) — **supersede a apresentação** de
+  `planejamento-planilha-monitoramento` (PLM-01 a PLM-18 preservados, nenhum contrato de
+  backend/RLS/RPC/cascata mudou).
+- **Phase / Task**: Specify achou a tela já existia sob outro nome validado + 3 conflitos reais
+  entre o pedido original e o estado do projeto (papel `legisla` vs AD-018, GIP vs
+  `formularios-produto`, IIP vs `incidencia-encontros`) → **Discuss com Pedro via `AskUserQuestion`
+  (2 rodadas)** antes de qualquer código, todos resolvidos e registrados em `context.md` → Design →
+  Tasks (24 tasks, 6 fases) → Execute → Validate (Verifier independente, **2 ciclos**: ciclo 1
+  `❌ FAIL` 3 gaps, fix→re-verify, ciclo 2 `✅ PASS` 19/19).
+- **Decisões resolvidas com Pedro nesta feature** (`context.md`, ver também `spec.md` "Decisões
+  resolvidas nesta sessão"): (1) papel `legisla` descartado, Interno Legisla mantém
+  `papel_global='gestora'`, AD-018 **inalterada**; (2) GIP fica placeholder "em desenvolvimento",
+  dono é `formularios-produto`; (3) IIP/Insight/Fato Gerador ficam placeholder, dono é
+  `incidencia-encontros` (T16-T35 concluídas por outra sessão durante a execução desta feature,
+  mas a troca de placeholder por leitura real não foi feita aqui — é escopo daquela feature
+  entregar a UI, não desta trocar o consumo); (4) D-B (`NULL` na cascata) mantém `COALESCE(...,0)`
+  já aprovado, sem migration nova.
+- **D-C e D-D nunca tiveram decisão síncrona do Pedro** — o pedido original instruiu explicitamente
+  marcar como `TODO` e avisar em vez de decidir sozinho, o que foi feito: D-C (escopo do mês em
+  Monitorar — grade mostra todos os meses do ciclo, sem seletor) e D-D (mecanismo de undo —
+  client-side via `useUndoPlanejamento`, reescreve pelo mesmo caminho validado, nunca edita
+  `log_auditoria` diretamente) estão implementados com o **default proposto no pedido original**,
+  marcados `// TODO(D-C)`/`// TODO(D-D)` no código. **Ainda pendente de confirmação do Pedro** —
+  não é um gap, é o comportamento pedido explicitamente ("marque e avise").
+- **Verifier ciclo 1 (`❌ FAIL`) → Fase 7, T25-T27**: 3 gaps ranqueados, nenhum spec-precision gap
+  (outcome do spec era preciso, só não existia no código) — (1) **PLR-19** (salvamento otimista +
+  indicador de "salvando" por célula + reversão em erro) nunca tinha sido decomposto em task,
+  zero evidência de código; (2) Success Criteria "limpar uma célula de `%` grava `NULL`"
+  (spec.md:124) bloqueado — `normalizaEntradaPct("")` retorna `null`, o mesmo valor de "entrada
+  inválida", e o código mostrava erro em vez de gravar; (3) Edge Case "Assessor abre a tela já
+  filtrado às próprias Metas" (spec.md:97-99) não satisfeito — filtro nascia desligado
+  independente do papel. **Todos os 3 corrigidos** (commits `43928c3`/`3d740a4`/`d781b53`) e
+  reconfirmados pelo Verifier ciclo 2 (`✅ PASS`, `5c6a466`) — relatório completo dos 2 ciclos em
+  `.specs/features/planejamento-estrategico-redesenho/validation.md`.
+- **Achado real, não corrigido — decisão de segurança pendente do Pedro**: `PERMISSOES.gestora.
+  veAuditoria = true` liga o botão "Ver histórico" (`ModalHistorico`) pra Gestora, mas a RLS de
+  `log_auditoria` (`p_log_admin`, `docs/schema_sistema.sql:1627`) só permite `admin` ler a tabela —
+  Gestora vê o modal abrir, mas a lista vem vazia. Não é bug desta feature (o backend de
+  `log_auditoria` já existia, só ganhou UI de leitura aqui); mudar essa RLS é decisão de segurança
+  que precisa de confirmação explícita do Pedro antes de qualquer PR (mesmo precedente de AD-035).
+- **Cortes de escopo conscientes, documentados como SPEC_DEVIATION em `tasks.md`, não são gaps**:
+  colunas extra do modo Construir (preditor 1º/2º, agenda, prioridade, classe) são só leitura na
+  grade — edição continua via "Editar" (abre `ObjetivoForm`/`MetaForm` completos); modo "Ler" mostra
+  o mês por linha, não pivota numa matriz "1 coluna por mês" (pivotar exigiria um modelo de dado
+  diferente do resto da árvore); undo (`Ctrl+Z`) não restaura valores que eram `NULL` antes da
+  edição (`app.atualiza_sucessos_mensais_lote` não aceita `NULL` no `UPDATE` em lote).
+- **Achado de arquitetura, sem harness de componente**: `CelulaPct` é um `<input>` não-controlado
+  (`defaultValue`, não `value`) — mesmo padrão já usado por `planejamento-planilha-monitoramento`.
+  O envelope de "salvando"/reversão do T27 (`escreverCelulas`) reescreve o DOM diretamente
+  (`document.getElementById`) em vez de via re-render controlado, porque é a única forma de
+  reverter visualmente um valor não-controlado sem reescrever `CelulaPct` inteira pra
+  `value`/`onChange`. Nenhum teste automatizado cobre componentes React neste projeto (débito
+  conhecido `L-006`/`L-007`, não introduzido por esta feature) — os 2 Verifiers avaliaram o
+  comportamento de UI por inspeção de código, não por harness.
+- **Next step**: nenhum obrigatório — feature fechada. Quando `formularios-produto` provisionar
+  `vw_gip_evolucao`, trocar o placeholder de GIP em `ContextoEstrategico` por leitura real; quando
+  a UI de leitura de `incidencia-encontros` (T28-T35, já concluída por outra sessão) estiver pronta
+  pra reuso, trocar os placeholders de IIP/incidência em `PlanejamentoHeader`/grade. Se o Pedro
+  quiser mudar D-C (seletor de mês em Monitorar) ou D-D (mecanismo de undo) do default aceito, ou
+  decidir a RLS de `log_auditoria` pra Gestora, são os 3 candidatos naturais pra próxima fatia.
+- **Blockers**: nenhum.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado durante toda a execução**: pelo menos 3 outras trilhas
+  (`incidencia-encontros`, `formularios-produto`, `visao-gerencial-g3-g6`) commitaram ativamente
+  neste mesmo branch durante a execução e validação desta feature, intercaladas no `git log`.
+  Nenhum arquivo desta feature colidiu (`git log --oneline` dos commits desta feature confirma
+  todos intactos; diff ranges dos 2 ciclos do Verifier usaram hash explícito como âncora, não
+  "desde o último commit da branch", por causa disso). Arquivos modificados/untracked no working
+  tree que **não** são desta feature (`contrato.ts`, `app/(app)/page.tsx`, `layout.tsx`,
+  `route-tabs.tsx`, `topbar.tsx`, `fundacao/contrato-form.tsx`, `produto-shell.tsx`,
+  `estado-vazio.tsx`, testes de integração de `fundacao`, specs novas de `formularios-produto`/
+  `visao-gerencial-g3-g6`, migrations novas) não foram tocados por este trabalho.
+- **Ambiente — disco**: histórico de disco crítico (~30MB livres em C:) no início da validação,
+  causado por sessões paralelas, não por esta feature (medido: `.next`≈1.2GB no pico,
+  `node_modules`≈601MB, `.git`≈12MB — todos normais). Recuperou pra ~24GB livres ao longo da
+  sessão (ação de sessões paralelas, não desta). Disciplina mantida: `rm -rf src/frontend/.next`
+  depois de cada `npm run build`.
