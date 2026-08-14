@@ -263,13 +263,20 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Trade-off**: existe uma janela em que a `vw_carteira` em produção diverge do texto de `docs/schema_sistema.sql` (menos uma consulta, não mais) — quem for construir a Incidência precisa **substituir**, nunca só adicionar por cima, a view reduzida pela completa, e apagar esta entrada do débito quando isso acontecer.
 - **Scope**: `vw_carteira`; onda de Operação (§5) e Incidência (§6.2) do roadmap.
 - **Date**: 2026-08-10
-- **Status**: active — resolve quando a Incidência (§6.2) provisionar `mv_iip_contrato`
+- **Status**: resolved (2026-08-14, feature `incidencia-encontros`)
 - **Adendo (2026-08-12, achado de Design de `visao-gerencial-g1-g2`)**: a coluna `dt_ultimo_registro`
   da view aprovada (subquery sobre `fat_registro`, `docs/schema_sistema.sql:1340`) tem o **mesmo
   tipo de bloqueio** — `fat_registro` também não está provisionada (nem `fat_encontro`, de que
   depende), e as duas nascem na mesma onda de Incidência (§6.2, `.specs/roadmap.md`). Não era
   mencionado no texto original desta decisão. A versão reduzida desta feature omite `dt_ultimo_registro`
   junto com `iip_provisorio`/`nr_fatos` — mesmo gatilho de resolução, não é uma decisão nova.
+- **Resolução (2026-08-14)**: `mv_iip_contrato` e `fat_registro` provisionadas pela feature
+  `incidencia-encontros` (T2). `vw_carteira` substituída pela versão completa aprovada
+  (`docs/schema_sistema.sql:1327-1352`, incluindo `dt_ultimo_registro`) via `CREATE OR REPLACE VIEW`
+  em `supabase/migrations/20260813194335_incidencia_encontros_vw_carteira_completa.sql` (T9),
+  confirmado por `supabase/tests/visao-gerencial/vw-carteira.integration.test.ts` (T15, estendido) —
+  colunas novas presentes com valor real e `NULL` (AD-005). Verificado independentemente pelo
+  Verifier desta feature (`validation.md`, AC8).
 
 ### AD-033
 - **Decision**: 5ª exceção à lista fechada da AD-010 — **criação de conta via convite por
@@ -875,3 +882,217 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   classificador de permissão do harness e precisou de confirmação explícita do usuário antes do
   push — não é trabalho paralelo, mas vale registrar como precedente pra próxima mudança de
   `SECURITY DEFINER`/`GRANT` sensível.
+
+---
+
+## Handoff (Trilha E — FND-CTR-05 + confirmação de dropdowns — CONCLUÍDA)
+
+- **Escopo**: duas correções pequenas e independentes entre si do débito conhecido (§1.5 do
+  `roadmap.md`), sem fase Specify formal (AD-016 permite pular formalidade em correção pequena já
+  registrada como débito conhecido, per pedido explícito desta sessão).
+- **FND-CTR-05 — snapshot de cargo/partido no contrato nunca populado — corrigido.**
+  - **Fonte confirmada por leitura de código, não suposição**: o único lugar que guarda "cargo/
+    partido vigente do mandato" hoje é `dim_mandato.id_cargo_atual`/`id_partido_atual` — não existe
+    nenhum `UPDATE` desses dois campos em lugar nenhum do código depois da criação do mandato
+    (`app.marcar_candidatura_vigente`, `0015_fn_marcar_vigente.sql`, só mexe em
+    `rel_mandato_candidatura.eh_mandato_vigente`). Ler a candidatura TSE diretamente seria
+    reimplementar o que `dim_mandato` já resolve.
+  - **2 call-sites de insert em `fat_contrato` no repo inteiro, os dois corrigidos**: (1)
+    `app.criar_mandato` (RPC `SECURITY INVOKER`, AD-024, usado pelo `MandatoWizard` — mandato novo
+    ou contrato novo pra mandato existente via `p_id_contratante_existente`) — migration
+    `20260813180132_fnd_ctr_05_snapshot_cargo_partido_contrato.sql`, aplicada no Supabase de dev
+    (`npnvoolkebhabjkjzqwn`, confirmado via `cat supabase/.temp/project-ref` antes do `db push`,
+    regra de ouro de `CLAUDE.md`); (2) `ContratoForm` (insert direto via PostgREST, sem RPC —
+    `design.md` de `cadastro-mandato-contrato-unificado`, usado pra abrir contrato num mandato já
+    existente e nos 2 fluxos de contrato de coalizão) — `contrato-form.tsx`, lê
+    `dim_mandato.id_cargo_atual`/`id_partido_atual` por `id_contratante` antes do insert. `app.criar_coalizao`
+    não insere `fat_contrato` (só `dim_contratante`+`dim_coalizao`) — não precisou de mudança.
+  - **Coalizão fica `NULL` nos dois call-sites, de propósito**: `id_contratante` de coalizão não tem
+    linha em `dim_mandato` — a busca não acha nada e os dois campos ficam `NULL`, coerente com
+    `docs/schema_sistema.sql:488-489` ("Snapshot: o número de impacto de 2024 mostra o cargo de
+    2024... dim_mandato guarda só o estado presente" — não faz sentido pra quem nunca teve cargo).
+  - **Testes**: 2 testes de integração novos em `fn-criar-mandato.integration.test.ts` (um por ramo
+    da função — mandato novo+`p_contrato`, e `p_id_contratante_existente`), 11/11 verde. Comentários
+    desatualizados que descreviam o campo como "nunca populado" corrigidos em
+    `src/backend/queries/contrato.ts` (a ficha do contrato continua deliberadamente mostrando
+    cargo/partido **atual** de `dim_mandato`, não o snapshot — são propósitos diferentes, o snapshot
+    é pra número de impacto retroativo, não pra esta tela).
+  - **Gate real rodado**: `npm run test:integration` (11/11, incluindo os 2 novos) → `npm run
+    test:unit` (247/247) → `npm run build` (limpo, 16 rotas) → `npm run lint:all` (mesma baseline
+    pré-existente de 27 problemas/13 erros, conferida rodando lint na baseline via `git stash` antes
+    de reaplicar esta mudança — nenhum problema novo introduzido).
+- **Dropdowns (Cargo/Partido/Produto/Projeto) — reproduzido de verdade, confirmado funcionando,
+  riscado do débito.** Nunca tinha sido reproduzido nem descartado formalmente, só "parecia
+  funcionar" por leitura de código. Verificação real desta sessão: Chromium headless (Playwright,
+  instalado à parte num diretório de scratchpad, não é dependência do projeto) dirigido contra
+  `npm run dev` local, login via bypass dev-only `/admin/acesso` com um e-mail `@legislabrasil.org`
+  throwaway (auto-provisiona `dim_usuario` papel_global='gestora' via
+  `0018_provisiona_usuario_dominio_legisla.sql`, limpo depois via `admin.auth.admin.deleteUser` +
+  `DELETE FROM dim_usuario`, mesmo padrão de cleanup já usado pelos testes de integração do
+  projeto). Testado em `/mandatos/novo` (passo "Cadastro manual pela mesma tela" — Cargo, Partido,
+  Produto, Projeto) e no `ContratoForm` de um mandato já existente (Produto, Projeto) — as 4 opções
+  carregam dado real (`ref_cargo`: "Vereador(a)" etc.; `ref_partido`: "PT"/"PL"/"PSDB" etc.;
+  `ref_produto`: "Estratégia"/"PLL"/"Coalizão" etc.; `ref_projeto`: "Imagina 1"/"GAIA" etc.), zero
+  erro de console, screenshot conferido visualmente nas duas telas. Relato antigo não reproduzido —
+  **não havia bug real no momento desta verificação**.
+  - **Achado colateral, não é bug do app**: o `.next` do frontend ficou com cache Turbopack
+    corrompido por eu ter rodado `npm run build` (produção) imediatamente antes de `npm run dev`
+    (dev) sem limpar o diretório entre os dois — sintoma era `/admin/acesso` devolvendo 404 (a
+    página só existe sob `NODE_ENV=development`) e depois panics do Turbopack em
+    `.next/dev/cache/turbopack`. Resolvido com `rm -rf src/frontend/.next` antes de subir o `next
+    dev` de novo. Não é um problema do código do projeto — vale como nota operacional pra quem for
+    rodar `build` e `dev` em sequência na mesma máquina.
+- **Next step**: nenhum obrigatório. Os dois itens saem do §1.5 "Débito conhecido" do `roadmap.md`
+  (linha correspondente riscada/atualizada).
+- **Blockers**: none.
+- **Uncommitted files desta sessão**: `supabase/migrations/20260813180132_fnd_ctr_05_snapshot_cargo_partido_contrato.sql`
+  (nova), `src/backend/queries/contrato.ts`, `src/frontend/components/fundacao/contrato-form.tsx`,
+  `supabase/tests/fundacao/fn-criar-mandato.integration.test.ts`, `.specs/STATE.md` (este arquivo),
+  `.specs/roadmap.md`.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: `.specs/features/incidencia-encontros/`
+  (diretório novo) e `docs/DB_Fatos_Geradores - Ref_Tipologias.csv` apareceram como untracked no
+  `git status` desde o início desta sessão — não criados por este trabalho, não tocados.
+
+---
+
+## Handoff (Formulários dos Produtos — EM ANDAMENTO, pausado por decisão do Pedro)
+
+- **Feature**: Formulários dos Produtos (`.specs/features/formularios-produto/`) — **spec.md/
+  context.md/design.md/tasks.md completos e aprovados** (23 requisitos FRM-01 a FRM-23, 21 tasks em
+  7 fases, 3 lotes de sub-agente). Execute em andamento — **Lote A (T1-T9, schema: mecanismo
+  genérico + GIP) parado no meio de T4**, por pedido explícito do Pedro ("conclua o Lote A e depois
+  pare... amanhã retornaremos com os outros lotes").
+- **Phase / Task**: Execute, Lote A. T1-T3 commitados e com gate verde na hora. T4 escrito
+  (migration + teste) mas **não commitado** — gate não pôde ser confirmado nesta sessão (ver
+  Blockers). T5-T9 (Fase 2, GIP) e os Lotes B (T10-T15, NPS+backend TS) e C (T16-T21, frontend)
+  **não iniciados**.
+- **Completed**: T1 DDL `fat_submissao`+`fat_resposta_metrica` (`337baa9`) → T2 RLS
+  (`11d17e9`) → T3 grants (`1a44446`).
+- **Em andamento, não commitado — T4**: `app.trg_extrai_metricas()` verbatim +
+  `SECURITY DEFINER SET search_path` (conforma AD-035) + trigger, migration
+  `supabase/migrations/20260814032705_formularios_produto_trigger_metricas.sql` (untracked) + teste
+  `supabase/tests/operacao/formularios-submissao.integration.test.ts` (untracked, 7 casos cobrindo
+  FRM-03/08/09/10/11/12/13). **Achado real registrado na própria migration (SPEC_DEVIATION)**: o
+  `design.md` só desenhava a cláusula de autoria no `WITH CHECK` de `fat_submissao` — mas o
+  `Error Handling Strategy`/`spec.md` (P1 AC9/AC13) exigem que a escrita falhe com formulário
+  fechado ou contrato encerrado, e nenhuma policy tinha esse texto (só prosa em design.md). Corrigido
+  com `ALTER POLICY` **nesta mesma migration de T4** (forward-only — T2 não foi editada), não é uma
+  decisão nova, só o SQL que faltava. Li o arquivo inteiro antes desta nota — o conteúdo parece
+  correto e completo, só falta rodar o gate de verdade com o ambiente saudável.
+- **Achado real de infraestrutura, não é bug de código desta feature**: o Lote A rodou por um
+  sub-agente que **travou duas vezes** achando que "esperar um Monitor" resolveria sozinho — na
+  real, o próprio sub-agente tinha rodado o gate check com `run_in_background: true` e encerrado o
+  turno sem recolher o resultado (não existe notificação automática de volta pra ele mesmo nesse
+  caso). Reiterado 2x pra rodar em foreground; na 3ª tentativa, o sub-agente **caiu de vez** por
+  limite de sessão de API ("hit your session limit · resets 4:30am America/Sao_Paulo") — não um erro
+  de código. O orquestrador (esta sessão) assumiu e rodou o gate diretamente: `npm run test:unit`
+  passou limpo (**401/401**, 36 arquivos). `npm run test:integration` (suíte inteira do repo) **não
+  completou** — depois de passar de 600s e ir pra background, voltou com
+  `exit code 1` e o output era literalmente `tail: write error: No space left on device`.
+  `df -h` confirmou: **disco C: em 0 bytes livres (238G/238G, 100% usado)**. Até `du -sh` simples
+  travou tentando rodar. Isso não é falha do código/migration/teste desta feature — é o ambiente da
+  máquina sem espaço, e bloqueia qualquer gate de integração confiável (e possivelmente até
+  `git commit`/`supabase db push`, não testados sob essa condição).
+- **Next step (obrigatório antes de continuar)**: liberar espaço em disco em `C:` (fora do que este
+  agente deveria decidir sozinho numa máquina pessoal — pedir ao Pedro). Depois, nesta ordem: (1)
+  reconfirmar `npm run test:unit` (deve continuar 401/401); (2) rodar
+  `npm run test:integration` de novo — se os testes novos de T4 passarem, completar o Test Adequacy
+  Review (Check A/B/C/D de `implement.md`) e commitar T4
+  (`feat(formularios-produto): T4 -- app.trg_extrai_metricas() SECURITY DEFINER + testes de
+  integração da Fase 1`); (3) seguir com T5-T9 (Fase 2, GIP) exatamente como `tasks.md` já
+  descreve; (4) só depois disso, com o Lote A fechado e reportado, oferecer o Lote B ao Pedro (ele já
+  aprovou rodar em sub-agente, mas cada lote começa só depois do anterior fechar de verdade).
+- **Blockers**: **disco cheio na máquina (0 bytes livres em C:)** — bloqueia qualquer gate de
+  integração confiável a partir de agora, não só desta feature. Limite de sessão de API do sub-agente
+  anterior parece transitório (reset informado pra 4:30am America/Sao_Paulo) — não reconfirmado
+  nesta sessão se já liberou.
+- **Uncommitted files desta feature**:
+  `supabase/migrations/20260814032705_formularios_produto_trigger_metricas.sql` (nova, T4, conteúdo
+  revisado e íntegro, só falta gate real), `supabase/tests/operacao/formularios-submissao.integration.test.ts`
+  (nova, T4).
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado nesta sessão**: pelo menos 2 outras trilhas seguiram
+  commitando ativamente neste mesmo branch durante toda a execução do Lote A —
+  `incidencia-encontros` (avançou até pelo menos T35) e uma trilha de planejamento nova
+  (`.specs/features/planejamento-estrategico-redesenho/`, `spec.md`/`context.md`/`design.md`
+  aparecidos como untracked, tasks com prefixo `planejamento` commitando até pelo menos T12).
+  Nenhum arquivo desta feature colidiu (`git log --oneline --all | grep formularios` confirma os 3
+  commits intactos). Outros arquivos modificados/untracked no working tree
+  (`.specs/roadmap.md`, `src/backend/queries/contrato.ts`, `src/frontend/app/(app)/page.tsx`,
+  `src/frontend/app/layout.tsx`, `src/frontend/components/app-shell/route-tabs.tsx`,
+  `src/frontend/components/app-shell/topbar.tsx`, `src/frontend/components/fundacao/contrato-form.tsx`,
+  `src/frontend/components/produtos/produto-shell.tsx`, `src/frontend/components/ui/estado-vazio.tsx`,
+  `supabase/tests/fundacao/fn-criar-mandato.integration.test.ts`,
+  `supabase/migrations/20260813180132_fnd_ctr_05_snapshot_cargo_partido_contrato.sql`) pertencem a
+  outras sessões (Trilha E ainda não commitada + as trilhas paralelas acima) — não criados nem
+  tocados por este trabalho.
+
+---
+
+## Handoff (Incidência & Encontros — CONCLUÍDA)
+
+- **Feature**: Incidência & Encontros (`.specs/features/incidencia-encontros/`) — Registro por
+  etapa, Insight, Fato Gerador validado por Tipologia, cálculo do IIP (AD-014, único cálculo desta
+  camada) e Encontros (OPR-03). Specify → Discuss → Design → Tasks → Execute → Validate completo.
+  **35 tasks (T1-T35), 5 fases, todas concluídas e commitadas.**
+- **Phase / Task**: Validate concluída — Verifier independente rodou (author ≠ verifier), relatório
+  em `.specs/features/incidencia-encontros/validation.md`. Veredito: **⚠️ Issues (não bloqueantes)**
+  — 23/24 ACs nomeados do spec batem exatamente com o outcome definido (valor preciso checado, não
+  só "existe asserção"), sensor de discriminação 3/3 mutações mortas. 2 gaps de baixa/média
+  severidade, nenhum invalida uma AC nomeada nem é regressão de código (ver `validation.md`, seção
+  "Gaps Ranqueados"): (1) AD-032 não estava marcada como resolvida em `STATE.md` — **fechado nesta
+  mesma edição**, ver entrada AD-032 acima; (2) ~10 `CHECK`s secundários de T2 (não citados por nome
+  em nenhum AC) sem teste de violação dedicado no banco — mitigado por defesa Zod client-side e
+  confirmado como convenção pré-existente do projeto (mesmo padrão em
+  `planejamento-planilha-monitoramento`), não é regressão desta feature; deixado como está.
+- **Execução em lotes de sub-agente** (5 lotes, 1 por fase, aprovado por Pedro): Lote 1 (T1-T9,
+  schema) e Lote 2 (T10-T15, testes de integração) concluídos por sub-agente. **A partir do Lote 3
+  (T16-T22)**, sub-agentes voltaram a funcionar normalmente após um reset de limite de sessão da
+  API; **Lote 5 (T28-T35, frontend) morreu logo no início** (2º hit de limite de sessão da API nesta
+  feature) — T28 a T35 foram então **executadas diretamente pelo orquestrador** (sem novo
+  sub-agente), mesmo ciclo implementar→gate→commit por task. O Verifier também bateu no limite de
+  sessão na 1ª tentativa (3ª vez nesta feature) — resposta na 2ª tentativa, ~43min depois, sem
+  problema.
+- **Achados reais corrigidos durante o fechamento** (depois de todas as 35 tasks já commitadas):
+  1. **Regressão real em teste de outra feature**: T1 (seed de `ref_tipologia`) adicionou um 4º
+     código a `ref_nivel_iip` (`'maximo'`, Assumption #1a) — quebrou 2 asserções de
+     `catalogos-referencia-seed.integration.test.ts` (CAT-15 AC1/AC10, Trilha C) que ainda esperavam
+     3 linhas. Corrigido (`4f1d419`) — migration é forward-only, o teste stale é quem precisava
+     acompanhar a mudança intencional.
+  2. **UX real reportada por Pedro em teste manual** (`a03308f`): `FatoGeradorForm` expunha
+     Tipologia como 1 Select achatado (51 itens truncados "Grupo · Tipologia · Estado") e Nível
+     D1-D3/Preditor 1-2 como Selects livres, editáveis pela Gestora. Errado — o CSV real
+     (`docs/DB_Fatos_Geradores - Ref_Tipologias.csv`) trata nível/preditor como atributo FIXO de
+     cada combinação Grupo+Tipologia+Estado, já gravado em `ref_tipologia.*_padrao`/
+     `id_preditor_1`/`id_preditor_2` desde o seed — não é escolha por ocorrência. Refeito como
+     cascata Grupo→Tipologia→Estado que deriva nível/preditor automaticamente (somente leitura, nova
+     `buscarTipologiasCompletas`).
+- **Achado crítico de ambiente, não é bug desta feature nem de nenhuma trilha**: o disco `C:` da
+  máquina chegou a **0 bytes livres** (238G/238G) durante o fechamento desta feature — confirmado
+  independentemente por esta sessão e pela sessão de "Formulários dos Produtos" (handoff acima).
+  Causou falhas intermitentes de build/teste por contenção (não por código), um `git checkout`
+  interrompido que deixou `src/backend/rpc/fato-gerador.ts` temporariamente vazio (restaurado pelo
+  Verifier, confirmado byte-idêntico via `git diff` vazio) e travou `npm run test:integration`
+  completo (>78 min, terminou em crash por `LegacyPlatformAuthRequiredError` do Supabase CLI antes
+  de imprimir o resumo final). **Testes de integração escopados só a esta feature** (mais rápido,
+  sem depender da suíte inteira) rodaram limpos: RLS/grants (T10), triggers/constraints (T11), IIP
+  (T14), `vw_carteira` (T15, 2 dos 3 casos) — 3 arquivos (`fn-criar-fato-gerador`/`fn-criar-insight`/
+  1 caso de `vw-carteira`) deram timeout de hook (60-120s) por contenção real do banco de dev
+  compartilhado com outras sessões ativas na mesma janela, não falha de asserção. **Recomendação
+  pro Pedro**: liberar espaço em `C:` antes da próxima sessão pesada de build/teste — bloqueia
+  qualquer gate de integração confiável, não só desta feature.
+- **Next step**: nenhum obrigatório para esta feature — está fechada. Sugestões não-bloqueantes:
+  (a) rodar a suíte completa de `test:integration` do zero quando o disco/ambiente estiver saudável,
+  pra confirmar os 3 arquivos que deram timeout de hook; (b) considerar endereçar o Gap 2 do
+  Verifier (CHECKs secundários sem teste de violação) numa fatia futura de hardening, mesmo padrão
+  aceito em `planejamento-planilha-monitoramento`.
+- **Blockers**: nenhum bloqueante desta feature. Disco cheio (`C:`, 0 bytes livres) é blocker de
+  infraestrutura compartilhada — ver achado acima.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado durante toda a execução**: pelo menos 2 outras trilhas
+  (`formularios-produto`, `planejamento-estrategico-redesenho`) commitaram ativamente neste mesmo
+  branch durante toda a Execução desta feature, intercaladas no `git log`. Nenhum arquivo desta
+  feature colidiu (`git log --oneline | grep incidencia-encontros` confirma todos os commits
+  intactos). Arquivos modificados/untracked no working tree que **não** são desta feature (mesma
+  lista das 2 seções de handoff acima) não foram tocados por este trabalho.

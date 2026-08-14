@@ -51,7 +51,7 @@ nova precisa continuar passando pelo `drift-check` antes de ser considerada term
 | TSE | 4 tabelas + `rel_mandato_candidatura` + 2 MVs, restrito ao Legislativo (AD-031) | — |
 | Operação | 0 | 8 tabelas — **próximo gargalo estrutural, ver §5.1 (OPR-01)** |
 | Planejamento | 0 | 7 tabelas |
-| Incidência | 0 | 5 tabelas |
+| Incidência | **7/7 + 1 MV + 1 view — completo (2026-08-14, feature `incidencia-encontros`)** | — |
 | Saída | 0 | 1 tabela + ~10 views/MVs |
 | Staging | 0 | `stg.map_legado` |
 
@@ -119,9 +119,9 @@ Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto d
 | :---- | :---- | :---- |
 | `FND-USR-02` — Gestora criando Gestora/Admin, sem `WITH CHECK` de RLS | ✅ Corrigido em 2026-08-10 (`20260810181508_fix_with_check_p_usuario.sql`, aplicado em dev) — WITH CHECK explícito impede papel_global 'admin'/'gestora' fora de quem já é Admin | Era mais grave que o registrado: a ausência de WITH CHECK deixava Gestora criar até Admin, não só Gestora. Teste de regressão em `supabase/tests/plataforma/usuario-with-check.integration.test.ts` (4/4 verde) + suíte de RLS/sessão existente sem regressão (13/13 verde) |
 | `FND-COL-03` / `CMU-16` — seletor de membro da coalizão lista qualquer `fat_contrato` | ✅ Corrigido em 2026-08-10 — filtra `tipo_contratante = 'mandato'` | Fechado junto de CMU-15 (coalizão abre contrato próprio) |
-| `FND-CTR-05` — snapshot de cargo/partido no contrato nunca populado | ❌ Aberto | Baixo impacto enquanto não há relatório que dependa do cargo histórico. Candidato a Trilha E |
+| `FND-CTR-05` — snapshot de cargo/partido no contrato nunca populado | ✅ Corrigido em 2026-08-13 (`20260813180132_fnd_ctr_05_snapshot_cargo_partido_contrato.sql`, aplicado em dev) — os dois call-sites de insert em `fat_contrato` (`app.criar_mandato` e `ContratoForm`) passam a gravar `id_cargo_no_contrato`/`id_partido_no_contrato` a partir de `dim_mandato.id_cargo_atual`/`id_partido_atual` no momento da contratação | Fica `NULL` pra contrato de coalizão (sem `dim_mandato`), coerente com a coluna. 2 testes de integração novos em `fn-criar-mandato.integration.test.ts` (11/11 verde) — ver `.specs/STATE.md` |
 | `FND-TSE-01`/`FND-TSM-01` — filtro de cargo/método de match não exposto na UI de busca | Minoritário, já mitigado em parte pela restrição na origem (migrations 0022/0026, AD-031) | Não bloqueia nada |
-| Dropdowns (Cargo/Partido/Produto/Projeto) relatados como quebrados numa sessão anterior | Aparentam funcionar hoje | **Ainda pendente de confirmação visual humana** — item do roteiro de UAT de 2026-08-10 |
+| ~~Dropdowns (Cargo/Partido/Produto/Projeto) relatados como quebrados numa sessão anterior~~ | ✅ Confirmado funcionando em 2026-08-13 | Reproduzido de verdade (não só leitura de código): navegador headless logado via bypass `/admin/acesso`, testado em `/mandatos/novo` (Cargo/Partido/Produto/Projeto) e no `ContratoForm` de um mandato existente (Produto/Projeto) — as 4 opções carregam dado real (`ref_cargo`/`ref_partido`/`ref_produto`/`ref_projeto`), zero erro de console. Item riscado da lista, ver `.specs/STATE.md` |
 | Convite por contrato (acesso externo) | ✅ Concluída em 2026-08-11 — ver Trilha B e `.specs/features/convite-contrato/validation.md` | Verifier independente PASS (rodada 2), 11/11 CVT |
 | `CNV04` — guarda de papel camada 2 (`app.consumir_convite`) sem teste de regressão | 🟡 Aceito como débito | Inalcançável em teste enquanto `ck_convite_papel` existir sem desabilitar a constraint no banco de dev compartilhado — baixo risco (defesa em profundidade sobre um `CHECK` já testado) |
 | Edge case "Gestora perde vínculo antes do convite ser consumido" sem teste dedicado | 🟡 Aceito como débito | Correto por construção (consumo roda via `service_role`, nunca relê `id_usuario_convidou`) — confirmado por leitura de código pelo Verifier, não por teste |
@@ -309,9 +309,11 @@ Correções pequenas e independentes entre si, encaixáveis em qualquer folga:
 
 - ~~`FND-USR-02` — adicionar `WITH CHECK` explícito à policy `p_usuario`~~ ✅ **Resolvido em
   2026-08-10**, fora de ordem (não esperou nenhuma trilha) por ser falha de segurança ativa.
-- `FND-CTR-05` — popular `id_cargo_no_contrato`/`id_partido_no_contrato` no insert do contrato.
-- Reproduzir e fechar (ou descartar formalmente) o relato de dropdowns quebrados — hoje parece
-  resolvido, mas nunca foi confirmado nem riscado da lista.
+- ~~`FND-CTR-05` — popular `id_cargo_no_contrato`/`id_partido_no_contrato` no insert do
+  contrato.~~ ✅ **Resolvido em 2026-08-13** — ver `.specs/STATE.md`.
+- ~~Reproduzir e fechar (ou descartar formalmente) o relato de dropdowns quebrados — hoje parece
+  resolvido, mas nunca foi confirmado nem riscado da lista.~~ ✅ **Confirmado funcionando em
+  2026-08-13** (reprodução real em navegador, não só leitura de código) — ver `.specs/STATE.md`.
 
 ---
 
@@ -448,11 +450,21 @@ descrito em §5.7 continua valendo como algo a observar (tabulação entre célu
 faixa, edição em massa precisam ser rápidos, ou os assessores voltam pra planilha) — a mitigação
 agora é revisão pós-implementação, não gate prévio (trade-off registrado na AD-028).
 
-### 6.2 Incidência + Encontros (INC-01/02/03, OPR-03)
+### 6.2 Incidência + Encontros (INC-01/02/03, OPR-03) — ✅ Concluída (2026-08-14)
 
 Registro, Insight, Fato Gerador, e o cálculo do IIP (AD-014 — calculado uma única vez aqui, a Saída
 só lê). Encontros (OPR-03) entra junto por alimentar registros/insights diretamente. IIP entra
 rotulado como provisório enquanto D2 (aritmética final) não fecha — isso não bloqueia a entrega.
+
+**Entregue** (`.specs/features/incidencia-encontros/`, 35 tasks, Verifier independente — ver
+handoff em `STATE.md`): as 7 tabelas verbatim (`fat_encontro`+`rel_encontro_participante`,
+`fat_registro`, `fat_insight`+`rel_insight_origem`, `fat_fato_gerador`+`rel_fato_origem`) + a `mv_iip_contrato`
++ `vw_iip_contrato` (nova, grão por contrato) + refresh síncrono (`app.atualiza_iip_contrato`,
+AD-035) + as 2 RPCs `SECURITY INVOKER` (AD-024, Fato Gerador/Insight) + `ref_tipologia` seedada com
+as 51 linhas reais do CSV aprovado + UI completa (card de IIP, os 4 formulários, aba Encontros).
+`iip_provisorio` fica `NULL` (nunca `0`, AD-005) até `ref_indicador` ganhar peso real (CAT-16, sem
+data) — decisão confirmada com Pedro, não é lacuna desta feature. **AD-032 resolvida**: `vw_carteira`
+trocada pela versão completa (ver `STATE.md`).
 
 ### 6.3 Formulários (OPR-02)
 
