@@ -35,10 +35,15 @@ interface RefOption {
 export interface DadosPlanejamentoFormProps {
   planejamento: PlanejamentoCompleto;
   preditoresAtuais: PreditorPrioritarioLinha[];
+  // PLR-05 (.specs/features/planejamento-estrategico-redesenho): perfil de atuacao
+  // (id_perfil_atuacao/ref_perfil_atuacao) so existe no levantamento de campos por
+  // produto do PLL -- Estrategia/Coalizao nunca usam esse campo (gap real: antes
+  // desta feature o formulario mostrava sempre, para os 3 produtos).
+  produtoNome: string;
   onConcluido: () => void;
 }
 
-export function DadosPlanejamentoForm({ planejamento, preditoresAtuais, onConcluido }: DadosPlanejamentoFormProps) {
+export function DadosPlanejamentoForm({ planejamento, preditoresAtuais, produtoNome, onConcluido }: DadosPlanejamentoFormProps) {
   const [perfis, setPerfis] = useState<RefOption[]>([]);
   const [preditoresDisponiveis, setPreditoresDisponiveis] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
@@ -153,33 +158,35 @@ export function DadosPlanejamentoForm({ planejamento, preditoresAtuais, onConclu
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="id_perfil_atuacao"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Perfil de atuação (opcional)</FormLabel>
-              <Select
-                value={field.value ? String(field.value) : undefined}
-                onValueChange={(v) => field.onChange(Number(v))}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Nenhum" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {perfis.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {produtoNome === "PLL" && (
+          <FormField
+            control={form.control}
+            name="id_perfil_atuacao"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Perfil de atuação (opcional)</FormLabel>
+                <Select
+                  value={field.value ? String(field.value) : undefined}
+                  onValueChange={(v) => field.onChange(Number(v))}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Nenhum" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {perfis.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid gap-2">
           <p className="text-sm font-medium">Preditores prioritários (até 3, opcional)</p>

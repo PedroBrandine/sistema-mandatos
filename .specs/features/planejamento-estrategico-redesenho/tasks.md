@@ -238,11 +238,15 @@ sempre — gap real encontrado nesta feature, ver `spec.md` Success Criteria).
 **Requirement**: PLR-05
 
 **Done when**:
-- [ ] Formulário de contrato Estratégia/Coalizão não mostra o campo
-- [ ] Formulário de contrato PLL continua mostrando
-- [ ] `npm run build` limpo
+- [x] Formulário de contrato Estratégia/Coalizão não mostra o campo
+- [x] Formulário de contrato PLL continua mostrando
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente (ver histórico). `produtoNome` virou prop obrigatória de
+`DadosPlanejamentoForm`; companion edit mínimo no único call site atual (`page.tsx`, passa
+`contrato.nomeProduto`) para manter o build verde até T10 reescrever a página por completo.
 
 ---
 

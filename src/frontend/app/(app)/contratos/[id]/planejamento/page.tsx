@@ -220,6 +220,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             <DadosPlanejamentoForm
               planejamento={planejamento}
               preditoresAtuais={preditoresAtuais}
+              produtoNome={contrato.nomeProduto}
               onConcluido={() => {
                 setEditandoDadosPlanejamento(false);
                 void recarregarHierarquia();
