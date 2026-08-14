@@ -479,10 +479,17 @@ pede exatamente essa prova via `vw_carteira`.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `database.types.ts` inclui as 7 tabelas + `vw_iip_contrato` com colunas corretas
-- [ ] `vw_carteira` no arquivo tem as 3 colunas novas
+- [x] `database.types.ts` inclui as 7 tabelas + `vw_iip_contrato` com colunas corretas
+- [x] `vw_carteira` no arquivo tem as 3 colunas novas
 
 **Tests**: none · **Gate**: build
+
+✅ **Concluída** — commit `ded2ae7`. `npm run db:types` contra o projeto de
+dev linkado (`npnvoolkebhabjkjzqwn`). Confirmado no arquivo gerado: as 7
+tabelas (`fat_encontro`, `fat_fato_gerador`, `fat_insight`, `fat_registro`,
+`rel_encontro_participante`, `rel_fato_origem`, `rel_insight_origem`) +
+`vw_iip_contrato` (`id_contrato`/`iip_provisorio`/`nr_fatos`) + `vw_carteira`
+com as 3 colunas novas. Gate: `npm run build` limpo.
 
 ---
 
@@ -498,10 +505,16 @@ ganha `idUsuario: number | null`.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] 3 consumidores existentes (`Topbar`, `planejamento-arvore.tsx`, `kanban-board.tsx`) continuam compilando sem alteração
-- [ ] `npm run build` limpo
+- [x] 3 consumidores existentes (`Topbar`, `planejamento-arvore.tsx`, `kanban-board.tsx`) continuam compilando sem alteração
+- [x] `npm run build` limpo
 
 **Tests**: none (débito de hook sem harness, ver matrix) · **Gate**: build
+
+✅ **Concluída** — commit `617a2c2`. `.select("id_usuario, papel_global")`;
+`UsePapelGlobalResult` ganhou `idUsuario: number | null`. Confirmado por
+`npm run build` limpo que os 3 consumidores (mais `contratos/[id]/planejamento/page.tsx`,
+que também usa só `{ papel }`) continuam compilando sem alteração — campo
+novo, não removido.
 
 ---
 
@@ -518,10 +531,17 @@ ganha `idUsuario: number | null`.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] 7 constraints novas mapeadas + teste de cada uma + teste do fallback genérico
-- [ ] `npm run test:unit` verde, contagem documentada
+- [x] 7 constraints novas mapeadas + teste de cada uma + teste do fallback genérico
+- [x] `npm run test:unit` verde, contagem documentada
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `6d5212a`. `errors.test.ts` criado (não existia) —
+9 casos: as 7 constraints novas (`ck_fato_niveis`, `ck_encontro_planejado`,
+`ck_encontro_realizado`, `ck_participante_identificacao`,
+`uq_registro_sequencia`, `uq_encontro_sequencia`,
+`uq_encontro_participante_usuario`) + fallback genérico de `23514` e de
+`23505`. `npm run test:unit`: 256 passed (0 failed).
 
 ---
 
@@ -538,10 +558,16 @@ opcional, `conteudo` (`z.record` ou `z.object({})`, default `{}`).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre válido + cada `CHECK` mapeável (canal inválido, sequência ≤0)
-- [ ] `npm run test:unit` verde
+- [x] Teste cobre válido + cada `CHECK` mapeável (canal inválido, sequência ≤0)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `76b717d`. 9 casos (válido mínimo, válido completo
+com `conteudo={}`, ausência de `id_contrato`/`id_tipo_registro`/`ocorrido_em`,
+`canal` inválido/nulo, `nr_sequencia` ≤0/nulo). `id_usuario_autor` ficou fora
+do schema de propósito (resolvido via `usePapelGlobal`, T17, não é campo do
+formulário). `npm run test:unit`: 265 passed (0 failed).
 
 ---
 
@@ -557,10 +583,17 @@ opcional, `conteudo` (`z.record` ou `z.object({})`, default `{}`).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre válido sem origem, com Registro, com Meta+Sucesso simultâneos
-- [ ] `npm run test:unit` verde
+- [x] Teste cobre válido sem origem, com Registro, com Meta+Sucesso simultâneos
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `3be130b`. 8 casos (sem origem, com Registro, com
+Meta+Sucesso simultâneos, ausência de `id_contrato`/`conteudo`, `conteudo`
+vazio, `id_pilar` nulo, demais campos opcionais nulos). `id_meta_origem`/
+`id_sucesso_origem` tratados como independentes (nenhuma combinação inválida
+no client — `ck_insight_origem` é responsabilidade da RPC `app.criar_insight`,
+T24). `npm run test:unit`: 273 passed (0 failed).
 
 ---
 
@@ -577,10 +610,16 @@ espelhando `ck_fato_preditores`, `contribuicao_legisla` (0-5), `dt_ocorrencia`, 
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre válido, rejeição de nenhum nível preenchido, rejeição de preditor 2 = preditor 1
-- [ ] `npm run test:unit` verde
+- [x] Teste cobre válido, rejeição de nenhum nível preenchido, rejeição de preditor 2 = preditor 1
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `65945aa`. 14 casos (válido com só D1, válido com
+só D2, com Meta, com Insight, ausência de `id_contrato`/`id_tipologia`/
+`dt_ocorrencia`, nenhum nível preenchido ×2 formas, `contribuicao_legisla`
+fora de 0-5/nula, `id_preditor_2` repetindo/sem `id_preditor_1`/diferente).
+`npm run test:unit`: 287 passed (0 failed).
 
 ---
 
@@ -596,10 +635,26 @@ separado com `.refine()` XOR (`id_usuario`/`nome_livre`) espelhando `ck_particip
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Teste cobre `planejado` sem `dt_prevista_inicio` (rejeita), `realizado` sem `dt_realizada` (rejeita), participante com os 2 campos e com nenhum (rejeita ambos)
-- [ ] `npm run test:unit` verde
+- [x] Teste cobre `planejado` sem `dt_prevista_inicio` (rejeita), `realizado` sem `dt_realizada` (rejeita), participante com os 2 campos e com nenhum (rejeita ambos)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit · **Gate**: quick
+
+✅ **Concluída** — commit `a34f3bf`. 21 casos (14 `encontroSchema` + 7
+`participanteSchema`): `planejado`/`realizado` com e sem data condicional,
+`cancelado`/`remarcado` sem nenhuma data, `status`/`modalidade` fora do
+domínio, `nr_sequencia` ≤0/nula, ausência de `id_contrato`/`titulo` vazio,
+`local` com sentinela de ausência (domínio `texto_limpo`), XOR
+`id_usuario`/`nome_livre` (com os 2, com nenhum), ausência de `id_encontro`,
+`origem` fora do domínio. **Desvio documentado**: `id_etapa`/
+`tema_prioritario`/`id_externo_calendar`/`url_meet` ficaram fora do schema
+(nenhuma menção em spec.md/design.md/tasks.md como campo do formulário);
+`nr_sequencia`+`id_tipo_registro` entraram por `tasks.md` nomear
+`ck_encontro_sequencia` explicitamente; `origem`/`presente` entraram por
+serem `NOT NULL`/`CHECK` reais da tabela, além do XOR literal pedido pela
+task. `npm run test:unit`: 308 passed (0 failed). Fim da Phase 3: `npm run
+build` também limpo; `npm run lint:all` tem falhas pré-existentes fora do
+escopo desta feature (ver nota do commit).
 
 ---
 
