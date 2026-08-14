@@ -152,6 +152,24 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: supabase/tests/incidencia/fn-criar-insight.integration.test.ts:137,148 / validation.md Gap 3 (supabase/tests)
 - last seen: 2026-08-14T13:28:08Z
 
+### L-024 — When a requirement ID only appears inside another section's title range citation (e.g. 'PLR-15 a PLR-19'), verify it also has its own task with a Done-when — a range citation is not decomposition.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `planejamento` · harmful: 0
+- features: planejamento-estrategico-redesenho
+- evidence: spec.md:PLR-19 (validation.md 'Spec-Anchored Acceptance Criteria') (planejamento)
+- last seen: 2026-08-14T13:50:49Z
+
+### L-025 — When a parsing function returns the same sentinel for 'intentionally empty' and 'invalid', the caller cannot special-case clearing a field to NULL without an explicit empty-string check before calling it.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `forms` · harmful: 0
+- features: planejamento-estrategico-redesenho
+- evidence: spec.md:124 Success Criteria 'Limpar uma célula de % grava NULL' (validation.md Gap A) (forms)
+- last seen: 2026-08-14T13:50:51Z
+
+### L-026 — When a spec's edge case requires a role-scoped default view, initialize that filter's state from the current role, not a role-independent constant, and verify RLS alone does not already enforce it.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `planejamento` · harmful: 0
+- features: planejamento-estrategico-redesenho
+- evidence: spec.md:97-99 Edge Case Assessor default filter (validation.md Gap B) (planejamento)
+- last seen: 2026-08-14T13:50:59Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
