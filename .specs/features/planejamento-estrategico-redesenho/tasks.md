@@ -215,12 +215,17 @@ quando `atingimentoDesatualizado === false`).
 **Requirement**: PLR-02, PLR-03, PLR-04
 
 **Done when**:
-- [ ] h1 nunca vazio (fallback "Planejamento Estratégico" quando `objetivoAno` é `null`)
-- [ ] Faixa de recálculo só aparece quando `atingimentoDesatualizado === true`; botão dispara
+- [x] h1 nunca vazio (fallback "Planejamento Estratégico" quando `objetivoAno` é `null`)
+- [x] Faixa de recálculo só aparece quando `atingimentoDesatualizado === true`; botão dispara
       `onRecalcular` (sem chamada automática)
-- [ ] `npm run build` limpo
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente (ver histórico). Reaproveita `EtapaRegua`/`buscarReguaDoContrato`
+(`queries/etapa-contrato.ts`) e `Breadcrumbs` (`components/ui/breadcrumbs.tsx`), ambos já existentes
+— nenhuma query nova. IIP é placeholder fixo gated por `permissoes.veIip`. `npm run build` e
+`npm run lint:frontend` confirmados limpos (nenhum problema novo, mesma baseline pré-existente).
 
 ---
 
