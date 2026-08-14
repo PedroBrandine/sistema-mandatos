@@ -82,7 +82,7 @@ export function CicloEtapaCard({ filtro }: { filtro: FiltroRecorte }) {
                       pontos: e.pontos.map((p) => ({ mes: p.mes, valor: p.mediana })),
                     },
                   ]}
-                  formatarValor={(v) => `${v.toFixed(0)}d`}
+                  unidade="dias"
                 />
               ))}
           </div>

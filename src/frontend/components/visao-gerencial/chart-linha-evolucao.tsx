@@ -29,11 +29,12 @@ export interface SerieLinhaEvolucao {
   pontos: { mes: string; valor: number | null }[];
 }
 
+export type UnidadeValor = "pct" | "dias" | "numero";
+
 interface ChartLinhaEvolucaoProps {
   titulo: string;
   series: SerieLinhaEvolucao[];
-  formatarValor?: (v: number) => string;
-  formatarMes?: (mes: string) => string;
+  unidade?: UnidadeValor;
 }
 
 const formatarMesPadrao = (mes: string) => {
@@ -43,13 +44,26 @@ const formatarMesPadrao = (mes: string) => {
   return indice >= 0 && indice < 12 ? `${nomes[indice]}/${ano.slice(2)}` : mes;
 };
 
+// `unidade` é um discriminador serializável (string), não uma função --
+// achado real ao testar no navegador (T23): passar `formatarValor` como
+// função de um Server Component (SaudeOperacaoBloco) pra este Client
+// Component quebrava em runtime ("Functions cannot be passed directly to
+// Client Components"), invisível pro build/type-check (só aparece
+// executando de verdade). Formatação sempre decidida aqui dentro.
+function formatarValorPorUnidade(v: number, unidade: UnidadeValor): string {
+  if (unidade === "pct") return `${v.toFixed(0)}%`;
+  if (unidade === "dias") return `${v.toFixed(0)}d`;
+  return String(v);
+}
+
 // visao-gerencial-g3-g6, T21 (infra, consumido por GER-07/08/12/13). Wrapper
 // fino sobre o primitivo shadcn/Recharts -- uma métrica só por instância
 // (nunca dois eixos Y, regra de visualização do pedido original), cor
 // categórica fixa por série (atribuída pelo chamador via `cor`, nunca
 // ciclada automaticamente), legenda só com 2+ séries, tooltip sempre, toggle
 // "ver como tabela" acessível por teclado/leitor de tela embutido.
-export function ChartLinhaEvolucao({ titulo, series, formatarValor, formatarMes = formatarMesPadrao }: ChartLinhaEvolucaoProps) {
+export function ChartLinhaEvolucao({ titulo, series, unidade = "numero" }: ChartLinhaEvolucaoProps) {
+  const formatarMes = formatarMesPadrao;
   const [comoTabela, setComoTabela] = useState(false);
   const tituloId = useId();
 
@@ -102,9 +116,7 @@ export function ChartLinhaEvolucao({ titulo, series, formatarValor, formatarMes 
                 {series.map((s) => {
                   const valor = linha[s.id];
                   return (
-                    <TableCell key={s.id}>
-                      {valor === null ? "—" : formatarValor ? formatarValor(valor as number) : valor}
-                    </TableCell>
+                    <TableCell key={s.id}>{valor === null ? "—" : formatarValorPorUnidade(valor as number, unidade)}</TableCell>
                   );
                 })}
               </TableRow>

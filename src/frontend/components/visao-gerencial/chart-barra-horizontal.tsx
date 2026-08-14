@@ -7,6 +7,7 @@ import { Table2 } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { UnidadeValor } from "@/components/visao-gerencial/chart-linha-evolucao";
 
 export interface ItemBarraHorizontal {
   id: string;
@@ -18,8 +19,17 @@ export interface ItemBarraHorizontal {
 interface ChartBarraHorizontalProps {
   titulo: string;
   itens: ItemBarraHorizontal[];
-  formatarValor?: (v: number) => string;
+  unidade?: UnidadeValor;
   ordenarPorValor?: boolean; // false quando a ordem já é significativa (ex.: régua de etapas, GER-10)
+}
+
+// `unidade` (discriminador serializável, não função) -- mesmo achado real de
+// ChartLinhaEvolucao (T23): função como prop quebra em runtime quando o
+// chamador é Server Component.
+function formatarValorPorUnidade(v: number, unidade: UnidadeValor): string {
+  if (unidade === "pct") return `${v.toFixed(0)}%`;
+  if (unidade === "dias") return `${v.toFixed(0)}d`;
+  return String(v);
 }
 
 // visao-gerencial-g3-g6, T21 (infra, consumido por GER-08/10/14/17/18). Uma
@@ -29,7 +39,7 @@ interface ChartBarraHorizontalProps {
 export function ChartBarraHorizontal({
   titulo,
   itens,
-  formatarValor,
+  unidade = "numero",
   ordenarPorValor = true,
 }: ChartBarraHorizontalProps) {
   const [comoTabela, setComoTabela] = useState(false);
@@ -72,7 +82,7 @@ export function ChartBarraHorizontal({
             {dados.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>{item.rotulo}</TableCell>
-                <TableCell>{item.valor === null ? "—" : formatarValor ? formatarValor(item.valor) : item.valor}</TableCell>
+                <TableCell>{item.valor === null ? "—" : formatarValorPorUnidade(item.valor, unidade)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

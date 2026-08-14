@@ -6,8 +6,6 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { ChartLinhaEvolucao } from "@/components/visao-gerencial/chart-linha-evolucao";
 import { ChartBarraHorizontal } from "@/components/visao-gerencial/chart-barra-horizontal";
 
-const formatarPct = (v: number) => `${v.toFixed(0)}%`;
-
 // visao-gerencial-g3-g6, T22 (Bloco 0, GER-06/07/08). G3+G4 medem o próprio
 // sistema (Constituição §2.6) -- ficam acima de qualquer indicador de
 // mandato, sempre (garantido pela ordem em page.tsx, T30). Server Component
@@ -69,7 +67,7 @@ async function BlocoG3({ filtro }: { filtro: FiltroRecorte }) {
                     pontos: dado.evolucaoMensal.map((p) => ({ mes: p.mes, valor: p.pct })),
                   },
                 ]}
-                formatarValor={formatarPct}
+                unidade="pct"
               />
             )}
           </>
@@ -112,7 +110,7 @@ async function BlocoG4({ filtro }: { filtro: FiltroRecorte }) {
           <ChartBarraHorizontal
             titulo="Taxa de resposta por formulário"
             itens={dado.porFormulario.map((f) => ({ id: String(f.idFormulario), rotulo: f.nomeFormulario, valor: f.taxaResposta }))}
-            formatarValor={formatarPct}
+            unidade="pct"
           />
         )}
         {dado.evolucaoMensal.length > 0 && (
@@ -126,7 +124,7 @@ async function BlocoG4({ filtro }: { filtro: FiltroRecorte }) {
                 pontos: dado.evolucaoMensal.map((p) => ({ mes: p.mes, valor: p.taxaMedia })),
               },
             ]}
-            formatarValor={formatarPct}
+            unidade="pct"
           />
         )}
       </CardContent>
