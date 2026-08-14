@@ -20,6 +20,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      atualiza_iip_contrato: { Args: never; Returns: undefined }
       atualiza_sucessos_mensais_lote: {
         Args: { p_valores: Json }
         Returns: undefined
@@ -50,6 +51,37 @@ export type Database = {
           p_ignorar_duplicata?: boolean
         }
         Returns: Json
+      }
+      criar_fato_gerador: {
+        Args: {
+          p_contribuicao_legisla?: number
+          p_descricao_evidencia?: string
+          p_dt_ocorrencia?: string
+          p_id_contrato: number
+          p_id_insight_origem?: number
+          p_id_meta_origem?: number
+          p_id_preditor_1?: number
+          p_id_preditor_2?: number
+          p_id_tipologia: number
+          p_nivel_d1?: string
+          p_nivel_d2?: string
+          p_nivel_d3?: string
+        }
+        Returns: number
+      }
+      criar_insight: {
+        Args: {
+          p_comprovacao_dados?: string
+          p_conteudo: string
+          p_desdobramentos?: string
+          p_id_contrato: number
+          p_id_meta_origem?: number
+          p_id_pilar?: number
+          p_id_registro?: number
+          p_id_sucesso_origem?: number
+          p_ocorrido_em?: string
+        }
+        Returns: number
       }
       criar_mandato: {
         Args: {
@@ -211,6 +243,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "convite_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -483,6 +522,13 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
             foreignKeyName: "dim_planejamento_id_perfil_atuacao_fkey"
             columns: ["id_perfil_atuacao"]
             isOneToOne: false
@@ -622,6 +668,13 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
             foreignKeyName: "fat_contrato_id_partido_no_contrato_fkey"
             columns: ["id_partido_no_contrato"]
             isOneToOne: false
@@ -641,6 +694,106 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_projeto"
             referencedColumns: ["id_projeto"]
+          },
+        ]
+      }
+      fat_encontro: {
+        Row: {
+          criado_em: string
+          dt_prevista_fim: string | null
+          dt_prevista_inicio: string | null
+          dt_realizada: string | null
+          id_contrato: number
+          id_encontro: number
+          id_etapa: number | null
+          id_externo_calendar: string | null
+          id_tipo_registro: number | null
+          local: string | null
+          modalidade: string | null
+          nr_sequencia: number | null
+          status: string
+          tema_prioritario: string | null
+          titulo: string
+          url_meet: string | null
+        }
+        Insert: {
+          criado_em?: string
+          dt_prevista_fim?: string | null
+          dt_prevista_inicio?: string | null
+          dt_realizada?: string | null
+          id_contrato: number
+          id_encontro?: number
+          id_etapa?: number | null
+          id_externo_calendar?: string | null
+          id_tipo_registro?: number | null
+          local?: string | null
+          modalidade?: string | null
+          nr_sequencia?: number | null
+          status?: string
+          tema_prioritario?: string | null
+          titulo: string
+          url_meet?: string | null
+        }
+        Update: {
+          criado_em?: string
+          dt_prevista_fim?: string | null
+          dt_prevista_inicio?: string | null
+          dt_realizada?: string | null
+          id_contrato?: number
+          id_encontro?: number
+          id_etapa?: number | null
+          id_externo_calendar?: string | null
+          id_tipo_registro?: number | null
+          local?: string | null
+          modalidade?: string | null
+          nr_sequencia?: number | null
+          status?: string
+          tema_prioritario?: string | null
+          titulo?: string
+          url_meet?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_encontro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_encontro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_encontro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_encontro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_encontro_id_etapa_fkey"
+            columns: ["id_etapa"]
+            isOneToOne: false
+            referencedRelation: "ref_etapa"
+            referencedColumns: ["id_etapa"]
+          },
+          {
+            foreignKeyName: "fat_encontro_id_tipo_registro_fkey"
+            columns: ["id_tipo_registro"]
+            isOneToOne: false
+            referencedRelation: "ref_tipo_registro"
+            referencedColumns: ["id_tipo_registro"]
           },
         ]
       }
@@ -701,11 +854,233 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
             foreignKeyName: "fat_etapa_contrato_id_etapa_fkey"
             columns: ["id_etapa"]
             isOneToOne: false
             referencedRelation: "ref_etapa"
             referencedColumns: ["id_etapa"]
+          },
+        ]
+      }
+      fat_fato_gerador: {
+        Row: {
+          contribuicao_legisla: number | null
+          criado_em: string
+          descricao_evidencia: string | null
+          dt_ocorrencia: string
+          id_contrato: number
+          id_fato_gerador: number
+          id_preditor_1: number | null
+          id_preditor_2: number | null
+          id_tipologia: number
+          id_usuario_autor: number | null
+          nivel_d1: string | null
+          nivel_d2: string | null
+          nivel_d3: string | null
+        }
+        Insert: {
+          contribuicao_legisla?: number | null
+          criado_em?: string
+          descricao_evidencia?: string | null
+          dt_ocorrencia: string
+          id_contrato: number
+          id_fato_gerador?: number
+          id_preditor_1?: number | null
+          id_preditor_2?: number | null
+          id_tipologia: number
+          id_usuario_autor?: number | null
+          nivel_d1?: string | null
+          nivel_d2?: string | null
+          nivel_d3?: string | null
+        }
+        Update: {
+          contribuicao_legisla?: number | null
+          criado_em?: string
+          descricao_evidencia?: string | null
+          dt_ocorrencia?: string
+          id_contrato?: number
+          id_fato_gerador?: number
+          id_preditor_1?: number | null
+          id_preditor_2?: number | null
+          id_tipologia?: number
+          id_usuario_autor?: number | null
+          nivel_d1?: string | null
+          nivel_d2?: string | null
+          nivel_d3?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_preditor_1_fkey"
+            columns: ["id_preditor_1"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_preditor_2_fkey"
+            columns: ["id_preditor_2"]
+            isOneToOne: false
+            referencedRelation: "ref_preditor"
+            referencedColumns: ["id_preditor"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_tipologia_fkey"
+            columns: ["id_tipologia"]
+            isOneToOne: false
+            referencedRelation: "ref_tipologia"
+            referencedColumns: ["id_tipologia"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_usuario_autor_fkey"
+            columns: ["id_usuario_autor"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_nivel_d1_fkey"
+            columns: ["nivel_d1"]
+            isOneToOne: false
+            referencedRelation: "ref_nivel_iip"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_nivel_d2_fkey"
+            columns: ["nivel_d2"]
+            isOneToOne: false
+            referencedRelation: "ref_nivel_iip"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_nivel_d3_fkey"
+            columns: ["nivel_d3"]
+            isOneToOne: false
+            referencedRelation: "ref_nivel_iip"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
+      fat_insight: {
+        Row: {
+          comprovacao_dados: string | null
+          conteudo: string
+          criado_em: string
+          desdobramentos: string | null
+          id_contrato: number
+          id_insight: number
+          id_pilar: number | null
+          id_registro: number | null
+          id_usuario_autor: number | null
+          ocorrido_em: string | null
+        }
+        Insert: {
+          comprovacao_dados?: string | null
+          conteudo: string
+          criado_em?: string
+          desdobramentos?: string | null
+          id_contrato: number
+          id_insight?: number
+          id_pilar?: number | null
+          id_registro?: number | null
+          id_usuario_autor?: number | null
+          ocorrido_em?: string | null
+        }
+        Update: {
+          comprovacao_dados?: string | null
+          conteudo?: string
+          criado_em?: string
+          desdobramentos?: string | null
+          id_contrato?: number
+          id_insight?: number
+          id_pilar?: number | null
+          id_registro?: number | null
+          id_usuario_autor?: number | null
+          ocorrido_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_insight_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_pilar_fkey"
+            columns: ["id_pilar"]
+            isOneToOne: false
+            referencedRelation: "ref_pilar_insight"
+            referencedColumns: ["id_pilar"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_registro_fkey"
+            columns: ["id_registro"]
+            isOneToOne: false
+            referencedRelation: "fat_registro"
+            referencedColumns: ["id_registro"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_usuario_autor_fkey"
+            columns: ["id_usuario_autor"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
           },
         ]
       }
@@ -861,6 +1236,98 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_preditor"
             referencedColumns: ["id_preditor"]
+          },
+        ]
+      }
+      fat_registro: {
+        Row: {
+          canal: string | null
+          conteudo: Json
+          criado_em: string
+          id_contrato: number
+          id_encontro: number | null
+          id_registro: number
+          id_tipo_registro: number
+          id_usuario_autor: number
+          nr_sequencia: number | null
+          ocorrido_em: string
+          resumo: string | null
+        }
+        Insert: {
+          canal?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id_contrato: number
+          id_encontro?: number | null
+          id_registro?: number
+          id_tipo_registro: number
+          id_usuario_autor: number
+          nr_sequencia?: number | null
+          ocorrido_em: string
+          resumo?: string | null
+        }
+        Update: {
+          canal?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id_contrato?: number
+          id_encontro?: number | null
+          id_registro?: number
+          id_tipo_registro?: number
+          id_usuario_autor?: number
+          nr_sequencia?: number | null
+          ocorrido_em?: string
+          resumo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_registro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_encontro_fkey"
+            columns: ["id_encontro"]
+            isOneToOne: false
+            referencedRelation: "fat_encontro"
+            referencedColumns: ["id_encontro"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_tipo_registro_fkey"
+            columns: ["id_tipo_registro"]
+            isOneToOne: false
+            referencedRelation: "ref_tipo_registro"
+            referencedColumns: ["id_tipo_registro"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_usuario_autor_fkey"
+            columns: ["id_usuario_autor"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
           },
         ]
       }
@@ -2263,6 +2730,98 @@ export type Database = {
             referencedRelation: "vw_carteira_ponderada"
             referencedColumns: ["id_contrato"]
           },
+          {
+            foreignKeyName: "rel_coalizao_membro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+        ]
+      }
+      rel_encontro_participante: {
+        Row: {
+          id_encontro: number
+          id_participacao: number
+          id_usuario: number | null
+          nome_livre: string | null
+          origem: string
+          presente: boolean
+        }
+        Insert: {
+          id_encontro: number
+          id_participacao?: number
+          id_usuario?: number | null
+          nome_livre?: string | null
+          origem: string
+          presente?: boolean
+        }
+        Update: {
+          id_encontro?: number
+          id_participacao?: number
+          id_usuario?: number | null
+          nome_livre?: string | null
+          origem?: string
+          presente?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rel_encontro_participante_id_encontro_fkey"
+            columns: ["id_encontro"]
+            isOneToOne: false
+            referencedRelation: "fat_encontro"
+            referencedColumns: ["id_encontro"]
+          },
+          {
+            foreignKeyName: "rel_encontro_participante_id_usuario_fkey"
+            columns: ["id_usuario"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
+      rel_fato_origem: {
+        Row: {
+          id_fato_gerador: number
+          id_insight: number | null
+          id_meta: number | null
+          id_vinculo: number
+        }
+        Insert: {
+          id_fato_gerador: number
+          id_insight?: number | null
+          id_meta?: number | null
+          id_vinculo?: number
+        }
+        Update: {
+          id_fato_gerador?: number
+          id_insight?: number | null
+          id_meta?: number | null
+          id_vinculo?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rel_fato_origem_id_fato_gerador_fkey"
+            columns: ["id_fato_gerador"]
+            isOneToOne: false
+            referencedRelation: "fat_fato_gerador"
+            referencedColumns: ["id_fato_gerador"]
+          },
+          {
+            foreignKeyName: "rel_fato_origem_id_insight_fkey"
+            columns: ["id_insight"]
+            isOneToOne: false
+            referencedRelation: "fat_insight"
+            referencedColumns: ["id_insight"]
+          },
+          {
+            foreignKeyName: "rel_fato_origem_id_meta_fkey"
+            columns: ["id_meta"]
+            isOneToOne: false
+            referencedRelation: "fat_meta"
+            referencedColumns: ["id_meta"]
+          },
         ]
       }
       rel_formulario_contrato: {
@@ -2316,6 +2875,13 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
             foreignKeyName: "rel_formulario_contrato_id_formulario_fkey"
             columns: ["id_formulario"]
             isOneToOne: false
@@ -2328,6 +2894,56 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "dim_usuario"
             referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
+      rel_insight_origem: {
+        Row: {
+          id_insight: number
+          id_meta: number | null
+          id_sucesso: number | null
+          id_vinculo: number
+        }
+        Insert: {
+          id_insight: number
+          id_meta?: number | null
+          id_sucesso?: number | null
+          id_vinculo?: number
+        }
+        Update: {
+          id_insight?: number
+          id_meta?: number | null
+          id_sucesso?: number | null
+          id_vinculo?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rel_insight_origem_id_insight_fkey"
+            columns: ["id_insight"]
+            isOneToOne: false
+            referencedRelation: "fat_insight"
+            referencedColumns: ["id_insight"]
+          },
+          {
+            foreignKeyName: "rel_insight_origem_id_meta_fkey"
+            columns: ["id_meta"]
+            isOneToOne: false
+            referencedRelation: "fat_meta"
+            referencedColumns: ["id_meta"]
+          },
+          {
+            foreignKeyName: "rel_insight_origem_id_sucesso_fkey"
+            columns: ["id_sucesso"]
+            isOneToOne: false
+            referencedRelation: "fat_sucesso_mensal"
+            referencedColumns: ["id_sucesso"]
+          },
+          {
+            foreignKeyName: "rel_insight_origem_id_sucesso_fkey"
+            columns: ["id_sucesso"]
+            isOneToOne: false
+            referencedRelation: "vw_sucesso_mensal"
+            referencedColumns: ["id_sucesso"]
           },
         ]
       }
@@ -2484,6 +3100,13 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "fk_vinculo_contrato"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
             foreignKeyName: "rel_usuario_contrato_id_usuario_fkey"
             columns: ["id_usuario"]
             isOneToOne: false
@@ -2494,15 +3117,59 @@ export type Database = {
       }
     }
     Views: {
+      mv_iip_contrato: {
+        Row: {
+          componente_d1: number | null
+          componente_d2: number | null
+          componente_d3: number | null
+          dt_ultimo_fato: string | null
+          id_contrato: number | null
+          iip_provisorio: number | null
+          nr_fatos: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+        ]
+      }
       vw_carteira: {
         Row: {
           atingimento_desatualizado: boolean | null
+          dt_ultimo_registro: string | null
           etapa_atual: string | null
           id_contrato: number | null
           id_usuario: number | null
+          iip_provisorio: number | null
           nome_contratante: string | null
           nome_produto: string | null
           nome_projeto: string | null
+          nr_fatos: number | null
           papel_no_contrato: string | null
           pct_atingimento: number | null
           status: string | null
@@ -2587,6 +3254,13 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
             foreignKeyName: "fat_etapa_contrato_id_etapa_fkey"
             columns: ["id_etapa"]
             isOneToOne: false
@@ -2642,6 +3316,13 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
             foreignKeyName: "fat_etapa_contrato_id_etapa_fkey"
             columns: ["id_etapa"]
             isOneToOne: false
@@ -2649,6 +3330,14 @@ export type Database = {
             referencedColumns: ["id_etapa"]
           },
         ]
+      }
+      vw_iip_contrato: {
+        Row: {
+          id_contrato: number | null
+          iip_provisorio: number | null
+          nr_fatos: number | null
+        }
+        Relationships: []
       }
       vw_sucesso_mensal: {
         Row: {
