@@ -134,7 +134,16 @@ describe("incidencia-encontros T13 -- app.criar_insight", () => {
         DELETE FROM fat_registro WHERE id_contrato = ${f.idContrato};
       `);
     }
-    await runSql(`DELETE FROM rel_usuario_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});`);
+    // Achado do Verifier (2026-08-14, validation.md Gap 3): ASSESSOR_EMAIL é
+    // constante fixa e idUsuarioAssessor persiste entre execuções (ON
+    // CONFLICT DO UPDATE em beforeAll) -- limpar só os vínculos DESTA run
+    // (id_contrato IN (a,b)) deixa órfão qualquer rel_usuario_contrato de uma
+    // execução anterior que falhou antes do próprio afterAll rodar (ex.:
+    // timeout no beforeAll, confirmado ao vivo nesta sessão). O DELETE FROM
+    // dim_usuario abaixo falha com 23503 (FK) enquanto sobrar 1 linha órfã.
+    // Escopar por id_usuario (não id_contrato) limpa todo vínculo desta
+    // pessoa, de qualquer run, corrigindo o problema de raiz.
+    await runSql(`DELETE FROM rel_usuario_contrato WHERE id_usuario = ${idUsuarioAssessor};`);
     await runSql(`
       DELETE FROM fat_etapa_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});
       DELETE FROM rel_formulario_contrato WHERE id_contrato IN (${a.idContrato}, ${b.idContrato});
@@ -145,6 +154,16 @@ describe("incidencia-encontros T13 -- app.criar_insight", () => {
       await runSql(`DELETE FROM dim_contratante WHERE id_contratante = ${f.idContratante};`);
     }
     await runSql(`DELETE FROM log_auditoria WHERE id_usuario = ${idUsuarioAssessor} OR id_usuario_impersonado = ${idUsuarioAssessor};`);
+    // Mesmo achado do Verifier acima (Gap 3), 2º ponto: `fat_registro`/`fat_insight`
+    // também eram limpos só por id_contrato desta run (linhas 131-136) --
+    // qualquer linha órfã de execução anterior (author = idUsuarioAssessor,
+    // contrato já não existe mais) sobrevivia e travava este DELETE com 23503
+    // (`fat_registro_id_usuario_autor_fkey`, confirmado ao vivo). Catch-all por
+    // id_usuario_autor pega qualquer resíduo, de qualquer run passada.
+    await runSql(`
+      DELETE FROM fat_registro WHERE id_usuario_autor = ${idUsuarioAssessor};
+      DELETE FROM fat_insight WHERE id_usuario_autor = ${idUsuarioAssessor};
+    `);
     await runSql(`DELETE FROM dim_usuario WHERE email = '${ASSESSOR_EMAIL}';`);
     for (const id of authUserIds) {
       await admin.auth.admin.deleteUser(id).catch(() => undefined);
