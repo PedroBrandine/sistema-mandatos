@@ -487,3 +487,87 @@ export async function buscarSaudeFormularios(
 
   return { porFormulario, qtdAbertosMais30Dias, evolucaoMensal };
 }
+
+export interface PontoEvolucaoGestora {
+  mes: string;
+  somaPeso: number;
+}
+
+export interface SerieEvolucaoGestora {
+  idUsuarioGestora: number | null; // null = série agregada "Outras"
+  nomeGestora: string;
+  pontos: PontoEvolucaoGestora[];
+}
+
+interface RowCarteiraPonderadaMensal {
+  mes_referencia: string;
+  id_usuario_gestora: number;
+  nome_gestora: string;
+  id_produto: number;
+  id_contrato: number;
+  peso: number | null;
+}
+
+const MAX_SERIES_EVOLUCAO_GESTORA = 8;
+
+// GER-12. G1 é indicador derivado (Constituição §2.6) -- vw_carteira_
+// ponderada_mensal (T4) já reconstrói "como estava no fim de cada mês" via
+// generate_series; esta função só agrega em TS por Gestora, mesmo padrão de
+// buscarCarteiraPonderada. peso NULL (lacuna de seed) é excluído da soma,
+// nunca tratado como peso = 1. Mais de 8 Gestoras -> excedente agrupado em
+// "Outras" (spec.md Edge Cases), ranqueadas pelo total somado nos 12 meses.
+export async function buscarCarteiraPonderadaMensal(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<SerieEvolucaoGestora[]> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+  let query = client
+    .from("vw_carteira_ponderada_mensal")
+    .select("mes_referencia, id_usuario_gestora, nome_gestora, id_produto, id_contrato, peso");
+  if (filtro.idProduto !== undefined) query = query.eq("id_produto", filtro.idProduto);
+  if (idsContrato !== undefined) query = query.in("id_contrato", idsContrato);
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = (data ?? []) as RowCarteiraPonderadaMensal[];
+
+  const meses = [...new Set(rows.map((r) => r.mes_referencia))].sort((a, b) => a.localeCompare(b));
+
+  const porGestora = new Map<number, { nome: string; total: number; porMes: Map<string, number> }>();
+  for (const row of rows) {
+    if (row.peso === null) continue;
+    const acc = porGestora.get(row.id_usuario_gestora) ?? {
+      nome: row.nome_gestora,
+      total: 0,
+      porMes: new Map<string, number>(),
+    };
+    acc.total += row.peso;
+    acc.porMes.set(row.mes_referencia, (acc.porMes.get(row.mes_referencia) ?? 0) + row.peso);
+    porGestora.set(row.id_usuario_gestora, acc);
+  }
+
+  const gestorasOrdenadas = [...porGestora.entries()].sort(([, a], [, b]) => b.total - a.total);
+  const principais = gestorasOrdenadas.slice(0, MAX_SERIES_EVOLUCAO_GESTORA);
+  const excedentes = gestorasOrdenadas.slice(MAX_SERIES_EVOLUCAO_GESTORA);
+
+  const series: SerieEvolucaoGestora[] = principais.map(([idUsuarioGestora, acc]) => ({
+    idUsuarioGestora,
+    nomeGestora: acc.nome,
+    pontos: meses.map((mes) => ({ mes, somaPeso: acc.porMes.get(mes) ?? 0 })),
+  }));
+
+  if (excedentes.length > 0) {
+    const porMesOutras = new Map<string, number>();
+    for (const [, acc] of excedentes) {
+      for (const [mes, valor] of acc.porMes) {
+        porMesOutras.set(mes, (porMesOutras.get(mes) ?? 0) + valor);
+      }
+    }
+    series.push({
+      idUsuarioGestora: null,
+      nomeGestora: "Outras",
+      pontos: meses.map((mes) => ({ mes, somaPeso: porMesOutras.get(mes) ?? 0 })),
+    });
+  }
+
+  return series;
+}

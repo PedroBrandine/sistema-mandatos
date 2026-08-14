@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarSaudeCobertura, buscarSaudeFormularios } from "./visao-gerencial";
+import { buscarSaudeCobertura, buscarSaudeFormularios, buscarCarteiraPonderadaMensal } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
 // tasks.md T9 Done-when.
@@ -179,5 +179,67 @@ describe("buscarSaudeFormularios", () => {
     expect(resultado.porFormulario).toEqual([]);
     expect(resultado.qtdAbertosMais30Dias).toBe(0);
     expect(resultado.evolucaoMensal).toEqual([]);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-12 +
+// tasks.md T12 Done-when.
+describe("buscarCarteiraPonderadaMensal", () => {
+  it("agrega peso por Gestora e por mês, ignorando peso NULL (lacuna de seed)", async () => {
+    const client = criarClienteMock({
+      vw_carteira_ponderada_mensal: {
+        data: [
+          { mes_referencia: "2026-06-01", id_usuario_gestora: 1, nome_gestora: "Gestora A", id_produto: 10, id_contrato: 100, peso: 2 },
+          { mes_referencia: "2026-06-01", id_usuario_gestora: 1, nome_gestora: "Gestora A", id_produto: 10, id_contrato: 101, peso: 3 },
+          { mes_referencia: "2026-06-01", id_usuario_gestora: 1, nome_gestora: "Gestora A", id_produto: 10, id_contrato: 102, peso: null },
+          { mes_referencia: "2026-07-01", id_usuario_gestora: 1, nome_gestora: "Gestora A", id_produto: 10, id_contrato: 100, peso: 4 },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCarteiraPonderadaMensal(client, {});
+
+    expect(resultado).toEqual([
+      {
+        idUsuarioGestora: 1,
+        nomeGestora: "Gestora A",
+        pontos: [
+          { mes: "2026-06-01", somaPeso: 5 },
+          { mes: "2026-07-01", somaPeso: 4 },
+        ],
+      },
+    ]);
+  });
+
+  it("mais de 8 Gestoras -> excedente agrupado em série 'Outras', nunca 9+ séries nomeadas", async () => {
+    const linhas = Array.from({ length: 10 }, (_, i) => ({
+      mes_referencia: "2026-06-01",
+      id_usuario_gestora: i + 1,
+      nome_gestora: `Gestora ${i + 1}`,
+      id_produto: 10,
+      id_contrato: 100 + i,
+      // pesos decrescentes -- garante ordem determinística de ranking
+      peso: 10 - i,
+    }));
+    const client = criarClienteMock({
+      vw_carteira_ponderada_mensal: { data: linhas, error: null },
+    });
+
+    const resultado = await buscarCarteiraPonderadaMensal(client, {});
+
+    expect(resultado).toHaveLength(9); // 8 principais + "Outras"
+    expect(resultado[8].idUsuarioGestora).toBeNull();
+    expect(resultado[8].nomeGestora).toBe("Outras");
+    // Outras = soma das 2 gestoras excedentes (peso 2 + peso 1, as 2 últimas do ranking)
+    expect(resultado[8].pontos).toEqual([{ mes: "2026-06-01", somaPeso: 3 }]);
+  });
+
+  it("sem nenhuma linha -> array vazio, sem lançar", async () => {
+    const client = criarClienteMock({
+      vw_carteira_ponderada_mensal: { data: [], error: null },
+    });
+
+    expect(await buscarCarteiraPonderadaMensal(client, {})).toEqual([]);
   });
 });
