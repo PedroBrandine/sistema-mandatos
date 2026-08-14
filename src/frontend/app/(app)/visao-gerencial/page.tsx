@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { LayoutDashboard } from "lucide-react";
 
@@ -9,6 +10,9 @@ import { NaoAutorizado } from "@/components/app-shell/nao-autorizado";
 import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
+import { BarraRecorte } from "@/components/visao-gerencial/barra-recorte";
+import { SaudeOperacaoBloco } from "@/components/visao-gerencial/saude-operacao-bloco";
 import { CarteiraPonderadaCard } from "@/components/visao-gerencial/carteira-ponderada-card";
 import { CicloEtapaCard } from "@/components/visao-gerencial/ciclo-etapa-card";
 
@@ -60,30 +64,37 @@ export default async function VisaoGerencialPage({
   }
 
   const filtro = parseFiltroRecorte(await searchParams);
-  void filtro; // consumido pelos blocos reais a partir de T22 -- shell desta task não lê ainda
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 p-6">
-      <CarteiraPonderadaCard />
-      <CicloEtapaCard />
+    <div className="grid gap-6 pb-6">
+      <BarraRecorte />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ir para o Kanban</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {Object.entries(PRODUTO_SLUGS).map(([slug, info]) => (
-            <Link key={slug} href={`/produtos/${slug}/dashboard`}>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs font-medium">
-                <LayoutDashboard className="size-3.5" />
-                {info.label}
-              </Button>
-            </Link>
-          ))}
-        </CardContent>
-      </Card>
+      <div className="mx-auto grid w-full max-w-6xl gap-6 px-6">
+        <Suspense fallback={<CarregandoSkeleton variante="cards" linhas={2} />}>
+          <SaudeOperacaoBloco filtro={filtro} />
+        </Suspense>
 
-      <EmDesenvolvimento titulo="G3-G6 em desenvolvimento" />
+        <CarteiraPonderadaCard filtro={filtro} />
+        <CicloEtapaCard filtro={filtro} />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Ir para o Kanban</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {Object.entries(PRODUTO_SLUGS).map(([slug, info]) => (
+              <Link key={slug} href={`/produtos/${slug}/dashboard`}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs font-medium">
+                  <LayoutDashboard className="size-3.5" />
+                  {info.label}
+                </Button>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+
+        <EmDesenvolvimento titulo="Bloco 1 (etapas) e Bloco 3 (gargalos) em desenvolvimento" />
+      </div>
     </div>
   );
 }

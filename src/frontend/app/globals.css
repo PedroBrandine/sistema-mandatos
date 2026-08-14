@@ -74,6 +74,21 @@
   --chart-3: #EB5454;
   --chart-4: #4ABFB2;
   --chart-5: #BA6BED;
+  /* Paleta categórica de série (visao-gerencial-g3-g6, T23) -- 8 matizes fixos
+     validados (skill dataviz, references/palette.md; ΔE CVD adjacente 9.1
+     light, normal-vision 19.6 light). A marca (Identidade Visual Legisla.md)
+     só define 5 cores não-reservadas (Coral é reservado pra alerta/status) --
+     insuficiente pras até 8 séries de G1 (uma linha por Gestora). Ordem nunca
+     muda (é o mecanismo de segurança CVD, não estética). */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+  --series-outras: #8A8375;
   --radius: 0.625rem;
   --sidebar: #035252;
   --sidebar-foreground: #FBF3E4;
@@ -109,6 +124,17 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  /* Mesmos 8 matizes, passo escuro (references/palette.md) -- validado como
+     conjunto pra faixa OKLCH L 0.48-0.67 contra a superfície escura. */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --series-outras: #898781;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
