@@ -696,12 +696,28 @@ mesmo caminho de escrita original (célula única ou lote). `// TODO(D-D)` no to
 **Requirement**: PLR-18
 
 **Done when**:
-- [ ] `Ctrl+Z` após editar 1 célula reverte o valor exibido e grava no banco
-- [ ] `Ctrl+Z` sem histórico não faz nada (sem erro)
-- [ ] Reversão gera nova linha em `log_auditoria` (verificação manual via `ModalHistorico`, T18/T19)
-- [ ] `npm run build` limpo
+- [x] `Ctrl+Z` após editar 1 célula reverte o valor exibido e grava no banco
+- [x] `Ctrl+Z` sem histórico não faz nada (sem erro)
+- [x] Reversão gera nova linha em `log_auditoria` (verificação manual via `ModalHistorico`, T18/T19)
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. Pilha em `useRef<EntradaUndo[][]>` — 1 entrada de undo por
+célula escrita, agrupadas por ação (célula única = array de 1, faixa/massa = array de N; `Ctrl+Z`
+desfaz a ação inteira, não célula por célula). Reversão sempre via `onColarFaixa` (mesma RPC de
+lote, AD-024) — nunca toca `log_auditoria` diretamente; a escrita de reversão gera sua própria
+linha de auditoria via o trigger já conectado (append-only, AD-006). Listener de `Ctrl+Z`/`Cmd+Z`
+no `document` (a árvore não tem elemento raiz óbvio pra focar o atalho), ignorado quando o alvo do
+evento está dentro de um `role="dialog"` (não interfere no undo nativo de um campo de formulário
+aberto em modal). Limitação documentada no próprio hook: não restaura valores que eram `NULL`
+antes da edição — `onColarFaixa`/`app.atualiza_sucessos_mensais_lote` não aceita `NULL`, mesma
+limitação pré-existente de `handleEdicaoCelula` (não introduzida por esta task). `// TODO(D-D)`
+mantido — mecanismo é o default aceito no `context.md`, não confirmado por Pedro.
+
+---
+
+## Fase 5 (T20-T23) concluída — comportamento avançado de grade
 
 ---
 

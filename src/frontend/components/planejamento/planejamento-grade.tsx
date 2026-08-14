@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 
 import { ModalDetalheItem } from "./modal-detalhe-item";
 import { ModalHistorico } from "./modal-historico";
+import { useUndoPlanejamento } from "./use-undo-planejamento";
 
 // PLR-09, PLR-10 (.specs/features/planejamento-estrategico-redesenho, T11).
 // Substitui PlanejamentoArvore (pilha de <div> por Objetivo/Meta, com uma
@@ -284,6 +285,14 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     onSelecaoMudou?.(celulasMarcadas.size);
   }, [celulasMarcadas, onSelecaoMudou]);
 
+  // PLR-18 (T23): valor ANTES da edição -- é o que o undo precisa gravar de
+  // volta. Lido de `linhas` (a prop, sempre o estado confirmado mais
+  // recente) no momento do commit, nunca guardado com antecedência. Fica
+  // aqui (antes do `useImperativeHandle` abaixo) porque `aplicarEmMassa`
+  // também precisa dele.
+  const pctAtualPorId = useMemo(() => new Map(linhas.map((l) => [l.idSucesso, l.pctAtingimento])), [linhas]);
+  const { empilhar: empilharUndo, desfazer } = useUndoPlanejamento(onColarFaixa);
+
   // T14: "expandir/recolher tudo" é ação do PlanejamentoToolbar (fora desta
   // árvore) -- exposta via ref em vez de levantar `expandidos` pro pai.
   useImperativeHandle(
@@ -297,13 +306,37 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       criarObjetivo: () => setAcaoAtiva({ tipo: "criar-objetivo" }),
       aplicarEmMassa: (valor: number) => {
         if (celulasMarcadas.size === 0) return;
-        const atualizacoes = Array.from(celulasMarcadas).map((idSucesso) => ({ idSucesso, pctAtingimento: valor }));
+        const idsMarcados = Array.from(celulasMarcadas);
+        const atualizacoes = idsMarcados.map((idSucesso) => ({ idSucesso, pctAtingimento: valor }));
+        empilharUndo(idsMarcados.map((idSucesso) => ({ idSucesso, valorAnterior: pctAtualPorId.get(idSucesso) ?? null })));
         void onColarFaixa(atualizacoes);
         setCelulasMarcadas(new Set());
       },
     }),
-    [objetivos, celulasMarcadas, onColarFaixa]
+    [objetivos, celulasMarcadas, onColarFaixa, empilharUndo, pctAtualPorId]
   );
+
+  // PLR-18: Ctrl+Z (ou Cmd+Z no Mac) desfaz a última escrita, sem sair da
+  // tela. Listener no `document` -- a árvore não tem um único elemento raiz
+  // óbvio pra focar/capturar o atalho, e o Sucesso Mensal editado pode não
+  // estar mais com foco (ex.: usuário clicou em outro lugar da página) sem
+  // que isso deva impedir o undo. Ignorado quando o alvo do evento é um
+  // campo de outro formulário (ex.: um dos modais abertos) -- undo desta
+  // árvore não deveria interferir com o undo nativo de um `<textarea>` aberto.
+  useEffect(() => {
+    if (somenteLeitura) return;
+    function aoTeclar(e: KeyboardEvent) {
+      const alvo = e.target as HTMLElement | null;
+      const dentroDeOutroFormulario = alvo?.closest("[role='dialog']");
+      if (dentroDeOutroFormulario) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        void desfazer();
+      }
+    }
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, [somenteLeitura, desfazer]);
 
   const nomePorUsuario = useMemo(() => new Map(pessoasVinculadas.map((p) => [p.idUsuario, p.nome])), [pessoasVinculadas]);
 
@@ -388,9 +421,12 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         return;
       }
       limparErro(idSucesso);
+      // PLR-18: empilha ANTES de escrever -- o valor "anterior" é o que
+      // `linhas` ainda mostra neste render, antes da atualização otimista.
+      empilharUndo([{ idSucesso, valorAnterior: pctAtualPorId.get(idSucesso) ?? null }]);
       void onEdicaoCelula(idSucesso, pct);
     },
-    [onEdicaoCelula, limparErro]
+    [onEdicaoCelula, limparErro, empilharUndo, pctAtualPorId]
   );
 
   const handlePasteInicio = useCallback(
@@ -424,9 +460,12 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       if (atualizacoes.length === 0) return;
 
       for (const { idSucesso } of atualizacoes) limparErro(idSucesso);
+      // PLR-18: 1 entrada de undo por célula da faixa, empilhadas juntas --
+      // `Ctrl+Z` desfaz a faixa inteira de uma vez, não célula por célula.
+      empilharUndo(atualizacoes.map(({ idSucesso }) => ({ idSucesso, valorAnterior: pctAtualPorId.get(idSucesso) ?? null })));
       void onColarFaixa(atualizacoes);
     },
-    [ordemVisual, onColarFaixa, limparErro]
+    [ordemVisual, onColarFaixa, limparErro, empilharUndo, pctAtualPorId]
   );
 
   function fecharAcao() {
