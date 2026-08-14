@@ -840,6 +840,16 @@ achatado em Metas + `buscarInsightsDoContrato`), não mutuamente exclusivos —
 direto no componente), mesmo padrão de `objetivo-form.tsx` — sem query
 centralizada nova pra esse catálogo.
 
+**Correção pós-UAT** (Pedro, 2026-08-14, commit `a03308f`): a versão acima
+expunha Tipologia como 1 Select achatado (51 itens truncados) e Nível
+D1-D3/Preditor 1-2 como Selects livres — errado, o CSV real trata
+nível/preditor como atributo FIXO de cada combinação Grupo+Tipologia+Estado
+(já gravado em `ref_tipologia.*_padrao`/`id_preditor_1`/`id_preditor_2`
+desde T1), não escolha da Gestora por ocorrência. Refeito como cascata
+Grupo→Tipologia→Estado (nova `buscarTipologiasCompletas` em
+`queries/incidencia.ts`) que resolve `id_tipologia` e aplica nível/preditor
+via `form.setValue`, exibidos em bloco somente-leitura.
+
 ---
 
 ### T30: `InsightForm`
