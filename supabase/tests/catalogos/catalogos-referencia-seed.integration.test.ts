@@ -13,9 +13,17 @@ import { runSql } from "../helpers/sql";
 // por 20260812163617_kanban_etapas_correcao_ref_etapa.sql. Os 3 formulários
 // de recrutamento/selecao foram reatribuídos pro Pontapé do PLL (não
 // apagados), então a contagem de ref_formulario (16) não muda.
+//
+// ref_nivel_iip ganha um 4º código, 'maximo' (valor=4, ordem=4), por
+// incidencia-encontros T1 (Assumption #1a, confirmado com Pedro em
+// 2026-08-13): o CSV real de ref_tipologia usa esse nível e a Trilha C só
+// tinha seedado baixo/medio/alto. Migration forward-only, nunca edita o
+// seed original de CAT-15 -- as 2 asserções abaixo (nascidas antes da
+// existência de 'maximo') são as únicas desta suíte atualizadas por essa
+// mudança intencional.
 
 describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () => {
-  it("CAT-15 AC1: ref_nivel_iip tem baixo/medio/alto com valor 1/2/3 e ordem 1/2/3", async () => {
+  it("CAT-15 AC1: ref_nivel_iip tem baixo/medio/alto/maximo com valor 1/2/3/4 e ordem 1/2/3/4", async () => {
     // valor é NUMERIC(5,2) -- via `supabase db query --linked` (Management
     // API) volta como string formatada com 2 casas ("1.00"), diferente do
     // path local (runSqlLocal normaliza por OID, ver helpers/sql.ts). O
@@ -24,11 +32,12 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
     const rows = await runSql<{ codigo: string; rotulo: string; valor: string; ordem: number }>(`
       SELECT codigo, rotulo, valor, ordem FROM ref_nivel_iip ORDER BY ordem;
     `);
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     expect(rows).toEqual([
       { codigo: "baixo", rotulo: "Baixo", valor: "1.00", ordem: 1 },
       { codigo: "medio", rotulo: "Médio", valor: "2.00", ordem: 2 },
       { codigo: "alto", rotulo: "Alto", valor: "3.00", ordem: 3 },
+      { codigo: "maximo", rotulo: "Máximo", valor: "4.00", ordem: 4 },
     ]);
   });
 
@@ -131,11 +140,12 @@ describe("Catálogos de Referência -- seed do conteúdo aprovado (CAT-15)", () 
   it("CAT-15 AC10: reaplicar o INSERT de ref_nivel_iip não duplica (ON CONFLICT DO NOTHING)", async () => {
     await runSql(`
       INSERT INTO ref_nivel_iip (codigo, rotulo, valor, ordem) VALUES
-        ('baixo', 'Baixo', 1, 1), ('medio', 'Médio', 2, 2), ('alto', 'Alto', 3, 3)
+        ('baixo', 'Baixo', 1, 1), ('medio', 'Médio', 2, 2), ('alto', 'Alto', 3, 3),
+        ('maximo', 'Máximo', 4, 4)
       ON CONFLICT (codigo) DO NOTHING;
     `);
     const [{ qtd }] = await runSql<{ qtd: number }>(`SELECT count(*)::int AS qtd FROM ref_nivel_iip;`);
-    expect(qtd).toBe(3);
+    expect(qtd).toBe(4);
   });
 
   it("CAT-15 AC10 (extensão, Fix 8 do Verifier): reaplicar os outros 8 INSERTs de seed não duplica em nenhuma tabela", async () => {
