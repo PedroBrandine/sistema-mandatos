@@ -995,6 +995,126 @@ export type Database = {
           },
         ]
       }
+      fat_gip: {
+        Row: {
+          aplicado_em: string
+          comunicacao_interna: string | null
+          criado_em: string
+          gip_entregas_acontecendo: boolean | null
+          gip_estrutura_organizada: boolean | null
+          id_contrato: number
+          id_gip: number
+          id_submissao: number | null
+          momento: string
+          posicao_lideranca: boolean | null
+          quadrante: string | null
+          rotina_trabalho: string | null
+          rotinas_feedback: string | null
+        }
+        Insert: {
+          aplicado_em: string
+          comunicacao_interna?: string | null
+          criado_em?: string
+          gip_entregas_acontecendo?: boolean | null
+          gip_estrutura_organizada?: boolean | null
+          id_contrato: number
+          id_gip?: number
+          id_submissao?: number | null
+          momento: string
+          posicao_lideranca?: boolean | null
+          quadrante?: string | null
+          rotina_trabalho?: string | null
+          rotinas_feedback?: string | null
+        }
+        Update: {
+          aplicado_em?: string
+          comunicacao_interna?: string | null
+          criado_em?: string
+          gip_entregas_acontecendo?: boolean | null
+          gip_estrutura_organizada?: boolean | null
+          id_contrato?: number
+          id_gip?: number
+          id_submissao?: number | null
+          momento?: string
+          posicao_lideranca?: boolean | null
+          quadrante?: string | null
+          rotina_trabalho?: string | null
+          rotinas_feedback?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_submissao_fkey"
+            columns: ["id_submissao"]
+            isOneToOne: false
+            referencedRelation: "fat_submissao"
+            referencedColumns: ["id_submissao"]
+          },
+        ]
+      }
+      fat_gip_dimensao: {
+        Row: {
+          eixo: string
+          id_dimensao: number
+          id_gip: number
+          valor: number
+        }
+        Insert: {
+          eixo: string
+          id_dimensao: number
+          id_gip: number
+          valor: number
+        }
+        Update: {
+          eixo?: string
+          id_dimensao?: number
+          id_gip?: number
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_gip_dimensao_id_dimensao_fkey"
+            columns: ["id_dimensao"]
+            isOneToOne: false
+            referencedRelation: "ref_dimensao_gip"
+            referencedColumns: ["id_dimensao"]
+          },
+          {
+            foreignKeyName: "fat_gip_dimensao_id_gip_fkey"
+            columns: ["id_gip"]
+            isOneToOne: false
+            referencedRelation: "fat_gip"
+            referencedColumns: ["id_gip"]
+          },
+        ]
+      }
       fat_insight: {
         Row: {
           comprovacao_dados: string | null
@@ -1325,6 +1445,124 @@ export type Database = {
           {
             foreignKeyName: "fat_registro_id_usuario_autor_fkey"
             columns: ["id_usuario_autor"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
+      fat_resposta_metrica: {
+        Row: {
+          id_metrica: number
+          id_submissao: number
+          valor_bool: boolean | null
+          valor_num: number | null
+        }
+        Insert: {
+          id_metrica: number
+          id_submissao: number
+          valor_bool?: boolean | null
+          valor_num?: number | null
+        }
+        Update: {
+          id_metrica?: number
+          id_submissao?: number
+          valor_bool?: boolean | null
+          valor_num?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_resposta_metrica_id_metrica_fkey"
+            columns: ["id_metrica"]
+            isOneToOne: false
+            referencedRelation: "ref_metrica_formulario"
+            referencedColumns: ["id_metrica"]
+          },
+          {
+            foreignKeyName: "fat_resposta_metrica_id_submissao_fkey"
+            columns: ["id_submissao"]
+            isOneToOne: false
+            referencedRelation: "fat_submissao"
+            referencedColumns: ["id_submissao"]
+          },
+        ]
+      }
+      fat_submissao: {
+        Row: {
+          aceite_em: string | null
+          atualizada_em: string | null
+          enviada_em: string
+          id_contrato: number
+          id_formulario: number
+          id_submissao: number
+          id_usuario_respondente: number | null
+          momento: string | null
+          respostas: Json
+          versao_formulario: number
+        }
+        Insert: {
+          aceite_em?: string | null
+          atualizada_em?: string | null
+          enviada_em?: string
+          id_contrato: number
+          id_formulario: number
+          id_submissao?: number
+          id_usuario_respondente?: number | null
+          momento?: string | null
+          respostas: Json
+          versao_formulario: number
+        }
+        Update: {
+          aceite_em?: string | null
+          atualizada_em?: string | null
+          enviada_em?: string
+          id_contrato?: number
+          id_formulario?: number
+          id_submissao?: number
+          id_usuario_respondente?: number | null
+          momento?: string | null
+          respostas?: Json
+          versao_formulario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_submissao_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_submissao_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_submissao_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_submissao_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_submissao_id_formulario_fkey"
+            columns: ["id_formulario"]
+            isOneToOne: false
+            referencedRelation: "ref_formulario"
+            referencedColumns: ["id_formulario"]
+          },
+          {
+            foreignKeyName: "fat_submissao_id_usuario_respondente_fkey"
+            columns: ["id_usuario_respondente"]
             isOneToOne: false
             referencedRelation: "dim_usuario"
             referencedColumns: ["id_usuario"]
@@ -3212,9 +3450,64 @@ export type Database = {
           },
         ]
       }
+      vw_carteira_ponderada_mensal: {
+        Row: {
+          id_contrato: number | null
+          id_produto: number | null
+          id_usuario_gestora: number | null
+          mes_referencia: string | null
+          nome_gestora: string | null
+          peso: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_contrato_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_usuario_contrato_id_usuario_fkey"
+            columns: ["id_usuario_gestora"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
       vw_ciclo_etapa: {
         Row: {
           dias_ciclo: number | null
+          dt_conclusao: string | null
           id_contrato: number | null
           id_etapa: number | null
           id_produto: number | null
@@ -3276,6 +3569,15 @@ export type Database = {
           },
         ]
       }
+      vw_cobertura_registro_mensal: {
+        Row: {
+          mes_referencia: string | null
+          pct_cobertura: number | null
+          qtd_ativos: number | null
+          qtd_com_registro: number | null
+        }
+        Relationships: []
+      }
       vw_etapa_contrato: {
         Row: {
           atualizado_em: string | null
@@ -3331,11 +3633,134 @@ export type Database = {
           },
         ]
       }
+      vw_gip_evolucao: {
+        Row: {
+          aplicado_em: string | null
+          dimensao: string | null
+          gap: number | null
+          id_contrato: number | null
+          momento: string | null
+          nome_dimensao: string | null
+          onde_chegamos: number | null
+          ordem: number | null
+          quadrante: string | null
+          regua_sonhos: number | null
+          situacao: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+        ]
+      }
       vw_iip_contrato: {
         Row: {
           id_contrato: number | null
           iip_provisorio: number | null
           nr_fatos: number | null
+        }
+        Relationships: []
+      }
+      vw_pendencias: {
+        Row: {
+          categoria: string | null
+          detalhe: string | null
+          dias_em_aberto: number | null
+          dt_referencia: string | null
+          id_contrato: number | null
+          id_usuario_gestora: number | null
+          nome_contratante: string | null
+          nome_gestora: string | null
+        }
+        Relationships: []
+      }
+      vw_resposta_formulario: {
+        Row: {
+          dt_abertura: string | null
+          estado: string | null
+          id_abertura: number | null
+          id_contrato: number | null
+          id_formulario: number | null
+          id_produto: number | null
+          nome_formulario: string | null
+          respondido: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_contrato_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_formulario_fkey"
+            columns: ["id_formulario"]
+            isOneToOne: false
+            referencedRelation: "ref_formulario"
+            referencedColumns: ["id_formulario"]
+          },
+        ]
+      }
+      vw_resposta_formulario_mensal: {
+        Row: {
+          mes_referencia: string | null
+          qtd_aberturas: number | null
+          qtd_respondidas: number | null
+          taxa_media: number | null
         }
         Relationships: []
       }
