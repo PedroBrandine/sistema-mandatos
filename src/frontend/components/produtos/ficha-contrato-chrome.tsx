@@ -14,6 +14,7 @@ import {
 } from "@backend/queries/contrato";
 
 import { RouteTabs, type RouteTabItem } from "@/components/app-shell/route-tabs";
+import { IipCard } from "@/components/incidencia/iip-card";
 import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 
@@ -94,6 +95,7 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <IipCard idContrato={idContrato} />
           <Button type="button" variant="outline" size="sm" onClick={() => toast("Em desenvolvimento")}>
             Registrar Insight
           </Button>
