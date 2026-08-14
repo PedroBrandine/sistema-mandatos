@@ -571,3 +571,70 @@ export async function buscarCarteiraPonderadaMensal(
 
   return series;
 }
+
+export interface LinhaDistribuicaoEtapa {
+  idEtapa: number;
+  nomeEtapa: string;
+  ordem: number;
+  qtdAtiva: number;
+  qtdAtrasada: number;
+}
+
+interface RowRefEtapaDistribuicao {
+  id_etapa: number;
+  nome: string;
+  ordem: number;
+}
+
+interface RowEtapaAtual {
+  id_etapa: number;
+  id_contrato: number;
+  esta_atrasada: boolean;
+}
+
+// GER-10 (Bloco 1). ref_etapa é o backbone (mesmo padrão de buscarCicloEtapa/
+// buscarBoardKanban) -- garante que toda etapa do produto apareça, mesmo com
+// qtdAtiva: 0, nunca omitida; ordenação é sempre por ref_etapa.ordem, nunca
+// pelo volume. "Etapa atual" = linha de vw_etapa_contrato com status =
+// 'em_andamento' (a única aberta por contrato, AD-013). Restrito a contrato
+// com fat_contrato.status = 'ativo' -- etapa 'em_andamento' de um contrato
+// já encerrado não deveria existir, mas a leitura não assume isso.
+export async function buscarDistribuicaoEtapas(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<LinhaDistribuicaoEtapa[]> {
+  let queryEtapas = client.from("ref_etapa").select("id_etapa, nome, ordem").order("ordem", { ascending: true });
+  if (filtro.idProduto !== undefined) queryEtapas = queryEtapas.eq("id_produto", filtro.idProduto);
+  const { data: etapasData, error: erroEtapas } = await queryEtapas;
+  if (erroEtapas) throw erroEtapas;
+  const etapas = (etapasData ?? []) as RowRefEtapaDistribuicao[];
+  if (etapas.length === 0) return [];
+
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+  const { data: ativosData, error: erroAtivos } = await aplicarFiltroContrato(
+    client.from("fat_contrato").select("id_contrato").eq("status", "ativo"),
+    idsContrato
+  );
+  if (erroAtivos) throw erroAtivos;
+  const idsAtivos = new Set(((ativosData ?? []) as RowContratoAtivo[]).map((c) => c.id_contrato));
+
+  const { data: atualData, error: erroAtual } = await aplicarFiltroContrato(
+    client.from("vw_etapa_contrato").select("id_etapa, id_contrato, esta_atrasada").eq("status", "em_andamento"),
+    idsContrato
+  );
+  if (erroAtual) throw erroAtual;
+  const atuais = ((atualData ?? []) as RowEtapaAtual[]).filter((row) => idsAtivos.has(row.id_contrato));
+
+  const porEtapa = new Map<number, { ativa: number; atrasada: number }>();
+  for (const row of atuais) {
+    const acc = porEtapa.get(row.id_etapa) ?? { ativa: 0, atrasada: 0 };
+    acc.ativa += 1;
+    if (row.esta_atrasada) acc.atrasada += 1;
+    porEtapa.set(row.id_etapa, acc);
+  }
+
+  return etapas.map((e) => {
+    const acc = porEtapa.get(e.id_etapa) ?? { ativa: 0, atrasada: 0 };
+    return { idEtapa: e.id_etapa, nomeEtapa: e.nome, ordem: e.ordem, qtdAtiva: acc.ativa, qtdAtrasada: acc.atrasada };
+  });
+}

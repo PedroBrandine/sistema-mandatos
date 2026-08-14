@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarSaudeCobertura, buscarSaudeFormularios, buscarCarteiraPonderadaMensal } from "./visao-gerencial";
+import {
+  buscarSaudeCobertura,
+  buscarSaudeFormularios,
+  buscarCarteiraPonderadaMensal,
+  buscarDistribuicaoEtapas,
+} from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
 // tasks.md T9 Done-when.
@@ -26,6 +31,7 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
       eq: () => builder,
       is: () => builder,
       in: () => builder,
+      order: () => builder,
       then: (resolve: (valor: RespostaTabela) => void, reject: (erro: unknown) => void) =>
         Promise.resolve(resposta).then(resolve, reject),
     };
@@ -241,5 +247,77 @@ describe("buscarCarteiraPonderadaMensal", () => {
     });
 
     expect(await buscarCarteiraPonderadaMensal(client, {})).toEqual([]);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-10 +
+// tasks.md T13 Done-when.
+describe("buscarDistribuicaoEtapas", () => {
+  it("etapa sem nenhum contrato aparece com qtdAtiva: 0, nunca omitida; ordenação por ref_etapa.ordem", async () => {
+    const client = criarClienteMock({
+      ref_etapa: {
+        data: [
+          { id_etapa: 10, nome: "Cadastro", ordem: 1 },
+          { id_etapa: 11, nome: "Pontapé", ordem: 2 },
+        ],
+        error: null,
+      },
+      fat_contrato: { data: [{ id_contrato: 100 }], error: null },
+      vw_etapa_contrato: {
+        data: [{ id_etapa: 10, id_contrato: 100, esta_atrasada: false }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarDistribuicaoEtapas(client, {});
+
+    expect(resultado).toEqual([
+      { idEtapa: 10, nomeEtapa: "Cadastro", ordem: 1, qtdAtiva: 1, qtdAtrasada: 0 },
+      { idEtapa: 11, nomeEtapa: "Pontapé", ordem: 2, qtdAtiva: 0, qtdAtrasada: 0 },
+    ]);
+  });
+
+  it("conta atrasados dentro da contagem ativa (esta_atrasada = true)", async () => {
+    const client = criarClienteMock({
+      ref_etapa: { data: [{ id_etapa: 10, nome: "Cadastro", ordem: 1 }], error: null },
+      fat_contrato: { data: [{ id_contrato: 100 }, { id_contrato: 101 }], error: null },
+      vw_etapa_contrato: {
+        data: [
+          { id_etapa: 10, id_contrato: 100, esta_atrasada: true },
+          { id_etapa: 10, id_contrato: 101, esta_atrasada: false },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarDistribuicaoEtapas(client, {});
+
+    expect(resultado).toEqual([{ idEtapa: 10, nomeEtapa: "Cadastro", ordem: 1, qtdAtiva: 2, qtdAtrasada: 1 }]);
+  });
+
+  it("etapa em_andamento de contrato não-ativo (fat_contrato.status != 'ativo') não conta", async () => {
+    const client = criarClienteMock({
+      ref_etapa: { data: [{ id_etapa: 10, nome: "Cadastro", ordem: 1 }], error: null },
+      fat_contrato: { data: [{ id_contrato: 100 }], error: null }, // só 100 está 'ativo'
+      vw_etapa_contrato: {
+        data: [
+          { id_etapa: 10, id_contrato: 100, esta_atrasada: false },
+          { id_etapa: 10, id_contrato: 999, esta_atrasada: false }, // não está em fat_contrato 'ativo'
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarDistribuicaoEtapas(client, {});
+
+    expect(resultado).toEqual([{ idEtapa: 10, nomeEtapa: "Cadastro", ordem: 1, qtdAtiva: 1, qtdAtrasada: 0 }]);
+  });
+
+  it("produto sem nenhuma etapa cadastrada -> array vazio", async () => {
+    const client = criarClienteMock({
+      ref_etapa: { data: [], error: null },
+    });
+
+    expect(await buscarDistribuicaoEtapas(client, { idProduto: 99 })).toEqual([]);
   });
 });
