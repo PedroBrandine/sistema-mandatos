@@ -1,7 +1,7 @@
 "use client";
 
 import { createColumnHelper, flexRender, tableFeatures, useTable } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight, Flag, History, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, Flag, History, Loader2, Target } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 
 import type { MetaResumo, ObjetivoComMetas, PessoaVinculada, SucessoMensalGrade } from "@backend/queries/planejamento";
@@ -62,7 +62,12 @@ export interface PlanejamentoGradeProps {
   pessoasVinculadas: PessoaVinculada[];
   permissoes: PermissoesModo;
   modo: ModoPlanejamento;
-  onEdicaoCelula: (idSucesso: number, pctAtingimento: number) => Promise<void>;
+  // Success Criteria (spec.md "Limpar uma célula de % grava NULL"): `null`
+  // é "apagar o valor", nunca erro de validação -- ver handleCommitCelula.
+  // PLR-19: a Promise DEVE rejeitar em erro de escrita (nunca engolir e
+  // resolver como sucesso) -- é o sinal que esta árvore usa pra reverter o
+  // valor otimista exibido na célula.
+  onEdicaoCelula: (idSucesso: number, pctAtingimento: number | null) => Promise<void>;
   onColarFaixa: (valores: { idSucesso: number; pctAtingimento: number }[]) => Promise<void>;
   onHierarquiaAlterada: () => void;
   onGradeAlterada: () => void;
@@ -142,6 +147,10 @@ interface CelulaPctProps {
   linha: SucessoMensalGrade;
   erro: string | undefined;
   somenteLeitura: boolean;
+  // PLR-19: em voo (onCommit/onPasteInicio/aplicarEmMassa/undo já
+  // dispararam a escrita, resposta do servidor ainda não chegou) -- desabilita
+  // a célula (evita 2ª escrita concorrente na mesma) e mostra o spinner.
+  salvando: boolean;
   onCommit: (idSucesso: number, valorTexto: string) => void;
   onPasteInicio: (idSucesso: number, texto: string) => void;
   // PLR-15 (T20): ids na ordem visual da árvore -- só assim `ArrowDown`/
@@ -157,66 +166,86 @@ function idCampoPct(idSucesso: number): string {
   return `planejamento-pct-${idSucesso}`;
 }
 
-function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio, ordemVisualIds, marcada, onAlternarMarcada }: CelulaPctProps) {
+function CelulaPct({
+  linha,
+  erro,
+  somenteLeitura,
+  salvando,
+  onCommit,
+  onPasteInicio,
+  ordemVisualIds,
+  marcada,
+  onAlternarMarcada,
+}: CelulaPctProps) {
   return (
     <div className="grid gap-1">
-      <input
-        id={idCampoPct(linha.idSucesso)}
-        // PLR-16 (T21): `type="text"` + `inputMode="decimal"` -- um
-        // `type="number"` nativo rejeita vírgula e `%` tanto na digitação
-        // quanto no paste, antes de `normalizaEntradaPct` sequer rodar.
-        type="text"
-        inputMode="decimal"
-        defaultValue={linha.pctAtingimento ?? ""}
-        disabled={somenteLeitura}
-        className={cn(
-          "w-24 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-xs outline-none",
-          "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-          erro && "border-destructive focus-visible:ring-destructive/20",
-          marcada && "ring-2 ring-primary border-primary"
+      <div className="relative w-fit">
+        <input
+          id={idCampoPct(linha.idSucesso)}
+          // PLR-16 (T21): `type="text"` + `inputMode="decimal"` -- um
+          // `type="number"` nativo rejeita vírgula e `%` tanto na digitação
+          // quanto no paste, antes de `normalizaEntradaPct` sequer rodar.
+          type="text"
+          inputMode="decimal"
+          defaultValue={linha.pctAtingimento ?? ""}
+          disabled={somenteLeitura || salvando}
+          aria-busy={salvando}
+          className={cn(
+            "w-24 rounded-md border border-input bg-transparent px-2 py-1 pr-6 text-sm shadow-xs outline-none",
+            "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            erro && "border-destructive focus-visible:ring-destructive/20",
+            marcada && "ring-2 ring-primary border-primary",
+            salvando && "opacity-60"
+          )}
+          // PLR-17 (T22): shift+clique marca/desmarca sem impedir o foco normal
+          // (o clique continua focando a célula pra edição de teclado também).
+          onClick={(e) => {
+            if (e.shiftKey) onAlternarMarcada(linha.idSucesso);
+          }}
+          onBlur={(e) => onCommit(linha.idSucesso, e.currentTarget.value)}
+          onPaste={(e) => {
+            const texto = e.clipboardData.getData("text");
+            // Sempre nós decidimos o valor final (nunca o paste bruto do
+            // browser) -- faixa (múltiplas linhas) vai pro split de T21/PLM-03;
+            // valor único passa pelo mesmo caminho de commit da digitação
+            // manual, só que a partir do texto colado em vez do teclado.
+            e.preventDefault();
+            if (/\r?\n/.test(texto.trim())) {
+              onPasteInicio(linha.idSucesso, texto);
+              return;
+            }
+            const pct = normalizaEntradaPct(texto);
+            e.currentTarget.value = pct != null ? String(pct) : texto;
+            onCommit(linha.idSucesso, texto);
+          }}
+          onKeyDown={(e) => {
+            // PLR-15: Tab já funciona nativamente (ordem do DOM) -- estes 4
+            // casos são os únicos que precisam de handler explícito.
+            if (e.key === "Escape") {
+              e.currentTarget.value = String(linha.pctAtingimento ?? "");
+              return;
+            }
+            const indiceAtual = ordemVisualIds.indexOf(linha.idSucesso);
+            if (indiceAtual === -1) return;
+            let alvo: number | undefined;
+            if (e.key === "Enter" || e.key === "ArrowDown") alvo = ordemVisualIds[indiceAtual + 1];
+            else if (e.key === "ArrowUp") alvo = ordemVisualIds[indiceAtual - 1];
+            else if (e.key === "Home") alvo = ordemVisualIds[0];
+            else if (e.key === "End") alvo = ordemVisualIds[ordemVisualIds.length - 1];
+            else return;
+            e.preventDefault();
+            if (alvo != null) document.getElementById(idCampoPct(alvo))?.focus();
+          }}
+          aria-invalid={Boolean(erro)}
+          aria-label={`% Atingimento de ${linha.descricao}`}
+        />
+        {salvando && (
+          <Loader2
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground"
+          />
         )}
-        // PLR-17 (T22): shift+clique marca/desmarca sem impedir o foco normal
-        // (o clique continua focando a célula pra edição de teclado também).
-        onClick={(e) => {
-          if (e.shiftKey) onAlternarMarcada(linha.idSucesso);
-        }}
-        onBlur={(e) => onCommit(linha.idSucesso, e.currentTarget.value)}
-        onPaste={(e) => {
-          const texto = e.clipboardData.getData("text");
-          // Sempre nós decidimos o valor final (nunca o paste bruto do
-          // browser) -- faixa (múltiplas linhas) vai pro split de T21/PLM-03;
-          // valor único passa pelo mesmo caminho de commit da digitação
-          // manual, só que a partir do texto colado em vez do teclado.
-          e.preventDefault();
-          if (/\r?\n/.test(texto.trim())) {
-            onPasteInicio(linha.idSucesso, texto);
-            return;
-          }
-          const pct = normalizaEntradaPct(texto);
-          e.currentTarget.value = pct != null ? String(pct) : texto;
-          onCommit(linha.idSucesso, texto);
-        }}
-        onKeyDown={(e) => {
-          // PLR-15: Tab já funciona nativamente (ordem do DOM) -- estes 4
-          // casos são os únicos que precisam de handler explícito.
-          if (e.key === "Escape") {
-            e.currentTarget.value = String(linha.pctAtingimento ?? "");
-            return;
-          }
-          const indiceAtual = ordemVisualIds.indexOf(linha.idSucesso);
-          if (indiceAtual === -1) return;
-          let alvo: number | undefined;
-          if (e.key === "Enter" || e.key === "ArrowDown") alvo = ordemVisualIds[indiceAtual + 1];
-          else if (e.key === "ArrowUp") alvo = ordemVisualIds[indiceAtual - 1];
-          else if (e.key === "Home") alvo = ordemVisualIds[0];
-          else if (e.key === "End") alvo = ordemVisualIds[ordemVisualIds.length - 1];
-          else return;
-          e.preventDefault();
-          if (alvo != null) document.getElementById(idCampoPct(alvo))?.focus();
-        }}
-        aria-invalid={Boolean(erro)}
-        aria-label={`% Atingimento de ${linha.descricao}`}
-      />
+      </div>
       {erro ? <p className="text-xs text-destructive">{erro}</p> : null}
     </div>
   );
@@ -266,6 +295,12 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
   // todas de uma vez (toolbar). Vive aqui (não no pai) -- é a mesma árvore
   // que decide o estilo visual "marcada" célula a célula.
   const [celulasMarcadas, setCelulasMarcadas] = useState<Set<number>>(new Set());
+  // PLR-19: células com uma escrita em voo (célula única, faixa colada,
+  // massa ou undo) -- CelulaPct usa pra mostrar o spinner/desabilitar
+  // durante o request. Um único Set aqui (não por caminho de escrita)
+  // porque o indicador visual é o mesmo não importa QUAL ação disparou a
+  // escrita.
+  const [celulasSalvando, setCelulasSalvando] = useState<Set<number>>(new Set());
 
   const alternarMarcada = useCallback(
     (idSucesso: number) => {
@@ -291,7 +326,54 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
   // aqui (antes do `useImperativeHandle` abaixo) porque `aplicarEmMassa`
   // também precisa dele.
   const pctAtualPorId = useMemo(() => new Map(linhas.map((l) => [l.idSucesso, l.pctAtingimento])), [linhas]);
-  const { empilhar: empilharUndo, desfazer } = useUndoPlanejamento(onColarFaixa);
+
+  // PLR-19: envelope único de "salvamento otimista com reversão em erro",
+  // usado pelos 4 caminhos de escrita desta árvore (célula única, faixa
+  // colada, massa, undo) -- `celulasSalvando` liga o spinner/desabilita a
+  // célula durante o request; em erro, cada `<input>` (descontrolado,
+  // `defaultValue`) volta a mostrar `valoresAnteriores` via DOM direto --
+  // não há outro jeito de reverter visualmente um valor que o próprio
+  // usuário já digitou/colou, já que a escrita nunca chegou a acontecer no
+  // banco (o toast de erro é responsabilidade de onEdicaoCelula/onColarFaixa
+  // em page.tsx, que agora relançam o erro em vez de engolir).
+  const escreverCelulas = useCallback(async (ids: number[], valoresAnteriores: Map<number, number | null>, acao: () => Promise<void>) => {
+    setCelulasSalvando((atual) => {
+      const copia = new Set(atual);
+      for (const id of ids) copia.add(id);
+      return copia;
+    });
+    try {
+      await acao();
+    } catch {
+      for (const id of ids) {
+        const campo = document.getElementById(idCampoPct(id)) as HTMLInputElement | null;
+        if (campo) campo.value = String(valoresAnteriores.get(id) ?? "");
+      }
+    } finally {
+      setCelulasSalvando((atual) => {
+        const copia = new Set(atual);
+        for (const id of ids) copia.delete(id);
+        return copia;
+      });
+    }
+  }, []);
+
+  // PLR-18/19: undo também passa pelo envelope de salvando/reversão -- o
+  // "valor anterior" pro rollback do PRÓPRIO undo (se a reescrita falhar) é
+  // o valor que a célula tinha ANTES do Ctrl+Z, não o valor que o undo
+  // estava tentando restaurar.
+  const restaurarComSalvando = useCallback(
+    async (valores: { idSucesso: number; pctAtingimento: number }[]) => {
+      const anteriores = new Map(valores.map((v) => [v.idSucesso, pctAtualPorId.get(v.idSucesso) ?? null]));
+      await escreverCelulas(
+        valores.map((v) => v.idSucesso),
+        anteriores,
+        () => onColarFaixa(valores)
+      );
+    },
+    [onColarFaixa, pctAtualPorId, escreverCelulas]
+  );
+  const { empilhar: empilharUndo, desfazer } = useUndoPlanejamento(restaurarComSalvando);
 
   // T14: "expandir/recolher tudo" é ação do PlanejamentoToolbar (fora desta
   // árvore) -- exposta via ref em vez de levantar `expandidos` pro pai.
@@ -308,12 +390,13 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         if (celulasMarcadas.size === 0) return;
         const idsMarcados = Array.from(celulasMarcadas);
         const atualizacoes = idsMarcados.map((idSucesso) => ({ idSucesso, pctAtingimento: valor }));
-        empilharUndo(idsMarcados.map((idSucesso) => ({ idSucesso, valorAnterior: pctAtualPorId.get(idSucesso) ?? null })));
-        void onColarFaixa(atualizacoes);
+        const anteriores = new Map(idsMarcados.map((idSucesso) => [idSucesso, pctAtualPorId.get(idSucesso) ?? null]));
+        empilharUndo(idsMarcados.map((idSucesso) => ({ idSucesso, valorAnterior: anteriores.get(idSucesso) ?? null })));
+        void escreverCelulas(idsMarcados, anteriores, () => onColarFaixa(atualizacoes));
         setCelulasMarcadas(new Set());
       },
     }),
-    [objetivos, celulasMarcadas, onColarFaixa, empilharUndo, pctAtualPorId]
+    [objetivos, celulasMarcadas, onColarFaixa, empilharUndo, pctAtualPorId, escreverCelulas]
   );
 
   // PLR-18: Ctrl+Z (ou Cmd+Z no Mac) desfaz a última escrita, sem sair da
@@ -415,6 +498,20 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
 
   const handleCommitCelula = useCallback(
     (idSucesso: number, valorTexto: string) => {
+      const valorAnterior = pctAtualPorId.get(idSucesso) ?? null;
+
+      // Success Criteria (spec.md "Limpar uma célula de % grava NULL"):
+      // campo vazio é uma AÇÃO ("apagar"), não uma entrada inválida --
+      // precisa ser checado ANTES de `normalizaEntradaPct`, que retorna
+      // `null` pros dois casos e não teria como diferenciá-los depois.
+      if (valorTexto.trim() === "") {
+        if (valorAnterior == null) return; // já está vazio -- nada a escrever
+        limparErro(idSucesso);
+        empilharUndo([{ idSucesso, valorAnterior }]);
+        void escreverCelulas([idSucesso], new Map([[idSucesso, valorAnterior]]), () => onEdicaoCelula(idSucesso, null));
+        return;
+      }
+
       const pct = normalizaEntradaPct(valorTexto);
       if (pct === null) {
         setErros((atual) => ({ ...atual, [idSucesso]: "Valor deve estar entre 0 e 100." }));
@@ -423,10 +520,10 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       limparErro(idSucesso);
       // PLR-18: empilha ANTES de escrever -- o valor "anterior" é o que
       // `linhas` ainda mostra neste render, antes da atualização otimista.
-      empilharUndo([{ idSucesso, valorAnterior: pctAtualPorId.get(idSucesso) ?? null }]);
-      void onEdicaoCelula(idSucesso, pct);
+      empilharUndo([{ idSucesso, valorAnterior }]);
+      void escreverCelulas([idSucesso], new Map([[idSucesso, valorAnterior]]), () => onEdicaoCelula(idSucesso, pct));
     },
-    [onEdicaoCelula, limparErro, empilharUndo, pctAtualPorId]
+    [onEdicaoCelula, limparErro, empilharUndo, pctAtualPorId, escreverCelulas]
   );
 
   const handlePasteInicio = useCallback(
@@ -462,10 +559,15 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       for (const { idSucesso } of atualizacoes) limparErro(idSucesso);
       // PLR-18: 1 entrada de undo por célula da faixa, empilhadas juntas --
       // `Ctrl+Z` desfaz a faixa inteira de uma vez, não célula por célula.
-      empilharUndo(atualizacoes.map(({ idSucesso }) => ({ idSucesso, valorAnterior: pctAtualPorId.get(idSucesso) ?? null })));
-      void onColarFaixa(atualizacoes);
+      const anteriores = new Map(atualizacoes.map(({ idSucesso }) => [idSucesso, pctAtualPorId.get(idSucesso) ?? null]));
+      empilharUndo(atualizacoes.map(({ idSucesso }) => ({ idSucesso, valorAnterior: anteriores.get(idSucesso) ?? null })));
+      void escreverCelulas(
+        atualizacoes.map(({ idSucesso }) => idSucesso),
+        anteriores,
+        () => onColarFaixa(atualizacoes)
+      );
     },
-    [ordemVisual, onColarFaixa, limparErro, empilharUndo, pctAtualPorId]
+    [ordemVisual, onColarFaixa, limparErro, empilharUndo, pctAtualPorId, escreverCelulas]
   );
 
   function fecharAcao() {
@@ -687,6 +789,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
                 linha={item.linha}
                 erro={erros[item.linha.idSucesso]}
                 somenteLeitura={somenteLeitura}
+                salvando={celulasSalvando.has(item.linha.idSucesso)}
                 onCommit={handleCommitCelula}
                 onPasteInicio={handlePasteInicio}
                 ordemVisualIds={ordemVisualIds}
@@ -819,6 +922,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       handlePasteInicio,
       ordemVisualIds,
       celulasMarcadas,
+      celulasSalvando,
       alternarMarcada,
     ]
   );

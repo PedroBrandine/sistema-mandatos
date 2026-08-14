@@ -217,7 +217,16 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   // Atualização otimista do estado local: nenhum outro campo exibido
   // (status/diasAtraso/estaAtrasado) deriva de pct_atingimento, então
   // substituir só esse campo na linha em memória é suficiente e correto.
-  async function handleEdicaoCelula(idSucesso: number, pctAtingimento: number) {
+  //
+  // Success Criteria (spec.md "Limpar uma célula de % grava NULL"): aceita
+  // `null` -- `pct_atingimento` já é nullable (AD-005, "NULL nunca
+  // sentinela"), quem decide "vazio = NULL" é PlanejamentoGrade
+  // (handleCommitCelula), não aqui.
+  //
+  // PLR-19: relança o erro depois do toast -- PlanejamentoGrade precisa
+  // saber que a escrita falhou pra reverter o valor otimista exibido na
+  // célula (a Promise nunca resolver com sucesso silencioso num erro real).
+  async function handleEdicaoCelula(idSucesso: number, pctAtingimento: number | null) {
     const supabase = createClient();
     const { error } = await supabase
       .from("fat_sucesso_mensal")
@@ -225,25 +234,28 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
       .eq("id_sucesso", idSucesso);
     if (error) {
       toast.error(mapeiaErroRpc(error).message);
-      return;
+      throw error;
     }
     setLinhasGrade((atual) =>
       atual.map((linha) => (linha.idSucesso === idSucesso ? { ...linha, pctAtingimento } : linha))
     );
   }
 
-  // Mesmo raciocínio de handleEdicaoCelula, para as N linhas da faixa colada.
+  // Mesmo raciocínio de handleEdicaoCelula, para as N linhas da faixa colada
+  // (PLR-16/17/18: colar em faixa, aplicar em massa e undo passam todos por
+  // aqui). PLR-19: relança o erro após o toast, pelo mesmo motivo acima.
   async function handleColarFaixa(valores: { idSucesso: number; pctAtingimento: number }[]) {
     const supabase = createClient();
     try {
       await atualizarSucessosEmLote(supabase, valores);
-      const pctPorId = new Map(valores.map((v) => [v.idSucesso, v.pctAtingimento]));
-      setLinhasGrade((atual) =>
-        atual.map((linha) => (pctPorId.has(linha.idSucesso) ? { ...linha, pctAtingimento: pctPorId.get(linha.idSucesso)! } : linha))
-      );
     } catch (erro) {
       toast.error(erro instanceof Error ? erro.message : "Erro ao salvar a faixa colada.");
+      throw erro;
     }
+    const pctPorId = new Map(valores.map((v) => [v.idSucesso, v.pctAtingimento]));
+    setLinhasGrade((atual) =>
+      atual.map((linha) => (pctPorId.has(linha.idSucesso) ? { ...linha, pctAtingimento: pctPorId.get(linha.idSucesso)! } : linha))
+    );
   }
 
   if (contrato === null) {
