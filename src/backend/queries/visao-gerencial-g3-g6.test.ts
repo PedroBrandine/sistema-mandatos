@@ -12,6 +12,7 @@ import {
   buscarIipConsolidado,
   buscarPendencias,
   buscarCicloEtapaMensal,
+  buscarContratosPorEtapa,
 } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
@@ -610,5 +611,47 @@ describe("buscarCicloEtapaMensal", () => {
   it("produto sem nenhuma etapa cadastrada -> array vazio", async () => {
     const client = criarClienteMock({ ref_etapa: { data: [], error: null } });
     expect(await buscarCicloEtapaMensal(client, { idProduto: 99 })).toEqual([]);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-11 +
+// tasks.md T24 Done-when.
+describe("buscarContratosPorEtapa", () => {
+  it("resolve nome_contratante via fat_contrato -> dim_contratante, sem duplicar contrato", async () => {
+    const client = criarClienteMock({
+      vw_etapa_contrato: {
+        data: [{ id_contrato: 1 }, { id_contrato: 1 }, { id_contrato: 2 }],
+        error: null,
+      },
+      fat_contrato: {
+        data: [
+          { id_contrato: 1, id_contratante: 10 },
+          { id_contrato: 2, id_contratante: 20 },
+        ],
+        error: null,
+      },
+      dim_contratante: {
+        data: [
+          { id_contratante: 10, nome: "Mandato A" },
+          { id_contratante: 20, nome: "Mandato B" },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarContratosPorEtapa(client, 5, {});
+
+    expect(resultado).toEqual([
+      { idContrato: 1, nomeContratante: "Mandato A" },
+      { idContrato: 2, nomeContratante: "Mandato B" },
+    ]);
+  });
+
+  it("etapa sem nenhum contrato -> array vazio, sem consultar fat_contrato/dim_contratante", async () => {
+    const client = criarClienteMock({
+      vw_etapa_contrato: { data: [], error: null },
+    });
+
+    expect(await buscarContratosPorEtapa(client, 5, {})).toEqual([]);
   });
 });

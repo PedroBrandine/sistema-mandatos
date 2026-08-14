@@ -1021,3 +1021,52 @@ export async function buscarCicloEtapaMensal(
     };
   });
 }
+
+export interface ContratoEmEtapa {
+  idContrato: number;
+  nomeContratante: string;
+}
+
+// GER-11 (modal do Bloco 1). Mesmo padrão de buscarContratosAtivosPorProduto
+// (contrato.ts): fat_contrato -> dim_contratante em 2 passos, join em TS.
+// "Em andamento" = etapa atual do contrato (mesma definição de
+// buscarDistribuicaoEtapas).
+export async function buscarContratosPorEtapa(
+  client: SupabaseClient<Database>,
+  idEtapa: number,
+  filtro: FiltroRecorte
+): Promise<ContratoEmEtapa[]> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+  let query = client
+    .from("vw_etapa_contrato")
+    .select("id_contrato")
+    .eq("id_etapa", idEtapa)
+    .eq("status", "em_andamento");
+  if (idsContrato !== undefined) query = query.in("id_contrato", idsContrato);
+  const { data, error } = await query;
+  if (error) throw error;
+  const ids = [...new Set(((data ?? []) as { id_contrato: number }[]).map((r) => r.id_contrato))];
+  if (ids.length === 0) return [];
+
+  const { data: contratosData, error: erroContratos } = await client
+    .from("fat_contrato")
+    .select("id_contrato, id_contratante")
+    .in("id_contrato", ids);
+  if (erroContratos) throw erroContratos;
+  const contratos = (contratosData ?? []) as { id_contrato: number; id_contratante: number }[];
+
+  const idsContratante = [...new Set(contratos.map((c) => c.id_contratante))];
+  const { data: contratantesData, error: erroContratantes } = await client
+    .from("dim_contratante")
+    .select("id_contratante, nome")
+    .in("id_contratante", idsContratante);
+  if (erroContratantes) throw erroContratantes;
+  const nomesPorId = new Map(
+    ((contratantesData ?? []) as { id_contratante: number; nome: string }[]).map((c) => [c.id_contratante, c.nome])
+  );
+
+  return contratos.map((c) => ({
+    idContrato: c.id_contrato,
+    nomeContratante: nomesPorId.get(c.id_contratante) ?? "",
+  }));
+}
