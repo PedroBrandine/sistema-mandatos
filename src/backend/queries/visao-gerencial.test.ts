@@ -31,13 +31,28 @@ type RespostaTabela = { data: unknown; error: { message: string } | null };
 
 // Mesmo padrão de kanban.test.ts: mock roteado por nome de tabela, builder
 // encadeável (select/eq/order) resolvido via `.then()` -- só os métodos que
-// visao-gerencial.ts de fato usa (sem .in/.or/.not/.maybeSingle/auth, que
-// kanban.ts usa mas este arquivo não).
-function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
+// visao-gerencial.ts de fato usa (sem .or/.not/.maybeSingle/auth, que
+// kanban.ts usa mas este arquivo não). Aceita fila de respostas (array) pra
+// quando a mesma tabela é consultada mais de uma vez na mesma chamada (ex.:
+// rel_usuario_contrato é consultada uma vez pra Gestora e outra pra Mentor
+// em resolverIdsContratoDoRecorte) -- sem a fila, as duas consultas
+// recebiam sempre a mesma resposta estática e um teste de interseção (AND)
+// não conseguia se distinguir de um teste de união (OR) (achado do
+// Verifier, validation.md rodada 1: mutante sobrevivente).
+function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | RespostaTabela[]>) {
   const chamadas: Chamada[] = [];
+  const filas = new Map<string, RespostaTabela[]>(
+    Object.entries(respostasPorTabela).map(([tabela, resp]) => [tabela, Array.isArray(resp) ? [...resp] : [resp]])
+  );
+
+  function proximaResposta(tabela: string): RespostaTabela {
+    const fila = filas.get(tabela);
+    if (!fila || fila.length === 0) return { data: [], error: null };
+    return fila.length > 1 ? fila.shift()! : fila[0];
+  }
 
   function criarBuilder(tabela: string) {
-    const resposta = respostasPorTabela[tabela] ?? { data: [], error: null };
+    const resposta = proximaResposta(tabela);
     const builder: Record<string, unknown> = {
       select: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "select", args });
@@ -328,26 +343,33 @@ describe("buscarCarteiraPonderada", () => {
   // vínculo ativo (dt_fim IS NULL) -- interseção dos dois conjuntos de
   // id_contrato.
   it("idGestora + idMentor combinam por E lógico (interseção), só vínculo ativo", async () => {
+    // Conjuntos deliberadamente diferentes (202/203 só aparecem em ambos) --
+    // se o código fizesse OR (união) em vez de AND, o resultado seria
+    // {201,202,203,204}; só a interseção correta produz {202,203}. Isso é o
+    // que distingue este teste de um mutante que trocasse `.filter` (AND)
+    // por união (achado do Verifier: com os dois lados devolvendo o mesmo
+    // conjunto, AND e OR produziam a mesma saída e o teste não discriminava
+    // nada).
     const { client, chamadas } = criarClienteMock({
-      rel_usuario_contrato: {
-        data: [
-          { id_contrato: 201 },
-          { id_contrato: 202 },
-        ],
-        error: null,
-      },
+      rel_usuario_contrato: [
+        { data: [{ id_contrato: 201 }, { id_contrato: 202 }, { id_contrato: 203 }], error: null }, // gestora
+        { data: [{ id_contrato: 202 }, { id_contrato: 203 }, { id_contrato: 204 }], error: null }, // mentor
+      ],
       vw_carteira_ponderada: { data: [], error: null },
     });
 
     await buscarCarteiraPonderada(client, "gestora", { idGestora: 50, idMentor: 60 });
 
+    const eqCalls = chamadas.filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "eq").map((c) => c.args);
+    expect(eqCalls).toContainEqual(["id_usuario", 50]);
+    expect(eqCalls).toContainEqual(["papel_no_contrato", "gestora"]);
+    expect(eqCalls).toContainEqual(["id_usuario", 60]);
+    expect(eqCalls).toContainEqual(["papel_no_contrato", "mentor"]);
     const isCalls = chamadas.filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "is");
     expect(isCalls.every((c) => c.args[0] === "dt_fim" && c.args[1] === null)).toBe(true);
-    // Mock devolve o mesmo conjunto [201, 202] pras duas consultas (gestora e
-    // mentor) -- a interseção continua [201, 202], provando que o AND não
-    // descarta indevidamente quando os dois conjuntos batem.
+
     const inCarteira = chamadas.find((c) => c.tabela === "vw_carteira_ponderada" && c.metodo === "in");
-    expect(new Set(inCarteira?.args[1] as number[])).toEqual(new Set([201, 202]));
+    expect(new Set(inCarteira?.args[1] as number[])).toEqual(new Set([202, 203]));
   });
 });
 

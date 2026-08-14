@@ -537,13 +537,30 @@ describe("buscarPendencias", () => {
   });
 
   it("pagina via .range() -- nunca traz a tabela inteira de uma vez", async () => {
-    const client = criarClienteMock({
-      vw_pendencias: { data: [], error: null, count: 0 },
-    });
-    // Assert indireto: a chamada não lança e não exige nenhum dado além do
-    // que o mock devolve pra 1 página -- prova que a função não faz uma
-    // segunda consulta sem `.range()` pra "trazer tudo".
+    // Fix (Verifier, validation.md rodada 1: mutante sobrevivente) -- o
+    // assert antigo era só indireto (não lançar), não capturava os
+    // argumentos de `.range()`; um off-by-one na paginação (ex.: `fim` sem
+    // o `-1`) passaria despercebido. `rangeChamadas` grava os args reais.
+    const rangeChamadas: unknown[][] = [];
+    const builder: Record<string, unknown> = {
+      select: () => builder,
+      eq: () => builder,
+      is: () => builder,
+      in: () => builder,
+      order: () => builder,
+      range: (...args: unknown[]) => {
+        rangeChamadas.push(args);
+        return builder;
+      },
+      then: (resolve: (valor: RespostaTabela) => void, reject: (erro: unknown) => void) =>
+        Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject),
+    };
+    const client = { from: () => builder } as unknown as SupabaseClient<Database>;
+
+    // página 2, tamanho 10 -> linhas 11-20 (0-indexed: 10-19)
     const resultado = await buscarPendencias(client, {}, 2, 10);
+
+    expect(rangeChamadas).toEqual([[10, 19]]);
     expect(resultado.linhas).toEqual([]);
     expect(resultado.total).toBe(0);
   });
