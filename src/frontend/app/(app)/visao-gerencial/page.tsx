@@ -7,15 +7,14 @@ import { buscarPapelGlobalAtual } from "@backend/queries/usuario";
 import type { FiltroRecorte } from "@backend/queries/visao-gerencial";
 import { PRODUTO_SLUGS } from "@backend/queries/produto";
 import { NaoAutorizado } from "@/components/app-shell/nao-autorizado";
-import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { BarraRecorte } from "@/components/visao-gerencial/barra-recorte";
 import { SaudeOperacaoBloco } from "@/components/visao-gerencial/saude-operacao-bloco";
 import { DistribuicaoEtapasBloco } from "@/components/visao-gerencial/distribuicao-etapas-bloco";
-import { CarteiraPonderadaCard } from "@/components/visao-gerencial/carteira-ponderada-card";
-import { CicloEtapaCard } from "@/components/visao-gerencial/ciclo-etapa-card";
+import { IndicadoresBloco } from "@/components/visao-gerencial/indicadores-bloco";
+import { GargalosBloco } from "@/components/visao-gerencial/gargalos-bloco";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -40,14 +39,16 @@ function parseFiltroRecorte(searchParams: SearchParams): FiltroRecorte {
   };
 }
 
-// visao-gerencial-g3-g6, T19: primeiro Server Component + gate de papel
+// visao-gerencial-g3-g6, T19-T30: primeiro Server Component + gate de papel
 // server-side do projeto (design.md, Tech Decisions). GER-01 -- mentor/
 // assessor bloqueados mesmo por URL direta, antes de qualquer bloco de
 // dado renderizar (checagem acontece aqui, não no proxy de sessão --
 // src/backend/supabase/proxy.ts só resolve autenticado-ou-não por padrão do
-// projeto, lição L-009). Shell provisório: os 4 blocos reais (Bloco 0/1/2/3)
-// substituem G1/G2+placeholder em T22-T30, sem regredir o que já funciona
-// (G1/G2 validados em visao-gerencial-g1-g2) enquanto o resto é construído.
+// projeto, lição L-009). Ordem visual fixa (GER-06): BarraRecorte (sticky)
+// -> Bloco 0 (G3+G4, saúde do próprio sistema) -> Bloco 1 (onde estão os
+// mandatos) -> Bloco 2 (G1/G2/G5/G6/IIP) -> Bloco 3 (gargalos) -- G3/G4
+// sempre acima de qualquer indicador de mandato. Cada bloco em seu próprio
+// <Suspense> -- um bloco falhando não derruba os outros (12. Estados).
 export default async function VisaoGerencialPage({
   searchParams,
 }: {
@@ -79,8 +80,7 @@ export default async function VisaoGerencialPage({
           <DistribuicaoEtapasBloco filtro={filtro} />
         </Suspense>
 
-        <CarteiraPonderadaCard filtro={filtro} />
-        <CicloEtapaCard filtro={filtro} />
+        <IndicadoresBloco filtro={filtro} />
 
         <Card>
           <CardHeader>
@@ -98,7 +98,9 @@ export default async function VisaoGerencialPage({
           </CardContent>
         </Card>
 
-        <EmDesenvolvimento titulo="Bloco 2 (G5/G6/IIP) e Bloco 3 (gargalos) em desenvolvimento" />
+        <Suspense fallback={<CarregandoSkeleton variante="table" linhas={6} />}>
+          <GargalosBloco filtro={filtro} />
+        </Suspense>
       </div>
     </div>
   );
