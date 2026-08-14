@@ -2,6 +2,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../supabase/database.types";
 
+// Filtro compartilhado da barra de recorte (visao-gerencial-g3-g6,
+// design.md "Data Models") -- toda função nova de T9 em diante recebe este
+// shape único, nunca um filtro ad-hoc próprio (spec.md GER-01/GER-09:
+// "nenhum bloco com filtro próprio contraditório"). mesesEvolucao é o
+// filtro Período -- controla só o range dos gráficos de evolução exibidos
+// no frontend, nunca reprocessa as views *_mensal (que sempre trazem os 12
+// meses fixos, context.md "Filtro Período").
+export interface FiltroRecorte {
+  idProduto?: number;
+  idProjeto?: number;
+  idGestora?: number;
+  idMentor?: number;
+  mesesEvolucao?: number;
+}
+
 // Formas de leitura (view-models client-side) definidas verbatim conforme
 // design.md (## Data Models -- src/backend/queries/visao-gerencial.ts).
 export interface LinhaCarteiraPonderada {
