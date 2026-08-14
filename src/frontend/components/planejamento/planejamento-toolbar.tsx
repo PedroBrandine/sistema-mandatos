@@ -18,6 +18,11 @@ export interface PlanejamentoToolbarProps {
   onBuscaChange: (valor: string) => void;
   soPendentes: boolean;
   onSoPendentesChange: (valor: boolean) => void;
+  // T15: "só as minhas metas" -- só faz sentido pra quem enxerga a carteira
+  // inteira do contrato mas quer se filtrar à própria responsabilidade
+  // (Mentor/Assessor); Gestora/Admin já esperam ver tudo por padrão.
+  soMinhasMetas: boolean;
+  onSoMinhasMetasChange: (valor: boolean) => void;
   onExpandirTudo: () => void;
   onRecolherTudo: () => void;
   onCriarObjetivo: () => void;
@@ -30,10 +35,13 @@ export function PlanejamentoToolbar({
   onBuscaChange,
   soPendentes,
   onSoPendentesChange,
+  soMinhasMetas,
+  onSoMinhasMetasChange,
   onExpandirTudo,
   onRecolherTudo,
   onCriarObjetivo,
 }: PlanejamentoToolbarProps) {
+  const mostraSoMinhasMetas = !permissoes.crudHierarquia;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
       <Button type="button" variant="ghost" size="sm" onClick={onExpandirTudo}>
@@ -66,6 +74,18 @@ export function PlanejamentoToolbar({
         />
         Só pendentes
       </label>
+
+      {mostraSoMinhasMetas && (
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={soMinhasMetas}
+            onChange={(e) => onSoMinhasMetasChange(e.target.checked)}
+            className="size-4 rounded border-input"
+          />
+          Só as minhas metas
+        </label>
+      )}
 
       <div className="ml-auto flex items-center gap-2">
         {permissoes.crudHierarquia && modo === "construir" && (

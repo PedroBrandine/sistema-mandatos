@@ -71,7 +71,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const { id } = use(params);
   const idContrato = Number(id);
   const mesReferencia = useMemo(() => mesReferenciaCorrente(), []);
-  const { papel } = usePapelGlobal();
+  const { papel, idUsuario } = usePapelGlobal();
   // PLR-07: fallback conservador (assessor -- perfil mais restrito) enquanto
   // `papel` ainda carrega, pra nunca renderizar CRUD/dado sensível antes de
   // saber o papel real (mesmo raciocínio já usado em outras telas do
@@ -80,6 +80,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const [modo, setModo] = useState<ModoPlanejamento>(permissoes.modoPadrao);
   const [busca, setBusca] = useState("");
   const [soPendentes, setSoPendentes] = useState(false);
+  const [soMinhasMetas, setSoMinhasMetas] = useState(false);
   const gradeRef = useRef<PlanejamentoGradeHandle>(null);
 
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
@@ -305,6 +306,8 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             onBuscaChange={setBusca}
             soPendentes={soPendentes}
             onSoPendentesChange={setSoPendentes}
+            soMinhasMetas={soMinhasMetas}
+            onSoMinhasMetasChange={setSoMinhasMetas}
             onExpandirTudo={() => gradeRef.current?.expandirTudo()}
             onRecolherTudo={() => gradeRef.current?.recolherTudo()}
             onCriarObjetivo={() => gradeRef.current?.criarObjetivo()}
@@ -321,6 +324,8 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             modo={modo}
             busca={busca}
             soPendentes={soPendentes}
+            soMinhasMetas={soMinhasMetas}
+            idUsuario={idUsuario}
             onEdicaoCelula={handleEdicaoCelula}
             onColarFaixa={handleColarFaixa}
             onHierarquiaAlterada={recarregarHierarquia}

@@ -473,11 +473,18 @@ lista (não só os Sucessos Mensais individuais).
 **Requirement**: PLR-11
 
 **Done when**:
-- [ ] Toggle ligado esconde Metas de outros responsáveis
-- [ ] Ausente para `gestora`/`admin`
-- [ ] `npm run build` limpo
+- [x] Toggle ligado esconde Metas de outros responsáveis
+- [x] Ausente para `gestora`/`admin`
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `idUsuario` já vinha de `usePapelGlobal` (extensão de
+`incidencia-encontros` T17, confirmada em T5 desta feature — sem duplicar). Toggle visível quando
+`!permissoes.crudHierarquia` (mentor/assessor, exatamente os 2 papéis sem CRUD de hierarquia),
+ausente pra gestora/admin. Filtro já estava implementado em `planejamento-grade.tsx` desde T14
+(props `soMinhasMetas`/`idUsuario` previstas ali) — esta task só liga a UI (checkbox na toolbar) e
+o dado (`idUsuario` de `page.tsx`) que faltavam.
 
 ---
 
