@@ -418,11 +418,19 @@ hachurado (`repeating-linear-gradient`), marcador `fx` antes do valor, `tabIndex
 **Requirement**: PLR-10 (regra inegociável nº1)
 
 **Done when**:
-- [ ] Navegação por `Tab` nunca para nessa célula (teste manual: tabular pela linha inteira)
-- [ ] Nenhum `onClick`/`onFocus` no elemento
-- [ ] `npm run build` limpo
+- [x] Navegação por `Tab` nunca para nessa célula (teste manual: tabular pela linha inteira)
+- [x] Nenhum `onClick`/`onFocus` no elemento
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit `1aad9d7` (T11). Resequenciamento documentado, não skip: o componente
+`CelulaCalculada` (fundo hachurado real via `repeating-linear-gradient`, marcador `fx`,
+`tabIndex={-1}`, `aria-readonly="true"`, zero `onClick`/`onFocus`) já nasceu completo na estrutura
+inicial de `planejamento-grade.tsx` em T11, porque a árvore-grade unificada não existiria sem
+alguma forma de renderizar a célula de % de Meta/Objetivo desde o primeiro commit — não fazia
+sentido committar uma versão "provisória" (ex.: `<Badge>` simples) só pra trocar imediatamente
+depois. Nenhum código novo nesta task.
 
 ---
 
