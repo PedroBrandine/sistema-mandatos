@@ -85,6 +85,7 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
     ...abasEtapas,
     { href: `${base}/vinculos`, label: "Assessores" },
     { href: `${base}/formularios`, label: "Formulários" },
+    { href: `${base}/encontros`, label: "Encontros" },
   ];
 
   return (
