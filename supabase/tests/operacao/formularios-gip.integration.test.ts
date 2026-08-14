@@ -30,6 +30,7 @@ let idContrato: number;
 let idContratante: number;
 let idFormularioGip: number;
 let versaoGip: number;
+let idUsuarioGestora: number;
 let idsDimensao: { codigo: string; id_dimensao: number }[];
 
 // Dimensões seedadas (Trilha C): qualidade_planejamento, atingimento_planejamento,
@@ -98,6 +99,10 @@ describe("formularios-produto T9 -- derivação do GIP (fat_gip/fat_gip_dimensao
       UPDATE rel_formulario_contrato SET estado = 'aberto', dt_abertura = now()
        WHERE id_contrato = ${idContrato} AND id_formulario = ${idFormularioGip};
     `);
+
+    idUsuarioGestora = (
+      await runSql<{ id_usuario: number }>(`SELECT id_usuario FROM dim_usuario WHERE email = '${GESTORA_EMAIL}';`)
+    )[0].id_usuario;
   }, 120000);
 
   afterAll(async () => {
@@ -126,6 +131,7 @@ describe("formularios-produto T9 -- derivação do GIP (fat_gip/fat_gip_dimensao
       id_contrato: idContrato,
       id_formulario: idFormularioGip,
       versao_formulario: versaoGip,
+      id_usuario_respondente: idUsuarioGestora,
       momento: "inicio",
       respostas: respostasGip(todasDimensoes(2)),
     });
@@ -153,6 +159,7 @@ describe("formularios-produto T9 -- derivação do GIP (fat_gip/fat_gip_dimensao
       id_contrato: idContrato,
       id_formulario: idFormularioGip,
       versao_formulario: versaoGip,
+      id_usuario_respondente: idUsuarioGestora,
       momento: "meio",
       respostas: respostasGip(todasDimensoes(3)),
     });
@@ -178,17 +185,24 @@ describe("formularios-produto T9 -- derivação do GIP (fat_gip/fat_gip_dimensao
     const [{ n: antes }] = await runSql<{ n: string }>(
       `SELECT count(*)::text AS n FROM fat_gip WHERE id_contrato = ${idContrato};`
     );
-    const { error } = await client.from("fat_submissao").insert({
+
+    // Um 2º INSERT bruto (mesmo contrato+formulário+respondente+momento) viola
+    // a chave única de negócio de fat_submissao (uq_submissao_respondente) --
+    // o caminho real de reenvio é UPDATE na mesma linha (permite_edicao_aberta),
+    // testado logo abaixo.
+    const { error: erroDuplicado } = await client.from("fat_submissao").insert({
       id_contrato: idContrato,
       id_formulario: idFormularioGip,
       versao_formulario: versaoGip,
+      id_usuario_respondente: idUsuarioGestora,
       momento: "inicio",
       respostas: respostasGip(todasDimensoes(4)),
     });
-    expect(error).not.toBeNull(); // uq_submissao_respondente com id_usuario_respondente NULL não se aplica -- mas o insert já existe por PK de fat_gip via trigger, testado abaixo via UPDATE direto.
+    expect(erroDuplicado).not.toBeNull();
+    expect(erroDuplicado?.code).toBe("23505");
 
-    // Reenvio de verdade é via UPDATE na mesma submissão (permite_edicao_aberta),
-    // não um 2º INSERT -- confirma que o trigger, ao reprocessar, não duplica.
+    // Reenvio de verdade é via UPDATE na mesma submissão -- confirma que o
+    // trigger, ao reprocessar (AFTER UPDATE OF respostas), não duplica fat_gip.
     const [submissaoInicio] = await runSql<{ id_submissao: number }>(
       `SELECT id_submissao FROM fat_submissao WHERE id_contrato = ${idContrato} AND id_formulario = ${idFormularioGip} AND momento = 'inicio' LIMIT 1;`
     );
@@ -215,6 +229,7 @@ describe("formularios-produto T9 -- derivação do GIP (fat_gip/fat_gip_dimensao
       id_contrato: idContrato,
       id_formulario: idFormularioGip,
       versao_formulario: versaoGip,
+      id_usuario_respondente: idUsuarioGestora,
       momento: "fim",
       respostas: respostasGip({ ...todasDimensoes(2), [idsDimensao[0].codigo]: 9 }),
     });
