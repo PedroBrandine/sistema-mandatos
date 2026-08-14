@@ -47,6 +47,14 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
         chamadas.push({ tabela, metodo: "eq", args });
         return builder;
       },
+      in: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "in", args });
+        return builder;
+      },
+      is: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "is", args });
+        return builder;
+      },
       order: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "order", args });
         return builder;
@@ -79,7 +87,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    const resultado = await buscarCarteiraPonderada(client, "gestora", {});
 
     expect(resultado).toEqual([
       {
@@ -103,7 +111,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "mentor" });
+    const resultado = await buscarCarteiraPonderada(client, "mentor", {});
 
     expect(resultado).toEqual([
       {
@@ -130,7 +138,7 @@ describe("buscarCarteiraPonderada", () => {
       vw_carteira_ponderada: { data: [], error: null },
     });
 
-    await buscarCarteiraPonderada(client, { papel: "mentor" });
+    await buscarCarteiraPonderada(client, "mentor", {});
 
     const eqsUsuario = chamadas.filter((c) => c.tabela === "dim_usuario" && c.metodo === "eq").map((c) => c.args);
     expect(eqsUsuario).toContainEqual(["papel_global", "mentor"]);
@@ -149,7 +157,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    const resultado = await buscarCarteiraPonderada(client, "gestora", {});
 
     expect(resultado[0].atingimentoMedio).toBe(60); // (80 + 40) / 2, NULL fora da média
   });
@@ -167,7 +175,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    const resultado = await buscarCarteiraPonderada(client, "gestora", {});
 
     expect(resultado[0].somaPeso).toBe(5); // não 6 -- nunca assume peso 1 no lugar do NULL
     expect(resultado[0].qtdContratosSemPeso).toBe(1);
@@ -185,7 +193,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    const resultado = await buscarCarteiraPonderada(client, "gestora", {});
 
     expect(resultado).toHaveLength(1);
     expect(resultado[0].somaPeso).toBe(0);
@@ -212,7 +220,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    const resultado = await buscarCarteiraPonderada(client, "gestora", {});
 
     expect(resultado).toEqual([
       {
@@ -248,7 +256,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    const resultado = await buscarCarteiraPonderada(client, "gestora", {});
 
     expect(resultado[0].somaPeso).toBe(6); // 3 + 3, não deduplicado para 3
     expect(resultado[0].qtdContratos).toBe(2);
@@ -266,7 +274,7 @@ describe("buscarCarteiraPonderada", () => {
       },
     });
 
-    await buscarCarteiraPonderada(client, { papel: "gestora" });
+    await buscarCarteiraPonderada(client, "gestora", {});
 
     const chamadaSelect = chamadas.find((c) => c.tabela === "vw_carteira_ponderada" && c.metodo === "select");
     const colunasSelecionadas = String(chamadaSelect?.args[0] ?? "");
@@ -279,9 +287,10 @@ describe("buscarCarteiraPonderada", () => {
   it("combina o filtro de produto com o de papel por AND", async () => {
     const { client, chamadas } = criarClienteMock({
       vw_carteira_ponderada: { data: [], error: null },
+      fat_contrato: { data: [], error: null },
     });
 
-    await buscarCarteiraPonderada(client, { papel: "gestora", idProduto: 7 });
+    await buscarCarteiraPonderada(client, "gestora", { idProduto: 7 });
 
     const eqs = chamadas.filter((c) => c.tabela === "vw_carteira_ponderada" && c.metodo === "eq").map((c) => c.args);
     expect(eqs).toContainEqual(["papel_no_contrato", "gestora"]);
@@ -293,8 +302,52 @@ describe("buscarCarteiraPonderada", () => {
       vw_carteira_ponderada: { data: [], error: null },
     });
 
-    const resultado = await buscarCarteiraPonderada(client, { papel: "gestora" });
+    const resultado = await buscarCarteiraPonderada(client, "gestora", {});
     expect(resultado).toEqual([]);
+  });
+
+  // visao-gerencial-g3-g6, T11 Done-when: "idProjeto/idMentor restringem
+  // corretamente o resultado". idProjeto não existe como coluna na view --
+  // passa pelo resolverIdsContratoDoRecorte (fat_contrato.id_projeto), que
+  // então aplica .in("id_contrato", ...) na query de vw_carteira_ponderada.
+  it("idProjeto restringe via resolverIdsContratoDoRecorte (fat_contrato.id_projeto -> .in id_contrato)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 101 }, { id_contrato: 102 }], error: null },
+      vw_carteira_ponderada: { data: [], error: null },
+    });
+
+    await buscarCarteiraPonderada(client, "gestora", { idProjeto: 3 });
+
+    const eqFatContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
+    expect(eqFatContrato).toContainEqual(["id_projeto", 3]);
+    const inCarteira = chamadas.find((c) => c.tabela === "vw_carteira_ponderada" && c.metodo === "in");
+    expect(inCarteira?.args).toEqual(["id_contrato", [101, 102]]);
+  });
+
+  // context.md, "Combinação Gestora + Mentor no filtro": E lógico, só
+  // vínculo ativo (dt_fim IS NULL) -- interseção dos dois conjuntos de
+  // id_contrato.
+  it("idGestora + idMentor combinam por E lógico (interseção), só vínculo ativo", async () => {
+    const { client, chamadas } = criarClienteMock({
+      rel_usuario_contrato: {
+        data: [
+          { id_contrato: 201 },
+          { id_contrato: 202 },
+        ],
+        error: null,
+      },
+      vw_carteira_ponderada: { data: [], error: null },
+    });
+
+    await buscarCarteiraPonderada(client, "gestora", { idGestora: 50, idMentor: 60 });
+
+    const isCalls = chamadas.filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "is");
+    expect(isCalls.every((c) => c.args[0] === "dt_fim" && c.args[1] === null)).toBe(true);
+    // Mock devolve o mesmo conjunto [201, 202] pras duas consultas (gestora e
+    // mentor) -- a interseção continua [201, 202], provando que o AND não
+    // descarta indevidamente quando os dois conjuntos batem.
+    const inCarteira = chamadas.find((c) => c.tabela === "vw_carteira_ponderada" && c.metodo === "in");
+    expect(new Set(inCarteira?.args[1] as number[])).toEqual(new Set([201, 202]));
   });
 });
 

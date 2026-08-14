@@ -28,11 +28,6 @@ export interface LinhaCarteiraPonderada {
   atingimentoMedio: number | null;
 }
 
-export interface FiltroCarteiraPonderada {
-  papel: "gestora" | "mentor";
-  idProduto?: number;
-}
-
 interface RowCarteiraPonderada {
   id_usuario: number | null;
   nome_usuario: string | null;
@@ -67,23 +62,34 @@ function acumuladorVazio(nomeUsuario: string): AcumuladorCarteira {
 // essa lógica. peso já vem NULL quando falta seed em ref_peso_etapa (LEFT
 // JOIN da view); contratos assim são excluídos da soma e contados em
 // qtdContratosSemPeso, nunca tratados como peso = 1 (spec.md Edge Cases).
+//
+// visao-gerencial-g3-g6, T11: `papel` é o alternador de exibição
+// Gestora/Mentor de G1 (não um recorte -- design.md/context.md), separado do
+// `filtro: FiltroRecorte` compartilhado com o resto da tela. idProjeto/
+// idMentor entram via resolverIdsContratoDoRecorte (a view não expõe
+// id_projeto), aplicados independente de `papel`.
 export async function buscarCarteiraPonderada(
   client: SupabaseClient<Database>,
-  filtro: FiltroCarteiraPonderada
+  papel: "gestora" | "mentor",
+  filtro: FiltroRecorte = {}
 ): Promise<LinhaCarteiraPonderada[]> {
   const { data: usuariosData, error: erroUsuarios } = await client
     .from("dim_usuario")
     .select("id_usuario, nome")
-    .eq("papel_global", filtro.papel);
+    .eq("papel_global", papel);
   if (erroUsuarios) throw erroUsuarios;
   const usuarios = (usuariosData ?? []) as RowUsuarioPapelGlobal[];
 
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
   let query = client
     .from("vw_carteira_ponderada")
     .select("id_usuario, nome_usuario, peso, pct_atingimento")
-    .eq("papel_no_contrato", filtro.papel);
+    .eq("papel_no_contrato", papel);
   if (filtro.idProduto !== undefined) {
     query = query.eq("id_produto", filtro.idProduto);
+  }
+  if (idsContrato !== undefined) {
+    query = query.in("id_contrato", idsContrato);
   }
 
   const { data, error } = await query;
@@ -133,11 +139,6 @@ export interface LinhaCicloEtapa {
   amostra: number;
 }
 
-export interface FiltroCicloEtapa {
-  idProduto?: number;
-  idGestora?: number;
-}
-
 interface RowRefEtapa {
   id_etapa: number;
   nome: string;
@@ -163,9 +164,13 @@ function mediana(valores: number[]): number | null {
 // status = 'concluida' na própria view) fornece as amostras de dias_ciclo;
 // filtro por produto/Gestora restringe a amostra sem misturar outro
 // produto/Gestora na mesma mediana (AC2).
+//
+// visao-gerencial-g3-g6, T11: filtro passa a ser FiltroRecorte compartilhado
+// -- idProjeto/idMentor entram via resolverIdsContratoDoRecorte (vw_ciclo_etapa
+// expõe id_contrato, permite .in()).
 export async function buscarCicloEtapa(
   client: SupabaseClient<Database>,
-  filtro?: FiltroCicloEtapa
+  filtro?: FiltroRecorte
 ): Promise<LinhaCicloEtapa[]> {
   let queryEtapas = client.from("ref_etapa").select("id_etapa, nome, ordem").order("ordem", { ascending: true });
   if (filtro?.idProduto !== undefined) {
@@ -176,12 +181,16 @@ export async function buscarCicloEtapa(
   const etapas = (etapasData ?? []) as RowRefEtapa[];
   if (etapas.length === 0) return [];
 
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro ?? {});
   let queryCiclo = client.from("vw_ciclo_etapa").select("id_etapa, dias_ciclo");
   if (filtro?.idProduto !== undefined) {
     queryCiclo = queryCiclo.eq("id_produto", filtro.idProduto);
   }
   if (filtro?.idGestora !== undefined) {
     queryCiclo = queryCiclo.eq("id_usuario_gestora", filtro.idGestora);
+  }
+  if (idsContrato !== undefined) {
+    queryCiclo = queryCiclo.in("id_contrato", idsContrato);
   }
   const { data: ciclosData, error: erroCiclo } = await queryCiclo;
   if (erroCiclo) throw erroCiclo;
@@ -227,12 +236,27 @@ async function resolverIdsContratoDoRecorte(
     return undefined;
   }
 
-  let queryContrato = client.from("fat_contrato").select("id_contrato");
-  if (filtro.idProduto !== undefined) queryContrato = queryContrato.eq("id_produto", filtro.idProduto);
-  if (filtro.idProjeto !== undefined) queryContrato = queryContrato.eq("id_projeto", filtro.idProjeto);
-  const { data: contratosData, error: erroContratos } = await queryContrato;
-  if (erroContratos) throw erroContratos;
-  let ids = new Set((contratosData ?? []).map((c) => (c as { id_contrato: number }).id_contrato));
+  // `ids === null` representa "nenhuma restrição aplicada ainda" (distinto
+  // de Set vazio, que representa "restrição aplicada, zero contratos
+  // casam") -- cada filtro presente faz uma interseção real com o que já
+  // foi restringido, nunca começa de um conjunto vazio quando esse filtro
+  // específico simplesmente não foi pedido (achado real: consultar
+  // fat_contrato incondicionalmente e interseccionar com ele zerava o
+  // resultado inteiro quando só idGestora/idMentor eram passados, sem
+  // idProduto/idProjeto).
+  let ids: Set<number> | null = null;
+  const interseccionar = (novos: Set<number>) => {
+    ids = ids === null ? novos : new Set([...ids].filter((id) => novos.has(id)));
+  };
+
+  if (filtro.idProduto !== undefined || filtro.idProjeto !== undefined) {
+    let queryContrato = client.from("fat_contrato").select("id_contrato");
+    if (filtro.idProduto !== undefined) queryContrato = queryContrato.eq("id_produto", filtro.idProduto);
+    if (filtro.idProjeto !== undefined) queryContrato = queryContrato.eq("id_projeto", filtro.idProjeto);
+    const { data: contratosData, error: erroContratos } = await queryContrato;
+    if (erroContratos) throw erroContratos;
+    interseccionar(new Set((contratosData ?? []).map((c) => (c as { id_contrato: number }).id_contrato)));
+  }
 
   const vinculos: Array<["gestora" | "mentor", number | undefined]> = [
     ["gestora", filtro.idGestora],
@@ -247,11 +271,10 @@ async function resolverIdsContratoDoRecorte(
       .eq("papel_no_contrato", papel)
       .is("dt_fim", null);
     if (erroVinculos) throw erroVinculos;
-    const idsVinculo = new Set((vinculosData ?? []).map((v) => (v as { id_contrato: number }).id_contrato));
-    ids = new Set([...ids].filter((id) => idsVinculo.has(id)));
+    interseccionar(new Set((vinculosData ?? []).map((v) => (v as { id_contrato: number }).id_contrato)));
   }
 
-  return [...ids];
+  return [...(ids ?? new Set<number>())];
 }
 
 export interface SaudeCobertura {

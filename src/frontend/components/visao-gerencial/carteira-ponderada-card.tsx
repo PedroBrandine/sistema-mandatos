@@ -39,7 +39,7 @@ export function CarteiraPonderadaCard() {
         slugProduto === "todos"
           ? undefined
           : (await buscarIdProdutoPorNome(client, PRODUTO_SLUGS[slugProduto].nome)) ?? undefined;
-      return buscarCarteiraPonderada(client, { papel, idProduto });
+      return buscarCarteiraPonderada(client, papel, { idProduto });
     },
   });
 
