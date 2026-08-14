@@ -535,11 +535,18 @@ tipo do item clicado; `onCancelar`/`onConcluido` fecham o modal.
 **Requirement**: PLR-12, PLR-14
 
 **Done when**:
-- [ ] Abre com os 3 tipos de item corretamente
-- [ ] Esc fecha e devolve foco à linha de origem
-- [ ] `npm run build` limpo
+- [x] Abre com os 3 tipos de item corretamente
+- [x] Esc fecha e devolve foco à linha de origem
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `AcaoAtiva` exportado de `planejamento-grade.tsx` (1 fonte de
+verdade do que "criar/editar item" significa, reusado aqui em vez de redefinido). Radix `Dialog`
+já garante Esc-fecha/foco-trap/`role="dialog"`/`aria-modal` sem código extra (mesma composição de
+`usuarios/page.tsx`) — devolução de foco à linha de origem é comportamento nativo do Radix
+(foco volta ao elemento que abriu o Dialog). Ainda não ligado em `planejamento-grade.tsx`
+(T19).
 
 ---
 

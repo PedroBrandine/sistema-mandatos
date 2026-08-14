@@ -47,7 +47,9 @@ type LinhaArvore = LinhaObj | LinhaMeta | LinhaSm | LinhaForm;
 
 const columnHelper = createColumnHelper<typeof features, LinhaArvore>();
 
-type AcaoAtiva =
+// Exportado pra ModalDetalheItem (T17/T19) reusar a mesma forma -- 1 fonte
+// de verdade do que "editar/criar item da hierarquia" significa.
+export type AcaoAtiva =
   | { tipo: "criar-objetivo" }
   | { tipo: "criar-meta"; idObjetivo: number }
   | { tipo: "criar-sucesso"; idMeta: number }
