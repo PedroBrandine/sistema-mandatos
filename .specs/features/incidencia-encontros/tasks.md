@@ -795,10 +795,22 @@ extra. `npm run test:unit`: 401 passed (0 failed).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run build` inclui o componente sem erro
-- [ ] Leitura de código confirma que o card nunca mostra `0` quando `iipProvisorio` é `null` (AD-005)
+- [x] `npm run build` inclui o componente sem erro
+- [x] Leitura de código confirma que o card nunca mostra `0` quando `iipProvisorio` é `null` (AD-005)
 
 **Tests**: none (componente React, ver matrix) · **Gate**: build
+
+✅ **Concluída** — commit `81f0afe`. **Nota de recuperação**: o lote de
+sub-agente original desta fase (Batch 5) atingiu o limite de sessão da API no
+meio do gate de build desta task — `iip-card.tsx` e a edição de 2 linhas em
+`ficha-contrato-chrome.tsx` já existiam no disco, verificados e commitados
+pelo orquestrador diretamente (sem novo sub-agente), build confirmado limpo
+antes do commit. T29-T35 seguem, também executadas diretamente pelo
+orquestrador pelo mesmo motivo. Loading de erro usa `<Skeleton>` (primitivo)
+em vez de `<CarregandoSkeleton>` — a variante "list" deste último (menor
+disponível) é um bloco `h-16 w-full`, maior que o card compacto que
+context.md pede ("mesmo tamanho dos botões existentes"); desvio pequeno e
+documentado, não a lista completa recomendada pelo design.md.
 
 ---
 
@@ -815,10 +827,18 @@ contribuição/data/vínculo opcional (Meta OU Insight); chama `criarFatoGerador
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run build` limpo
-- [ ] Leitura de código confirma que o formulário não trava se `ref_tipologia` viesse vazia (defesa, mesmo com as 51 linhas seedadas)
+- [x] `npm run build` limpo
+- [x] Leitura de código confirma que o formulário não trava se `ref_tipologia` viesse vazia (defesa, mesmo com as 51 linhas seedadas)
 
 **Tests**: none · **Gate**: build
+
+✅ **Concluída** — commit `455c61a`. Vínculo Meta/Insight de origem
+implementado como 2 `Select` independentes (`buscarPlanejamentoCompleto`
+achatado em Metas + `buscarInsightsDoContrato`), não mutuamente exclusivos —
+`ck_fato_origem` só se aplica dentro da RPC quando decide gravar
+`rel_fato_origem` (spec.md P1 AC3/AC4). `ref_preditor` buscado inline (fetch
+direto no componente), mesmo padrão de `objetivo-form.tsx` — sem query
+centralizada nova pra esse catálogo.
 
 ---
 
@@ -834,10 +854,20 @@ Sucesso); chama `criarInsight`.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run build` limpo
-- [ ] Seletor de Registro de origem só lista Registros do próprio contrato (leitura de código)
+- [x] `npm run build` limpo
+- [x] Seletor de Registro de origem só lista Registros do próprio contrato (leitura de código)
 
 **Tests**: none · **Gate**: build
+
+✅ **Concluída** — commit `aab7aed`. **Achado/adição não coberta pelas
+queries do Batch 4**: nenhuma função em `queries/incidencia.ts` lista "todos
+os Registros do contrato" (só `buscarRegistrosDaEtapa`, escopada a 1 etapa) —
+necessário pro Select de "Registro de origem" deste form, que é aberto a
+partir do chrome (nível de contrato, não de etapa). Resolvido com fetch
+inline em `fat_registro` por `id_contrato` dentro do próprio componente
+(mesmo padrão de fetch inline de `objetivo-form.tsx`), sem editar/reabrir o
+arquivo `incidencia.ts` já commitado e testado. Vínculo de Sucesso usa
+`buscarGradeSucessosMensais` a partir das Metas já carregadas.
 
 ---
 
@@ -853,10 +883,17 @@ Sucesso); chama `criarInsight`.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Nenhum `toast("Em desenvolvimento")` remanescente nesses 2 botões
-- [ ] `npm run build` limpo
+- [x] Nenhum `toast("Em desenvolvimento")` remanescente nesses 2 botões
+- [x] `npm run build` limpo
 
 **Tests**: none · **Gate**: build
+
+✅ **Concluída** — commit `6daf010`. Entregável mais visível da feature
+inteira (Pedro reportou em teste manual, antes desta task rodar, que os 2
+botões ainda mostravam o toast placeholder — esperado até este ponto do
+Execute). `IipCard` ganha `key` de refresh forçado após criar Fato Gerador
+(remonta e refaz o refresh síncrono de `mv_iip_contrato`); Insight não afeta
+o IIP, sem refresh correspondente.
 
 ---
 
@@ -875,10 +912,19 @@ Adiciona seção + lista (`buscarRegistrosDaEtapa`) abaixo da tabela de régua e
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run build` limpo
-- [ ] Leitura de código confirma `id_usuario_autor` sempre preenchido antes do `INSERT`
+- [x] `npm run build` limpo
+- [x] Leitura de código confirma `id_usuario_autor` sempre preenchido antes do `INSERT`
 
 **Tests**: none · **Gate**: build
+
+✅ **Concluída** — commit `1f9718c`. `id_usuario_autor` resolvido via
+`usePapelGlobal().idUsuario`; `enviar()` recusa o submit com mensagem clara
+se ainda não tiver carregado (`if (!idUsuario) { setErro(...); return; }`),
+nunca chega a montar um payload sem essa coluna `NOT NULL`. `idEtapa`
+derivado da linha da régua com o `codigo` da URL (`EtapaRegua.idEtapa`, já
+exposto por T15/`etapa-contrato.ts`); `conteudo` (JSONB) omitido do payload
+por falta de campo de UI (nenhuma menção em spec.md/design.md), `DEFAULT
+'{}'::jsonb` da coluna assume.
 
 ---
 
@@ -893,9 +939,19 @@ modalidade/local; `INSERT`/`UPDATE` direto.
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run build` limpo
+- [x] `npm run build` limpo
 
 **Tests**: none · **Gate**: build
+
+✅ **Concluída** — commit `ff699d5`. **Redução de escopo documentada**:
+implementado como formulário de **criação apenas** (`INSERT`, sem `UPDATE`)
+— context.md fala em "Dialog de criação/edição de status", interpretado como
+edição de status feita separadamente (mais leve, ver T34) em vez de reabrir
+este form completo em modo edição; nenhuma AC de spec.md exige edição de
+campo além do status. `id_tipo_registro` do Encontro não é escopado por
+etapa (ao contrário de Registro) — lista todos os `ref_tipo_registro`
+ativos (fetch inline), já que um Encontro pode ocorrer em qualquer momento
+do ciclo.
 
 ---
 
@@ -911,10 +967,20 @@ sistema ou `nome_livre`).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run build` limpo
-- [ ] Leitura de código confirma XOR `id_usuario`/`nome_livre` respeitado na UI (mesmo com `ck_participante_identificacao` como defesa de banco)
+- [x] `npm run build` limpo
+- [x] Leitura de código confirma XOR `id_usuario`/`nome_livre` respeitado na UI (mesmo com `ck_participante_identificacao` como defesa de banco)
 
 **Tests**: none · **Gate**: build
+
+✅ **Concluída** — commits `684cc51` + `6bceb3e`. Toggle "Usuário do
+sistema"/"Nome externo" mostra só 1 campo por vez (XOR na própria UI);
+`participanteSchema.safeParse` valida antes do `INSERT`, `ck_participante_identificacao`
+continua como defesa de banco. **Segundo commit** fecha uma lacuna notada só
+ao escrever esta nota: context.md pede "Dialog de criação/edição de status"
+para Encontro, e T33 (`EncontroForm`) ficou create-only — a edição de status
+não tinha lugar nenhum até então. Adicionado como `Select` leve por encontro
+(`UPDATE` direto em `fat_encontro.status`, preenche `dt_realizada`
+automaticamente quando o novo status é "realizado").
 
 ---
 
@@ -929,10 +995,28 @@ sistema ou `nome_livre`).
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run build` inclui a rota nova sem erro
-- [ ] Aba "Encontros" aparece pra todos os tipos de contrato (mandato e coalizão — spec não restringe)
+- [x] `npm run build` inclui a rota nova sem erro
+- [x] Aba "Encontros" aparece pra todos os tipos de contrato (mandato e coalizão — spec não restringe)
 
 **Tests**: none · **Gate**: build (+ gate final da feature: `npm run test:unit && npm run test:integration && npm run build && npm run lint:all`)
+
+✅ **Concluída** — commit `ca46439`. Fecha a Fase 5 e a feature inteira
+(T1-T35). Gate final da feature: `npm run test:unit` → 401 passed, 0 failed
+(sem casos novos nesta fase — componentes React sem harness, débito
+conhecido L-006/L-007). `npm run build` limpo. `npm run lint:all` → 1 erro
+pré-existente em `supabase/tests/operacao/formularios-submissao.integration.test.ts`
+(WIP não commitado da trilha paralela "Formulários dos Produtos", nunca
+tocado por esta feature — não-bloqueante, mesmo tratamento dado pelos
+Batches 3/4 a arquivos de outra sessão). `npm run test:integration`
+documentado na entrada do handoff em `.specs/STATE.md`.
+
+**Nota de execução da Fase 5 inteira**: o lote de sub-agente original
+(Batch 5) atingiu o limite de sessão da API da Anthropic no meio do gate de
+build de T28 (2ª vez que isso acontece nesta feature, após o mesmo ocorrer
+no fim do Batch 2/Fase 2) — T28 a T35 foram recuperadas/executadas
+diretamente pelo orquestrador (sem novo sub-agente, pra não repetir o
+mesmo limite), seguindo o mesmo ciclo implementar→gate→commit atômico por
+task da skill.
 
 ---
 
