@@ -3,19 +3,26 @@ import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
 import {
+  buscarEncontrosDoContrato,
+  buscarFatosGeradoresDoContrato,
   buscarIipContrato,
+  buscarInsightsDoContrato,
   buscarNiveisIip,
   buscarPilaresInsight,
+  buscarRegistrosDaEtapa,
   buscarTiposRegistroDaEtapa,
   buscarTipologiasAtivas,
 } from "./incidencia";
 
-// Spec anchor: incidencia-encontros T26 Done-when (.specs/features/incidencia-encontros/tasks.md) --
+// Spec anchor: incidencia-encontros T26/T27 Done-when (.specs/features/incidencia-encontros/tasks.md) --
 //  - Cada função mapeia snake_case -> camelCase/shape do design.md
 //  - `if (!data) return []`/`null` quando a consulta não retorna linha
 //  - Campos NULL-safe (AD-005): nrFatos/iipProvisorio ficam null, nunca 0
+//  - T27: as 4 funções novas cobrem shape + [] vazio (join client-side com catálogo, mesmo
+//    padrão de buscarBoardKanban)
 //
-// spec.md INC-04, INC-05, INC-07, INC-08, INC-09.
+// spec.md INC-01, INC-02, INC-04, INC-05, INC-07, INC-08, INC-09, INC-11, INC-12, INC-13,
+// INC-14, INC-16.
 
 type RespostaTabela = { data: unknown; error: { message: string } | null };
 type Chamada = { tabela: string; metodo: string; args: unknown[] };
@@ -34,6 +41,10 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
       },
       eq: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "eq", args });
+        return builder;
+      },
+      in: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "in", args });
         return builder;
       },
       maybeSingle: () => {
@@ -165,5 +176,130 @@ describe("buscarTiposRegistroDaEtapa", () => {
   it("retorna [] quando a etapa não tem nenhum tipo de registro cadastrado (ex.: Coalizão)", async () => {
     const { client } = criarClienteMock({ ref_tipo_registro: { data: [], error: null } });
     expect(await buscarTiposRegistroDaEtapa(client, 999)).toEqual([]);
+  });
+});
+
+describe("buscarRegistrosDaEtapa", () => {
+  it("mapeia fat_registro da etapa com tipoRegistro/nomeAutor resolvidos por join client-side", async () => {
+    const { client, chamadas } = criarClienteMock({
+      ref_tipo_registro: { data: [{ id_tipo_registro: 5, nome: "Monitoramento mensal" }], error: null },
+      fat_registro: {
+        data: [{ id_registro: 1, id_tipo_registro: 5, ocorrido_em: "2026-08-01", resumo: "Reunião ok", id_usuario_autor: 9 }],
+        error: null,
+      },
+      dim_usuario: { data: [{ id_usuario: 9, nome: "Fulano" }], error: null },
+    });
+
+    const resultado = await buscarRegistrosDaEtapa(client, 100, 10);
+
+    expect(resultado).toEqual([
+      { idRegistro: 1, tipoRegistro: "Monitoramento mensal", ocorridoEm: "2026-08-01", resumo: "Reunião ok", nomeAutor: "Fulano" },
+    ]);
+    const eqsRegistro = chamadas.filter((c) => c.tabela === "fat_registro" && c.metodo === "eq").map((c) => c.args);
+    expect(eqsRegistro).toContainEqual(["id_contrato", 100]);
+  });
+
+  // Edge Case (spec.md): Coalizão sem ref_tipo_registro seedado -- lista de Registro vazia, não erro.
+  it("retorna [] quando a etapa não tem nenhum tipo de registro cadastrado", async () => {
+    const { client } = criarClienteMock({ ref_tipo_registro: { data: [], error: null } });
+    expect(await buscarRegistrosDaEtapa(client, 100, 999)).toEqual([]);
+  });
+
+  it("retorna [] quando não há nenhum fat_registro para os tipos da etapa", async () => {
+    const { client } = criarClienteMock({
+      ref_tipo_registro: { data: [{ id_tipo_registro: 5, nome: "Monitoramento mensal" }], error: null },
+      fat_registro: { data: [], error: null },
+    });
+    expect(await buscarRegistrosDaEtapa(client, 100, 10)).toEqual([]);
+  });
+});
+
+describe("buscarEncontrosDoContrato", () => {
+  it("mapeia fat_encontro do contrato para EncontroResumo", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_encontro: {
+        data: [
+          { id_encontro: 1, titulo: "Reunião com gabinete", status: "planejado", dt_prevista_inicio: "2026-09-01", dt_realizada: null },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarEncontrosDoContrato(client, 100);
+
+    expect(resultado).toEqual([
+      { idEncontro: 1, titulo: "Reunião com gabinete", status: "planejado", dtPrevistaInicio: "2026-09-01", dtRealizada: null },
+    ]);
+    const eqs = chamadas.filter((c) => c.tabela === "fat_encontro" && c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["id_contrato", 100]);
+  });
+
+  it("retorna [] quando o contrato não tem nenhum Encontro", async () => {
+    const { client } = criarClienteMock({ fat_encontro: { data: [], error: null } });
+    expect(await buscarEncontrosDoContrato(client, 100)).toEqual([]);
+  });
+});
+
+describe("buscarInsightsDoContrato", () => {
+  it("mapeia fat_insight do contrato com pilar resolvido por join client-side", async () => {
+    const { client } = criarClienteMock({
+      fat_insight: {
+        data: [{ id_insight: 1, conteudo: "Observação", id_pilar: 2, ocorrido_em: "2026-08-01" }],
+        error: null,
+      },
+      ref_pilar_insight: { data: [{ id_pilar: 2, nome: "Consciência" }], error: null },
+    });
+
+    const resultado = await buscarInsightsDoContrato(client, 100);
+
+    expect(resultado).toEqual([{ idInsight: 1, conteudo: "Observação", pilar: "Consciência", ocorridoEm: "2026-08-01" }]);
+  });
+
+  // Edge Case (spec.md): Insight sem Pilar (id_pilar nullable) -- pilar null, sem consulta extra.
+  it("mapeia pilar null quando id_pilar é null (sem origem)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_insight: { data: [{ id_insight: 1, conteudo: "Observação", id_pilar: null, ocorrido_em: null }], error: null },
+    });
+
+    const resultado = await buscarInsightsDoContrato(client, 100);
+
+    expect(resultado).toEqual([{ idInsight: 1, conteudo: "Observação", pilar: null, ocorridoEm: null }]);
+    expect(chamadas.some((c) => c.tabela === "ref_pilar_insight")).toBe(false);
+  });
+
+  it("retorna [] quando o contrato não tem nenhum Insight", async () => {
+    const { client } = criarClienteMock({ fat_insight: { data: [], error: null } });
+    expect(await buscarInsightsDoContrato(client, 100)).toEqual([]);
+  });
+});
+
+describe("buscarFatosGeradoresDoContrato", () => {
+  it("mapeia fat_fato_gerador do contrato com tipologia concatenada e niveis d1/d2/d3", async () => {
+    const { client } = criarClienteMock({
+      fat_fato_gerador: {
+        data: [{ id_fato_gerador: 1, id_tipologia: 3, nivel_d1: "alto", nivel_d2: null, nivel_d3: null, dt_ocorrencia: "2026-08-01" }],
+        error: null,
+      },
+      ref_tipologia: {
+        data: [{ id_tipologia: 3, grupo: "1. Planejamento e Agenda", tipologia: "Pautar Debates", estado: "Iniciado" }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarFatosGeradoresDoContrato(client, 100);
+
+    expect(resultado).toEqual([
+      {
+        idFatoGerador: 1,
+        tipologia: "1. Planejamento e Agenda · Pautar Debates · Iniciado",
+        niveis: { d1: "alto", d2: null, d3: null },
+        dtOcorrencia: "2026-08-01",
+      },
+    ]);
+  });
+
+  it("retorna [] quando o contrato não tem nenhum Fato Gerador", async () => {
+    const { client } = criarClienteMock({ fat_fato_gerador: { data: [], error: null } });
+    expect(await buscarFatosGeradoresDoContrato(client, 100)).toEqual([]);
   });
 });
