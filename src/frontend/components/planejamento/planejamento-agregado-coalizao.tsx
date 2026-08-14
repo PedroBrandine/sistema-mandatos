@@ -14,17 +14,21 @@ import { createClient } from "@backend/supabase/client";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 
-import { PlanejamentoArvore } from "./planejamento-arvore";
+import { PERMISSOES } from "./permissoes";
+import { PlanejamentoGrade } from "./planejamento-grade";
 
 // Edge Case do spec.md ("Coalizão sem planejamento próprio"): "SHALL mostrar
 // a leitura agregada dos mandatos membros, nunca um formulário de criação de
 // Objetivo (não existe dim_planejamento própria pra escrever)". Reusa
-// PlanejamentoArvore 1x por membro, sem agregação nova (context.md) -- e
-// sempre somenteLeitura (é leitura, não a tela de gestão do contrato do
-// membro).
+// PlanejamentoGrade (T16, .specs/features/planejamento-estrategico-redesenho
+// -- substitui PlanejamentoArvore) 1x por membro, sem agregação nova
+// (context.md) -- e sempre somenteLeitura (é leitura, não a tela de gestão
+// do contrato do membro). `permissoes: PERMISSOES.gestora` + `modo="ler"`:
+// maximiza visibilidade de coluna (é um resumo, não deve esconder nada por
+// papel) -- `somenteLeitura` já derruba toda capacidade de escrita
+// independente do perfil de permissões escolhido aqui.
 export interface PlanejamentoAgregadoCoalizaoProps {
   idCoalizao: number;
-  mesReferencia: string;
 }
 
 interface DadosMembro {
@@ -32,7 +36,7 @@ interface DadosMembro {
   planejamento: PlanejamentoCompleto | null;
 }
 
-export function PlanejamentoAgregadoCoalizao({ idCoalizao, mesReferencia }: PlanejamentoAgregadoCoalizaoProps) {
+export function PlanejamentoAgregadoCoalizao({ idCoalizao }: PlanejamentoAgregadoCoalizaoProps) {
   const [dados, setDados] = useState<DadosMembro[] | null>(null);
 
   useEffect(() => {
@@ -65,7 +69,7 @@ export function PlanejamentoAgregadoCoalizao({ idCoalizao, mesReferencia }: Plan
   return (
     <div className="grid gap-8">
       {dados.map(({ membro, planejamento }) => (
-        <DadosPlanejamentoMembro key={membro.idContrato} nomeContratante={membro.nomeContratante} planejamento={planejamento} mesReferencia={mesReferencia} />
+        <DadosPlanejamentoMembro key={membro.idContrato} nomeContratante={membro.nomeContratante} planejamento={planejamento} />
       ))}
     </div>
   );
@@ -74,11 +78,9 @@ export function PlanejamentoAgregadoCoalizao({ idCoalizao, mesReferencia }: Plan
 function DadosPlanejamentoMembro({
   nomeContratante,
   planejamento,
-  mesReferencia,
 }: {
   nomeContratante: string;
   planejamento: PlanejamentoCompleto | null;
-  mesReferencia: string;
 }) {
   const [linhasGrade, setLinhasGrade] = useState<Awaited<ReturnType<typeof buscarGradeSucessosMensais>> | null>(null);
   const idsMeta = planejamento?.objetivos.flatMap((o) => o.metas.map((m) => m.idMeta)) ?? [];
@@ -86,26 +88,28 @@ function DadosPlanejamentoMembro({
   useEffect(() => {
     let cancelado = false;
     const supabase = createClient();
-    buscarGradeSucessosMensais(supabase, idsMeta, mesReferencia).then((linhas) => {
+    buscarGradeSucessosMensais(supabase, idsMeta).then((linhas) => {
       if (!cancelado) setLinhasGrade(linhas);
     });
     return () => {
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planejamento?.idPlanejamento, mesReferencia]);
+  }, [planejamento?.idPlanejamento]);
 
   if (!planejamento) return null;
 
   return (
     <section className="grid gap-4 border-t pt-6 first:border-t-0 first:pt-0">
       <h3 className="text-base font-medium">{nomeContratante}</h3>
-      <PlanejamentoArvore
+      <PlanejamentoGrade
         idPlanejamento={planejamento.idPlanejamento}
         produtoNome="Estratégia"
         objetivos={planejamento.objetivos}
         linhas={linhasGrade ?? []}
         pessoasVinculadas={[]}
+        permissoes={PERMISSOES.gestora}
+        modo="ler"
         onEdicaoCelula={async () => {}}
         onColarFaixa={async () => {}}
         onHierarquiaAlterada={() => {}}

@@ -501,11 +501,27 @@ neste momento. Troca a referência de `PlanejamentoArvore` por `PlanejamentoGrad
 **Requirement**: PLR-09
 
 **Done when**:
-- [ ] Nenhuma referência a `planejamento-arvore` sobrando no repositório (`grep` confirma)
-- [ ] Coalizão sem planejamento próprio continua mostrando 1 seção por membro, agora com a grade nova
-- [ ] `npm run build && npm run lint:all` limpos
+- [x] Nenhuma referência a `planejamento-arvore` sobrando no repositório (`grep` confirma)
+- [x] Coalizão sem planejamento próprio continua mostrando 1 seção por membro, agora com a grade nova
+- [x] `npm run build && npm run lint:all` limpos
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `git log -5` confirmado limpo (sem sessão paralela tocando
+esses 2 arquivos) antes de editar. `PlanejamentoAgregadoCoalizao` usa `PlanejamentoGrade` com
+`permissoes: PERMISSOES.gestora` (maximiza visibilidade de coluna — é resumo, não deveria esconder
+nada por papel) + `modo="ler"` + `somenteLeitura` (já derrubava toda escrita antes, continua).
+`planejamento-arvore.tsx` removido (`git rm`, nunca teve teste próprio — mesmo débito de UI já
+conhecido). Companion edit: prop `mesReferencia` (não mais usada por `buscarGradeSucessosMensais`
+desde T4/D-C) removida de `PlanejamentoAgregadoCoalizaoProps`/`DadosPlanejamentoMembro`/callsite
+em `page.tsx` — dead prop-threading, mesma decisão D-C já aplicada no resto da tela.
+
+---
+
+## Fase 3 (T11-T16) concluída — árvore-grade unificada com modos
+
+Todas as 6 tasks commitadas nesta sessão, gate completo (`npm run test:unit`: 401/401;
+`npm run build`; `npm run lint:frontend`) verde a cada task, sem regressão de baseline.
 
 ---
 

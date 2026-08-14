@@ -235,7 +235,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   }
 
   if (coalizaoSemPlanejamentoProprio !== null) {
-    return <PlanejamentoAgregadoCoalizao idCoalizao={coalizaoSemPlanejamentoProprio} mesReferencia={mesReferencia} />;
+    return <PlanejamentoAgregadoCoalizao idCoalizao={coalizaoSemPlanejamentoProprio} />;
   }
 
   if (!planejamento) {
