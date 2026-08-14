@@ -1,19 +1,67 @@
 import Link from "next/link";
 import { LayoutDashboard } from "lucide-react";
 
+import { createClient } from "@backend/supabase/server";
+import { buscarPapelGlobalAtual } from "@backend/queries/usuario";
+import type { FiltroRecorte } from "@backend/queries/visao-gerencial";
 import { PRODUTO_SLUGS } from "@backend/queries/produto";
+import { NaoAutorizado } from "@/components/app-shell/nao-autorizado";
 import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarteiraPonderadaCard } from "@/components/visao-gerencial/carteira-ponderada-card";
 import { CicloEtapaCard } from "@/components/visao-gerencial/ciclo-etapa-card";
 
-// GG-07 (P2 AC1-AC3): G1 + G2 na mesma tela, cada um com seu próprio filtro
-// (CarteiraPonderadaCard/CicloEtapaCard não compartilham estado), link pro
-// Kanban de cada produto (PRODUTO_SLUGS, rota /produtos/{slug}/dashboard) e
-// placeholder "G3-G6 em desenvolvimento" pro restante da Visão Gerencial
-// (Constituição §2.6) -- não sugere que a tela está completa.
-export default function VisaoGerencialPage() {
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function primeiroValor(valor: string | string[] | undefined): string | undefined {
+  return Array.isArray(valor) ? valor[0] : valor;
+}
+
+function parseFiltroRecorte(searchParams: SearchParams): FiltroRecorte {
+  const numeroOuUndefined = (chave: string): number | undefined => {
+    const bruto = primeiroValor(searchParams[chave]);
+    if (bruto === undefined) return undefined;
+    const n = Number(bruto);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  return {
+    idProduto: numeroOuUndefined("produto"),
+    idProjeto: numeroOuUndefined("projeto"),
+    idGestora: numeroOuUndefined("gestora"),
+    idMentor: numeroOuUndefined("mentor"),
+    mesesEvolucao: numeroOuUndefined("periodo"),
+  };
+}
+
+// visao-gerencial-g3-g6, T19: primeiro Server Component + gate de papel
+// server-side do projeto (design.md, Tech Decisions). GER-01 -- mentor/
+// assessor bloqueados mesmo por URL direta, antes de qualquer bloco de
+// dado renderizar (checagem acontece aqui, não no proxy de sessão --
+// src/backend/supabase/proxy.ts só resolve autenticado-ou-não por padrão do
+// projeto, lição L-009). Shell provisório: os 4 blocos reais (Bloco 0/1/2/3)
+// substituem G1/G2+placeholder em T22-T30, sem regredir o que já funciona
+// (G1/G2 validados em visao-gerencial-g1-g2) enquanto o resto é construído.
+export default async function VisaoGerencialPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const client = await createClient();
+  const papel = await buscarPapelGlobalAtual(client);
+
+  if (papel === "mentor" || papel === "assessor") {
+    return (
+      <div className="mx-auto grid max-w-6xl gap-6 p-6">
+        <NaoAutorizado />
+      </div>
+    );
+  }
+
+  const filtro = parseFiltroRecorte(await searchParams);
+  void filtro; // consumido pelos blocos reais a partir de T22 -- shell desta task não lê ainda
+
   return (
     <div className="mx-auto grid max-w-6xl gap-6 p-6">
       <CarteiraPonderadaCard />
