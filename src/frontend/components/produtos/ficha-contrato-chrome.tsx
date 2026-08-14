@@ -14,9 +14,12 @@ import {
 } from "@backend/queries/contrato";
 
 import { RouteTabs, type RouteTabItem } from "@/components/app-shell/route-tabs";
+import { FatoGeradorForm } from "@/components/incidencia/fato-gerador-form";
 import { IipCard } from "@/components/incidencia/iip-card";
+import { InsightForm } from "@/components/incidencia/insight-form";
 import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface FichaContratoChromeProps {
   idContrato: number;
@@ -32,6 +35,12 @@ interface FichaContratoChromeProps {
 export function FichaContratoChrome({ idContrato, children }: FichaContratoChromeProps) {
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
   const [etapas, setEtapas] = useState<EtapaResumo[]>([]);
+  const [dialogInsightAberto, setDialogInsightAberto] = useState(false);
+  const [dialogFatoGeradorAberto, setDialogFatoGeradorAberto] = useState(false);
+  // T31: força IipCard a remontar (e refazer o refresh síncrono de
+  // mv_iip_contrato) depois de um Fato Gerador novo -- Insight não afeta o
+  // IIP, não precisa disso.
+  const [iipRefreshKey, setIipRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
@@ -95,13 +104,51 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <IipCard idContrato={idContrato} />
-          <Button type="button" variant="outline" size="sm" onClick={() => toast("Em desenvolvimento")}>
-            Registrar Insight
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => toast("Em desenvolvimento")}>
-            Registrar Fato Gerador
-          </Button>
+          <IipCard key={iipRefreshKey} idContrato={idContrato} />
+
+          <Dialog open={dialogInsightAberto} onOpenChange={setDialogInsightAberto}>
+            <DialogTrigger asChild>
+              <Button type="button" variant="outline" size="sm">
+                Registrar Insight
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Registrar Insight</DialogTitle>
+              </DialogHeader>
+              <InsightForm
+                idContrato={idContrato}
+                onConcluido={() => {
+                  setDialogInsightAberto(false);
+                  toast.success("Insight registrado com sucesso!");
+                }}
+                onCancelar={() => setDialogInsightAberto(false)}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={dialogFatoGeradorAberto} onOpenChange={setDialogFatoGeradorAberto}>
+            <DialogTrigger asChild>
+              <Button type="button" variant="outline" size="sm">
+                Registrar Fato Gerador
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Registrar Fato Gerador</DialogTitle>
+              </DialogHeader>
+              <FatoGeradorForm
+                idContrato={idContrato}
+                onConcluido={() => {
+                  setDialogFatoGeradorAberto(false);
+                  setIipRefreshKey((k) => k + 1);
+                  toast.success("Fato Gerador registrado com sucesso!");
+                }}
+                onCancelar={() => setDialogFatoGeradorAberto(false)}
+              />
+            </DialogContent>
+          </Dialog>
+
           <Link href={`${base}/planejamento`}>
             <Button type="button" variant="outline" size="sm">
               Planejamento Estratégico
