@@ -261,6 +261,59 @@ export async function buscarPreditoresPlanejamento(
   return data.map((linha) => ({ idPreditor: linha.id_preditor, ordem: linha.ordem }));
 }
 
+export interface HistoricoAuditoria {
+  idLog: number;
+  quem: string;
+  quando: string;
+  acao: "insert" | "update" | "delete";
+  valorAnterior: Record<string, unknown> | null;
+  valorNovo: Record<string, unknown> | null;
+}
+
+// PLR-13. Histórico de auditoria de um item da árvore (Objetivo/Meta/Sucesso Mensal) --
+// log_auditoria já existe e já está conectado às 5 tabelas do planejamento
+// (app.trg_auditoria, docs/schema_sistema.sql:1690-1710); esta é a primeira leitura de UI
+// dela. Nenhuma tabela/RLS nova -- log_auditoria e a RLS que já a protege
+// (p_log_admin, docs/schema_sistema.sql:1627) existem desde a Fundação.
+//
+// Nota (nomenclatura confirmada contra o schema real antes de escrever, T3 pede
+// explicitamente isso): não existe coluna "campo" -- valor_anterior/valor_novo são
+// snapshots JSONB da linha inteira (to_jsonb(OLD)/to_jsonb(NEW) em app.trg_auditoria()),
+// não um diff por campo único. HistoricoAuditoria expõe os snapshots completos; extrair
+// "qual campo mudou de X para Y" a partir deles é responsabilidade do componente de
+// leitura (ModalHistorico, Fase 4), não desta query.
+export async function buscarHistoricoAuditoria(
+  client: SupabaseClient<Database>,
+  tabela: string,
+  idRegistro: number
+): Promise<HistoricoAuditoria[]> {
+  const { data, error } = await client
+    .from("log_auditoria")
+    .select("id_log, id_usuario, ocorrido_em, acao, valor_anterior, valor_novo")
+    .eq("tabela", tabela)
+    .eq("id_registro_alvo", idRegistro)
+    .order("ocorrido_em", { ascending: false });
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
+
+  const idsUsuario = Array.from(new Set(data.map((linha) => linha.id_usuario)));
+  const { data: usuarios, error: erroUsuarios } = await client
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .in("id_usuario", idsUsuario);
+  if (erroUsuarios) throw erroUsuarios;
+  const nomesPorId = new Map((usuarios ?? []).map((u) => [u.id_usuario, u.nome]));
+
+  return data.map((linha) => ({
+    idLog: linha.id_log as number,
+    quem: nomesPorId.get(linha.id_usuario as number) ?? "",
+    quando: linha.ocorrido_em as string,
+    acao: linha.acao as "insert" | "update" | "delete",
+    valorAnterior: (linha.valor_anterior as Record<string, unknown> | null) ?? null,
+    valorNovo: (linha.valor_novo as Record<string, unknown> | null) ?? null,
+  }));
+}
+
 export interface PessoaVinculada {
   idUsuario: number;
   nome: string;

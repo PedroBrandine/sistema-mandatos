@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../supabase/database.types";
 import {
   buscarGradeSucessosMensais,
+  buscarHistoricoAuditoria,
   buscarPessoasVinculadasAoContrato,
   buscarPlanejamentoCompleto,
   buscarPreditoresPlanejamento,
@@ -15,6 +16,9 @@ import {
 //  - buscarGradeSucessosMensais retorna os Sucessos Mensais das Metas informadas
 //    num mês, dias_atraso/esta_atrasado derivados nunca recalculados no client
 //  - Lista vazia (sem objetivos, sem idsMeta) nunca lança
+// Spec anchor: PLR-13 (.specs/features/planejamento-estrategico-redesenho/spec.md) --
+//  - buscarHistoricoAuditoria retorna o histórico de log_auditoria de um item, camelCase,
+//    mais recente primeiro, [] quando não há histórico
 
 // Mesmo padrão de kanban.test.ts: mock roteado por nome de tabela, fila de
 // respostas quando a mesma tabela é consultada mais de uma vez.
@@ -303,5 +307,99 @@ describe("buscarPessoasVinculadasAoContrato", () => {
     const resultado = await buscarPessoasVinculadasAoContrato(client, 10);
     expect(resultado).toEqual([]);
     expect(chamadas.some((c) => c.tabela === "dim_usuario")).toBe(false);
+  });
+});
+
+describe("buscarHistoricoAuditoria", () => {
+  it("retorna [] sem consultar dim_usuario quando não há histórico", async () => {
+    const { client, chamadas } = criarClienteMock({ log_auditoria: { data: [], error: null } });
+    const resultado = await buscarHistoricoAuditoria(client, "fat_meta", 200);
+    expect(resultado).toEqual([]);
+    expect(chamadas.some((c) => c.tabela === "dim_usuario")).toBe(false);
+  });
+
+  it("retorna o histórico mapeado para camelCase, mais recente primeiro, com o nome do usuário resolvido", async () => {
+    const { client, chamadas } = criarClienteMock({
+      log_auditoria: {
+        data: [
+          {
+            id_log: 900,
+            id_usuario: 42,
+            ocorrido_em: "2026-08-13T10:00:00Z",
+            acao: "update",
+            valor_anterior: { pct_atingimento: 60 },
+            valor_novo: { pct_atingimento: 80 },
+          },
+          {
+            id_log: 899,
+            id_usuario: 42,
+            ocorrido_em: "2026-08-01T09:00:00Z",
+            acao: "insert",
+            valor_anterior: null,
+            valor_novo: { pct_atingimento: 60 },
+          },
+        ],
+        error: null,
+      },
+      dim_usuario: {
+        data: [{ id_usuario: 42, nome: "Fulano Mentor" }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarHistoricoAuditoria(client, "fat_meta", 200);
+
+    expect(resultado).toEqual([
+      {
+        idLog: 900,
+        quem: "Fulano Mentor",
+        quando: "2026-08-13T10:00:00Z",
+        acao: "update",
+        valorAnterior: { pct_atingimento: 60 },
+        valorNovo: { pct_atingimento: 80 },
+      },
+      {
+        idLog: 899,
+        quem: "Fulano Mentor",
+        quando: "2026-08-01T09:00:00Z",
+        acao: "insert",
+        valorAnterior: null,
+        valorNovo: { pct_atingimento: 60 },
+      },
+    ]);
+
+    const chamadaEqTabela = chamadas.find(
+      (c) => c.tabela === "log_auditoria" && c.metodo === "eq" && c.args[0] === "tabela"
+    );
+    expect(chamadaEqTabela?.args).toEqual(["tabela", "fat_meta"]);
+    const chamadaEqRegistro = chamadas.find(
+      (c) => c.tabela === "log_auditoria" && c.metodo === "eq" && c.args[0] === "id_registro_alvo"
+    );
+    expect(chamadaEqRegistro?.args).toEqual(["id_registro_alvo", 200]);
+    const chamadaOrder = chamadas.find((c) => c.tabela === "log_auditoria" && c.metodo === "order");
+    expect(chamadaOrder?.args).toEqual(["ocorrido_em", { ascending: false }]);
+  });
+
+  it("usa string vazia como quem quando o usuário não é encontrado em dim_usuario", async () => {
+    const { client } = criarClienteMock({
+      log_auditoria: {
+        data: [
+          {
+            id_log: 900,
+            id_usuario: 999,
+            ocorrido_em: "2026-08-13T10:00:00Z",
+            acao: "update",
+            valor_anterior: null,
+            valor_novo: null,
+          },
+        ],
+        error: null,
+      },
+      dim_usuario: { data: [], error: null },
+    });
+
+    const resultado = await buscarHistoricoAuditoria(client, "fat_meta", 200);
+
+    expect(resultado[0].quem).toBe("");
   });
 });
