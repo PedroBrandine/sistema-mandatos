@@ -81,6 +81,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const [busca, setBusca] = useState("");
   const [soPendentes, setSoPendentes] = useState(false);
   const [soMinhasMetas, setSoMinhasMetas] = useState(false);
+  const [quantidadeMarcada, setQuantidadeMarcada] = useState(0);
   const gradeRef = useRef<PlanejamentoGradeHandle>(null);
 
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
@@ -311,6 +312,8 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             onExpandirTudo={() => gradeRef.current?.expandirTudo()}
             onRecolherTudo={() => gradeRef.current?.recolherTudo()}
             onCriarObjetivo={() => gradeRef.current?.criarObjetivo()}
+            quantidadeMarcada={quantidadeMarcada}
+            onAplicarEmMassa={(valor) => gradeRef.current?.aplicarEmMassa(valor)}
           />
 
           <PlanejamentoGrade
@@ -326,6 +329,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             soPendentes={soPendentes}
             soMinhasMetas={soMinhasMetas}
             idUsuario={idUsuario}
+            onSelecaoMudou={setQuantidadeMarcada}
             onEdicaoCelula={handleEdicaoCelula}
             onColarFaixa={handleColarFaixa}
             onHierarquiaAlterada={recarregarHierarquia}

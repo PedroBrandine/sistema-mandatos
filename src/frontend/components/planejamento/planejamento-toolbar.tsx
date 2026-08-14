@@ -1,6 +1,9 @@
 "use client";
 
 import { ChevronsDown, ChevronsUp, Search } from "lucide-react";
+import { useState } from "react";
+
+import { normalizaEntradaPct } from "@/lib/planejamento-formato";
 
 import type { ModoPlanejamento, PermissoesModo } from "./permissoes";
 
@@ -26,6 +29,11 @@ export interface PlanejamentoToolbarProps {
   onExpandirTudo: () => void;
   onRecolherTudo: () => void;
   onCriarObjetivo: () => void;
+  // PLR-17 (T22): "aplicar % em massa" -- a toolbar só mostra o contador e
+  // recebe o valor final; quem decide QUAIS células estão marcadas e
+  // reescreve o banco é a PlanejamentoGrade (onAplicarEmMassa delega lá).
+  quantidadeMarcada: number;
+  onAplicarEmMassa: (valor: number) => void;
 }
 
 export function PlanejamentoToolbar({
@@ -40,8 +48,11 @@ export function PlanejamentoToolbar({
   onExpandirTudo,
   onRecolherTudo,
   onCriarObjetivo,
+  quantidadeMarcada,
+  onAplicarEmMassa,
 }: PlanejamentoToolbarProps) {
   const mostraSoMinhasMetas = !permissoes.crudHierarquia;
+  const [valorEmMassa, setValorEmMassa] = useState("");
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
       <Button type="button" variant="ghost" size="sm" onClick={onExpandirTudo}>
@@ -85,6 +96,34 @@ export function PlanejamentoToolbar({
           />
           Só as minhas metas
         </label>
+      )}
+
+      {quantidadeMarcada > 0 && (
+        <div className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-1">
+          <span className="text-xs text-muted-foreground">{quantidadeMarcada} selecionada(s)</span>
+          <Input
+            type="text"
+            inputMode="decimal"
+            placeholder="valor %"
+            value={valorEmMassa}
+            onChange={(e) => setValorEmMassa(e.target.value)}
+            className="h-7 w-20"
+            aria-label="Valor a aplicar nas células selecionadas"
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="h-7"
+            onClick={() => {
+              const pct = normalizaEntradaPct(valorEmMassa);
+              if (pct === null) return;
+              onAplicarEmMassa(pct);
+              setValorEmMassa("");
+            }}
+          >
+            Aplicar
+          </Button>
+        </div>
       )}
 
       <div className="ml-auto flex items-center gap-2">

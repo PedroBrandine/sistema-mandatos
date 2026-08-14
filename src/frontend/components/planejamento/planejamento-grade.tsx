@@ -77,6 +77,10 @@ export interface PlanejamentoGradeProps {
   // fat_meta.idUsuarioResponsavel.
   soMinhasMetas?: boolean;
   idUsuario?: number | null;
+  // PLR-17 (T22, PlanejamentoToolbar): a toolbar só precisa saber QUANTAS
+  // células estão marcadas (pra mostrar "Aplicar aos N selecionados") -- o
+  // `Set` inteiro continua vivendo aqui, fonte única do estilo "marcada".
+  onSelecaoMudou?: (quantidade: number) => void;
 }
 
 // PLR-11 (T14): expandir/recolher tudo é ação do PlanejamentoToolbar, que
@@ -89,6 +93,10 @@ export interface PlanejamentoGradeHandle {
   // PLR-11: "+ Objetivo" mora no PlanejamentoToolbar (T14), mas a ação de
   // criar continua sendo o mesmo estado interno `acaoAtiva` desta árvore.
   criarObjetivo: () => void;
+  // PLR-17 (T22): aplica `valor` a todas as células marcadas via shift+clique,
+  // reusando o mesmo caminho de escrita em lote do paste de faixa (PLM-03/
+  // AD-024 -- N updates soltos deixariam estado parcial se um falhasse).
+  aplicarEmMassa: (valor: number) => void;
 }
 
 function formatarPct(valor: number | null): string {
@@ -139,13 +147,16 @@ interface CelulaPctProps {
   // `ArrowUp`/`Home`/`End` sabem pra qual célula ir (não há outra estrutura
   // de "próxima linha" numa lista achatada por Objetivo/Meta).
   ordemVisualIds: number[];
+  // PLR-17 (T22): shift+clique marca/desmarca a célula pra edição em massa.
+  marcada: boolean;
+  onAlternarMarcada: (idSucesso: number) => void;
 }
 
 function idCampoPct(idSucesso: number): string {
   return `planejamento-pct-${idSucesso}`;
 }
 
-function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio, ordemVisualIds }: CelulaPctProps) {
+function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio, ordemVisualIds, marcada, onAlternarMarcada }: CelulaPctProps) {
   return (
     <div className="grid gap-1">
       <input
@@ -160,8 +171,14 @@ function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio, ordem
         className={cn(
           "w-24 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-xs outline-none",
           "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-          erro && "border-destructive focus-visible:ring-destructive/20"
+          erro && "border-destructive focus-visible:ring-destructive/20",
+          marcada && "ring-2 ring-primary border-primary"
         )}
+        // PLR-17 (T22): shift+clique marca/desmarca sem impedir o foco normal
+        // (o clique continua focando a célula pra edição de teclado também).
+        onClick={(e) => {
+          if (e.shiftKey) onAlternarMarcada(linha.idSucesso);
+        }}
         onBlur={(e) => onCommit(linha.idSucesso, e.currentTarget.value)}
         onPaste={(e) => {
           const texto = e.clipboardData.getData("text");
@@ -222,6 +239,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     soPendentes = false,
     soMinhasMetas = false,
     idUsuario = null,
+    onSelecaoMudou,
   },
   ref
 ) {
@@ -243,6 +261,28 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
   // separados evita que abrir um precise saber fechar o outro.
   const [historicoAlvo, setHistoricoAlvo] = useState<{ tabela: string; idRegistro: number; titulo: string } | null>(null);
   const [erros, setErros] = useState<Record<number, string>>({});
+  // PLR-17 (T22): células marcadas via shift+clique, pra aplicar 1 valor a
+  // todas de uma vez (toolbar). Vive aqui (não no pai) -- é a mesma árvore
+  // que decide o estilo visual "marcada" célula a célula.
+  const [celulasMarcadas, setCelulasMarcadas] = useState<Set<number>>(new Set());
+
+  const alternarMarcada = useCallback(
+    (idSucesso: number) => {
+      setCelulasMarcadas((atual) => {
+        const copia = new Set(atual);
+        if (copia.has(idSucesso)) copia.delete(idSucesso);
+        else copia.add(idSucesso);
+        return copia;
+      });
+    },
+    []
+  );
+
+  // Notifica o pai (contador "N selecionadas" da toolbar) fora do updater de
+  // `setCelulasMarcadas` -- updater precisa ser puro, o callback do pai não.
+  useEffect(() => {
+    onSelecaoMudou?.(celulasMarcadas.size);
+  }, [celulasMarcadas, onSelecaoMudou]);
 
   // T14: "expandir/recolher tudo" é ação do PlanejamentoToolbar (fora desta
   // árvore) -- exposta via ref em vez de levantar `expandidos` pro pai.
@@ -255,8 +295,14 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         ),
       recolherTudo: () => setExpandidos(new Set()),
       criarObjetivo: () => setAcaoAtiva({ tipo: "criar-objetivo" }),
+      aplicarEmMassa: (valor: number) => {
+        if (celulasMarcadas.size === 0) return;
+        const atualizacoes = Array.from(celulasMarcadas).map((idSucesso) => ({ idSucesso, pctAtingimento: valor }));
+        void onColarFaixa(atualizacoes);
+        setCelulasMarcadas(new Set());
+      },
     }),
-    [objetivos]
+    [objetivos, celulasMarcadas, onColarFaixa]
   );
 
   const nomePorUsuario = useMemo(() => new Map(pessoasVinculadas.map((p) => [p.idUsuario, p.nome])), [pessoasVinculadas]);
@@ -605,6 +651,8 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
                 onCommit={handleCommitCelula}
                 onPasteInicio={handlePasteInicio}
                 ordemVisualIds={ordemVisualIds}
+                marcada={celulasMarcadas.has(item.linha.idSucesso)}
+                onAlternarMarcada={alternarMarcada}
               />
             );
           }
@@ -731,6 +779,8 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       handleCommitCelula,
       handlePasteInicio,
       ordemVisualIds,
+      celulasMarcadas,
+      alternarMarcada,
     ]
   );
 

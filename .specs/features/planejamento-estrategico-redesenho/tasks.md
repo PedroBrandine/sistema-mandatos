@@ -672,10 +672,17 @@ todos os marcados.
 **Requirement**: PLR-17
 
 **Done when**:
-- [ ] Marcar 3 células + aplicar valor grava as 3 numa única chamada de lote
-- [ ] `npm run build` limpo
+- [x] Marcar 3 células + aplicar valor grava as 3 numa única chamada de lote
+- [x] `npm run build` limpo
 
 **Tests**: none (componente) · **Gate**: build
+
+✅ **Concluída** — commit pendente. Shift+clique alterna `celulasMarcadas` (Set local à
+`PlanejamentoGrade`, estilo visual `ring-2 ring-primary`); toolbar recebe só a contagem
+(`onSelecaoMudou`, via `useEffect` — nunca dentro do updater de `setCelulasMarcadas`, que precisa
+ficar puro) e mostra "N selecionada(s)" + input + "Aplicar" quando `> 0`. `aplicarEmMassa`
+(`PlanejamentoGradeHandle`) reusa `onColarFaixa` — mesma RPC de lote do paste de faixa (AD-024:
+N updates soltos deixariam estado parcial se um falhasse no meio).
 
 ---
 
