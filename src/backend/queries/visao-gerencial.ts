@@ -638,3 +638,113 @@ export async function buscarDistribuicaoEtapas(
     return { idEtapa: e.id_etapa, nomeEtapa: e.nome, ordem: e.ordem, qtdAtiva: acc.ativa, qtdAtrasada: acc.atrasada };
   });
 }
+
+export interface LinhaAtingimento {
+  nome: string;
+  pctMedio: number | null;
+}
+
+export interface AtingimentoPorRecorte {
+  porProduto: LinhaAtingimento[];
+  porProjeto: LinhaAtingimento[];
+  qtdDesatualizados: number;
+  qtdSmNaoAtualizadosMesCorrente: number;
+}
+
+interface RowCarteiraAtingimento {
+  id_contrato: number;
+  nome_produto: string;
+  nome_projeto: string | null;
+  pct_atingimento: number | null;
+  atingimento_desatualizado: boolean;
+}
+
+function agruparAtingimento(linhas: RowCarteiraAtingimento[], porChave: (l: RowCarteiraAtingimento) => string | null) {
+  const acc = new Map<string, { soma: number; qtd: number }>();
+  for (const linha of linhas) {
+    const chave = porChave(linha);
+    if (chave === null || linha.pct_atingimento === null) continue;
+    const a = acc.get(chave) ?? { soma: 0, qtd: 0 };
+    a.soma += linha.pct_atingimento;
+    a.qtd += 1;
+    acc.set(chave, a);
+  }
+  return [...acc.entries()]
+    .map(([nome, a]) => ({ nome, pctMedio: a.qtd > 0 ? Math.round((a.soma / a.qtd) * 100) / 100 : null }))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+// GER-14, GER-16. vw_carteira filtrada a papel_no_contrato = 'gestora' -- 1
+// linha por contrato (mesma convenção já usada por vw_pendencias pra
+// resolver a Gestora do contrato; um contrato com 2 gestoras simultâneas
+// duplicaria a média, risco aceito, não é regra nova desta função).
+// atingimento_desatualizado contado à parte do agregado (spec.md: "o número
+// agregado não pode fingir estar fresco"). Contagem de SM não atualizados no
+// mês corrente: cadeia dim_planejamento -> fat_objetivo_especifico ->
+// fat_meta -> fat_sucesso_mensal (sem view própria -- mesmo padrão já aceito
+// pra "etapas concluídas sem registro" em buscarSaudeCobertura, fonte
+// explícita do pedido original).
+export async function buscarAtingimentoPorRecorte(
+  client: SupabaseClient<Database>,
+  filtro: FiltroRecorte
+): Promise<AtingimentoPorRecorte> {
+  const idsContrato = await resolverIdsContratoDoRecorte(client, filtro);
+
+  let queryCarteira = client
+    .from("vw_carteira")
+    .select("id_contrato, nome_produto, nome_projeto, pct_atingimento, atingimento_desatualizado")
+    .eq("papel_no_contrato", "gestora");
+  // vw_carteira não expõe id_produto (só nome_produto) -- o filtro de
+  // produto já chega via idsContrato (resolverIdsContratoDoRecorte lê
+  // fat_contrato.id_produto), sem precisar de coluna própria aqui.
+  if (idsContrato !== undefined) queryCarteira = queryCarteira.in("id_contrato", idsContrato);
+  const { data: carteiraData, error: erroCarteira } = await queryCarteira;
+  if (erroCarteira) throw erroCarteira;
+  const linhas = (carteiraData ?? []) as RowCarteiraAtingimento[];
+
+  const porProduto = agruparAtingimento(linhas, (l) => l.nome_produto);
+  const porProjeto = agruparAtingimento(linhas, (l) => l.nome_projeto);
+  const qtdDesatualizados = linhas.filter((l) => l.atingimento_desatualizado).length;
+
+  const mesCorrente = new Date();
+  const mesCorrenteStr = `${mesCorrente.getFullYear()}-${String(mesCorrente.getMonth() + 1).padStart(2, "0")}-01`;
+
+  const { data: planejamentoData, error: erroPlanejamento } = await aplicarFiltroContrato(
+    client.from("dim_planejamento").select("id_planejamento"),
+    idsContrato
+  );
+  if (erroPlanejamento) throw erroPlanejamento;
+  const idsPlanejamento = ((planejamentoData ?? []) as { id_planejamento: number }[]).map((p) => p.id_planejamento);
+
+  let qtdSmNaoAtualizadosMesCorrente = 0;
+  if (idsPlanejamento.length > 0) {
+    const { data: objetivosData, error: erroObjetivos } = await client
+      .from("fat_objetivo_especifico")
+      .select("id_objetivo")
+      .in("id_planejamento", idsPlanejamento);
+    if (erroObjetivos) throw erroObjetivos;
+    const idsObjetivo = ((objetivosData ?? []) as { id_objetivo: number }[]).map((o) => o.id_objetivo);
+
+    if (idsObjetivo.length > 0) {
+      const { data: metasData, error: erroMetas } = await client
+        .from("fat_meta")
+        .select("id_meta")
+        .in("id_objetivo", idsObjetivo);
+      if (erroMetas) throw erroMetas;
+      const idsMeta = ((metasData ?? []) as { id_meta: number }[]).map((m) => m.id_meta);
+
+      if (idsMeta.length > 0) {
+        const { data: smData, error: erroSm } = await client
+          .from("fat_sucesso_mensal")
+          .select("id_sucesso")
+          .in("id_meta", idsMeta)
+          .eq("status", "pendente")
+          .eq("mes_referencia", mesCorrenteStr);
+        if (erroSm) throw erroSm;
+        qtdSmNaoAtualizadosMesCorrente = ((smData ?? []) as { id_sucesso: number }[]).length;
+      }
+    }
+  }
+
+  return { porProduto, porProjeto, qtdDesatualizados, qtdSmNaoAtualizadosMesCorrente };
+}

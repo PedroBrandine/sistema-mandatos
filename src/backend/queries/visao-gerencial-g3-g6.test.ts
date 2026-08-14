@@ -7,6 +7,7 @@ import {
   buscarSaudeFormularios,
   buscarCarteiraPonderadaMensal,
   buscarDistribuicaoEtapas,
+  buscarAtingimentoPorRecorte,
 } from "./visao-gerencial";
 
 // Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-07 +
@@ -319,5 +320,71 @@ describe("buscarDistribuicaoEtapas", () => {
     });
 
     expect(await buscarDistribuicaoEtapas(client, { idProduto: 99 })).toEqual([]);
+  });
+});
+
+// Spec anchor: .specs/features/visao-gerencial-g3-g6/spec.md GER-14/GER-16 +
+// tasks.md T14 Done-when.
+describe("buscarAtingimentoPorRecorte", () => {
+  it("calcula pctMedio por produto e por projeto, ignorando NULL", async () => {
+    const client = criarClienteMock({
+      vw_carteira: {
+        data: [
+          { id_contrato: 1, nome_produto: "Estratégia", nome_projeto: "Imagina", pct_atingimento: 80, atingimento_desatualizado: false },
+          { id_contrato: 2, nome_produto: "Estratégia", nome_projeto: "Imagina", pct_atingimento: 60, atingimento_desatualizado: false },
+          { id_contrato: 3, nome_produto: "Estratégia", nome_projeto: null, pct_atingimento: null, atingimento_desatualizado: false },
+        ],
+        error: null,
+      },
+      dim_planejamento: { data: [], error: null },
+    });
+
+    const resultado = await buscarAtingimentoPorRecorte(client, {});
+
+    expect(resultado.porProduto).toEqual([{ nome: "Estratégia", pctMedio: 70 }]);
+    expect(resultado.porProjeto).toEqual([{ nome: "Imagina", pctMedio: 70 }]);
+  });
+
+  it("qtdDesatualizados conta separado do agregado (spec.md: agregado não pode fingir estar fresco)", async () => {
+    const client = criarClienteMock({
+      vw_carteira: {
+        data: [
+          { id_contrato: 1, nome_produto: "PLL", nome_projeto: null, pct_atingimento: 90, atingimento_desatualizado: true },
+          { id_contrato: 2, nome_produto: "PLL", nome_projeto: null, pct_atingimento: 50, atingimento_desatualizado: false },
+        ],
+        error: null,
+      },
+      dim_planejamento: { data: [], error: null },
+    });
+
+    const resultado = await buscarAtingimentoPorRecorte(client, {});
+
+    expect(resultado.qtdDesatualizados).toBe(1);
+    expect(resultado.porProduto).toEqual([{ nome: "PLL", pctMedio: 70 }]);
+  });
+
+  it("conta SM pendente do mês corrente via a cadeia dim_planejamento -> objetivo -> meta -> sucesso", async () => {
+    const client = criarClienteMock({
+      vw_carteira: { data: [], error: null },
+      dim_planejamento: { data: [{ id_planejamento: 1 }], error: null },
+      fat_objetivo_especifico: { data: [{ id_objetivo: 10 }], error: null },
+      fat_meta: { data: [{ id_meta: 100 }], error: null },
+      fat_sucesso_mensal: { data: [{ id_sucesso: 1000 }, { id_sucesso: 1001 }], error: null },
+    });
+
+    const resultado = await buscarAtingimentoPorRecorte(client, {});
+
+    expect(resultado.qtdSmNaoAtualizadosMesCorrente).toBe(2);
+  });
+
+  it("sem nenhum planejamento no recorte -> qtdSmNaoAtualizadosMesCorrente = 0, sem consultar a cadeia inteira", async () => {
+    const client = criarClienteMock({
+      vw_carteira: { data: [], error: null },
+      dim_planejamento: { data: [], error: null },
+    });
+
+    const resultado = await buscarAtingimentoPorRecorte(client, {});
+
+    expect(resultado.qtdSmNaoAtualizadosMesCorrente).toBe(0);
   });
 });
