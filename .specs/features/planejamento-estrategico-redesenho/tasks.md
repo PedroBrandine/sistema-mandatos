@@ -646,10 +646,19 @@ split de faixa colada.
 **Requirement**: PLR-16
 
 **Done when**:
-- [ ] Colar `"85,5\n90%\n70.2"` distribui 3 valores corretos nas 3 linhas seguintes
-- [ ] `npm run build` limpo
+- [x] Colar `"85,5\n90%\n70.2"` distribui 3 valores corretos nas 3 linhas seguintes
+- [x] `npm run build` limpo
 
 **Tests**: none (componente, lógica pura já testada em T2) · **Gate**: build
+
+✅ **Concluída** — commit pendente. `validaPct` local removida, os 2 call-sites
+(`handleCommitCelula`/`handlePasteInicio`) usam `normalizaEntradaPct` (T2). Achado corrigido
+durante a implementação, além do que a task pedia: `<input type="number">` nativo **rejeita**
+vírgula e `%` na digitação e no paste **antes** de `normalizaEntradaPct` rodar — mudou pra
+`type="text"` + `inputMode="decimal"` (teclado numérico em mobile, sem bloqueio de caractere).
+Paste de valor único (sem quebra de linha) também passou a ser interceptado e ir pelo mesmo
+caminho de commit da digitação manual — antes só a faixa multi-linha era tratada, um paste de
+`"85%"` sozinho numa célula caía no comportamento nativo do browser (que rejeitaria o `%`).
 
 ---
 

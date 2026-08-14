@@ -9,6 +9,8 @@ import { createClient } from "@backend/supabase/client";
 
 import type { ModoPlanejamento, PermissoesModo } from "./permissoes";
 
+import { normalizaEntradaPct } from "@/lib/planejamento-formato";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
@@ -105,13 +107,6 @@ const STATUS_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
   nao_realizado: "outline",
 };
 
-/** AC4/PLM-04: valor deve estar em 0-100 -- réplica no cliente do ck_sucesso_pct. */
-function validaPct(valorTexto: string): number | null {
-  const valor = Number(valorTexto);
-  if (valorTexto.trim() === "" || !Number.isFinite(valor) || valor < 0 || valor > 100) return null;
-  return valor;
-}
-
 /**
  * PLR-10 (regra inegociável nº1 do pedido original): célula de % de Meta/
  * Objetivo é CALCULADA -- nunca pode parecer editável. Fundo hachurado real
@@ -155,10 +150,11 @@ function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio, ordem
     <div className="grid gap-1">
       <input
         id={idCampoPct(linha.idSucesso)}
-        type="number"
-        min={0}
-        max={100}
-        step="0.01"
+        // PLR-16 (T21): `type="text"` + `inputMode="decimal"` -- um
+        // `type="number"` nativo rejeita vírgula e `%` tanto na digitação
+        // quanto no paste, antes de `normalizaEntradaPct` sequer rodar.
+        type="text"
+        inputMode="decimal"
         defaultValue={linha.pctAtingimento ?? ""}
         disabled={somenteLeitura}
         className={cn(
@@ -169,10 +165,18 @@ function CelulaPct({ linha, erro, somenteLeitura, onCommit, onPasteInicio, ordem
         onBlur={(e) => onCommit(linha.idSucesso, e.currentTarget.value)}
         onPaste={(e) => {
           const texto = e.clipboardData.getData("text");
+          // Sempre nós decidimos o valor final (nunca o paste bruto do
+          // browser) -- faixa (múltiplas linhas) vai pro split de T21/PLM-03;
+          // valor único passa pelo mesmo caminho de commit da digitação
+          // manual, só que a partir do texto colado em vez do teclado.
+          e.preventDefault();
           if (/\r?\n/.test(texto.trim())) {
-            e.preventDefault();
             onPasteInicio(linha.idSucesso, texto);
+            return;
           }
+          const pct = normalizaEntradaPct(texto);
+          e.currentTarget.value = pct != null ? String(pct) : texto;
+          onCommit(linha.idSucesso, texto);
         }}
         onKeyDown={(e) => {
           // PLR-15: Tab já funciona nativamente (ordem do DOM) -- estes 4
@@ -332,7 +336,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
 
   const handleCommitCelula = useCallback(
     (idSucesso: number, valorTexto: string) => {
-      const pct = validaPct(valorTexto);
+      const pct = normalizaEntradaPct(valorTexto);
       if (pct === null) {
         setErros((atual) => ({ ...atual, [idSucesso]: "Valor deve estar entre 0 e 100." }));
         return;
@@ -359,7 +363,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       valoresColados.forEach((valorTexto, offset) => {
         const alvo = ordemVisual[indiceInicial + offset];
         if (!alvo) return;
-        const pct = validaPct(valorTexto);
+        const pct = normalizaEntradaPct(valorTexto);
         if (pct === null) {
           errosNovos[alvo.idSucesso] = "Valor deve estar entre 0 e 100.";
           return;
