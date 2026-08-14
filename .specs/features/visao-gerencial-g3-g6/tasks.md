@@ -14,7 +14,29 @@ without it.**
 ---
 
 **Design**: `.specs/features/visao-gerencial-g3-g6/design.md`
-**Status**: In Progress -- Phases 1-3 concluídas (backend completo), Phases 4-5 pendentes (frontend)
+**Status**: In Progress -- Phases 1-4 concluídas, Phase 5 pendente (últimos 7 tasks)
+
+## Progresso -- Phase 4 (T18-T23) -- ✅ concluída
+
+T18 `7369312` → T19 `9f2afdf` → T20 `41dfc95` → T21 `d941284` → T22 `22b0cfd`
+→ adendo `buscarCicloEtapaMensal` `6ddac10` (lacuna real: G2 evolução nunca
+tinha função de query, achada só ao implementar T23) → T23 `d082bfe` → fix
+`3ffbd27`. Paleta categórica nova (`--series-1..8` + `--series-outras`,
+`globals.css`) via skill `dataviz` (`references/palette.md`) -- marca só
+define 5 cores não-reservadas (Coral é reservado pra status/alerta),
+insuficiente pras até 8 séries de G1; cor por `id % 8` (nunca por ranking).
+
+**Achado real crítico, só apareceu testando ao vivo no navegador** (`npm run
+dev` + login via `/admin/acesso`, bypass dev-only): passar uma função
+(`formatarValor`) como prop de um Server Component (`SaudeOperacaoBloco`)
+pro Client Component `ChartLinhaEvolucao`/`ChartBarraHorizontal` quebrava em
+runtime ("Functions cannot be passed directly to Client Components") --
+`npm run build`/`tsc`/lint não pegam esse erro, só a execução real. Corrigido
+substituindo `formatarValor: function` por `unidade: "pct"|"dias"|"numero"`
+(discriminador serializável) nos dois componentes de gráfico -- lição válida
+pra T24-T29 (todo prop de Server pra Client precisa ser serializável).
+
+---
 
 ## Progresso
 
