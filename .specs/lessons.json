@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 22,
+  "next_id": 23,
   "lessons": [
     {
       "id": "L-001",
@@ -382,6 +382,24 @@
       ],
       "created": "2026-08-12T17:30:40Z",
       "last_seen": "2026-08-12T17:30:40Z"
+    },
+    {
+      "id": "L-022",
+      "key": "ac_gap::when an ac requires closing a project level decision log entry e g marking an ad as resolved in state md close it in the same task that satisfies the ac s schema code half instead of deferring it to whoever owns state md later",
+      "text": "When an AC requires closing a project-level decision-log entry (e.g. marking an AD as resolved in STATE.md), close it in the same task that satisfies the AC's schema/code half instead of deferring it to whoever owns STATE.md later.",
+      "signal": "ac_gap",
+      "scope": "STATE.md",
+      "status": "candidate",
+      "features": [
+        "incidencia-encontros"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md P1 AC8 / validation.md Gap 1 / STATE.md:266 (STATE.md)"
+      ],
+      "created": "2026-08-14T13:13:26Z",
+      "last_seen": "2026-08-14T13:13:26Z"
     }
   ]
 }

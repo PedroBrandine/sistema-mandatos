@@ -140,6 +140,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: PLM-06.3, PLM-09
 - last seen: 2026-08-12T17:30:40Z
 
+### L-022 — When an AC requires closing a project-level decision-log entry (e.g. marking an AD as resolved in STATE.md), close it in the same task that satisfies the AC's schema/code half instead of deferring it to whoever owns STATE.md later.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `STATE.md` · harmful: 0
+- features: incidencia-encontros
+- evidence: spec.md P1 AC8 / validation.md Gap 1 / STATE.md:266 (STATE.md)
+- last seen: 2026-08-14T13:13:26Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
