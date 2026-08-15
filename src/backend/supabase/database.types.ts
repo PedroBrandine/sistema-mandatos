@@ -20,6 +20,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      atualiza_avaliacao_nps: { Args: never; Returns: undefined }
       atualiza_iip_contrato: { Args: never; Returns: undefined }
       atualiza_sucessos_mensais_lote: {
         Args: { p_valores: Json }
@@ -1534,6 +1535,13 @@ export type Database = {
           valor_num?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fat_resposta_metrica_id_metrica_fkey"
+            columns: ["id_metrica"]
+            isOneToOne: false
+            referencedRelation: "mv_avaliacao_nps"
+            referencedColumns: ["id_metrica"]
+          },
           {
             foreignKeyName: "fat_resposta_metrica_id_metrica_fkey"
             columns: ["id_metrica"]
@@ -3446,6 +3454,31 @@ export type Database = {
       }
     }
     Views: {
+      mv_avaliacao_nps: {
+        Row: {
+          agrupador: string | null
+          detratores: number | null
+          eh_nps: boolean | null
+          id_formulario: number | null
+          id_metrica: number | null
+          id_projeto_grupo: number | null
+          media: number | null
+          neutros: number | null
+          nps: number | null
+          nr_respostas: number | null
+          promotores: number | null
+          rotulo: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_submissao_id_formulario_fkey"
+            columns: ["id_formulario"]
+            isOneToOne: false
+            referencedRelation: "ref_formulario"
+            referencedColumns: ["id_formulario"]
+          },
+        ]
+      }
       mv_iip_contrato: {
         Row: {
           componente_d1: number | null
