@@ -10,29 +10,18 @@ import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { EmDesenvolvimento } from "@/components/app-shell/em-desenvolvimento";
 import { FormularioGenericoForm } from "@/components/produtos/formulario-generico-form";
+import { FormularioGipForm } from "@/components/produtos/formulario-gip-form";
 
-// FRM-04. Resolve `codigo` da URL: GIP tem tela sob medida (T20, ainda como
-// placeholder aqui -- ver SPEC_DEVIATION), os 2 formulários de inscrição PLL
-// (inscricao_mentorado/inscricao_mentor) são fora de escopo desta feature
-// (spec.md Out of Scope -- acontecem antes de existir fat_contrato,
-// incompatível com id_contrato NOT NULL), os outros 13 usam o formulário
-// genérico. respondentePermitido reaproveita buscarFormulariosDoContrato
-// (T14): a mesma filtragem por papel que a lista (T16) usa -- se o item não
-// aparece na lista filtrada de um Mentor/Assessor, ele não é o respondente
-// deste formulário (navegação direta por URL, fora do fluxo da lista).
+// FRM-04. Resolve `codigo` da URL: GIP tem tela sob medida (T20), os 2
+// formulários de inscrição PLL (inscricao_mentorado/inscricao_mentor) são
+// fora de escopo desta feature (spec.md Out of Scope -- acontecem antes de
+// existir fat_contrato, incompatível com id_contrato NOT NULL), os outros
+// 13 usam o formulário genérico. respondentePermitido reaproveita
+// buscarFormulariosDoContrato (T14): a mesma filtragem por papel que a
+// lista (T16) usa -- se o item não aparece na lista filtrada de um
+// Mentor/Assessor, ele não é o respondente deste formulário (navegação
+// direta por URL, fora do fluxo da lista).
 const CODIGOS_FORA_DE_ESCOPO = new Set(["inscricao_mentorado", "inscricao_mentor"]);
-
-// SPEC_DEVIATION: T20 (FormularioGipForm) ainda não existe -- mesmo padrão
-// já usado em T17 (troca de <EmDesenvolvimento> por componente real quando a
-// task correspondente chega). Trocar por <FormularioGipForm idContrato /> em T20.
-function GipPlaceholder() {
-  return (
-    <EmDesenvolvimento
-      titulo="GIP em desenvolvimento"
-      mensagem="A tela sob medida do GIP ainda está sendo construída."
-    />
-  );
-}
 
 export default function FormularioContratoPage({
   params,
@@ -57,7 +46,7 @@ export default function FormularioContratoPage({
   }, [idContrato, papel, idUsuario, carregandoPapel]);
 
   if (codigo === "gip") {
-    return <GipPlaceholder />;
+    return <FormularioGipForm idContrato={idContrato} />;
   }
 
   if (CODIGOS_FORA_DE_ESCOPO.has(codigo)) {
