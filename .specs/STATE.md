@@ -1189,3 +1189,97 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   `node_modules`≈601MB, `.git`≈12MB — todos normais). Recuperou pra ~24GB livres ao longo da
   sessão (ação de sessões paralelas, não desta). Disciplina mantida: `rm -rf src/frontend/.next`
   depois de cada `npm run build`.
+
+---
+
+## Handoff (Visão Gerencial G3-G6 — Tela Gerencial completa — CONCLUÍDA e validada)
+
+- **Feature**: Visão Gerencial G3-G6 (`.specs/features/visao-gerencial-g3-g6/`) — **CONCLUÍDA e
+  validada**, 30/30 tasks, 22/22 requisitos (GER-01 a GER-22) Verified ou
+  Verified-com-desvio-documentado. Estende `/visao-gerencial` (que já tinha G1+G2 em produção,
+  `visao-gerencial-g1-g2`) com Bloco 0 (G3 cobertura de registro + G4 taxa de resposta de
+  formulário — saúde da própria operação, acima de qualquer indicador de mandato), Bloco 1
+  (distribuição de contratos por etapa da régua), Bloco 2 (G5 atingimento, G6 completude de
+  cadastro, IIP consolidado) e Bloco 3 (Gargalos — 6 categorias fixas de `vw_pendencias`,
+  paginada, navegável, nunca com ação de resolver/ignorar), com barra de recorte global
+  (Produto/Projeto/Gestora/Mentor/Período) e regra de dupla leitura (estado atual + evolução
+  mensal) em todo indicador que a suporta.
+- **Phase / Task**: Specify (síntese do pedido original de Pedro, 14 seções) → Discuss (2 rodadas
+  `AskUserQuestion`: rota estende `/visao-gerencial`; G5 nasce sem evolução `TODO(OUT-06)`;
+  Período afeta só eixo X da evolução; G1 evolução construída já nesta fatia via
+  `generate_series`; Gestora+Mentor = E lógico, só vínculo ativo; Bloco 3 agrupado em accordion) →
+  Design (achado que reverteu decisão do Discuss: G6 evolução também adiada, `log_auditoria` é
+  Admin-only via RLS `p_log_admin`) → Tasks (30 tasks, 5 fases + 3 adendos) → Execute (sub-agente
+  em lote travou na Fase 1/T1-T7 e foi encerrado por limite de sessão sem terminar — orquestrador
+  assumiu execução direta de T2 a T30) → Validate (Verifier independente, **2 rodadas**: rodada 1
+  `❌ FAIL` 1 Blocker + 2 Minor + 1 Cosmético, fix→re-verify, rodada 2 `✅ PASS`).
+  `.specs/features/visao-gerencial-g3-g6/validation.md` tem o relatório completo das 2 rodadas
+  (rodada 1 também preservada via `git show aeb5743:.../validation.md`).
+- **Completed**: Fase 1/T1-T7 (6 views novas/alteradas: `vw_pendencias`, `vw_resposta_formulario`,
+  `vw_ciclo_etapa`+`dt_conclusao`, `vw_carteira_ponderada_mensal`,
+  `vw_cobertura_registro_mensal`, `vw_resposta_formulario_mensal`, `db:types`) → Fase 2/T8-T12
+  (`FiltroRecorte` compartilhado, `resolverIdsContratoDoRecorte`, backend Bloco 0) → Fase 3/T13-T17
+  (backend Bloco 1/2/3, 141 testes unitários novos) → Fase 4/T18-T23 (gate de papel, barra de
+  recorte, Recharts + paleta categórica via skill `dataviz`, Bloco 0 + G1/G2 frontend) → Fase
+  5/T24-T30 (`0ba4e41`..`355cc3e`, Bloco 1/2/3 frontend + wire final) → Verifier rodada 1
+  (`❌ FAIL`) → fixes (`173bd90` Blocker Período, `784259f` 2 mutantes, `dcb39be` comentário
+  cosmético) → Verifier rodada 2 (`✅ PASS`, `cccbbd3`) → `tasks.md` fechado (`87028b7`). Detalhe
+  task-a-task e hashes completos em `.specs/features/visao-gerencial-g3-g6/tasks.md` ("Progresso").
+- **3 achados reais corrigidos durante Execute** (nenhum estava no `design.md`): (1)
+  `fat_submissao.enviada_em` é `NOT NULL DEFAULT now()`, não nullable — `respondido` virou "existe
+  submissão", não checagem de campo; (2) `vw_cobertura_registro_mensal`/
+  `vw_resposta_formulario_mensal` nasceram pré-agregadas por mês em SQL (perdendo
+  `id_contrato`/`id_produto`, impossibilitando filtrar a evolução pela barra de recorte) —
+  corrigidas com `DROP`+`CREATE` (não `CREATE OR REPLACE`, Postgres recusa mudar shape de coluna
+  de view, erro `42P16`) pra grão fino; (3) `resolverIdsContratoDoRecorte` consultava
+  `fat_contrato` incondicionalmente, zerando a interseção quando só `idGestora`/`idMentor` eram
+  passados — corrigido com sentinela `Set | null` ("sem restrição ainda" ≠ "zero contratos").
+- **Achado real crítico, só apareceu testando ao vivo no navegador** (não pego por
+  `build`/`tsc`/lint): passar uma função (`formatarValor`) como prop de Server Component pra
+  Client Component quebra em runtime ("Functions cannot be passed directly to Client
+  Components"). Corrigido substituindo por um discriminador serializável
+  (`unidade: "pct"|"dias"|"numero"`) nos componentes de gráfico — mesma classe de bug que
+  `SPEC_DEVIATION`/lições já registram pra `TableRow` sem `asChild` (usado em `GargalosTabela`,
+  Fase 5).
+- **Verifier rodada 1 (`❌ FAIL`) → 3 fixes, mesma sessão**: (1) **Blocker** — o Select "Período"
+  da barra de recorte (`FiltroRecorte.mesesEvolucao`) era capturado na URL mas nenhum gráfico de
+  evolução o lia; corrigido com `apararUltimosMeses`/`periodo.ts` (corte de exibição no último elo
+  antes do componente, nunca reprocessa a query) conectado nos 3 consumidores (G1/G2/G3+G4); (2)
+  **Minor** — teste de E lógico Gestora+Mentor usava o mesmo dataset mockado nos dois lados,
+  não discriminando AND de OR; `criarClienteMock` ganhou fila de respostas por tabela (mesmo
+  padrão já usado em `kanban.test.ts`); (3) **Minor** — teste de paginação de `buscarPendencias`
+  só checava "não lança", nunca capturava os argumentos reais de `.range()`. Rodada 2 confirmou os
+  3 fixes por leitura, sensor de mutação (2/2 mortos) e, no caso do Blocker, checagem empírica
+  contra o dev real (payload servido muda de tamanho com/sem `?periodo=3`).
+- **6 lições distiladas** (`L-027` a `L-032`, `.specs/LESSONS.md`/`lessons.json`) — nenhuma nova na
+  rodada 2 (sinal já coberto pelas 6 da rodada 1).
+- **Decisões em aberto do pedido original, mantidas como `TODO` explícito no código (não
+  inventadas)**: peso de G1 (obsoleto — já resolvido antes desta feature, `ref_peso_etapa` existe
+  e `vw_carteira_ponderada` já pondera de verdade); fórmula do IIP (Incidência é dona, Saída só
+  lê, AD-014); limiares de 30/45 dias (já em `ref_*`, não hardcoded); writer de transição de etapa
+  (é o Kanban, AD-023, não esta feature); produto Coalizão (fora de escopo desta fatia).
+- **2 `SPEC_DEVIATION` + 1 spec-precision gap, documentados no código, não são gaps**: modal do
+  Bloco 1 (T24) linka pro Kanban do produto, não pra uma rota de contrato individual; atraso
+  mostrado via cor+rótulo na barra inteira, não como segmento empilhado (`ChartBarraHorizontal` é
+  valor único); timestamp de "dado mais recente" do IIP é proxy via `MAX(dt_ultimo_fato)`
+  (Postgres não expõe timestamp de `REFRESH MATERIALIZED VIEW` em catálogo nenhum).
+- **Next step**: nenhum obrigatório — feature fechada. Recomendado, não bloqueante: UAT manual real
+  no navegador antes do merge pra `master` (ambos os Verifiers já fizeram checagem empírica
+  pontual via curl+cookie jar, mas isso não substitui um percurso completo com usuário real: os 4
+  filtros da barra combinados, os 4 blocos, o accordion do Bloco 3, a navegação pro Kanban a partir
+  do modal). Se o Pedro quiser, `fat_snapshot_mensal`/OUT-06 (evolução de G5/G6) e a exportação
+  (OUT-04) são os 2 candidatos naturais de próxima fatia — ambos já fora de escopo por decisão
+  explícita desta feature, não gaps.
+- **Blockers**: nenhum (o único Blocker da rodada 1, filtro Período, foi corrigido e reverificado).
+- **Uncommitted files**: none desta feature.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo confirmado durante toda a execução e validação**: pelo menos 4
+  outras trilhas (`incidencia-encontros`, `formularios-produto`, `planejamento-estrategico-redesenho`,
+  e commits soltos do próprio Pedro) commitaram ativamente neste mesmo branch, intercaladas no
+  `git log` — 2 commits desta feature (T1 e T4 da Fase 1) acabaram bundled dentro de commits de
+  outra sessão/do usuário (`66cc2ab`, `61ea838`); conteúdo íntegro nos dois casos, só a mensagem
+  não reflete o escopo real (documentado em `tasks.md`). Um teste de integração pré-existente e
+  não relacionado (`supabase/tests/operacao/regua-instanciacao.integration.test.ts`) começou a
+  falhar durante esta sessão por uma fixture órfã de outra sessão paralela vazada em `ref_etapa`
+  (`id_etapa=377`, `codigo='fixture_t1_teste_estrutura'`) — reportado, não removido (não é dado
+  desta feature, risco de estar em uso por outra sessão ativa), não bloqueia esta feature.
