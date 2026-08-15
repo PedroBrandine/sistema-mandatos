@@ -14,7 +14,10 @@ without it.**
 ---
 
 **Design**: `.specs/features/visao-gerencial-g3-g6/design.md`
-**Status**: In Progress -- Phases 1-4 concluídas, Phase 5 pendente (últimos 7 tasks)
+**Status**: ✅ Concluída -- 30/30 tasks, Verifier independente rodada 2 (fix-verify)
+**PASS** em 2026-08-15 (`.specs/features/visao-gerencial-g3-g6/validation.md`).
+Rodada 1 (2026-08-14) deu FAIL com 1 Blocker + 2 Minor + 1 Cosmético, todos
+corrigidos e re-verificados -- ver "Progresso -- Verificação" abaixo.
 
 ## Progresso -- Phase 4 (T18-T23) -- ✅ concluída
 
@@ -96,10 +99,62 @@ pra T24-T29 (todo prop de Server pra Client precisa ser serializável).
   testes unitários novos nesta feature (`visao-gerencial-g3-g6.test.ts` +
   `usuario.test.ts` + ajustes em `visao-gerencial.test.ts`), `npm run
   test:unit` (438/438) e `npm run build` verdes a cada task.
-- **Phase 4-5 (T18-T30)**: pendentes -- frontend (gate de papel, barra de
-  recorte, Recharts, 4 blocos, wire final).
+- **Phase 5 (T24-T30) -- ✅ concluída.** T24 `0ba4e41` + adendo
+  `buscarContratosPorEtapa` `0fe7cfa` → T25 `876d7e3` → T26 `1afb50c` → T27
+  `535b020` → T28 `8349ad4` → T29 `cfbb916` → T30 `355cc3e`.
+  `DistribuicaoEtapasBloco`+`EtapaContratosModal` (Bloco 1), G5/G6/IIP cards
+  (Bloco 2, G5/G6 com `TODO` explícito de evolução conforme decisão do
+  Discuss), `GargalosBloco`+`GargalosTabela` (Bloco 3, accordion nativo
+  `<details>/<summary>`, paginação por acumulação de estado), wire final em
+  `page.tsx` (Server Component + `<Suspense>` por bloco -- primeiro do
+  projeto). **2 `SPEC_DEVIATION` documentadas no código** (T24): modal linka
+  pro Kanban do produto, não pra rota de contrato individual (rota mais
+  próxima do "ver os contratos da etapa"); atraso mostrado via cor+rótulo na
+  barra inteira, não como segmento empilhado (`ChartBarraHorizontal` é
+  valor único, segmento exigiria um componente novo fora do escopo).
+  - **Achado real crítico, só apareceu testando ao vivo no navegador**: ver
+    nota completa na Phase 4 acima (função como prop Server→Client quebra em
+    runtime, invisível a build/lint) -- aplicado preventivamente em T24-T29
+    desde o início (nenhum componente novo repetiu o bug).
+  - **`TableRow` (primitivo shadcn) não suporta `asChild`/Slot** (confirmado
+    lendo `components/ui/table.tsx` antes de implementar) -- `GargalosTabela`
+    usa `onClick`+`onKeyDown`(Enter/Space)+`tabIndex={0}`+`role="link"` em vez
+    de `Link` envolvendo a linha.
 
 ---
+
+## Progresso -- Verificação (Verifier independente, author ≠ verifier)
+
+- **Rodada 1** (2026-08-14): ❌ **FAIL**. Achados ranqueados: (1) **Blocker**
+  -- `FiltroRecorte.mesesEvolucao` (Select "Período" da barra de recorte)
+  capturado na URL mas nunca consumido por nenhum gráfico de evolução; (2)
+  **Minor** -- teste de E lógico Gestora+Mentor não discriminava AND de OR
+  (mesmo dataset mockado nos dois lados); (3) **Minor** -- teste de paginação
+  de `buscarPendencias` não capturava os argumentos reais de `.range()`; (4)
+  **Cosmético** -- `COMMENT ON VIEW vw_resposta_formulario` desatualizado.
+  Relatório: `git show aeb5743:.specs/features/visao-gerencial-g3-g6/validation.md`.
+  6 lições distiladas (L-027..L-032, `.specs/LESSONS.md`).
+- **Fixes** (mesma sessão, 2026-08-15): `173bd90` (Blocker Período --
+  `apararUltimosMeses`/`periodo.ts`, corte de exibição no último elo antes do
+  componente de gráfico, nunca reprocessa a query) → `784259f` (2 mutantes --
+  `criarClienteMock` ganhou fila de respostas por tabela, datasets
+  diferentes por lado; teste de paginação captura `.range()` real) →
+  `dcb39be` (migration nova `20260814232339` só com `COMMENT` corrigido,
+  forward-only).
+- **Rodada 2** (2026-08-15, fix-verify): ✅ **PASS**. 446/446 testes
+  (`test:unit`), build limpo, sensor 2/2 mutantes mortos (os mesmos 2 que
+  sobreviveram na rodada 1), Blocker confirmado empiricamente em runtime
+  contra o dev real (`GET /visao-gerencial` vs `?periodo=3`, array de pontos
+  muda de tamanho). `test:integration`/`lint:all` completos rodados à parte
+  pelo orquestrador (não pelo Verifier, que rodou escopado ao diff da
+  rodada) -- `test:integration` tem 16 falhas pré-existentes e não
+  relacionadas em `regua-instanciacao.integration.test.ts` (fixture órfã de
+  outra sessão paralela em `ref_etapa`, `id_etapa=377`); `lint:all` falha em
+  arquivos de outra feature (`components/incidencia/`,
+  `components/fundacao/tse-match-search.tsx`) -- ambos fora do escopo desta
+  feature, não bloqueiam o veredito. 22/22 requisitos do spec Verified ou
+  Verified-com-desvio-documentado. Relatório final:
+  `.specs/features/visao-gerencial-g3-g6/validation.md`.
 
 ---
 
