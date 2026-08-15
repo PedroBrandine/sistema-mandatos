@@ -12,12 +12,13 @@ Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/formularios-produto/design.md`
-**Status**: In Progress — **Lote A (T1-T9) concluído** por decisão do Pedro ("conclua o Lote A e
-pare, retomamos amanhã com os outros lotes"). T1 ✅ (`337baa9`) · T2 ✅ (`11d17e9`) · T3 ✅ (`1a44446`)
-· T4 ✅ (`5941c5f` + fix lint `a5ebaa3`) · T5 ✅ (`49dc295`) · T6 ✅ (`981901a`) · T7 ✅ (`fb19743`) ·
-T8 ✅ (`d2600ac`) · T9 ✅ (`c83a601` + `61ea838`, 2 achados reais corrigidos no caminho — ver
-`.specs/STATE.md`, Handoff "Formulários dos Produtos"). Lote B (T10-T15) e Lote C (T16-T21) não
-iniciados.
+**Status**: In Progress — **Lote A (T1-T9) e Lote B (T10-T15) concluídos**. T1 ✅ (`337baa9`) · T2 ✅
+(`11d17e9`) · T3 ✅ (`1a44446`) · T4 ✅ (`5941c5f` + fix lint `a5ebaa3`) · T5 ✅ (`49dc295`) · T6 ✅
+(`981901a`) · T7 ✅ (`fb19743`) · T8 ✅ (`d2600ac`) · T9 ✅ (`c83a601` + `61ea838`, 2 achados reais
+corrigidos no caminho) · T10 ✅ (`e1b0bf2`) · T11 ✅ (`0ce90c3`) · T12 ✅ (`f1f6439`) · T13 ✅
+(`fa8a131`) · T14 ✅ (`c082dcd`) · T15 ✅ (verificação, sem commit novo — já entregue por
+`incidencia-encontros` T17, `617a2c2`) — ver `.specs/STATE.md`, Handoff "Formulários dos Produtos".
+Lote C (T16-T21) não iniciado.
 
 ---
 

@@ -956,21 +956,60 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
-## Handoff (Formulários dos Produtos — Lote A CONCLUÍDO, pausado por decisão do Pedro)
+## Handoff (Formulários dos Produtos — Lote A + Lote B CONCLUÍDOS, pausado por decisão do Pedro)
 
 - **Feature**: Formulários dos Produtos (`.specs/features/formularios-produto/`) — **spec.md/
   context.md/design.md/tasks.md completos e aprovados** (23 requisitos FRM-01 a FRM-23, 21 tasks em
-  7 fases, 3 lotes de sub-agente). **Lote A (T1-T9, schema: mecanismo genérico + GIP) concluído e
-  commitado nesta sessão**, por pedido explícito do Pedro ("conclua o Lote A e depois pare... amanhã
-  retornaremos com os outros lotes"). Lotes B (T10-T15, NPS+backend TS) e C (T16-T21, frontend)
-  **não iniciados** — Pedro já aprovou rodar em sub-agente, cada lote começa só depois do anterior.
-- **Phase / Task**: Execute, Lote A **completo**. Retomar por Lote B quando Pedro pedir.
-- **Completed**: T1 DDL `fat_submissao`+`fat_resposta_metrica` (`337baa9`) → T2 RLS (`11d17e9`) →
-  T3 grants (`1a44446`) → T4 `app.trg_extrai_metricas()` `SECURITY DEFINER` + 8 testes de
-  integração da Fase 1 (`5941c5f`, + fix de lint `a5ebaa3`) → T5 DDL `fat_gip`/`fat_gip_dimensao`
-  (`49dc295`) → T6 RLS (`981901a`) → T7 grants (`fb19743`) → T8 `app.trg_deriva_gip()`
-  `SECURITY DEFINER` + trigger (`d2600ac`) → T9 `vw_gip_evolucao` + 5 testes de integração da
-  Fase 2, em 2 commits por 2 achados reais no caminho (`c83a601`, `61ea838`).
+  7 fases, 3 lotes de sub-agente). **Lote A (T1-T9, schema: mecanismo genérico + GIP) e Lote B
+  (T10-T15, NPS + backend TS) concluídos e commitados**. Lote C (T16-T21, frontend) **não
+  iniciado** — Pedro já aprovou rodar em sub-agente, cada lote começa só depois do anterior.
+- **Phase / Task**: Execute, Lote A e Lote B **completos**. Retomar por Lote C quando Pedro pedir.
+- **Completed (Lote A)**: T1 DDL `fat_submissao`+`fat_resposta_metrica` (`337baa9`) → T2 RLS
+  (`11d17e9`) → T3 grants (`1a44446`) → T4 `app.trg_extrai_metricas()` `SECURITY DEFINER` + 8
+  testes de integração da Fase 1 (`5941c5f`, + fix de lint `a5ebaa3`) → T5 DDL
+  `fat_gip`/`fat_gip_dimensao` (`49dc295`) → T6 RLS (`981901a`) → T7 grants (`fb19743`) → T8
+  `app.trg_deriva_gip()` `SECURITY DEFINER` + trigger (`d2600ac`) → T9 `vw_gip_evolucao` + 5 testes
+  de integração da Fase 2, em 2 commits por 2 achados reais no caminho (`c83a601`, `61ea838`).
+- **Completed (Lote B)**: T10 DDL `mv_avaliacao_nps` + grants (`e1b0bf2`) → T11
+  `app.atualiza_avaliacao_nps()` `SECURITY DEFINER` + 6 testes de integração da Fase 3 (`0ce90c3`)
+  → T12 `db:types` (`f1f6439`) → T13 `rpc/formulario.ts` (`atualizarAvaliacaoNps`) + 3 testes
+  unitários (`fa8a131`) → T14 `queries/formulario.ts` (6 funções de leitura) + 15 testes unitários
+  (`c082dcd`) → T15 verificação de compatibilidade de `usePapelGlobal` (sem commit — já entregue
+  por `incidencia-encontros` T17, `617a2c2`, reconfirmado por `git log`).
+- **Achado real de Design descoberto em T10** (não estava em `design.md`/`tasks.md`, mesma classe já
+  documentada por `incidencia-encontros` T8 pra `mv_iip_contrato`): `REFRESH MATERIALIZED VIEW
+  CONCURRENTLY` (que `app.atualiza_avaliacao_nps()`, T11, usa) exige que a MV já tenha sido populada
+  ao menos 1x SEM `CONCURRENTLY` — criar `WITH NO DATA` (schema aprovado) e ir direto pra
+  `CONCURRENTLY` falha com "materialized view has not been populated". Corrigido com um `REFRESH`
+  não-concorrente ao final da própria migration de T10, mesmo padrão do precedente.
+- **T11: fixture de teste teve que escapar do bucket `id_projeto` NULL/0 default** — `mv_avaliacao_nps`
+  agrega por formulário × projeto, não por contrato; o bucket `COALESCE(id_projeto,0)` é
+  compartilhado por qualquer fixture que não sete `id_projeto` (inclusive o de T4). Usado um
+  `id_projeto` real (`ref_projeto`, id 24) pra isolar o teste de qualquer pré-existente/concorrente.
+- **T11: suíte completa (`npm run test:integration`, sem escopo) morreu no meio** por falha de
+  infraestrutura não relacionada (`Tinypool: Worker exited unexpectedly`), mesma classe de crash já
+  documentada no handoff de `incidencia-encontros` pro mesmo comando completo contra o banco de dev
+  compartilhado. O arquivo desta task (`formularios-nps.integration.test.ts`) já tinha rodado 6/6
+  verde duas vezes antes da queda (isolado e dentro da suíte completa); demais falhas observadas
+  antes da queda (`catalogos-referencia` CAT-15/CAT-17, `operacao-regua-instanciacao` RGI-01 a
+  RGI-06) são pré-existentes/não relacionadas — `fileParallelism: false` no
+  `vitest.integration.config.ts` descarta corrida de arquivo desta feature como causa.
+- **T12: diff do `db:types` desta sessão mostrou só 2 entradas novas, não as 6 esperadas** — as
+  outras 4 (`fat_submissao`, `fat_resposta_metrica`, `fat_gip`, `fat_gip_dimensao`) mais
+  `vw_gip_evolucao` (5 no total) já tinham sido capturadas por uma regeneração de sessão paralela
+  (`visao-gerencial` T7, `a60c209`, que regenera o arquivo inteiro a partir do schema completo do
+  projeto). Confirmado por `grep` que as 6 entradas esperadas por `tasks.md` T12 estão todas
+  presentes no arquivo final — não é gap, é ordem de execução entre sessões concorrentes.
+- **Incidente de processo durante T11 (relevante pra próximas sessões)**: ao rodar o gate completo
+  (`npm run test:integration`) via `run_in_background`/`Monitor` e encerrar o turno esperando uma
+  notificação, a notificação não chegou de volta de forma acionável — o mesmo padrão de falha já
+  registrado no handoff de `visao-gerencial-g1-g2` ("esperar um Monitor resolveria sozinho"). O
+  Pedro/orquestrador precisou intervir explicitamente pra corrigir: **rodar o comando novamente em
+  FOREGROUND**, com um loop de espera bloqueante (`until grep -q "Test Files" ...; sleep 10; done`,
+  em blocos de ~9-10min por chamada de tool, repetidos) até coletar o resultado real. **Lição pra
+  quem rodar `test:integration` completo (suíte longa, pode passar de 40min)**: preferir foreground
+  com espera bloqueante em blocos, nunca assumir que `run_in_background` entrega uma notificação
+  utilizável de volta ao mesmo agente que a disparou.
 - **Sessão anterior tinha travado em T4 por disco cheio (0 bytes livres em C:) — resolvido pelo
   Pedro nesta sessão**: `df -h` confirmou 24G livres depois; `npm run test:unit` (404/404) e
   `npm run test:integration` (arquivo isolado de T4, 8/8) rodaram limpos. T4 commitado.
@@ -1018,21 +1057,27 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   `formularios-gip.integration.test.ts` e de `spec.md`/`context.md`/`design.md`/`tasks.md` desta
   feature — meus commits posteriores (`c83a601`, `61ea838`) já continuam corretamente por cima
   dessa cópia, nada foi perdido.
-- **Next step**: nenhum obrigatório. Quando Pedro pedir para continuar: Lote B (T10-T15 — `mv_avaliacao_nps`
-  + `app.atualiza_avaliacao_nps()` + `db:types` + `queries/formulario.ts` + `rpc/formulario.ts`,
-  ver `tasks.md`). Antes de rodar `npm run test:integration` completo de novo, ter em mente que as
-  16 falhas de poluição pré-existente (acima) continuam lá até alguém limpar — não são regressão de
-  nenhum trabalho novo.
-- **Blockers**: none (disco resolvido; poluição de fixture é débito conhecido, não bloqueia
-  trabalho novo — só o `test:integration` completo mostra ruído nas 2 features não relacionadas).
+- **Next step**: nenhum obrigatório. Quando Pedro pedir para continuar: Lote C (T16-T21 — todo o
+  frontend: `FormulariosLista`, rota de lista, `FormularioGenericoForm`, rota `[codigo]`,
+  `FormularioGipForm`, `NpsAvaliacoesCard` + wiring no dashboard, ver `tasks.md`). Depois do Lote C
+  (feature completa), disparar o Verifier independente — responsabilidade do orquestrador, não de
+  quem rodar Lote C. Antes de rodar `npm run test:integration` completo de novo, ter em mente que
+  falhas de poluição pré-existente em `catalogos-referencia`/`convite-contrato`/
+  `operacao-regua-instanciacao` (acima, e no achado de T11 desta sessão) continuam lá até alguém
+  limpar — não são regressão de nenhum trabalho novo desta feature.
+- **Blockers**: none.
 - **Uncommitted files**: none desta feature.
 - **Branch**: develop.
-- **Atenção — trabalho paralelo confirmado nesta sessão**: pelo menos 3 outras trilhas commitaram
+- **Atenção — trabalho paralelo confirmado no Lote A**: pelo menos 3 outras trilhas commitaram
   ativamente neste mesmo branch durante toda a execução do Lote A — `incidencia-encontros`
   (concluída, handoff próprio abaixo), `planejamento-estrategico-redesenho` (concluída e validada,
   handoff próprio abaixo) e `visao-gerencial-g3-g6` (em andamento, ver colisão de commit acima).
   Nenhum arquivo de schema/backend desta feature colidiu de verdade (conteúdo sempre correto); a
   única colisão foi de atribuição de commit no git, documentada acima.
+- **Atenção — trabalho paralelo confirmado no Lote B**: `visao-gerencial` seguiu commitando
+  ativamente em `develop` durante toda a execução do Lote B (histórico de `git log` no início desta
+  sessão mostrado quase inteiro de commits dela, incluindo o `db:types` que antecipou 5 das 6
+  entradas de T12 — ver achado acima). Nenhum arquivo desta feature colidiu.
 
 ---
 
