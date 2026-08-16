@@ -10,7 +10,9 @@ import {
 import { buscarProjetosDoProduto, type FiltroBoard } from "@backend/queries/kanban";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
+import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
+import { NpsAvaliacoesCard } from "@/components/produtos/nps-avaliacoes-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,6 +51,8 @@ export default function ProdutoDashboardPage({
 }) {
   const { slug } = use(params) as { slug: ProdutoSlug };
   const { data: produto } = useProdutoAtual(slug);
+  const { papel: papelViewer } = usePapelGlobal();
+  const podeVerNps = papelViewer === "admin" || papelViewer === "gestora";
 
   const [papel, setPapel] = useState<Papel | "todos">("todos");
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
@@ -193,6 +197,8 @@ export default function ProdutoDashboardPage({
           </CardContent>
         </Card>
       </div>
+
+      {produto && podeVerNps ? <NpsAvaliacoesCard idProduto={produto.idProduto} /> : null}
 
       {produto ? <KanbanBoard idProduto={produto.idProduto} filtro={filtroBoard} /> : null}
     </div>
