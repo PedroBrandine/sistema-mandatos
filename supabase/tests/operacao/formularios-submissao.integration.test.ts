@@ -156,18 +156,24 @@ describe("formularios-produto T4 -- RLS+GRANT (fat_submissao/fat_resposta_metric
     }
   }, 120000);
 
-  it("fat_submissao/fat_resposta_metrica têm FORCE ROW LEVEL SECURITY + policies não nulas (p_por_contrato/p_heranca)", async () => {
+  it("fat_submissao/fat_resposta_metrica têm FORCE ROW LEVEL SECURITY + policies não nulas (p_por_contrato/p_heranca/p_bloqueia_reenvio_fechado)", async () => {
     const rows = await runSql<{ tablename: string; policyname: string; qual: string | null; with_check: string | null }>(`
       SELECT tablename, policyname, qual, with_check FROM pg_policies
        WHERE schemaname = 'public' AND tablename IN ('fat_submissao','fat_resposta_metrica');
     `);
-    expect(rows).toHaveLength(2);
-    const porTabela = new Map(rows.map((r) => [r.tablename, r]));
-    expect(porTabela.get("fat_submissao")?.policyname).toBe("p_por_contrato");
-    expect(porTabela.get("fat_resposta_metrica")?.policyname).toBe("p_heranca");
+    // fat_submissao ganhou uma 2ª policy (achado do Verifier, FRM-11 --
+    // p_bloqueia_reenvio_fechado, RESTRICTIVE FOR UPDATE) além da
+    // p_por_contrato original; fat_resposta_metrica continua com só p_heranca.
+    expect(rows).toHaveLength(3);
+    const porTabela = new Map<string, string[]>();
+    for (const r of rows) {
+      porTabela.set(r.tablename, [...(porTabela.get(r.tablename) ?? []), r.policyname]);
+    }
+    expect(porTabela.get("fat_submissao")?.sort()).toEqual(["p_bloqueia_reenvio_fechado", "p_por_contrato"]);
+    expect(porTabela.get("fat_resposta_metrica")).toEqual(["p_heranca"]);
     for (const row of rows) {
-      expect(row.qual, `${row.tablename}.qual`).not.toBeNull();
-      expect(row.with_check, `${row.tablename}.with_check`).not.toBeNull();
+      expect(row.qual, `${row.tablename}.${row.policyname}.qual`).not.toBeNull();
+      expect(row.with_check, `${row.tablename}.${row.policyname}.with_check`).not.toBeNull();
     }
 
     const forceRows = await runSql<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }>(`
