@@ -956,128 +956,65 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
-## Handoff (Formulários dos Produtos — Lote A + Lote B CONCLUÍDOS, pausado por decisão do Pedro)
+## Handoff (Formulários dos Produtos — CONCLUÍDA e validada)
 
-- **Feature**: Formulários dos Produtos (`.specs/features/formularios-produto/`) — **spec.md/
-  context.md/design.md/tasks.md completos e aprovados** (23 requisitos FRM-01 a FRM-23, 21 tasks em
-  7 fases, 3 lotes de sub-agente). **Lote A (T1-T9, schema: mecanismo genérico + GIP) e Lote B
-  (T10-T15, NPS + backend TS) concluídos e commitados**. Lote C (T16-T21, frontend) **não
-  iniciado** — Pedro já aprovou rodar em sub-agente, cada lote começa só depois do anterior.
-- **Phase / Task**: Execute, Lote A e Lote B **completos**. Retomar por Lote C quando Pedro pedir.
-- **Completed (Lote A)**: T1 DDL `fat_submissao`+`fat_resposta_metrica` (`337baa9`) → T2 RLS
-  (`11d17e9`) → T3 grants (`1a44446`) → T4 `app.trg_extrai_metricas()` `SECURITY DEFINER` + 8
-  testes de integração da Fase 1 (`5941c5f`, + fix de lint `a5ebaa3`) → T5 DDL
-  `fat_gip`/`fat_gip_dimensao` (`49dc295`) → T6 RLS (`981901a`) → T7 grants (`fb19743`) → T8
-  `app.trg_deriva_gip()` `SECURITY DEFINER` + trigger (`d2600ac`) → T9 `vw_gip_evolucao` + 5 testes
-  de integração da Fase 2, em 2 commits por 2 achados reais no caminho (`c83a601`, `61ea838`).
-- **Completed (Lote B)**: T10 DDL `mv_avaliacao_nps` + grants (`e1b0bf2`) → T11
-  `app.atualiza_avaliacao_nps()` `SECURITY DEFINER` + 6 testes de integração da Fase 3 (`0ce90c3`)
-  → T12 `db:types` (`f1f6439`) → T13 `rpc/formulario.ts` (`atualizarAvaliacaoNps`) + 3 testes
-  unitários (`fa8a131`) → T14 `queries/formulario.ts` (6 funções de leitura) + 15 testes unitários
-  (`c082dcd`) → T15 verificação de compatibilidade de `usePapelGlobal` (sem commit — já entregue
-  por `incidencia-encontros` T17, `617a2c2`, reconfirmado por `git log`).
-- **Achado real de Design descoberto em T10** (não estava em `design.md`/`tasks.md`, mesma classe já
-  documentada por `incidencia-encontros` T8 pra `mv_iip_contrato`): `REFRESH MATERIALIZED VIEW
-  CONCURRENTLY` (que `app.atualiza_avaliacao_nps()`, T11, usa) exige que a MV já tenha sido populada
-  ao menos 1x SEM `CONCURRENTLY` — criar `WITH NO DATA` (schema aprovado) e ir direto pra
-  `CONCURRENTLY` falha com "materialized view has not been populated". Corrigido com um `REFRESH`
-  não-concorrente ao final da própria migration de T10, mesmo padrão do precedente.
-- **T11: fixture de teste teve que escapar do bucket `id_projeto` NULL/0 default** — `mv_avaliacao_nps`
-  agrega por formulário × projeto, não por contrato; o bucket `COALESCE(id_projeto,0)` é
-  compartilhado por qualquer fixture que não sete `id_projeto` (inclusive o de T4). Usado um
-  `id_projeto` real (`ref_projeto`, id 24) pra isolar o teste de qualquer pré-existente/concorrente.
-- **T11: suíte completa (`npm run test:integration`, sem escopo) morreu no meio** por falha de
-  infraestrutura não relacionada (`Tinypool: Worker exited unexpectedly`), mesma classe de crash já
-  documentada no handoff de `incidencia-encontros` pro mesmo comando completo contra o banco de dev
-  compartilhado. O arquivo desta task (`formularios-nps.integration.test.ts`) já tinha rodado 6/6
-  verde duas vezes antes da queda (isolado e dentro da suíte completa); demais falhas observadas
-  antes da queda (`catalogos-referencia` CAT-15/CAT-17, `operacao-regua-instanciacao` RGI-01 a
-  RGI-06) são pré-existentes/não relacionadas — `fileParallelism: false` no
-  `vitest.integration.config.ts` descarta corrida de arquivo desta feature como causa.
-- **T12: diff do `db:types` desta sessão mostrou só 2 entradas novas, não as 6 esperadas** — as
-  outras 4 (`fat_submissao`, `fat_resposta_metrica`, `fat_gip`, `fat_gip_dimensao`) mais
-  `vw_gip_evolucao` (5 no total) já tinham sido capturadas por uma regeneração de sessão paralela
-  (`visao-gerencial` T7, `a60c209`, que regenera o arquivo inteiro a partir do schema completo do
-  projeto). Confirmado por `grep` que as 6 entradas esperadas por `tasks.md` T12 estão todas
-  presentes no arquivo final — não é gap, é ordem de execução entre sessões concorrentes.
-- **Incidente de processo durante T11 (relevante pra próximas sessões)**: ao rodar o gate completo
-  (`npm run test:integration`) via `run_in_background`/`Monitor` e encerrar o turno esperando uma
-  notificação, a notificação não chegou de volta de forma acionável — o mesmo padrão de falha já
-  registrado no handoff de `visao-gerencial-g1-g2` ("esperar um Monitor resolveria sozinho"). O
-  Pedro/orquestrador precisou intervir explicitamente pra corrigir: **rodar o comando novamente em
-  FOREGROUND**, com um loop de espera bloqueante (`until grep -q "Test Files" ...; sleep 10; done`,
-  em blocos de ~9-10min por chamada de tool, repetidos) até coletar o resultado real. **Lição pra
-  quem rodar `test:integration` completo (suíte longa, pode passar de 40min)**: preferir foreground
-  com espera bloqueante em blocos, nunca assumir que `run_in_background` entrega uma notificação
-  utilizável de volta ao mesmo agente que a disparou.
-- **Sessão anterior tinha travado em T4 por disco cheio (0 bytes livres em C:) — resolvido pelo
-  Pedro nesta sessão**: `df -h` confirmou 24G livres depois; `npm run test:unit` (404/404) e
-  `npm run test:integration` (arquivo isolado de T4, 8/8) rodaram limpos. T4 commitado.
-- **3 achados reais descobertos rodando teste de verdade (não por leitura de código), todos
-  corrigidos no caminho**:
-  1. (T4) `design.md` só desenhava a cláusula de autoria no `WITH CHECK` de `fat_submissao` — spec.md
-     P1 AC9/AC13 também exigem bloqueio por formulário fechado/contrato encerrado, sem SQL exato em
-     lugar nenhum. Corrigido via `ALTER POLICY` na própria migration de T4 (forward-only).
-  2. (T9) `app.trg_valida_gip_dimensao()`/`trg_gip_dimensao_faixa` (verbatim
-     `docs/schema_sistema.sql:1864-1877`) **nunca tinham sido provisionados** — o alvo
-     (`fat_gip_dimensao`) só passou a existir na T5 desta feature, então nenhuma feature anterior
-     poderia tê-los criado; `design.md` assumia errado que já existiam. Sem isso, valor de dimensão
-     fora de 1-4 era aceito silenciosamente (FRM-18 não coberto de fato). Migration nova (`c83a601`).
-  3. (T9) `app.trg_deriva_gip()` só copiava `regua_sonhos` pra dentro de meio/fim **no instante em
-     que eram derivados** — reeditar o início depois que meio/fim já existem (permitido, nenhuma
-     ordem é imposta) deixava a cópia deles desatualizada e `vw_gip_evolucao` mostrava gap errado.
-     Corrigido com propagação nas 2 direções (`61ea838`).
-- **Achado de infraestrutura, não é bug de código desta feature** (contexto para quem ler o histórico
-  de commits): o Lote A começou rodando por sub-agente, que travou 2x achando que "esperar um
-  Monitor" resolveria sozinho (rodava o gate em `run_in_background: true` e encerrava o turno sem
-  recolher o resultado) e na 3ª tentativa caiu de vez por limite de sessão de API. O orquestrador
-  assumiu e completou T4-T9 inline nesta mesma sessão, sem sub-agente.
-- **Poluição de fixture de teste pré-existente, encontrada mas não desta feature**: rodar a suíte
-  `test:integration` completa (antes do disco encher) revelou 16 falhas em `catalogos-referencia` e
-  `convite-contrato` — fixtures órfãs (`fixture_t1_teste_estrutura`, e-mails `t3-convidado-*`),
-  provavelmente vazadas por uma execução anterior interrompida (disco cheio). Tentei limpar via
-  `DELETE` cirúrgico (aprovado pelo Pedro no chat) e o classificador de permissão bloqueou mesmo após
-  aprovação — não é algo que este agente deva contornar. **Débito conhecido, fora do escopo desta
-  feature**: alguém com acesso direto ao SQL Editor do Supabase (ou ajuste de permissão do Claude
-  Code) precisa rodar a limpeza. Detalhe exato das linhas órfãs (`id_etapa` 377/414,
-  `id_formulario` 294, `id_preditor` 116, `dim_contratante` 1638/1705, e-mails `t3-convidado-*@
-  legislabrasil.test`) ficou registrado na conversa desta sessão, não neste arquivo (evitar inchar
-  STATE.md com SQL de limpeza pontual).
-- **Colisão real de commit (não é bug, é corrida no índice do git compartilhado)**: o commit
-  `61ea838` (T9 final) acabou incluindo 2 arquivos de `visao-gerencial-g3-g6`
-  (`20260814211638_visao_gerencial_vw_carteira_ponderada_mensal.sql` +
-  `supabase/tests/visao-gerencial/vw-carteira-ponderada-mensal.integration.test.ts`) — outra sessão
-  rodou `git add` nesses arquivos entre o meu `git add` e `git commit`, e `git commit -m` sem
-  pathspec commita o índice inteiro, não só o que acabei de adicionar. Conteúdo intacto, só
-  attribution de commit "errada" (mesmo padrão já documentado no handoff de `kanban-etapas`) — não
-  reescrevi histórico por ter outra sessão ativa commitando ao mesmo tempo (risco real de rebase).
-  Também: **um commit separado de autoria do próprio Pedro** (`66cc2ab`, "feat: atualizacoes na
-  visao gerencial, formularios de produto e melhorias na UI") varreu o working tree inteiro em algum
-  momento no meio desta sessão (`git add -A`-like), capturando uma cópia mais antiga de
-  `formularios-gip.integration.test.ts` e de `spec.md`/`context.md`/`design.md`/`tasks.md` desta
-  feature — meus commits posteriores (`c83a601`, `61ea838`) já continuam corretamente por cima
-  dessa cópia, nada foi perdido.
-- **Next step**: nenhum obrigatório. Quando Pedro pedir para continuar: Lote C (T16-T21 — todo o
-  frontend: `FormulariosLista`, rota de lista, `FormularioGenericoForm`, rota `[codigo]`,
-  `FormularioGipForm`, `NpsAvaliacoesCard` + wiring no dashboard, ver `tasks.md`). Depois do Lote C
-  (feature completa), disparar o Verifier independente — responsabilidade do orquestrador, não de
-  quem rodar Lote C. Antes de rodar `npm run test:integration` completo de novo, ter em mente que
-  falhas de poluição pré-existente em `catalogos-referencia`/`convite-contrato`/
-  `operacao-regua-instanciacao` (acima, e no achado de T11 desta sessão) continuam lá até alguém
-  limpar — não são regressão de nenhum trabalho novo desta feature.
+- **Feature**: Formulários dos Produtos (`.specs/features/formularios-produto/`) — 23 requisitos
+  FRM-01 a FRM-23, 21 tasks em 7 fases, 3 lotes de sub-agente (A: T1-T9 schema genérico+GIP; B:
+  T10-T15 NPS+backend TS; C: T16-T21 frontend). **Todas as 21 tasks concluídas, commitadas, e a
+  feature passou por 2 rodadas de Verificação Final** (rodada 1 FAIL com 5 gaps + 1 partial;
+  4 fixes; rodada 2 PASS, 23/23 FRM com evidência real). Relatório completo em
+  `.specs/features/formularios-produto/validation.md` (as 2 rodadas, histórico preservado).
+- **3 achados reais no Lote A** (schema): T4 — `design.md` não tinha o SQL exato do bloqueio por
+  formulário fechado/contrato encerrado em `fat_submissao` (corrigido via `ALTER POLICY` na própria
+  migration). T9 — `app.trg_valida_gip_dimensao()` nunca tinha sido provisionado (o alvo só passou a
+  existir nesta feature, `design.md` assumiu errado que já existia) + `app.trg_deriva_gip()` só
+  copiava `regua_sonhos` no instante da derivação, sem repropagar se o início fosse reeditado depois
+  (2 migrations de fix, `c83a601`/`61ea838`).
+- **1 achado real no Lote B**: `REFRESH MATERIALIZED VIEW CONCURRENTLY` (T11) exige que a MV já
+  tenha sido populada 1x sem `CONCURRENTLY` — mesma classe de gap já visto em `incidencia-encontros`
+  pra `mv_iip_contrato`. Corrigido com um `REFRESH` não-concorrente ao final da migration de T10.
+- **4 achados da Verificação Final rodada 1, todos corrigidos e re-verificados PASS na rodada 2**:
+  1. FRM-22 (Major) — nenhuma migration ligava `app.trg_auditoria()` em `fat_submissao`/`fat_gip`
+     (toda outra feature com tabela `fat_*` nova fez isso, esta não). Fix: `267112d`.
+  2. FRM-11 (Major) — "somente leitura pro respondente comum quando `permite_edicao_aberta=false`"
+     só era imposto pela UI, nunca pela RLS (violava AD-002). 1ª tentativa de fix (`19b2f9f`) usou
+     `USING` numa policy RESTRICTIVE de UPDATE — filtra a linha silenciosamente, sem erro, pior UX
+     que o problema original. Corrigido de verdade trocando pra `WITH CHECK` (`e701f1b`), que
+     levanta 42501 real.
+  3. FRM-13 (Minor) — "impedir abrir formulário novo" em contrato encerrado nunca foi implementado
+     (só a metade "nova submissão" existia, de T4). Fix (`97b43a7`) bloqueia até Gestora/Admin
+     deliberadamente (diverge do bypass usado em `fat_submissao` — aqui um bypass seria um no-op,
+     já que só admin/gestora têm GRANT pra essa ação).
+  4. FRM-01/02/03 (Minor) — abrir/fechar `rel_formulario_contrato` nunca teve teste automatizado.
+     Fix: novo arquivo `formularios-abrir-fechar.integration.test.ts` (`d2b5178`) cobrindo os 4
+     achados acima juntos (merge-forward).
+- **4 lições candidatas distiladas pelo Verifier**: L-033 (auditoria nunca herdada automaticamente),
+  L-034 (restrição só-UI não é autorização), L-035 ("sem migration nova" não é "sem teste novo"),
+  L-036 (AC composta por "e" precisa das duas metades verificadas). L-037 (rodada 2, não-bloqueante):
+  teste de auditoria só cobre 1 dos 6 pares tabela×operação — Fix 6 opcional, não impede fechamento.
+- **Gate final**: `npm run test:unit` 460/460. 4 arquivos de integração desta feature (`formularios-
+  submissao` 8/8, `formularios-gip` 5/5, `formularios-nps` 6/6, `formularios-abrir-fechar` 4/4) = 23
+  testes de integração, todos verdes. `npm run build && npm run lint:all` limpo (baseline
+  pré-existente de ~30 problemas em arquivos de outras features, confirmado não relacionado, 2x).
+- **Poluição de fixture de teste pré-existente, não desta feature**: a suíte `test:integration`
+  completa (sem escopo) ainda tem ~16 falhas em `catalogos-referencia`/`convite-contrato` (fixtures
+  órfãs de execução interrompida por disco cheio, antes desta sessão) — débito conhecido, não
+  limpável por este agente (classificador de permissão bloqueia `DELETE` ad-hoc mesmo após aprovação
+  do Pedro). Precisa de alguém com acesso direto ao SQL Editor do Supabase.
+- **Colisões de commit real (git, não código)**: `61ea838` (T9, Lote A) incluiu 2 arquivos de
+  `visao-gerencial-g3-g6` por corrida de `git add` no índice compartilhado — conteúdo intacto, só
+  atribuição errada (mesmo padrão de `kanban-etapas`). Um commit do próprio Pedro (`66cc2ab`) varreu
+  o working tree inteiro no meio do Lote A, capturando uma cópia mais antiga de alguns arquivos desta
+  feature — os commits seguintes já continuam corretos por cima, nada foi perdido.
+- **Next step**: nenhum. Feature fechada.
 - **Blockers**: none.
-- **Uncommitted files**: none desta feature.
+- **Uncommitted files**: none.
 - **Branch**: develop.
-- **Atenção — trabalho paralelo confirmado no Lote A**: pelo menos 3 outras trilhas commitaram
-  ativamente neste mesmo branch durante toda a execução do Lote A — `incidencia-encontros`
-  (concluída, handoff próprio abaixo), `planejamento-estrategico-redesenho` (concluída e validada,
-  handoff próprio abaixo) e `visao-gerencial-g3-g6` (em andamento, ver colisão de commit acima).
-  Nenhum arquivo de schema/backend desta feature colidiu de verdade (conteúdo sempre correto); a
-  única colisão foi de atribuição de commit no git, documentada acima.
-- **Atenção — trabalho paralelo confirmado no Lote B**: `visao-gerencial` seguiu commitando
-  ativamente em `develop` durante toda a execução do Lote B (histórico de `git log` no início desta
-  sessão mostrado quase inteiro de commits dela, incluindo o `db:types` que antecipou 5 das 6
-  entradas de T12 — ver achado acima). Nenhum arquivo desta feature colidiu.
+- **Atenção — trabalho paralelo confirmado durante toda a execução**: pelo menos 4 outras trilhas
+  commitaram ativamente no mesmo branch (`incidencia-encontros`, `planejamento-estrategico-
+  redesenho`, `visao-gerencial-g3-g6`, todas concluídas — handoffs próprios abaixo). Nenhum arquivo
+  de schema/backend desta feature colidiu de verdade; as únicas colisões foram de atribuição de
+  commit no git, documentadas acima.
 
 ---
 
