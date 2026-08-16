@@ -230,6 +230,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: FRM-13, validation.md (spec-verification)
 - last seen: 2026-08-16T00:28:58Z
 
+### L-037 — When a spec requirement names multiple tables and implies full CRUD coverage from one shared trigger (e.g. an audit trail), write a persisted regression test for each named table x operation combination explicitly -- confirming the untested combinations once via live manual verification during review does not leave a repeatable regression guard for them.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `db-migrations` · harmful: 0
+- features: formularios-produto
+- evidence: FRM-22, validation.md Rodada 2 (Discrimination Sensor + verificação manual live) (db-migrations)
+- last seen: 2026-08-16T01:43:45Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

@@ -223,3 +223,226 @@ Not performed. This environment has no browser/screenshot tool (stated constrain
 5. `tasks.md` header stale (Cosmetic).
 
 **Next steps**: Fix 2 and Fix 4 (both Major) should be addressed before calling this feature done — they are real, unenforced gaps against named requirements, not spec-precision ambiguity. Fix 1 and Fix 3 are lower priority (test-debt / low-likelihood edge). Fix 5 is a 1-line doc update.
+
+---
+---
+
+# Rodada 2 (re-verificação)
+
+**Date**: 2026-08-16
+**Spec**: `.specs/features/formularios-produto/spec.md`
+**Diff range**: `267112d`..`1a4f5a5` — 6 commits on top of the Rodada 1 diff range (`337baa9`..`97ab0a5`),
+closing the 5 gaps + 1 partial from Rodada 1.
+**Verifier**: independent sub-agent, fresh eyes (author ≠ verifier, and ≠ the Rodada 1 Verifier —
+this round re-derived everything from `spec.md`/the real migrations/the real deployed dev database,
+not inherited from the Rodada 1 report's conclusions).
+
+**Scope note**: per the orchestrator's brief, this round re-verifies the *entire* feature (not just
+the 4 fixes), with extra scrutiny on FRM-22, FRM-11, FRM-13, and FRM-01/02/03. The 17 ACs already
+✅ PASS in Rodada 1 (FRM-04 through FRM-10, FRM-12, FRM-14 through FRM-21, FRM-23) were re-confirmed
+via a full re-run of the gate (unit + all 4 feature-scoped integration files) rather than re-derived
+line-by-line from scratch — nothing in the 6 new commits touches their code paths (`git show --stat`
+on all 6 confirms only new SQL migration files + 1 new/1 modified integration test file, zero
+frontend/backend-TS changes), and all 4 integration files pass together, so no regression was
+introduced. Full re-derivation effort went into the 6 previously-gapped/partial ACs below.
+
+---
+
+## Task Completion (Rodada 2 — the fixes)
+
+| Fix commit | Status | Notes |
+| --- | --- | --- |
+| `267112d` (FRM-22) | ✅ Done | `supabase/migrations/20260816003054_formularios_produto_auditoria.sql` — idempotent `trg_audit_fat_submissao`/`trg_audit_fat_gip`, confirmed deployed via `pg_trigger` catalog query against the linked dev project (not just file existence) |
+| `19b2f9f` (FRM-11, 1st attempt) | ✅ Done, superseded by `e701f1b` | `p_bloqueia_reenvio_fechado` created as `RESTRICTIVE FOR UPDATE` with `USING(...)` — confirmed this was the exact bug the next commit fixes (USING on a RESTRICTIVE UPDATE policy filters silently, no error) |
+| `e701f1b` (FRM-11 fix) | ✅ Done | `ALTER POLICY ... USING(true) WITH CHECK(...)` — confirmed deployed via `pg_policy` catalog query: `using_expr = "true"`, `with_check_expr` matches the migration exactly |
+| `97b43a7` (FRM-13) | ✅ Done | `ALTER POLICY p_por_contrato ON rel_formulario_contrato ... WITH CHECK(... AND (estado<>'aberto' OR contrato ativo))` — confirmed deployed via `pg_policy`, no admin/gestora bypass in the new clause (deliberate, see independent opinion below) |
+| `d2b5178` (tests) | ✅ Done | New file `supabase/tests/operacao/formularios-abrir-fechar.integration.test.ts` (4 tests, all real authenticated-client behavior, not `has_table_privilege`); `formularios-submissao.integration.test.ts`'s structural assertion legitimately strengthened (2→3 policies), not weakened — verified via diff |
+| `1a4f5a5` (docs) | ✅ Done | `validation.md` Rodada 1 + `tasks.md` header + L-033..L-036 — all present |
+
+---
+
+## Spec-Anchored Acceptance Criteria — re-derived for the 6 previously-gapped items
+
+| # | Criterion (WHEN X THEN Y) | Spec-defined outcome | `file:line` + assertion | Result |
+| - | --- | --- | --- | --- |
+| AC1 (FRM-01) | Gestora/Admin aciona "abrir" | `estado='aberto'` (write succeeds, real authenticated client) | `supabase/tests/operacao/formularios-abrir-fechar.integration.test.ts:164-177` — real Gestora client `UPDATE ... SET estado='aberto', dt_abertura=..., id_usuario_abriu=...`, `expect(erroAbrir).toBeNull()`, then `expect(aberto.estado).toBe("aberto")` against a fresh `SELECT`. `dt_abertura`/`id_usuario_abriu` are written by the client and not independently re-asserted by SQL — same accepted-mitigation depth as AC6's `versao_formulario` in Rodada 1 (DB doesn't validate these values beyond admission; UI write-path already code-reviewed in Rodada 1, unchanged by this diff). | ✅ PASS |
+| AC2 (FRM-02) | Gestora/Admin aciona "fechar" | `estado='fechado'` | Same test, `:179-189` — real UPDATE to `estado='fechado'`, `expect(erroFechar).toBeNull()`, re-`SELECT` confirms `estado='fechado'`. | ✅ PASS |
+| AC3 (FRM-03) | Mentor/Assessor tenta abrir/fechar | Negado (nenhum GRANT UPDATE fora Gestora/Admin) | `:192-201` — real Mentor client attempts the same UPDATE, `expect(error?.code).toBe("42501")`. | ✅ PASS |
+| AC11 (FRM-11) | `permite_edicao_aberta=false`, já respondido | Respondente comum negado via RLS (42501, valor não muda); Gestora/Admin mantêm bypass | `:230-281` — Mentor inserts into a dedicated fixture form (`permite_edicao_aberta=false`), attempts UPDATE (reenvio), `expect(erroUpdate?.code).toBe("42501")`, then re-`SELECT` confirms `respostas.qualquer` is still `"valor"` (unchanged) — then Gestora's UPDATE on the same row succeeds (`expect(erroGestora).toBeNull()`). **Independently re-confirmed against the deployed policy** (not just the migration file): `pg_policy` catalog query on `fat_submissao` shows `p_bloqueia_reenvio_fechado`, `polpermissive=false` (RESTRICTIVE), `polcmd='w'` (UPDATE only), `using_expr="true"`, `with_check_expr` = the exact admin/gestora-OR-permite_edicao_aberta clause from `e701f1b` — confirms the mechanism really is `WITH CHECK`, not `USING` (the 1st-attempt bug is genuinely fixed, not masked). | ✅ PASS |
+| AC13 (FRM-13) | `fat_contrato.status<>'ativo'` | Impede abrir formulário novo **e** nova submissão (both halves) | Submission half: unchanged from Rodada 1 (`formularios-submissao.integration.test.ts:342-358`, still passing). Open half (the gap): `formularios-abrir-fechar.integration.test.ts:207-226` — Gestora attempts `UPDATE rel_formulario_contrato SET estado='aberto'` on a formulário of an `encerrado` contract, `expect(error?.code).toBe("42501")`, re-`SELECT` confirms `estado` still `'fechado'`. **Independently re-confirmed the deployed policy has no admin/gestora bypass for this specific clause** — `pg_policy` on `rel_formulario_contrato` shows `with_check_expr` ANDs the role/contract-membership check with `(estado<>'aberto' OR contrato.status='ativo')`, unconditionally (the `papel_atual() IN ('admin','gestora')` bypass only appears in the *first* AND-term, not wrapping the new contract-status term). Both halves of the "and" now verified independently, per L-036. | ✅ PASS |
+| FRM-22 (Auditoria) | `fat_submissao`/`fat_gip` entram na auditoria padrão | INSERT/UPDATE/DELETE em ambas as tabelas geram linha em `log_auditoria` | Persisted test: `formularios-abrir-fechar.integration.test.ts:247-255` asserts 1 `log_auditoria` row (`acao='insert'`) for the `fat_submissao` INSERT — 1 of 6 required (table × operation) combinations. **This Verifier independently exercised the other 5 combinations live against the deployed dev database** (scratch fixture, fully cleaned up afterward, zero residue confirmed): INSERT/UPDATE/DELETE on `fat_gip` (id 29, derived from a scratch GIP submission) and UPDATE/DELETE on `fat_submissao` (id 142) all produced the expected `log_auditoria` row with the correct `acao`, in the correct order (`insert`→`update`→`delete` for both tables, timestamps matching each operation). See Discrimination Sensor below for the corroborating mutation-kill evidence. | ✅ PASS (see Fix Plans — Minor test-coverage note on the 5 combinations not persisted in a repo test) |
+
+**Status**: ✅ All 6 previously-gapped/partial criteria now PASS with real, spec-anchored evidence — no remaining GAP or PARTIAL among the 23 FRM requirements.
+
+### Independent opinion — FRM-13's admin/gestora bypass divergence (requested explicitly by the orchestrator)
+
+The `97b43a7` commit message argues the "abrir formulário" bypass should NOT mirror the
+`fat_submissao` WITH CHECK's admin/gestora bypass (T4), because opening a form signals new
+engagement that shouldn't exist on an encerrado contract, whereas reopening an existing answer for
+correction can be legitimate even after closure. Independently re-reading `spec.md` AC13's literal
+text — "sistema SHALL impedir abrir formulário novo e nova submissão, mantendo leitura do que já
+existe" — there is **no carve-out for Gestora/Admin** in that sentence, in contrast to AC11's
+sentence for the sibling rule, which explicitly says "Gestora/Admin SHALL ver uma ação própria para
+reabrir a edição." `context.md`'s own assumption entry for "Contrato encerrado" also states the rule
+without a role exception ("impede abrir/fechar formulário novo e impede nova submissão... mantém
+leitura"). Given both primary sources are silent on an admin/gestora exception for *this specific*
+rule (while being explicit about the exception for the *other* rule), blocking everyone — including
+admin/gestora — is the more literal, defensible reading, not just a reasonable alternative. I concur
+with the fix's decision; it is not questionable.
+
+---
+
+## Discrimination Sensor — Rodada 2 (DB-level, targeting the 4 new fixes)
+
+Unlike Rodada 1 (whose one DB-level mutation attempt was blocked by the environment's sandbox
+classifier, forcing a TS-only sensor), this round's DB-level mutations were **not** blocked. Each
+mutation: (1) captured the exact deployed definition via `pg_get_expr`/`pg_get_triggerdef` before
+mutating, (2) applied a single, narrowly-scoped `ALTER POLICY`/`DROP TRIGGER` against the linked dev
+project, (3) ran the specific test(s) covering that behavior, (4) restored the exact original
+definition immediately, (5) re-verified the restoration byte-for-byte via the same catalog query.
+A final full re-run of all 4 feature-scoped integration files after all 3 mutations were reverted
+confirms the dev database was left exactly as found (23/23 passed, matching the pre-mutation
+baseline).
+
+| # | Object | Mutation | Killed? |
+| - | --- | --- | --- |
+| 1 | `fat_submissao` policy `p_bloqueia_reenvio_fechado` (FRM-11, `e701f1b`) | `ALTER POLICY ... USING(true) WITH CHECK(true)` — neutralizes the guard entirely | ✅ Killed — `formularios-abrir-fechar.integration.test.ts` "Mentor tenta reenviar..." failed: `expected null not to be null` (the reenvio that should have been denied now succeeded) |
+| 2 | `rel_formulario_contrato` policy `p_por_contrato` (FRM-13, `97b43a7`) | `ALTER POLICY ...` reverted `WITH CHECK` to the pre-fix expression (role/contract-membership only, no contract-status clause) | ✅ Killed — "Gestora tenta abrir formulário em contrato encerrado..." failed: `expected null not to be null` (Gestora's open on an encerrado contract now succeeded) |
+| 3 | `fat_submissao` trigger `trg_audit_fat_submissao` (FRM-22, `267112d`) | `DROP TRIGGER trg_audit_fat_submissao ON fat_submissao` | ✅ Killed — same test's audit assertion failed: `expected undefined to be defined` (no `log_auditoria` row was found after the INSERT) |
+
+**Sensor depth**: lightweight (3 targeted mutations, one per fix with an independent DB object to
+mutate — `d2b5178`'s test-only commit has no separate object of its own to mutate, it's exercised by
+mutations 1-3 above)
+**Result**: 3/3 killed — ✅ PASS. All 3 mutations restored and independently re-verified as
+byte-identical to the pre-mutation catalog definitions; full 4-file suite re-run afterward: 23/23
+passed, confirming zero residual state left in the dev database.
+
+---
+
+## Regression Check (rest of the feature, unaffected by the 6 fix commits)
+
+- **Gate**: `npm run test:unit` → 460/460 passed (identical count to Rodada 1 — no unit test changed
+  by the 6 fix commits, confirmed via `git show --stat`).
+- **Integration (4 feature-scoped files, clean baseline before any sensor mutation)**: 23/23 passed —
+  `formularios-submissao.integration.test.ts` (8), `formularios-abrir-fechar.integration.test.ts`
+  (4, new), `formularios-gip.integration.test.ts` (5), `formularios-nps.integration.test.ts` (6).
+  +4 tests vs. Rodada 1's 19.
+- **Build**: clean, 0 errors, all 31 routes generated (same route count as Rodada 1, no route
+  changes in this diff).
+- **Lint**: 30 problems (15 errors, 15 warnings) — identical count to Rodada 1's baseline;
+  `grep -i formulario` on the full lint output returns nothing — 0 in any file touched by this
+  feature or its fixes.
+- **`formularios-submissao.integration.test.ts`'s structural assertion** (2→3 policies after FRM-11's
+  new policy): re-read the diff directly — the change adds a policy-name map and asserts both names
+  present, still checks `qual`/`with_check` not null for every row including the new one. This is a
+  legitimate strengthening (the old assertion would have missed a duplicate/wrong policy name; the
+  new one pins both), not a weakening.
+
+No regression found anywhere in the feature.
+
+---
+
+## Code Quality (Rodada 2 — the 6 fix commits)
+
+| Principle | Status | Note |
+| --- | --- | --- |
+| Minimum code | ✅ | Each fix is a single-purpose migration (29-34 lines); no speculative generalization |
+| Surgical changes | ✅ | `e701f1b` touches only the 1 policy it's correcting; no drive-by edits to unrelated migrations |
+| No scope creep | ✅ | FRM-13's fix stays scoped to `rel_formulario_contrato`; doesn't also "fix" the sibling `fat_submissao` bypass pattern it deliberately diverges from |
+| Matches patterns | ✅ | Idempotent `IF NOT EXISTS`/`DO $$` trigger-attachment loop matches `0012_fundacao_auditoria_gap.sql`'s precedent exactly; `ALTER POLICY` pattern matches `20260812001234_regua_instanciacao_rls.sql`'s WITH CHECK precedent |
+| Spec-anchored outcome check | ✅ | All 6 re-derived ACs above target the exact spec-defined outcome (specific SQLSTATE, specific unchanged value, specific row presence) |
+| Honest self-correction | ✅ | `e701f1b`'s commit message names its own predecessor's bug precisely ("achado real... não por leitura de código") — exactly the kind of transparency `coding-principles.md`/AD-002 call for, not silently squashed into `19b2f9f` |
+| Every test maps to a spec requirement | ✅ | All 4 new tests in `formularios-abrir-fechar.integration.test.ts` carry an explicit FRM-NN anchor in their `it()` title or a header comment |
+
+---
+
+## Gate Check (Rodada 2)
+
+- **Gate command**: `npm run test:unit` (Quick) + `npx vitest run --config vitest.integration.config.ts`
+  scoped to the 4 feature integration files (Full) + `npm run build && npm run lint:all` (Build)
+- **Unit result**: 460/460 passed, 41 files, 0 failed
+- **Integration result (feature-scoped, clean baseline)**: 23/23 passed across 4 files
+- **This round's test contribution**: +4 integration tests (`formularios-abrir-fechar.integration.test.ts`)
+  vs. Rodada 1's 33 new tests (14 unit + 19 integration) — total feature footprint now 14 unit + 23
+  integration = 37 new tests, all green
+- **Build**: clean, 0 errors, 31 routes
+- **Lint**: 30 problems (15 errors, 15 warnings), 0 in this feature's files — same baseline as
+  Rodada 1, reconfirmed unrelated
+- **Skipped tests**: none
+- **Failures**: none (outside the intentional, immediately-reverted sensor mutations above)
+
+---
+
+## Fix Plans (optional, non-blocking)
+
+### Fix 6 (Minor, optional): FRM-22's persisted regression test covers only 1 of 6 required combinations
+
+- **Root cause**: `d2b5178`'s new test asserts `log_auditoria` gets an `insert` row for `fat_submissao`,
+  but never asserts `update`/`delete` on `fat_submissao`, nor `insert`/`update`/`delete` on `fat_gip`.
+  This Verifier independently confirmed all 5 remaining combinations work correctly via a live,
+  cleaned-up scratch verification against the deployed dev database (see FRM-22 row above) — the
+  underlying mechanism (the same generic `app.trg_auditoria()`, already exhaustively tested elsewhere
+  in the repo for other tables) is sound. But the *repo's own regression suite* does not guard 5 of
+  the 6 combinations long-term.
+- **Fix task**: Extend `formularios-abrir-fechar.integration.test.ts` (or a new test) to assert
+  `log_auditoria` rows for the `fat_submissao` UPDATE that already happens in the existing test body
+  (Gestora's reabertura, currently unchecked), plus a small GIP-flow addition asserting `fat_gip`'s
+  own audit trail after a GIP submission (`formularios-gip.integration.test.ts` already creates and
+  updates `fat_gip` rows in its existing test bodies — the assertions could be appended there instead
+  of writing new fixtures).
+- **Priority**: Minor — functionally verified correct (live, both this round's manual check and the
+  Discrimination Sensor's mutation-3 kill), this is test-debt for future-regression protection, not
+  a present functional gap. Does not block this feature's PASS.
+- **Lesson recorded**: L-037 (`scripts/lessons.py`, candidate).
+
+---
+
+## Requirement Traceability Update (Rodada 2)
+
+| Requirement | Rodada 1 Status | Rodada 2 Status |
+| --- | --- | --- |
+| FRM-01 | ❌ Needs Fix (test coverage) | ✅ Verified |
+| FRM-02 | ❌ Needs Fix (test coverage) | ✅ Verified |
+| FRM-03 | ❌ Needs Fix (test coverage) | ✅ Verified |
+| FRM-11 | ❌ Needs Fix (Major) | ✅ Verified |
+| FRM-13 | ⚠️ Partial (Minor) | ✅ Verified |
+| FRM-22 | ❌ Needs Fix (Major) | ✅ Verified (Minor test-coverage-breadth note, non-blocking — Fix 6) |
+| All others (FRM-04..10, 12, 14..21, 23) | ✅ Verified | ✅ Verified (re-confirmed, no regression) |
+
+(`spec.md`'s own Requirement Traceability table was left untouched, per this Verifier's read-only
+mandate — same convention as Rodada 1.)
+
+---
+
+## Summary (Rodada 2)
+
+**Overall**: ✅ Ready
+
+**Spec-anchored check**: 23/23 FRM requirements matched their spec-defined outcome with real,
+precise evidence (0 gaps, 0 partials); 1 non-blocking Minor test-coverage-breadth note on FRM-22
+(functionally verified correct independently, but only 1/6 combinations has a persisted regression
+test — Fix 6, optional)
+
+**Sensor**: 3/3 DB-level mutations killed (targeted directly at the 3 fixed migrations/trigger); dev
+database confirmed restored byte-for-byte and fully functional (23/23 integration tests re-passed
+after all mutations reverted)
+
+**Gate**: 460 unit + 23 integration (feature-scoped, all 4 files) passed, 0 failed; build clean (31
+routes); lint clean in this feature's files (same 30-problem pre-existing baseline elsewhere,
+reconfirmed unrelated)
+
+**What works**: All 23 FRM requirements across P1/P2/P3 are implemented correctly and covered by
+real, spec-anchored, authenticated-client tests — including the 6 that were gapped/partial in
+Rodada 1. FRM-11's fix genuinely closed the RLS gap (`WITH CHECK`, not the silently-filtering
+`USING` of the first attempt) — independently confirmed against the deployed policy catalog, not
+just the migration file. FRM-13's admin/gestora-inclusive block is a deliberate, well-reasoned
+divergence, faithful to spec.md's literal text. FRM-22's audit trail genuinely fires for every write
+this feature makes on both `fat_submissao` and `fat_gip` — independently exercised live for all 6
+(table × operation) combinations, not just the 1 the persisted test covers.
+
+**Issues found**: none blocking. Fix 6 (Minor, optional) — broaden FRM-22's persisted test to cover
+the 5 combinations this Verifier had to confirm manually.
+
+**Next steps**: None required to close this feature. Fix 6 may be picked up opportunistically in a
+future touch of this test file; it does not gate closure. `formularios-produto` (21 tasks + 4
+Rodada-1 fixes + this round's re-verification) is done.

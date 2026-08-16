@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 37,
+  "next_id": 38,
   "lessons": [
     {
       "id": "L-001",
@@ -652,6 +652,24 @@
       ],
       "created": "2026-08-16T00:28:58Z",
       "last_seen": "2026-08-16T00:28:58Z"
+    },
+    {
+      "id": "L-037",
+      "key": "ac_gap::when a spec requirement names multiple tables and implies full crud coverage from one shared trigger e g an audit trail write a persisted regression test for each named table x operation combination explicitly confirming the untested combinations once via live manual verification during review does not leave a repeatable regression guard for them",
+      "text": "When a spec requirement names multiple tables and implies full CRUD coverage from one shared trigger (e.g. an audit trail), write a persisted regression test for each named table x operation combination explicitly -- confirming the untested combinations once via live manual verification during review does not leave a repeatable regression guard for them.",
+      "signal": "ac_gap",
+      "scope": "db-migrations",
+      "status": "candidate",
+      "features": [
+        "formularios-produto"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FRM-22, validation.md Rodada 2 (Discrimination Sensor + verificação manual live) (db-migrations)"
+      ],
+      "created": "2026-08-16T01:43:45Z",
+      "last_seen": "2026-08-16T01:43:45Z"
     }
   ]
 }
