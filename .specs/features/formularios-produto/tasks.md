@@ -12,13 +12,11 @@ Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/formularios-produto/design.md`
-**Status**: In Progress — **Lote A (T1-T9) e Lote B (T10-T15) concluídos**. T1 ✅ (`337baa9`) · T2 ✅
-(`11d17e9`) · T3 ✅ (`1a44446`) · T4 ✅ (`5941c5f` + fix lint `a5ebaa3`) · T5 ✅ (`49dc295`) · T6 ✅
-(`981901a`) · T7 ✅ (`fb19743`) · T8 ✅ (`d2600ac`) · T9 ✅ (`c83a601` + `61ea838`, 2 achados reais
-corrigidos no caminho) · T10 ✅ (`e1b0bf2`) · T11 ✅ (`0ce90c3`) · T12 ✅ (`f1f6439`) · T13 ✅
-(`fa8a131`) · T14 ✅ (`c082dcd`) · T15 ✅ (verificação, sem commit novo — já entregue por
-`incidencia-encontros` T17, `617a2c2`) — ver `.specs/STATE.md`, Handoff "Formulários dos Produtos".
-Lote C (T16-T21) não iniciado.
+**Status**: **Todas as 21 tasks concluídas** (Lote A T1-T9, Lote B T10-T15, Lote C T16-T21) +
+4 fixes de achados da Verificação Final rodada 1 (FRM-22 auditoria, FRM-11 RLS de edição fechada,
+FRM-13 contrato encerrado, FRM-01/02/03 teste de abrir/fechar). Ver `.specs/STATE.md`, Handoff
+"Formulários dos Produtos", e `.specs/features/formularios-produto/validation.md` (histórico das
+rodadas de verificação).
 
 ---
 

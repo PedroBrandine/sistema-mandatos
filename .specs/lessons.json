@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 33,
+  "next_id": 37,
   "lessons": [
     {
       "id": "L-001",
@@ -580,6 +580,78 @@
       ],
       "created": "2026-08-14T23:14:23Z",
       "last_seen": "2026-08-14T23:14:23Z"
+    },
+    {
+      "id": "L-033",
+      "key": "ac_gap::when a feature adds a fat table attach app trg auditoria to it in the same migration wave it is never inherited automatically and every prior feature that skipped this created a silent audit gap",
+      "text": "When a feature adds a fat_* table, attach app.trg_auditoria() to it in the same migration wave -- it is never inherited automatically and every prior feature that skipped this created a silent audit gap.",
+      "signal": "ac_gap",
+      "scope": "db-migrations",
+      "status": "candidate",
+      "features": [
+        "formularios-produto"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FRM-22, validation.md (db-migrations)"
+      ],
+      "created": "2026-08-16T00:28:47Z",
+      "last_seen": "2026-08-16T00:28:47Z"
+    },
+    {
+      "id": "L-034",
+      "key": "ac_gap::a ui only disabled button restriction is not authorization any spec requirement phrased as a write restriction read only locked closed must be mirrored in the table s rls with check or an authenticated client can bypass it directly",
+      "text": "A UI-only disabled-button restriction is not authorization -- any spec requirement phrased as a write restriction (read-only, locked, closed) must be mirrored in the table's RLS WITH CHECK, or an authenticated client can bypass it directly.",
+      "signal": "ac_gap",
+      "scope": "rls",
+      "status": "candidate",
+      "features": [
+        "formularios-produto"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FRM-11, validation.md (rls)"
+      ],
+      "created": "2026-08-16T00:28:48Z",
+      "last_seen": "2026-08-16T00:28:48Z"
+    },
+    {
+      "id": "L-035",
+      "key": "ac_gap::reusing an existing table s rls grant without a new migration still requires a dedicated regression test for the new feature s specific role x operation claims no migration needed is not evidence of already tested",
+      "text": "Reusing an existing table's RLS/GRANT without a new migration still requires a dedicated regression test for the new feature's specific role x operation claims -- 'no migration needed' is not evidence of 'already tested'.",
+      "signal": "ac_gap",
+      "scope": "testing",
+      "status": "candidate",
+      "features": [
+        "formularios-produto"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FRM-01/02/03, validation.md (testing)"
+      ],
+      "created": "2026-08-16T00:28:48Z",
+      "last_seen": "2026-08-16T00:28:48Z"
+    },
+    {
+      "id": "L-036",
+      "key": "ac_gap::when an ac lists two conditions joined by and e g blocks x and y verify and test both halves independently a fix note or spec deviation that addresses only one half is easy to mistake for full coverage",
+      "text": "When an AC lists two conditions joined by 'and' (e.g. blocks X and Y), verify and test both halves independently -- a fix note or SPEC_DEVIATION that addresses only one half is easy to mistake for full coverage.",
+      "signal": "ac_gap",
+      "scope": "spec-verification",
+      "status": "candidate",
+      "features": [
+        "formularios-produto"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FRM-13, validation.md (spec-verification)"
+      ],
+      "created": "2026-08-16T00:28:58Z",
+      "last_seen": "2026-08-16T00:28:58Z"
     }
   ]
 }

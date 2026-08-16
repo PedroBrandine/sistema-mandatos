@@ -206,6 +206,30 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: src/backend/queries/visao-gerencial.ts:819-824 (buscarIipConsolidado, GER-18) (backend/supabase)
 - last seen: 2026-08-14T23:14:23Z
 
+### L-033 — When a feature adds a fat_* table, attach app.trg_auditoria() to it in the same migration wave -- it is never inherited automatically and every prior feature that skipped this created a silent audit gap.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `db-migrations` · harmful: 0
+- features: formularios-produto
+- evidence: FRM-22, validation.md (db-migrations)
+- last seen: 2026-08-16T00:28:47Z
+
+### L-034 — A UI-only disabled-button restriction is not authorization -- any spec requirement phrased as a write restriction (read-only, locked, closed) must be mirrored in the table's RLS WITH CHECK, or an authenticated client can bypass it directly.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `rls` · harmful: 0
+- features: formularios-produto
+- evidence: FRM-11, validation.md (rls)
+- last seen: 2026-08-16T00:28:48Z
+
+### L-035 — Reusing an existing table's RLS/GRANT without a new migration still requires a dedicated regression test for the new feature's specific role x operation claims -- 'no migration needed' is not evidence of 'already tested'.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `testing` · harmful: 0
+- features: formularios-produto
+- evidence: FRM-01/02/03, validation.md (testing)
+- last seen: 2026-08-16T00:28:48Z
+
+### L-036 — When an AC lists two conditions joined by 'and' (e.g. blocks X and Y), verify and test both halves independently -- a fix note or SPEC_DEVIATION that addresses only one half is easy to mistake for full coverage.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `spec-verification` · harmful: 0
+- features: formularios-produto
+- evidence: FRM-13, validation.md (spec-verification)
+- last seen: 2026-08-16T00:28:58Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
