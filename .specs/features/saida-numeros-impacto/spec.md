@@ -191,16 +191,16 @@ calculado; repetir com um contrato sem GIP nenhum e confirmar o `<EstadoVazio>`.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| SAI-01 | P1: Números de Impacto | Design | Pending |
-| SAI-02 | P1: Números de Impacto | Design | Pending |
-| SAI-03 | P1: Números de Impacto | Design | Pending |
-| SAI-04 | P1: Números de Impacto | Design | Pending |
-| SAI-05 | P2: Visão do Mandato | Design | Pending |
-| SAI-06 | P2: Visão do Mandato | Design | Pending |
-| SAI-07 | P2: Visão do Mandato | Design | Pending |
-| SAI-08 | P3: Evolução do GIP | Design | Pending |
-| SAI-09 | P3: Evolução do GIP | Design | Pending |
-| SAI-10 | P3: Evolução do GIP | Design | Pending |
+| SAI-01 | P1: Números de Impacto | Tasks (T1, T7, T11) | In Tasks |
+| SAI-02 | P1: Números de Impacto | Tasks (T2, T6, T11) | In Tasks |
+| SAI-03 | P1: Números de Impacto | Tasks (T1, T7, T11) | In Tasks |
+| SAI-04 | P1: Números de Impacto | Tasks (T2, T10, T11) | In Tasks |
+| SAI-05 | P2: Visão do Mandato | Tasks (T3, T8, T12) | In Tasks |
+| SAI-06 | P2: Visão do Mandato | Tasks (T3, T8, T12) | In Tasks |
+| SAI-07 | P2: Visão do Mandato | Tasks (T3, T12) | In Tasks |
+| SAI-08 | P3: Evolução do GIP | Tasks (T4, T9, T13) | In Tasks |
+| SAI-09 | P3: Evolução do GIP | Tasks (T9, T13) | In Tasks |
+| SAI-10 | P3: Evolução do GIP | Tasks (T9, T13) | In Tasks |
 
 **Mapeamento**: SAI-01 = P1.AC1, SAI-02 = P1.AC2 (refresh), SAI-03 = P1.AC3 (agregações
 corretas), SAI-04 = P1.AC4 (acesso negado), SAI-05 = P2.AC1 (drill-down), SAI-06 = P2.AC2
@@ -211,8 +211,8 @@ P3.AC2 (momento parcial/NULL), SAI-10 = P3.AC3 (EstadoVazio).
 
 **Status values:** Pending → In Design → In Tasks → Implementing → Verified
 
-**Coverage:** 10 total, 0 mapeados a tasks ainda (Design/Tasks decidem a decomposição), 0
-unmapped ⚠️ (todos os ACs das 3 stories têm um SAI-NN correspondente).
+**Coverage:** 10 total, 10 mapeados a tasks (`.specs/features/saida-numeros-impacto/tasks.md`,
+T1-T13), 0 unmapped ⚠️.
 
 ---
 
