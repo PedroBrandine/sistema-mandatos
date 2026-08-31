@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   app: {
     Tables: {
@@ -22,6 +22,7 @@ export type Database = {
     Functions: {
       atualiza_avaliacao_nps: { Args: never; Returns: undefined }
       atualiza_iip_contrato: { Args: never; Returns: undefined }
+      atualiza_numeros_impacto: { Args: never; Returns: undefined }
       atualiza_sucessos_mensais_lote: {
         Args: { p_valores: Json }
         Returns: undefined
@@ -236,6 +237,13 @@ export type Database = {
             foreignKeyName: "convite_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "convite_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -258,6 +266,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "convite_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -318,6 +333,13 @@ export type Database = {
             columns: ["id_contratante"]
             isOneToOne: true
             referencedRelation: "dim_contratante"
+            referencedColumns: ["id_contratante"]
+          },
+          {
+            foreignKeyName: "dim_coalizao_id_contratante_fkey"
+            columns: ["id_contratante"]
+            isOneToOne: true
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contratante"]
           },
           {
@@ -462,6 +484,13 @@ export type Database = {
             referencedColumns: ["id_contratante"]
           },
           {
+            foreignKeyName: "dim_mandato_id_contratante_fkey"
+            columns: ["id_contratante"]
+            isOneToOne: true
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contratante"]
+          },
+          {
             foreignKeyName: "dim_mandato_id_partido_atual_fkey"
             columns: ["id_partido_atual"]
             isOneToOne: false
@@ -519,6 +548,13 @@ export type Database = {
             foreignKeyName: "dim_planejamento_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: true
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -541,6 +577,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: true
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -662,10 +705,24 @@ export type Database = {
             referencedColumns: ["id_contratante"]
           },
           {
+            foreignKeyName: "fat_contrato_id_contratante_fkey"
+            columns: ["id_contratante"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contratante"]
+          },
+          {
             foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
             columns: ["id_contrato_anterior"]
             isOneToOne: false
             referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -694,6 +751,13 @@ export type Database = {
             columns: ["id_contrato_anterior"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -786,6 +850,13 @@ export type Database = {
             foreignKeyName: "fat_encontro_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_encontro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -808,6 +879,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_encontro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -872,6 +950,13 @@ export type Database = {
             foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -894,6 +979,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -963,6 +1055,13 @@ export type Database = {
             foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -985,6 +1084,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -1096,6 +1202,13 @@ export type Database = {
             foreignKeyName: "fat_gip_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -1118,6 +1231,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -1214,6 +1334,13 @@ export type Database = {
             foreignKeyName: "fat_insight_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -1236,6 +1363,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_insight_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -1468,6 +1602,13 @@ export type Database = {
             foreignKeyName: "fat_registro_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -1490,6 +1631,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_registro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -1607,6 +1755,13 @@ export type Database = {
             foreignKeyName: "fat_submissao_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_submissao_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -1629,6 +1784,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_submissao_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -3036,6 +3198,13 @@ export type Database = {
             foreignKeyName: "rel_coalizao_membro_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_coalizao_membro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3058,6 +3227,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_coalizao_membro_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
         ]
@@ -3187,6 +3363,13 @@ export type Database = {
             foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3209,6 +3392,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -3419,6 +3609,13 @@ export type Database = {
             foreignKeyName: "fk_vinculo_contrato"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fk_vinculo_contrato"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3441,6 +3638,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fk_vinculo_contrato"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -3501,6 +3705,13 @@ export type Database = {
             foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3524,6 +3735,72 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
             referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_fato_gerador_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contrato"]
+          },
+        ]
+      }
+      mv_numeros_impacto: {
+        Row: {
+          ano_inicio: number | null
+          cargo_no_contrato: string | null
+          ds_genero: string | null
+          ds_raca: string | null
+          dt_fim: string | null
+          dt_inicio: string | null
+          dt_primeira_contratacao: string | null
+          fl_pcd: boolean | null
+          id_contratante: number | null
+          id_contrato: number | null
+          id_produto: number | null
+          id_projeto: number | null
+          nivel_federativo: string | null
+          nm_municipio: string | null
+          nome_contratante: string | null
+          nome_produto: string | null
+          nome_projeto: string | null
+          nr_contratos_contratante: number | null
+          ordem_contrato: number | null
+          partido_no_contrato: string | null
+          profundidade_impacto: string | null
+          sg_uf: string | null
+          status: string | null
+          tematica: string | null
+          tipo_contratante: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_contrato_id_contratante_fkey"
+            columns: ["id_contratante"]
+            isOneToOne: false
+            referencedRelation: "dim_contratante"
+            referencedColumns: ["id_contratante"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contratante_fkey"
+            columns: ["id_contratante"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contratante"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_projeto_fkey"
+            columns: ["id_projeto"]
+            isOneToOne: false
+            referencedRelation: "ref_projeto"
+            referencedColumns: ["id_projeto"]
           },
         ]
       }
@@ -3609,6 +3886,13 @@ export type Database = {
             foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3631,6 +3915,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -3674,6 +3965,13 @@ export type Database = {
             foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3696,6 +3994,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -3760,6 +4065,13 @@ export type Database = {
             foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3782,6 +4094,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_etapa_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -3819,6 +4138,13 @@ export type Database = {
             foreignKeyName: "fat_gip_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3841,6 +4167,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_gip_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
         ]
@@ -3896,6 +4229,13 @@ export type Database = {
             foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3918,6 +4258,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -3956,6 +4303,13 @@ export type Database = {
             foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
             columns: ["id_contrato"]
             isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
             referencedRelation: "vw_carteira"
             referencedColumns: ["id_contrato"]
           },
@@ -3978,6 +4332,13 @@ export type Database = {
             columns: ["id_contrato"]
             isOneToOne: false
             referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "rel_formulario_contrato_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
             referencedColumns: ["id_contrato"]
           },
           {
@@ -4049,6 +4410,74 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fat_meta"
             referencedColumns: ["id_meta"]
+          },
+        ]
+      }
+      vw_visao_mandato: {
+        Row: {
+          cargo_no_contrato: string | null
+          dt_fim: string | null
+          dt_inicio: string | null
+          id_contratante: number | null
+          id_contrato: number | null
+          id_contrato_anterior: number | null
+          nome_contratante: string | null
+          nome_produto: string | null
+          nome_projeto: string | null
+          ordem_contrato: number | null
+          partido_no_contrato: string | null
+          status: string | null
+          tipo_contratante: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "vw_cobertura_registro_mensal"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_contrato_anterior_fkey"
+            columns: ["id_contrato_anterior"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contrato"]
           },
         ]
       }

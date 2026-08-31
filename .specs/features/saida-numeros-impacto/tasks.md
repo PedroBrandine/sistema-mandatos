@@ -229,10 +229,10 @@ o frontend pronto.
 - Skill: NONE
 
 **Done when**:
-- [ ] `database.types.ts` contém `mv_numeros_impacto`, `vw_visao_mandato` e
+- [x] `database.types.ts` contém `mv_numeros_impacto`, `vw_visao_mandato` e
       `atualiza_numeros_impacto` com colunas/assinatura corretas
-- [ ] Gate check passa: `npm run build`
-- [ ] `git diff` do arquivo gerado não remove nenhuma entrada pré-existente (regressão comum de
+- [x] Gate check passa: `npm run build`
+- [x] `git diff` do arquivo gerado não remove nenhuma entrada pré-existente (regressão comum de
       regeneração — conferir antes de commitar)
 
 **Tests**: none
@@ -602,3 +602,8 @@ _(preenchido durante Execute — task, commit, status)_
   `gap`/`situacao` calculados corretamente para `momento='meio'`. Gate `full` (unit 460 +
   integration 2) verde. Confirmado por `has_table_privilege` que antes desta migration
   `legisla_gestora` não tinha `SELECT` na view (achado real do Design, agora corrigido).
+- **T5** (`npm run db:types`): ✅ Concluída. `database.types.ts` regenerado contra o projeto de
+  dev linkado (pós T1-T4) — `mv_numeros_impacto`, `vw_visao_mandato` e `atualiza_numeros_impacto`
+  presentes com colunas/assinatura corretas. `git diff` confirmado aditivo (única remoção: string
+  de metadado `PostgrestVersion`, não schema). Gate `build` (`npm run build`) verde — compilação,
+  TypeScript e geração de páginas estáticas sem erro.
