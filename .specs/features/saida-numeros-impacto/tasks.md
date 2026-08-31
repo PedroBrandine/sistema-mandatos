@@ -312,10 +312,10 @@ lendo `vw_visao_mandato` filtrada por `id_contratante`, `.order("ordem_contrato"
 - Skill: NONE
 
 **Done when**:
-- [ ] Filtra por `id_contratante` e ordena por `ordem_contrato`
-- [ ] Mapeia `id_contrato_anterior` (nullable) corretamente
-- [ ] Gate check passa: `npm run test:unit`
-- [ ] Test count: 2 testes (mapeamento completo; contratante com `id_contrato_anterior` presente
+- [x] Filtra por `id_contratante` e ordena por `ordem_contrato`
+- [x] Mapeia `id_contrato_anterior` (nullable) corretamente
+- [x] Gate check passa: `npm run test:unit`
+- [x] Test count: 2 testes (mapeamento completo; contratante com `id_contrato_anterior` presente
       em 1 linha e ausente em outra — spec.md P2.AC2)
 
 **Tests**: unit
@@ -615,3 +615,7 @@ _(preenchido durante Execute — task, commit, status)_
   novos (mapeamento completo `snake_case` para camelCase; ordenação por `nomeContratante`;
   `nr_contratos_contratante`/`ordem_contrato` repassados sem recálculo). Gate `quick`
   (`npm run test:unit`, 466 testes) verde.
+- **T8** (`queries/numeros-impacto.ts`, `buscarVisaoMandato`): ✅ Concluída. Mesmo arquivo de T7.
+  2 testes unitários novos (filtra `id_contratante` + ordena por `ordem_contrato`, mapeamento
+  completo incluindo `idContratoAnterior`; contratante com `id_contrato_anterior` presente numa
+  linha e `null` noutra). Gate `quick` (`npm run test:unit`, 468 testes) verde.

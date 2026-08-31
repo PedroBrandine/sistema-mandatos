@@ -88,3 +88,64 @@ export async function buscarNumerosImpacto(client: SupabaseClient<Database>): Pr
     }))
     .sort((a, b) => a.nomeContratante.localeCompare(b.nomeContratante));
 }
+
+// SAI-05, SAI-06. N linhas por id_contratante (1 timeline); idContratoAnterior
+// liga renovações -- a UI usa isso pra desenhar continuidade, nunca dois
+// cards desconexos quando ele não é null.
+export interface LinhaVisaoMandato {
+  idContrato: number;
+  dtInicio: string;
+  dtFim: string | null;
+  status: string;
+  nomeProduto: string;
+  nomeProjeto: string | null;
+  cargoNoContrato: string | null;
+  partidoNoContrato: string | null;
+  idContratoAnterior: number | null;
+  ordemContrato: number;
+}
+
+interface RowVisaoMandato {
+  id_contrato: number;
+  dt_inicio: string;
+  dt_fim: string | null;
+  status: string;
+  nome_produto: string;
+  nome_projeto: string | null;
+  cargo_no_contrato: string | null;
+  partido_no_contrato: string | null;
+  id_contrato_anterior: number | null;
+  ordem_contrato: number;
+}
+
+const COLUNAS_VISAO_MANDATO =
+  "id_contrato, dt_inicio, dt_fim, status, nome_produto, nome_projeto, cargo_no_contrato, " +
+  "partido_no_contrato, id_contrato_anterior, ordem_contrato";
+
+// SAI-05, SAI-06. Timeline consolidada de um contratante -- vw_visao_mandato
+// filtrada por id_contratante, ordenada por ordem_contrato (spec.md P2.AC1).
+export async function buscarVisaoMandato(
+  client: SupabaseClient<Database>,
+  idContratante: number
+): Promise<LinhaVisaoMandato[]> {
+  const { data, error } = await client
+    .from("vw_visao_mandato")
+    .select(COLUNAS_VISAO_MANDATO)
+    .eq("id_contratante", idContratante)
+    .order("ordem_contrato");
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as RowVisaoMandato[];
+
+  return rows.map((r) => ({
+    idContrato: r.id_contrato,
+    dtInicio: r.dt_inicio,
+    dtFim: r.dt_fim,
+    status: r.status,
+    nomeProduto: r.nome_produto,
+    nomeProjeto: r.nome_projeto,
+    cargoNoContrato: r.cargo_no_contrato,
+    partidoNoContrato: r.partido_no_contrato,
+    idContratoAnterior: r.id_contrato_anterior,
+    ordemContrato: r.ordem_contrato,
+  }));
+}
