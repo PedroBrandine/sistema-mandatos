@@ -1288,3 +1288,79 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   falhar durante esta sessão por uma fixture órfã de outra sessão paralela vazada em `ref_etapa`
   (`id_etapa=377`, `codigo='fixture_t1_teste_estrutura'`) — reportado, não removido (não é dado
   desta feature, risco de estar em uso por outra sessão ativa), não bloqueia esta feature.
+
+---
+
+## Handoff (Saída — Números de Impacto, Visão do Mandato e Evolução do GIP — CONCLUÍDA e validada)
+
+- **Feature**: Saída — Números de Impacto, Visão do Mandato e Evolução do GIP
+  (`.specs/features/saida-numeros-impacto/`) — **CONCLUÍDA e validada**, 10/10 requisitos
+  (SAI-01 a SAI-10). Primeira fatia de Saída além da Visão Gerencial (G1-G6): `mv_numeros_impacto`
+  (agregações por contratante — nº de contratos, ano da 1ª contratação, ordem do contrato — que
+  hoje divergiam em planilha manual) e `vw_visao_mandato` (timeline consolidada por contratante,
+  clicável a partir de Números de Impacto) provisionadas pela primeira vez; `vw_gip_evolucao`
+  (já existia, `formularios-produto`) finalmente ganhou consumidor real, fechando o placeholder de
+  GIP deixado por `planejamento-estrategico-redesenho`.
+- **Achado crítico da fase Specify, corrige o brief original**: ao contrário do que foi pedido
+  ("`vw_gip_evolucao` já projetada no schema aprovado, nunca migrada"), a view **já estava
+  provisionada** desde `formularios-produto` (T9,
+  `supabase/migrations/20260814174709_formularios_produto_gip_view.sql`), confirmado idêntica ao
+  schema aprovado linha a linha. O trabalho real desse item virou puramente wiring de frontend —
+  mas Design descobriu que a view **nunca tinha recebido nenhum `GRANT`** (nem `legisla_gestora`
+  conseguia lê-la), o que teria tornado P3 inteira inalcançável mesmo com o frontend pronto; virou
+  T4 desta feature.
+- **Phase / Task**: Specify (achado acima) → Discuss (`AskUserQuestion`, 4 decisões confirmadas por
+  Pedro numa rodada só: nova **AD-036** em vez de estender AD-030 por analogia; refresh síncrono ao
+  abrir a tela; rota própria `/numeros-impacto` como tile novo do Hub; acesso via papel Gestora já
+  resolve "áreas clientes", sem RBAC novo) → Design (AD-036 escrita antes de qualquer migration;
+  achado do `GRANT` ausente em `vw_gip_evolucao`) → Tasks (13 tasks, 5 fases, 2 lotes de sub-agente
+  oferecidos e aceitos) → Execute (2 lotes sequenciais) → Validate (Verifier independente, 1 rodada
+  `✅ PASS` com 2 achados Minor, ambos corrigidos na mesma sessão).
+- **Nova decisão de arquitetura**: **AD-036** (acima nesta mesma seção `## Decisions`) — 2ª classe
+  de exceção GRANT-only ao AD-001, distinta da AD-030: `mv_numeros_impacto` tem coluna de
+  contrato/contratante (ao contrário dos catálogos `ref_*` da AD-030), mas a leitura é
+  deliberadamente organização-inteira (áreas clientes), não recortada por carteira pessoal.
+- **Completed**: Lote 1/T1-T9 (`217168e`..`a41ec52`): `mv_numeros_impacto` DDL+refresh inicial →
+  `app.atualiza_numeros_impacto()`+GRANT (AD-036) → `vw_visao_mandato` DDL+GRANT → GRANT em
+  `vw_gip_evolucao` (achado real) → `db:types` → `rpc/numeros-impacto.ts` → `queries/numeros-
+  impacto.ts` (`buscarNumerosImpacto`/`buscarVisaoMandato`) → `queries/planejamento.ts`
+  (`buscarEvolucaoGip`). Lote 2/T10-T13 (`4f1a246`..`bc5adbd`): tile do Hub → página
+  `/numeros-impacto` → página Visão do Mandato → `ContextoEstrategico` consumindo `vw_gip_evolucao`
+  real. Verifier independente (`f3c118b`, `✅ PASS`, sensor 2/3 killed) → fix dos 2 achados Minor
+  (`93f2653`) → traceability atualizada (`b93317c`).
+- **Achado real de segurança confirmado exaustivamente pelo Verifier**: nenhuma das 3 relações
+  desta feature (`mv_numeros_impacto`, `vw_visao_mandato`, `vw_gip_evolucao`) concede `GRANT` a
+  `legisla_mentor`/`legisla_assessor` em nenhuma migration — grep exaustivo confirmado, coerente
+  com AD-036 e com "uso exclusivo de usuários Legisla" (Constituição §2.6).
+- **2 achados Minor do Verifier, ambos corrigidos na mesma sessão (`93f2653`)**:
+  1. **F1** (sensor de mutação, `SAI-02`/P1.AC2) — a ordem refresh-então-leitura de
+     `/numeros-impacto` não tinha proteção automática de regressão (build/lint não detectam uma
+     inversão). Extraída para `atualizaEBuscaNumerosImpacto()` (`queries/numeros-impacto.ts`), com
+     2 testes unitários novos afirmando a ordem real via mock. Lição `L-038` (candidate) distilada.
+  2. **F2** (`SAI-06`/P2.AC2) — Visão do Mandato não mostrava o nome do contratante na tela; a
+     justificativa registrada em `context.md` ("exigiria query adicional") estava **factualmente
+     errada** — `vw_visao_mandato` já selecionava `nome_contratante` verbatim desde T3, só faltava
+     a interface/projeção TS incluir a coluna. Corrigido sem migration nova, sem query nova;
+     `context.md` corrigido para não deixar a alegação errada registrada.
+- **Débito NÃO desta feature, encontrado mas não corrigido** (fora de escopo, documentado em
+  `context.md`/`validation.md`): nenhum. Os 2 únicos achados (F1/F2) já foram fechados.
+- **Next step**: nenhum obrigatório de código — feature fechada. Recomendado, não bloqueante: UAT
+  manual de `/numeros-impacto` e `/numeros-impacto/[idContratante]` com dado real de produção-like
+  no navegador (nenhum harness de componente cobre isso automaticamente, débito conhecido
+  L-006/L-007, não desta feature).
+- **Blockers**: nenhum.
+- **Uncommitted files**: none desta feature.
+- **Branch**: develop.
+- **Ambiente — incidente operacional do Verifier, sem impacto em código rastreado**: durante a
+  verificação independente do baseline de lint, um `git worktree add` com junction NTFS +
+  `git worktree remove --force` corrompeu parcialmente o `node_modules` da raiz (Git para Windows
+  não trata reparse points como `rmdir` nativo trata, recursou pro destino real). Detectado de
+  imediato (`vitest`/`next` não reconhecidos), corrigido com `npm install` antes de prosseguir —
+  `git status`/`.gitignore` confirmam que nenhum arquivo rastreado foi afetado. Registrado por
+  transparência, não é um achado sobre o código desta feature. Reconfirmado pelo orquestrador desta
+  sessão que `node_modules` está íntegro após o incidente (build/lint/unit rodaram limpos depois).
+- **Atenção — trabalho paralelo confirmado nesta sessão**: um diretório
+  `.specs/features/revisao-constituicao-experiencia/` apareceu untracked no working tree durante
+  toda a execução desta feature (outra sessão trabalhando em paralelo) — não tocado por nenhum
+  commit desta feature. Um `git worktree` de outra sessão (`wt-sensor`, prunable) também apareceu
+  durante o Validate — não removido pelo Verifier desta feature, por não ser dele.
