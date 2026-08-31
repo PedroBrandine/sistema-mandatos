@@ -105,11 +105,11 @@ Nenhuma — a discussão ficou dentro do escopo do `spec.md` (Números de Impact
 Evolução do GIP). Nenhuma ideia de escopo maior (ex.: exportação, snapshot mensal) foi levantada
 como candidata a esta feature.
 
-- **T12, achado de Execute**: `/numeros-impacto/[idContratante]` (Visão do Mandato) não mostra o
-  nome do contratante na própria tela — `LinhaVisaoMandato`/`vw_visao_mandato` (design.md, Data
-  Models) não inclui `nome_contratante` (ao contrário de `mv_numeros_impacto`, que inclui). Hoje a
-  orientação de qual contratante está sendo visto vem só do breadcrumb + da navegação (usuário
-  clicou a partir da linha certa em `/numeros-impacto`); acesso direto por URL não identifica o
-  contratante na tela. Corrigir exigiria uma query adicional (`dim_contratante` por
-  `id_contratante`) fora do que T12/design.md definiram — não implementado nesta feature para não
-  extrapolar a interface já fechada em Design.
+- ~~**T12, achado de Execute**: `/numeros-impacto/[idContratante]` (Visão do Mandato) não mostra o
+  nome do contratante na própria tela...~~ **Corrigido (F2, `validation.md`)**: a justificativa
+  original acima estava **factualmente errada** — `vw_visao_mandato` já seleciona
+  `ct.nome AS nome_contratante` verbatim desde a migration de T3
+  (`docs/schema_sistema.sql:1304-1324`), sem nenhum JOIN adicional. O Verifier independente
+  encontrou o erro; corrigido no mesmo dia adicionando `nomeContratante`/`tipoContratante` a
+  `LinhaVisaoMandato` (`queries/numeros-impacto.ts`) e exibindo no `<h1>`/breadcrumb de
+  `[idContratante]/page.tsx` — 3 arquivos, zero migration nova, zero query nova.

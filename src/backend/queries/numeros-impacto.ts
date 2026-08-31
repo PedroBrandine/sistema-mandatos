@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../supabase/database.types";
+import { atualizaNumerosImpacto } from "../rpc/numeros-impacto";
 
 // Formas de leitura (view-models client-side) definidas verbatim conforme
 // design.md (## Data Models -- src/backend/queries/numeros-impacto.ts).
@@ -89,9 +90,29 @@ export async function buscarNumerosImpacto(client: SupabaseClient<Database>): Pr
     .sort((a, b) => a.nomeContratante.localeCompare(b.nomeContratante));
 }
 
+// Fix F1 (validation.md, achado do Verifier): extrai a sequência
+// refresh-então-leitura pra uma função nomeada e testável em vez de deixar
+// as 2 chamadas soltas dentro do Server Component (spec.md P1.AC2 exige essa
+// ordem -- refresh antes de servir a consulta; o sensor de mutação do
+// Verifier confirmou que invertê-las não quebrava build+lint, camada sem
+// outra proteção). A ordem (`atualizaNumerosImpacto` antes de
+// `buscarNumerosImpacto`) é a invariante testada por
+// numeros-impacto.test.ts.
+export async function atualizaEBuscaNumerosImpacto(client: SupabaseClient<Database>): Promise<LinhaNumerosImpacto[]> {
+  await atualizaNumerosImpacto(client);
+  return buscarNumerosImpacto(client);
+}
+
 // SAI-05, SAI-06. N linhas por id_contratante (1 timeline); idContratoAnterior
 // liga renovações -- a UI usa isso pra desenhar continuidade, nunca dois
 // cards desconexos quando ele não é null.
+//
+// Fix F2 (validation.md, achado do Verifier): nomeContratante/tipoContratante
+// incluídos aqui -- vw_visao_mandato já seleciona ct.nome AS nome_contratante
+// verbatim (docs/schema_sistema.sql:1304-1324), a coluna sempre existiu na
+// view; só faltava entrar nesta interface/projeção. Sem JOIN novo, sem
+// query adicional -- a justificativa anterior em context.md (que dizia
+// exigir consulta extra) estava incorreta.
 export interface LinhaVisaoMandato {
   idContrato: number;
   dtInicio: string;
@@ -103,6 +124,8 @@ export interface LinhaVisaoMandato {
   partidoNoContrato: string | null;
   idContratoAnterior: number | null;
   ordemContrato: number;
+  nomeContratante: string;
+  tipoContratante: string;
 }
 
 interface RowVisaoMandato {
@@ -116,11 +139,13 @@ interface RowVisaoMandato {
   partido_no_contrato: string | null;
   id_contrato_anterior: number | null;
   ordem_contrato: number;
+  nome_contratante: string;
+  tipo_contratante: string;
 }
 
 const COLUNAS_VISAO_MANDATO =
   "id_contrato, dt_inicio, dt_fim, status, nome_produto, nome_projeto, cargo_no_contrato, " +
-  "partido_no_contrato, id_contrato_anterior, ordem_contrato";
+  "partido_no_contrato, id_contrato_anterior, ordem_contrato, nome_contratante, tipo_contratante";
 
 // SAI-05, SAI-06. Timeline consolidada de um contratante -- vw_visao_mandato
 // filtrada por id_contratante, ordenada por ordem_contrato (spec.md P2.AC1).
@@ -147,5 +172,7 @@ export async function buscarVisaoMandato(
     partidoNoContrato: r.partido_no_contrato,
     idContratoAnterior: r.id_contrato_anterior,
     ordemContrato: r.ordem_contrato,
+    nomeContratante: r.nome_contratante,
+    tipoContratante: r.tipo_contratante,
   }));
 }

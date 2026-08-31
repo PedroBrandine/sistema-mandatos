@@ -21,6 +21,12 @@ function formataData(iso: string): string {
 // visual acima do card (continuidade/renovação); sua ausência é o caso
 // normal (contrato novo, não falha de dado) -- cards ficam visualmente
 // separados por padrão (spec.md, Edge Cases).
+//
+// Fix F2 (validation.md, achado do Verifier): título/breadcrumb agora
+// mostram o nome do contratante (vw_visao_mandato já trazia a coluna,
+// buscarVisaoMandato só não a projetava) -- sem nome/nenhum contrato
+// (contratante inexistente ou sem contrato) cai no <EstadoVazio> abaixo,
+// título genérico "Visão do Mandato" como fallback.
 export default async function VisaoMandatoPage({
   params,
 }: {
@@ -39,15 +45,21 @@ export default async function VisaoMandatoPage({
   }
 
   const contratos = await buscarVisaoMandato(client, Number(idContratante));
+  const nomeContratante = contratos[0]?.nomeContratante ?? null;
 
   return (
     <div className="mx-auto grid max-w-4xl gap-6 p-6">
       <Breadcrumbs
-        items={[{ label: "Números de Impacto", href: "/numeros-impacto" }, { label: "Visão do Mandato" }]}
+        items={[
+          { label: "Números de Impacto", href: "/numeros-impacto" },
+          { label: nomeContratante ?? "Visão do Mandato" },
+        ]}
       />
 
       <div className="space-y-1">
-        <h1 className="font-heading text-2xl font-bold uppercase tracking-tight">Visão do Mandato</h1>
+        <h1 className="font-heading text-2xl font-bold uppercase tracking-tight">
+          {nomeContratante ?? "Visão do Mandato"}
+        </h1>
         <p className="text-xs text-muted-foreground">
           Linha do tempo consolidada dos contratos deste contratante, lida de{" "}
           <code className="font-mono">vw_visao_mandato</code>.

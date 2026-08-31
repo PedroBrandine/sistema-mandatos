@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarNumerosImpacto, buscarVisaoMandato } from "./numeros-impacto";
+import { atualizaEBuscaNumerosImpacto, buscarNumerosImpacto, buscarVisaoMandato } from "./numeros-impacto";
 
 // Spec anchor: saida-numeros-impacto T7 Done-when (.specs/features/saida-numeros-impacto/tasks.md) --
 //  - Mapeia todas as colunas de mv_numeros_impacto (design.md, LinhaNumerosImpacto) de
@@ -142,6 +142,8 @@ const LINHA_VISAO_MANDATO = {
   partido_no_contrato: "PT",
   id_contrato_anterior: null,
   ordem_contrato: 1,
+  nome_contratante: "Mandato Exemplo",
+  tipo_contratante: "mandato",
 };
 
 describe("buscarVisaoMandato", () => {
@@ -168,6 +170,8 @@ describe("buscarVisaoMandato", () => {
         partidoNoContrato: "PT",
         idContratoAnterior: null,
         ordemContrato: 1,
+        nomeContratante: "Mandato Exemplo",
+        tipoContratante: "mandato",
       },
       {
         idContrato: 21,
@@ -180,6 +184,8 @@ describe("buscarVisaoMandato", () => {
         partidoNoContrato: "PT",
         idContratoAnterior: 20,
         ordemContrato: 2,
+        nomeContratante: "Mandato Exemplo",
+        tipoContratante: "mandato",
       },
     ]);
     expect(chamadas.find((c) => c.metodo === "eq")?.args).toEqual(["id_contratante", 99]);
@@ -199,5 +205,62 @@ describe("buscarVisaoMandato", () => {
 
     expect(resultado[0].idContratoAnterior).toBeNull();
     expect(resultado[1].idContratoAnterior).toBe(20);
+  });
+});
+
+// Fix F1 (.specs/features/saida-numeros-impacto/validation.md, achado do
+// Verifier): a ordem refresh-então-leitura (spec.md P1.AC2) não tinha
+// nenhuma proteção automática -- o sensor de mutação confirmou que invertê-la
+// não quebra build/lint. Extraída para atualizaEBuscaNumerosImpacto,
+// testada aqui via mock que registra a ordem real das chamadas (mesmo padrão
+// de "chamadas" já usado acima para buscarVisaoMandato).
+function criarClienteMockRefreshEBusca(resultado: { data: unknown; error: { message: string } | null }) {
+  const chamadas: string[] = [];
+  const client = {
+    schema: (_schema: string) => ({
+      rpc: (_fn: string) => {
+        chamadas.push("rpc:atualiza_numeros_impacto");
+        return Promise.resolve({ error: null });
+      },
+    }),
+    from: (_tabela: string) => ({
+      select: (_colunas: string) => {
+        chamadas.push("select:mv_numeros_impacto");
+        return Promise.resolve(resultado);
+      },
+    }),
+  };
+  return { client: client as unknown as SupabaseClient<Database>, chamadas };
+}
+
+describe("atualizaEBuscaNumerosImpacto", () => {
+  it("chama o refresh (RPC) antes da leitura (SELECT) -- spec.md P1.AC2", async () => {
+    const { client, chamadas } = criarClienteMockRefreshEBusca({ data: [LINHA_COMPLETA], error: null });
+
+    const resultado = await atualizaEBuscaNumerosImpacto(client);
+
+    expect(chamadas).toEqual(["rpc:atualiza_numeros_impacto", "select:mv_numeros_impacto"]);
+    expect(resultado).toHaveLength(1);
+  });
+
+  it("propaga o erro do refresh sem nunca chegar a tentar a leitura", async () => {
+    const chamadas: string[] = [];
+    const client = {
+      schema: (_schema: string) => ({
+        rpc: (_fn: string) => {
+          chamadas.push("rpc:atualiza_numeros_impacto");
+          return Promise.resolve({ error: { message: "falhou", code: "XX000" } });
+        },
+      }),
+      from: (_tabela: string) => ({
+        select: (_colunas: string) => {
+          chamadas.push("select:mv_numeros_impacto");
+          return Promise.resolve({ data: [], error: null });
+        },
+      }),
+    };
+
+    await expect(atualizaEBuscaNumerosImpacto(client as unknown as SupabaseClient<Database>)).rejects.toThrow();
+    expect(chamadas).toEqual(["rpc:atualiza_numeros_impacto"]);
   });
 });

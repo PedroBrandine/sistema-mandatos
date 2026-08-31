@@ -3,8 +3,7 @@ import { ArrowRight } from "lucide-react";
 
 import { createClient } from "@backend/supabase/server";
 import { buscarPapelGlobalAtual } from "@backend/queries/usuario";
-import { atualizaNumerosImpacto } from "@backend/rpc/numeros-impacto";
-import { buscarNumerosImpacto, type LinhaNumerosImpacto } from "@backend/queries/numeros-impacto";
+import { atualizaEBuscaNumerosImpacto, type LinhaNumerosImpacto } from "@backend/queries/numeros-impacto";
 import { NaoAutorizado } from "@/components/app-shell/nao-autorizado";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +21,12 @@ function formataData(iso: string): string {
 // ao de visao-gerencial/page.tsx:52-66 (bloqueia mentor/assessor com
 // <NaoAutorizado> antes de qualquer dado renderizar), depois refresh
 // síncrono seguido de leitura (design.md, "Tech Decisions" -- ordem
-// obrigatória, nunca ler sem refrescar antes). Cada linha = 1 fat_contrato
-// (LinhaNumerosImpacto, design.md "Data Models"), listando os números de
-// impacto lado a lado com o contexto do contrato, sem agrupamento client-side.
+// obrigatória, nunca ler sem refrescar antes; ordem agora garantida dentro
+// de atualizaEBuscaNumerosImpacto, com teste unitário próprio -- Fix F1 do
+// validation.md, achado do Verifier de que a ordem não tinha proteção
+// automática de regressão). Cada linha = 1 fat_contrato (LinhaNumerosImpacto,
+// design.md "Data Models"), listando os números de impacto lado a lado com o
+// contexto do contrato, sem agrupamento client-side.
 //
 // SPEC_DEVIATION: design.md descreve o erro de refresh/leitura com "botão de
 // retry" -- mas <ErroInline onRetry=...> exige função de callback, e este é
@@ -47,8 +49,7 @@ export default async function NumerosImpactoPage() {
 
   let linhas: LinhaNumerosImpacto[];
   try {
-    await atualizaNumerosImpacto(client);
-    linhas = await buscarNumerosImpacto(client);
+    linhas = await atualizaEBuscaNumerosImpacto(client);
   } catch {
     return (
       <div className="mx-auto grid max-w-6xl gap-6 p-6">
