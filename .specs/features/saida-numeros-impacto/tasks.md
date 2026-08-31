@@ -167,12 +167,12 @@ usado em toda relação nova do projeto
 - Skill: NONE
 
 **Done when**:
-- [ ] `supabase db push` aplica sem erro
-- [ ] Sessão `legisla_gestora` lê `vw_visao_mandato` filtrada por `id_contratante` e recebe as
+- [x] `supabase db push` aplica sem erro
+- [x] Sessão `legisla_gestora` lê `vw_visao_mandato` filtrada por `id_contratante` e recebe as
       linhas ordenadas por `ordem_contrato`, com `id_contrato_anterior` presente quando existir
-- [ ] Sessão `legisla_mentor`/`legisla_assessor` recebe `42501` ao tentar `SELECT`
-- [ ] Gate check passa: `npm run test:integration -- supabase/tests/saida`
-- [ ] Test count: +1 caso de conteúdo/ordem (contratante com 2+ contratos) + 1 caso de negação por
+- [x] Sessão `legisla_mentor`/`legisla_assessor` recebe `42501` ao tentar `SELECT`
+- [x] Gate check passa: `npm run test:integration -- supabase/tests/saida`
+- [x] Test count: +1 caso de conteúdo/ordem (contratante com 2+ contratos) + 1 caso de negação por
       papel
 
 **Tests**: integration
@@ -589,3 +589,8 @@ _(preenchido durante Execute — task, commit, status)_
   chamam a função e leem a MV depois; mentor/assessor chamam a função (EXECUTE PUBLIC) mas
   recebem `42501` ao tentar `SELECT` direto na MV; refresh concorrente reflete contrato novo
   inserido depois da última leitura. Gate `full` (unit 460 + integration 9) verde.
+- **T3** (`vw_visao_mandato` DDL + `GRANT SELECT`): ✅ Concluída. Migration
+  `20260831022722_saida_visao_mandato.sql`. Teste de integração novo
+  `supabase/tests/saida/visao-mandato.integration.test.ts` (3 testes): gestora lê a timeline
+  ordenada por `ordem_contrato` com `id_contrato_anterior` correto na renovação; mentor/assessor
+  recebem `42501`. Gate `full` (unit 460 + integration 3) verde.
