@@ -41,21 +41,30 @@ no commit) e `drift-check.yml` (sem deriva em dev nem produção). Dois ambiente
 "quais camadas de produto faltam construir". Também expôs uma prática a manter: toda migration
 nova precisa continuar passando pelo `drift-check` antes de ser considerada terminada.
 
-### 1.2 Banco — 29 das 51 tabelas do modelo aprovado (+12 hoje via Trilha C)
+### 1.2 Banco — estado real (atualizado em 2026-08-31, a partir de `.specs/STATE.md`)
+
+**Correção desta edição**: a versão anterior desta tabela dizia "Operação: 0/8" e "Planejamento:
+0/7" — isso ficou desatualizado por várias trilhas concluídas sem nunca voltar aqui pra corrigir
+(`operacao-regua-instanciacao`, `kanban-etapas`, `formularios-produto`,
+`planejamento-planilha-monitoramento`, todas 2026-08-12 a 2026-08-16). Reescrita por completo
+abaixo — não confiar em nenhuma versão anterior deste documento.
 
 | Bloco | Provisionado | Falta |
 | :---- | :---- | :---- |
-| Catálogos `ref_*` | **16/16 — completo** (4 antigos + as 12 da Trilha C: `ref_etapa`, `ref_tipo_registro`, `ref_formulario`, `ref_metrica_formulario`, `ref_preditor`, `ref_agenda_tematica`, `ref_perfil_atuacao`, `ref_pilar_insight`, `ref_indicador`, `ref_nivel_iip`, `ref_tipologia`, `ref_dimensao_gip`) | — |
+| Catálogos `ref_*` | **16/16 — completo** (`ref_cargo`/`ref_partido`/`ref_produto`/`ref_projeto` + as 12 da Trilha C) | — |
 | Plataforma | 3/3 — `dim_usuario`, `rel_usuario_contrato`, `log_auditoria` | — |
 | Fundação + Âncora | 5/5 — `dim_contratante`, `dim_mandato`, `dim_coalizao`, `fat_contrato`, `rel_coalizao_membro` | — |
 | TSE | 4 tabelas + `rel_mandato_candidatura` + 2 MVs, restrito ao Legislativo (AD-031) | — |
-| Operação | 0 | 8 tabelas — **próximo gargalo estrutural, ver §5.1 (OPR-01)** |
-| Planejamento | 0 | 7 tabelas |
-| Incidência | **7/7 + 1 MV + 1 view — completo (2026-08-14, feature `incidencia-encontros`)** | — |
-| Saída | 0 | 1 tabela + ~10 views/MVs |
+| Operação | **completo** — régua+instanciação (`fat_etapa_contrato`, `rel_formulario_contrato`, `dim_planejamento`, `vw_etapa_contrato`, `app.instancia_contrato`, `operacao-regua-instanciacao`), Kanban de etapas com escrita (`app.mover_etapa_kanban`, `kanban-etapas`), Formulários (`fat_submissao`, `fat_resposta_metrica`, `fat_gip`, `fat_gip_dimensao`, `mv_avaliacao_nps`, `formularios-produto`) | — |
+| Planejamento | **completo** — `fat_objetivo_especifico`, `fat_meta`, `fat_sucesso_mensal`, cascata de atingimento (`app.recalcula_atingimento`, AD-035), `planejamento-planilha-monitoramento`; tela redesenhada em `planejamento-estrategico-redesenho` (sem tabela nova) | — |
+| Incidência | **completo** (2026-08-14, `incidencia-encontros`) — `fat_encontro`+`rel_encontro_participante`, `fat_registro`, `fat_insight`+`rel_insight_origem`, `fat_fato_gerador`+`rel_fato_origem`, `mv_iip_contrato`+`vw_iip_contrato` | — |
+| Saída | Visão Gerencial G1-G6 completa (`vw_carteira`/`vw_carteira_ponderada`/`vw_ciclo_etapa`/`vw_pendencias`/vistas `_mensal`, `visao-gerencial-g1-g2`+`g3-g6`); Números de Impacto/Visão do Mandato/Evolução do GIP completa (`mv_numeros_impacto`, `vw_visao_mandato`, `vw_gip_evolucao` com consumo real, AD-036, `saida-numeros-impacto`, 2026-08-31) | `fat_snapshot_mensal` (job de fechamento mensal, AD-015) + exportação (OUT-04) — únicas fatias de Saída ainda não iniciadas |
 | Staging | 0 | `stg.map_legado` |
 
-**Leitura:** os catálogos deixaram de ser o gargalo. `ref_agenda_tematica`, `ref_indicador` e
+**Leitura:** o gargalo estrutural deixou de existir — todas as camadas de dado do modelo aprovado
+(Fundação, Catálogos, Operação, Planejamento, Incidência, e a maior parte de Saída) estão
+provisionadas e com UI real. O que resta é só a última fatia de Saída (snapshot mensal +
+exportação) e o levantamento humano de CAT-16. `ref_agenda_tematica`, `ref_indicador` e
 `ref_tipologia` existem mas nascem **vazias de propósito** (CAT-16, levantamento humano com
 Monitoramento — sem data). O novo primeiro gargalo estrutural é a camada de **Operação**: nenhuma
 tabela de Planejamento ou Incidência pode existir sem `fat_etapa_contrato`/`dim_planejamento`
@@ -108,10 +117,21 @@ aparecem de fato; `<CarregandoSkeleton>`/`<ErroInline>`/`<EstadoVazio>` existem 
 | `plataforma-ui-tanstack` | ✅ **Validate — PASS (com 1 item de UAT manual)** | 11/12 ACs verificados por código; PUI-06 (toast visível) aguarda confirmação visual humana — não é gap de código |
 | `navegacao-por-produto` | ✅ **Validate — PASS** (15/15) + NAV-16 pós-Validate | 15/15 requisitos (NAV-01 a NAV-15), Verifier independente, sensor 3/3 killed, 111 testes unitários (+18); 2 achados Minor corrigidos na mesma sessão. **NAV-16** (aba "Informações Gerais"/TSE na ficha de mandato) adicionado depois, a pedido de Pedro — gate verde, sem novo ciclo de Verifier |
 | `convite-contrato` | ✅ **Validate — PASS** (rodada 2) | 11/11 requisitos (CVT-01 a CVT-11). Verifier independente rodou 2 rodadas — rodada 1 `FAIL` (1 Blocker: proxy de sessão bloqueava `/convite` inteiro; 3 Major; 3 Minor) → fix→re-verify → rodada 2 `PASS`. AD-033 registrada (5ª exceção da AD-010). Ver §4 Trilha B (histórico) e `.specs/features/convite-contrato/validation.md` |
+| `operacao-regua-instanciacao` | ✅ **Validate — PASS** | 10/10 requisitos (RGI-01 a RGI-10), Verifier independente PASS de primeira, sensor 3/3 killed. Desbloqueou `kanban-etapas` e `planejamento-planilha-monitoramento` |
+| `kanban-etapas` | ✅ **Validate — PASS** (standalone) | 10/10 requisitos (KAN-01 a KAN-10), 1 gap Minor corrigido na mesma sessão. Primeira superfície de escrita de `fat_etapa_contrato` (AD-023). `@dnd-kit` (AD-034) |
+| `visao-gerencial-g1-g2` | ✅ **Validate — PASS** | 7/7 requisitos (GG-01 a GG-07), Verifier independente PASS de primeira, sensor 3/3 killed. Primeira fatia real de gestão (G1 carteira ponderada + G2 tempo de ciclo) |
+| `planejamento-planilha-monitoramento` | ✅ **Validate — PASS** (rodada 2) | 11/11 requisitos (PLM-01 a PLM-11). Rodada 1 `FAIL` (1 Major + 2 Minor) → fix → rodada 2 `PASS`. AD-035 registrada (exceção estreita de `SECURITY DEFINER` pra recômputo determinístico) |
+| `incidencia-encontros` | ✅ **Concluída** | 35 tasks, Verifier independente `⚠️ Issues (não bloqueantes)` — 23/24 ACs nomeados batendo exato, sensor 3/3 killed, 2 gaps de baixa/média severidade sem impacto funcional. `mv_iip_contrato`/IIP (AD-014), Encontros (OPR-03). Resolveu AD-032 (`vw_carteira` completa) |
+| `formularios-produto` | ✅ **Validate — PASS** (rodada 2) | 23/23 requisitos (FRM-01 a FRM-23), 21 tasks, 3 lotes de sub-agente. Rodada 1 `FAIL` (5 gaps + 1 partial) → 4 fixes → rodada 2 `PASS`. 16 formulários, JSONB versionado, GIP (`fat_gip`/`vw_gip_evolucao`), NPS (`mv_avaliacao_nps`). 4 lições L-033..L-036 |
+| `planejamento-estrategico-redesenho` | ✅ **Validate — PASS** (ciclo 2) | 19/19 requisitos (PLR-01 a PLR-19). Redesenho de `/contratos/[id]/planejamento` — árvore-grade unificada, 3 modos, comportamento nível-planilha. Supersede a apresentação de `planejamento-planilha-monitoramento`, contrato de backend inalterado |
+| `visao-gerencial-g3-g6` | ✅ **Validate — PASS** (rodada 2) | 22/22 requisitos (GER-01 a GER-22), 30 tasks. Rodada 1 `FAIL` (1 Blocker + 2 Minor + 1 Cosmético) → fix → rodada 2 `PASS`. Bloco 0 (G3/G4, saúde da operação) + Bloco 1 (distribuição por etapa) + Bloco 2 (G5/G6/IIP) + Bloco 3 (Gargalos), barra de recorte global. `/visao-gerencial` completa |
+| `saida-numeros-impacto` | ✅ **Validate — PASS** | 10/10 requisitos (SAI-01 a SAI-10), 13 tasks, 2 lotes de sub-agente. `mv_numeros_impacto` + `vw_visao_mandato` provisionadas pela 1ª vez (AD-036); `vw_gip_evolucao` (já existia) ganhou consumidor real, fechando placeholder de `planejamento-estrategico-redesenho`. 2 achados Minor do Verifier corrigidos na mesma sessão |
 
 **Trilha A deixou de ser a descoberta mais importante desta auditoria** — fechou o ciclo completo
 Specify→Design→Tasks→Execute→Validate no mesmo dia (2026-08-10), junto de duas features novas
-(Trilhas C e D). Ver §4 para o histórico de cada uma, riscado.
+(Trilhas C e D). Ver §4 para o histórico de cada uma, riscado. **Todas as features listadas acima
+até `saida-numeros-impacto` estão CONCLUÍDAS e validadas** (2026-08-31) — nenhuma tem trabalho
+pendente conhecido além do débito documentado em §1.5.
 
 ### 1.5 Débito conhecido
 
@@ -466,16 +486,34 @@ as 51 linhas reais do CSV aprovado + UI completa (card de IIP, os 4 formulários
 data) — decisão confirmada com Pedro, não é lacuna desta feature. **AD-032 resolvida**: `vw_carteira`
 trocada pela versão completa (ver `STATE.md`).
 
-### 6.3 Formulários (OPR-02)
+### 6.3 Formulários (OPR-02) — ✅ CONCLUÍDA (2026-08-16)
+
+Ver `.specs/features/formularios-produto/validation.md` (23/23 requisitos FRM-01 a FRM-23,
+Verifier independente — rodada 1 `FAIL` 5 gaps → fix → rodada 2 `PASS`). Texto original abaixo,
+mantido para histórico.
 
 A mais pesada das três: 16 formulários, JSONB versionado, métricas calculadas via trigger. Depende
 de `ref_formulario`/`ref_metrica_formulario` (Trilha C) e de `rel_formulario_contrato` (§5.1), mas
 usa tabelas próprias (`fat_submissao`, `fat_resposta_metrica`) que não colidem com Planejamento nem
 Incidência — pode correr ao lado das outras duas sem coordenação além do catálogo compartilhado.
 
+**Entregue**: `fat_submissao`/`fat_resposta_metrica` + `fat_gip`/`fat_gip_dimensao` (GIP,
+`vw_gip_evolucao`) + `mv_avaliacao_nps` (NPS) + UI completa (lista de formulários por papel,
+formulário genérico, formulário GIP, card de NPS agregado no dashboard). `app.trg_auditoria()`
+ligado em `fat_submissao`/`fat_gip` (achado do Verifier, FRM-22).
+
 ---
 
 ## 7. Saída — última onda, mas entregável em fatias
+
+**Atualizado em 2026-08-31**: as duas fatias mais citadas nesta seção já foram entregues —
+**Visão Gerencial completa** (G1-G6, `visao-gerencial-g1-g2` + `visao-gerencial-g3-g6`) e
+**Números de Impacto / Visão do Mandato / Evolução do GIP** (`saida-numeros-impacto`,
+`mv_numeros_impacto`+`vw_visao_mandato` novas, `vw_gip_evolucao` com consumidor real, AD-036). O
+que resta desta onda, ainda não iniciado: **`fat_snapshot_mensal`** (job de fechamento mensal,
+única escrita autorizada na Saída, AD-015 — sustenta a série histórica de atingimento/IIP
+"fotografados") e **exportação** (OUT-04, Google Sheets/CSV). Nenhuma spec aberta pra nenhum dos
+dois ainda.
 
 Números de impacto, carteira, visão gerencial, evolução do GIP, snapshot mensal (AD-015: única
 escrita autorizada na Saída é o job de fechamento mensal). Não precisa esperar as três frentes do
@@ -486,7 +524,8 @@ de 6.2; `vw_sucesso_mensal`/GIP só depois de 6.1.
 **Correção (2026-08-11):** a frase anterior aqui ("Home/dashboard real entra junto desta onda")
 ficou desatualizada pela Trilha F (§4) — a raiz (`/`) vira o hub de produtos antes disso, fora de
 ordem, por pedido direto do Pedro. O que **continua** valendo pra esta onda é a Visão Gerencial de
-verdade (G1-G6) e os indicadores reais de Dashboard/Agenda que a Trilha F deixou como placeholder.
+verdade (G1-G6) e os indicadores reais de Dashboard/Agenda que a Trilha F deixou como placeholder
+— **ambos já entregues** (Visão Gerencial G1-G6 e Números de Impacto/Visão do Mandato, ver acima).
 
 ---
 
