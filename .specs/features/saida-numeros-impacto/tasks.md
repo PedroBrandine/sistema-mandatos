@@ -102,12 +102,12 @@ mesma migration)
 - Skill: `supabase` (referência de sintaxe/CLI se necessário)
 
 **Done when**:
-- [ ] `supabase db push` aplica a migration sem erro no projeto de dev linkado
-- [ ] `SELECT * FROM mv_numeros_impacto` retorna dado real (fixture de 2+ contratos do mesmo
+- [x] `supabase db push` aplica a migration sem erro no projeto de dev linkado
+- [x] `SELECT * FROM mv_numeros_impacto` retorna dado real (fixture de 2+ contratos do mesmo
       contratante) com `nr_contratos_contratante`/`dt_primeira_contratacao`/`ordem_contrato`
       corretos, sem filtro de `status`
-- [ ] Gate check passa: `npm run test:integration -- supabase/tests/saida`
-- [ ] Test count: teste de integração novo cobrindo a agregação (contratante com 1 contrato e
+- [x] Gate check passa: `npm run test:integration -- supabase/tests/saida`
+- [x] Test count: teste de integração novo cobrindo a agregação (contratante com 1 contrato e
       contratante com 2+ contratos, ordem por `dt_inicio`)
 
 **Tests**: integration
@@ -577,3 +577,9 @@ dado real entre elas. Cada task acima declara sua dependência de dado real em `
 ## Progresso
 
 _(preenchido durante Execute — task, commit, status)_
+
+- **T1** (`mv_numeros_impacto` DDL + índice + comentário + refresh inicial): ✅ Concluída.
+  Migration `20260831021516_saida_numeros_impacto_estrutura.sql`. Teste de integração novo
+  `supabase/tests/saida/numeros-impacto.integration.test.ts` (4 testes, todos verdes) cobrindo
+  contratante com 1 contrato, contratante com 2 contratos (agregação + ordem por `dt_inicio`) e
+  ausência de filtro de `status` (D4). Gate `full` (unit 460 + integration 4) verde.
