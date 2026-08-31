@@ -497,6 +497,29 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-08-12
 - **Status**: active
 
+### AD-036
+- **Decision**: `mv_numeros_impacto` (Saída, Números de Impacto) é GRANT-only (exceção ao AD-001),
+  mas por uma razão **diferente** da AD-030: ela tem coluna de granularidade por contrato/
+  contratante (`id_contrato`/`id_contratante`) — a exceção aqui não é "não há coluna para filtrar
+  por linha" (razão da AD-030, catálogos `ref_*`), é "a leitura é deliberadamente
+  organização-inteira" (números de impacto agregados para áreas clientes/Interno Legisla, nunca
+  uma carteira pessoal recortada por Gestora/Mentor). GRANT restrito a `legisla_gestora,
+  legisla_admin` — nunca `legisla_mentor`/`legisla_assessor`.
+- **Reason**: Achado de Design de `saida-numeros-impacto`. Reaproveitar o texto da AD-030 por
+  analogia registraria uma justificativa técnica que não é verdadeira para este caso — uma leitura
+  futura do STATE.md concluiria erroneamente que a MV não tem coluna de carteira, quando na
+  verdade tem. Decisão de Pedro (Discuss Q1, `AskUserQuestion`, 2026-08-30): nova entrada em vez
+  de estender AD-030.
+- **Trade-off**: A lista de exceções ao AD-001 cresce (agora 2 classes distintas de GRANT-only:
+  AD-030 por ausência de coluna, AD-036 por escopo deliberadamente organizacional) — quem revisar
+  `STATE.md` precisa ler as duas para entender o padrão geral "GRANT-only" do projeto, não uma só.
+  Qualquer MV/view futura de Saída que precise do mesmo tratamento (leitura organização-inteira,
+  não recortada por carteira) deve avaliar se se qualifica para esta classe ou para uma 3ª.
+- **Scope**: `mv_numeros_impacto`; qualquer objeto futuro de Saída com a mesma característica
+  (coluna de contrato presente, mas leitura deliberadamente não recortada por carteira pessoal).
+- **Date**: 2026-08-30
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)
