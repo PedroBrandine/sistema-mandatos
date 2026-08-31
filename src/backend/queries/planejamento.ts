@@ -364,3 +364,69 @@ export async function buscarPessoasVinculadasAoContrato(
     papelNoContrato: v.papel_no_contrato,
   }));
 }
+
+// SAI-08, SAI-09, SAI-10. N linhas por id_contrato x dimensão ativa x
+// momento (fat_gip CROSS JOIN ref_dimensao_gip filtrado por ativo, verbatim
+// da view). quadrante é o mesmo valor em toda linha do mesmo momento (coluna
+// gerada em fat_gip, não por dimensão) -- a UI mostra 1x por momento, não
+// repete por dimensão (design.md, "Data Models -- LinhaEvolucaoGip").
+export interface LinhaEvolucaoGip {
+  idContrato: number;
+  momento: "inicio" | "meio" | "fim";
+  aplicadoEm: string;
+  dimensao: string;
+  nomeDimensao: string;
+  ordem: number;
+  reguaSonhos: number | null;
+  ondeChegamos: number | null;
+  gap: number | null;
+  situacao: "atingiu" | "proximo" | "distante" | null;
+  quadrante: string | null;
+}
+
+interface RowEvolucaoGip {
+  id_contrato: number;
+  momento: string;
+  aplicado_em: string;
+  dimensao: string;
+  nome_dimensao: string;
+  ordem: number;
+  regua_sonhos: number | null;
+  onde_chegamos: number | null;
+  gap: number | null;
+  situacao: string | null;
+  quadrante: string | null;
+}
+
+// SAI-08, SAI-09, SAI-10. Leitura de vw_gip_evolucao (já provisionada por
+// formularios-produto, T9; GRANT concedido por saida-numeros-impacto, T4)
+// filtrada por id_contrato, para ContextoEstrategico. Contrato sem nenhuma
+// aplicação de GIP retorna [] (spec.md P3.AC3, EstadoVazio é responsabilidade
+// da UI, não desta função).
+export async function buscarEvolucaoGip(
+  client: SupabaseClient<Database>,
+  idContrato: number
+): Promise<LinhaEvolucaoGip[]> {
+  const { data, error } = await client
+    .from("vw_gip_evolucao")
+    .select("id_contrato, momento, aplicado_em, dimensao, nome_dimensao, ordem, regua_sonhos, onde_chegamos, gap, situacao, quadrante")
+    .eq("id_contrato", idContrato)
+    .order("momento")
+    .order("ordem");
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as RowEvolucaoGip[];
+
+  return rows.map((r) => ({
+    idContrato: r.id_contrato,
+    momento: r.momento as "inicio" | "meio" | "fim",
+    aplicadoEm: r.aplicado_em,
+    dimensao: r.dimensao,
+    nomeDimensao: r.nome_dimensao,
+    ordem: r.ordem,
+    reguaSonhos: r.regua_sonhos,
+    ondeChegamos: r.onde_chegamos,
+    gap: r.gap,
+    situacao: r.situacao as "atingiu" | "proximo" | "distante" | null,
+    quadrante: r.quadrante,
+  }));
+}

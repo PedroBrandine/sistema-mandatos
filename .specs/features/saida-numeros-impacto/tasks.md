@@ -340,10 +340,10 @@ lendo `vw_visao_mandato` filtrada por `id_contratante`, `.order("ordem_contrato"
 - Skill: NONE
 
 **Done when**:
-- [ ] Mapeia todas as colunas de `LinhaEvolucaoGip` (`design.md`, incluindo `momento`/`situacao`
+- [x] Mapeia todas as colunas de `LinhaEvolucaoGip` (`design.md`, incluindo `momento`/`situacao`
       como union types, não `string` genérico)
-- [ ] Gate check passa: `npm run test:unit`
-- [ ] Test count: 3 testes (mapeamento completo; `regua_sonhos` presente e `onde_chegamos`/`gap`/
+- [x] Gate check passa: `npm run test:unit`
+- [x] Test count: 3 testes (mapeamento completo; `regua_sonhos` presente e `onde_chegamos`/`gap`/
       `situacao` `null` — momento `inicio` isolado, spec.md P3.AC2; lista vazia quando não há
       `fat_gip` pro contrato)
 
@@ -619,3 +619,9 @@ _(preenchido durante Execute — task, commit, status)_
   2 testes unitários novos (filtra `id_contratante` + ordena por `ordem_contrato`, mapeamento
   completo incluindo `idContratoAnterior`; contratante com `id_contrato_anterior` presente numa
   linha e `null` noutra). Gate `quick` (`npm run test:unit`, 468 testes) verde.
+- **T9** (`queries/planejamento.ts`, `buscarEvolucaoGip`): ✅ Concluída — fecha a Fase 3. Função
+  nova em arquivo existente (mesmo import site de `ContextoEstrategico`). 3 testes unitários novos
+  em `planejamento.test.ts` (mapeamento completo com `momento`/`situacao` como union types;
+  `momento='inicio'` isolado com `reguaSonhos` presente e `ondeChegamos`/`gap`/`situacao` `null`;
+  lista vazia sem `fat_gip`). Gate `quick` (`npm run test:unit`, 471 testes) verde + `npm run
+  build` como checagem extra de tipos (arquivo já tem consumidor no frontend, CLAUDE.md).

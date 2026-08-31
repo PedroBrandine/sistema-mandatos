@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
 import {
+  buscarEvolucaoGip,
   buscarGradeSucessosMensais,
   buscarHistoricoAuditoria,
   buscarPessoasVinculadasAoContrato,
@@ -442,5 +443,98 @@ describe("buscarHistoricoAuditoria", () => {
     const resultado = await buscarHistoricoAuditoria(client, "fat_meta", 200);
 
     expect(resultado[0].quem).toBe("");
+  });
+});
+
+// Spec anchor: saida-numeros-impacto T9 Done-when (.specs/features/saida-numeros-impacto/tasks.md) --
+//  - Mapeia todas as colunas de LinhaEvolucaoGip (design.md), momento/situacao como union types
+//  - regua_sonhos presente e onde_chegamos/gap/situacao null quando só há momento='inicio'
+//    (spec.md P3.AC2 -- aspiração pactuada, ainda sem medição)
+//  - Lista vazia quando não há fat_gip pro contrato (spec.md P3.AC3)
+//
+// spec.md SAI-08, SAI-09, SAI-10.
+
+describe("buscarEvolucaoGip", () => {
+  it("mapeia todas as colunas de vw_gip_evolucao para camelCase, filtrando por id_contrato e ordenando por momento+ordem", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_gip_evolucao: {
+        data: [
+          {
+            id_contrato: 10,
+            momento: "meio",
+            aplicado_em: "2026-06-01",
+            dimensao: "qualidade_planejamento",
+            nome_dimensao: "Qualidade do Planejamento",
+            ordem: 1,
+            regua_sonhos: 2,
+            onde_chegamos: 3,
+            gap: 1,
+            situacao: "atingiu",
+            quadrante: "Q1 - Estrutura e entrega",
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarEvolucaoGip(client, 10);
+
+    expect(resultado).toEqual([
+      {
+        idContrato: 10,
+        momento: "meio",
+        aplicadoEm: "2026-06-01",
+        dimensao: "qualidade_planejamento",
+        nomeDimensao: "Qualidade do Planejamento",
+        ordem: 1,
+        reguaSonhos: 2,
+        ondeChegamos: 3,
+        gap: 1,
+        situacao: "atingiu",
+        quadrante: "Q1 - Estrutura e entrega",
+      },
+    ]);
+    const eqChamada = chamadas.find((c) => c.tabela === "vw_gip_evolucao" && c.metodo === "eq");
+    expect(eqChamada?.args).toEqual(["id_contrato", 10]);
+    const orderChamadas = chamadas.filter((c) => c.tabela === "vw_gip_evolucao" && c.metodo === "order");
+    expect(orderChamadas.map((c) => c.args)).toEqual([["momento"], ["ordem"]]);
+  });
+
+  it("momento='inicio' isolado: regua_sonhos presente e onde_chegamos/gap/situacao ausentes (null), nunca 0 (spec.md P3.AC2)", async () => {
+    const { client } = criarClienteMock({
+      vw_gip_evolucao: {
+        data: [
+          {
+            id_contrato: 10,
+            momento: "inicio",
+            aplicado_em: "2026-01-01",
+            dimensao: "qualidade_planejamento",
+            nome_dimensao: "Qualidade do Planejamento",
+            ordem: 1,
+            regua_sonhos: 2,
+            onde_chegamos: null,
+            gap: null,
+            situacao: null,
+            quadrante: "Q1 - Estrutura e entrega",
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarEvolucaoGip(client, 10);
+
+    expect(resultado[0].reguaSonhos).toBe(2);
+    expect(resultado[0].ondeChegamos).toBeNull();
+    expect(resultado[0].gap).toBeNull();
+    expect(resultado[0].situacao).toBeNull();
+  });
+
+  it("retorna [] sem lançar quando não há aplicação de GIP para o contrato (spec.md P3.AC3)", async () => {
+    const { client } = criarClienteMock({ vw_gip_evolucao: { data: [], error: null } });
+
+    const resultado = await buscarEvolucaoGip(client, 999);
+
+    expect(resultado).toEqual([]);
   });
 });
