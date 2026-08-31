@@ -255,11 +255,11 @@ o frontend pronto.
 - Skill: NONE
 
 **Done when**:
-- [ ] `atualizaNumerosImpacto(client)` chama `rpc("atualiza_numeros_impacto")` sem parâmetro e
+- [x] `atualizaNumerosImpacto(client)` chama `rpc("atualiza_numeros_impacto")` sem parâmetro e
       propaga erro via `mapeiaErroRpc`
-- [ ] Gate check passa: `npm run test:unit`
-- [ ] Test count: 2 testes (sucesso sem parâmetro; erro propagado via `mapeiaErroRpc`) — mesmo
-      formato de `iip.test.ts`
+- [x] Gate check passa: `npm run test:unit`
+- [x] Test count: 3 testes (sucesso sem parâmetro; erro `42501` mapeado; código não mapeado
+      relançado sem alteração) — mesmo formato/mesmos 3 casos de `iip.test.ts`
 
 **Tests**: unit
 **Gate**: quick
@@ -607,3 +607,7 @@ _(preenchido durante Execute — task, commit, status)_
   presentes com colunas/assinatura corretas. `git diff` confirmado aditivo (única remoção: string
   de metadado `PostgrestVersion`, não schema). Gate `build` (`npm run build`) verde — compilação,
   TypeScript e geração de páginas estáticas sem erro.
+- **T6** (`rpc/numeros-impacto.ts`, `atualizaNumerosImpacto`): ✅ Concluída. Molde exato de
+  `rpc/iip.ts`/`iip.test.ts`. 3 testes unitários novos (sucesso sem parâmetro; `42501` ->
+  `PermissaoNegadaError`; código não mapeado relançado sem alteração). Gate `quick`
+  (`npm run test:unit`, 463 testes) verde.
