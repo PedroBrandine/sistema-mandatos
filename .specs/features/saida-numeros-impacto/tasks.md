@@ -283,10 +283,10 @@ ordem).
 - Skill: NONE
 
 **Done when**:
-- [ ] Mapeia todas as colunas listadas no `design.md` (`Data Models — LinhaNumerosImpacto`) de
+- [x] Mapeia todas as colunas listadas no `design.md` (`Data Models — LinhaNumerosImpacto`) de
       `snake_case` para `camelCase`
-- [ ] Gate check passa: `npm run test:unit`
-- [ ] Test count: 3 testes (mapeamento de campos com mock de linha completa; ordenação por
+- [x] Gate check passa: `npm run test:unit`
+- [x] Test count: 3 testes (mapeamento de campos com mock de linha completa; ordenação por
       `nomeContratante`; `nr_contratos_contratante`/`ordem_contrato` repassados sem recálculo —
       spec.md P1.AC1/AC3)
 
@@ -611,3 +611,7 @@ _(preenchido durante Execute — task, commit, status)_
   `rpc/iip.ts`/`iip.test.ts`. 3 testes unitários novos (sucesso sem parâmetro; `42501` ->
   `PermissaoNegadaError`; código não mapeado relançado sem alteração). Gate `quick`
   (`npm run test:unit`, 463 testes) verde.
+- **T7** (`queries/numeros-impacto.ts`, `buscarNumerosImpacto`): ✅ Concluída. 3 testes unitários
+  novos (mapeamento completo `snake_case` para camelCase; ordenação por `nomeContratante`;
+  `nr_contratos_contratante`/`ordem_contrato` repassados sem recálculo). Gate `quick`
+  (`npm run test:unit`, 466 testes) verde.
