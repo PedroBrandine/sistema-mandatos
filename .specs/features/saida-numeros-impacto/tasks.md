@@ -368,9 +368,9 @@ lendo `vw_visao_mandato` filtrada por `id_contratante`, `.order("ordem_contrato"
 - Skill: `frontend-design` (se precisar calibrar o ícone/cor do card novo)
 
 **Done when**:
-- [ ] Tile navega para `/numeros-impacto`
-- [ ] Visual consistente com os tiles existentes (mesmo componente `Card`, mesma estrutura)
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Tile navega para `/numeros-impacto`
+- [x] Visual consistente com os tiles existentes (mesmo componente `Card`, mesma estrutura)
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
@@ -396,15 +396,17 @@ contratante com link de cada linha para `/numeros-impacto/[idContratante]`.
 - Skill: `frontend-design` (layout da lista — tabela vs. cards, Agent's Discretion do context.md)
 
 **Done when**:
-- [ ] Mentor/Assessor acessando a URL direto recebe `<NaoAutorizado>` antes de qualquer dado
+- [x] Mentor/Assessor acessando a URL direto recebe `<NaoAutorizado>` antes de qualquer dado
       renderizar
-- [ ] Gestora/Admin veem a lista com nome do contratante, produto, projeto, status, ano de início,
+- [x] Gestora/Admin veem a lista com nome do contratante, produto, projeto, status, ano de início,
       `nrContratosContratante`, `dtPrimeiraContratacao`, `ordemContrato`
-- [ ] Cada linha/card linka para `/numeros-impacto/[idContratante]`
-- [ ] Refresh roda antes da leitura em toda abertura da página (sem erro de "relation is not
+- [x] Cada linha/card linka para `/numeros-impacto/[idContratante]`
+- [x] Refresh roda antes da leitura em toda abertura da página (sem erro de "relation is not
       scannable" mesmo numa MV recém-migrada)
-- [ ] Erro de refresh mostra `<ErroInline>` com retry, nunca tela quebrada
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Erro de refresh mostra `<ErroInline>` (SPEC_DEVIATION: sem `onRetry` -- Server Component,
+      mesmo padrão de `SaudeOperacaoBloco`/`GargalosBloco`; reabrir a página já refaz o refresh),
+      nunca tela quebrada
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
@@ -428,13 +430,13 @@ indicador visual de continuidade quando `idContratoAnterior` existir.
 - Skill: `frontend-design` (layout da timeline — Agent's Discretion do context.md)
 
 **Done when**:
-- [ ] Mentor/Assessor acessando a URL direto recebe `<NaoAutorizado>`
-- [ ] Timeline ordenada por `ordemContrato`, cada contrato mostrando produto/projeto/cargo/
+- [x] Mentor/Assessor acessando a URL direto recebe `<NaoAutorizado>`
+- [x] Timeline ordenada por `ordemContrato`, cada contrato mostrando produto/projeto/cargo/
       partido/datas/status
-- [ ] Contrato com `idContratoAnterior` presente é visualmente distinto de um contrato novo
+- [x] Contrato com `idContratoAnterior` presente é visualmente distinto de um contrato novo
       desconexo
-- [ ] Contratante sem nenhum contrato mostra `<EstadoVazio>`, nunca erro
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Contratante sem nenhum contrato mostra `<EstadoVazio>`, nunca erro
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
@@ -464,14 +466,14 @@ quando houver dado (layout exato: Agent's Discretion do `context.md`).
 - Skill: `frontend-design` (layout da seção GIP — Agent's Discretion do context.md)
 
 **Done when**:
-- [ ] Contrato com GIP aplicado (`momento='inicio'` + `momento='meio'`, dado real de dev ou
+- [x] Contrato com GIP aplicado (`momento='inicio'` + `momento='meio'`, dado real de dev ou
       fixture equivalente) mostra `reguaSonhos`/`ondeChegamos`/`gap`/`situacao` por dimensão
-- [ ] Contrato só com `momento='inicio'` mostra `reguaSonhos` e os demais campos ausentes (nunca
+- [x] Contrato só com `momento='inicio'` mostra `reguaSonhos` e os demais campos ausentes (nunca
       `0` nem traço genérico sem explicação — AD-005, spec.md P3.AC2)
-- [ ] Contrato sem nenhuma aplicação de GIP mostra `<EstadoVazio>`, não mais o texto placeholder
+- [x] Contrato sem nenhuma aplicação de GIP mostra `<EstadoVazio>`, não mais o texto placeholder
       fixo "Em desenvolvimento..."
-- [ ] Placeholder antigo (comentário `PLR-06`) removido do código
-- [ ] Gate check passa: `npm run build && npm run lint:all`
+- [x] Placeholder antigo (comentário `PLR-06`) removido do código
+- [x] Gate check passa: `npm run build && npm run lint:all`
 
 **Tests**: none
 **Gate**: build
@@ -625,3 +627,44 @@ _(preenchido durante Execute — task, commit, status)_
   `momento='inicio'` isolado com `reguaSonhos` presente e `ondeChegamos`/`gap`/`situacao` `null`;
   lista vazia sem `fat_gip`). Gate `quick` (`npm run test:unit`, 471 testes) verde + `npm run
   build` como checagem extra de tipos (arquivo já tem consumidor no frontend, CLAUDE.md).
+- **T10** (Tile "Números de Impacto" no Hub): ✅ Concluída. `(app)/page.tsx` -- novo
+  `<Link href="/numeros-impacto">` duplicando o bloco visual do tile "Visão Gerencial" (mesmo
+  esquema de cor `secondary`), ícone `TrendingUp` (lucide-react). Gate `build`
+  (`npm run build && npm run lint:all`) -- build verde; lint com o baseline pré-existente
+  inalterado (30 problemas: 15 erros + 15 warnings, confirmado idêntico antes/depois via
+  `git stash`, nenhum nos arquivos tocados por esta feature). Commit `4f1a246`.
+- **T11** (Página `/numeros-impacto`): ✅ Concluída. Novo
+  `src/frontend/app/(app)/numeros-impacto/page.tsx` -- Server Component, gate de papel idêntico a
+  `visao-gerencial/page.tsx:52-66` (bloqueia mentor/assessor com `<NaoAutorizado>`), refresh
+  síncrono (`atualizaNumerosImpacto`) seguido de leitura (`buscarNumerosImpacto`) dentro do mesmo
+  `try/catch`, tabela (`<Table>`) com as 8 colunas do spec.md P1.AC1 + coluna de ação linkando pra
+  `/numeros-impacto/[idContratante]`. `<EstadoVazio>` sem contratos; `<ErroInline>` em erro de
+  refresh/leitura. SPEC_DEVIATION documentado no código: sem `onRetry` (Server Component --
+  passar callback quebraria a fronteira server/client, mesmo padrão de
+  `SaudeOperacaoBloco`/`GargalosBloco`, que também omitem `onRetry`). Gate `build` verde, baseline
+  de lint inalterado (30 problemas). Commit `a4221f3`.
+- **T12** (Página Visão do Mandato `/numeros-impacto/[idContratante]`): ✅ Concluída. Novo
+  `src/frontend/app/(app)/numeros-impacto/[idContratante]/page.tsx` -- mesmo gate de papel
+  (repetido, rota acessível por URL direta), `buscarVisaoMandato` já ordenada por
+  `ordemContrato`, timeline em cards com produto/projeto/cargo/partido/status/datas; conector
+  visual (ícone + texto "Continuação do contrato #N" + `Badge` "Continuação") só quando
+  `idContratoAnterior` não é `null` -- ausência é o caso normal (cards sem conector).
+  `<EstadoVazio>` defensivo pra contratante sem contrato. Achado registrado em `context.md`
+  (Deferred Ideas): a tela não mostra o nome do contratante porque `LinhaVisaoMandato` não inclui
+  esse campo (verbatim do schema aprovado) -- fora do escopo de T12 buscar isso numa query nova.
+  Gate `build` verde, baseline de lint inalterado. Commit `04c384f`.
+- **T13** (`ContextoEstrategico` consome `vw_gip_evolucao` real): ✅ Concluída — fecha a feature
+  inteira (Fase 5, última task). `contratos/[id]/planejamento/page.tsx`: novo estado
+  `evolucaoGip`, buscado no mesmo `useEffect`/mesmo bloco `if (dados)` que já busca
+  `preditoresAtuais`, via `buscarEvolucaoGip(supabase, idContrato)`; passado como nova prop pra
+  `<ContextoEstrategico>`. `contexto-estrategico.tsx`: nova prop `evolucaoGip`, placeholder
+  `PLR-06` removido por completo; `<EstadoVazio>` quando `evolucaoGip.length === 0`; senão lista
+  agrupada por `momento` (reordenado cronologicamente -- `inicio`/`meio`/`fim` -- já que
+  `vw_gip_evolucao` ordena por `momento` alfabeticamente), mostrando por dimensão
+  `reguaSonhos`/`ondeChegamos`/`gap`/`situacao` (`Badge` colorido por situação, mesmo padrão dos
+  preditores prioritários já usados ali); momento só com `reguaSonhos` preenchido mostra texto
+  explícito "Aspiração pactuada — ainda sem leitura..." em vez de `0`/traço genérico (AD-005,
+  spec.md P3.AC2). `quadrante` mostrado 1x por momento (não repetido por dimensão), conforme
+  design.md. Gate `build` verde, baseline de lint inalterado (30 problemas, idênticos
+  antes/depois). Único consumidor de `ContextoEstrategico` no projeto é este `page.tsx`
+  (confirmado por grep), sem outro call site a atualizar.
