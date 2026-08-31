@@ -134,14 +134,14 @@ CONCURRENTLY mv_numeros_impacto;` (AD-035, mesmo padrão de `app.atualiza_iip_co
 - Skill: NONE
 
 **Done when**:
-- [ ] `supabase db push` aplica sem erro
-- [ ] Sessão `legisla_gestora`/`legisla_admin` chama `rpc("atualiza_numeros_impacto")` sem erro e
+- [x] `supabase db push` aplica sem erro
+- [x] Sessão `legisla_gestora`/`legisla_admin` chama `rpc("atualiza_numeros_impacto")` sem erro e
       `SELECT` na MV funciona depois
-- [ ] Sessão `legisla_mentor`/`legisla_assessor` recebe `42501` ao tentar `SELECT` na MV
+- [x] Sessão `legisla_mentor`/`legisla_assessor` recebe `42501` ao tentar `SELECT` na MV
       diretamente (a função em si pode ser chamada por qualquer papel — default do Postgres,
       EXECUTE liberado a `PUBLIC` — mas o resultado continua ilegível sem o `GRANT`)
-- [ ] Gate check passa: `npm run test:integration -- supabase/tests/saida`
-- [ ] Test count: +1 caso pra cada papel (gestora/admin permitido, mentor/assessor negado) + 1
+- [x] Gate check passa: `npm run test:integration -- supabase/tests/saida`
+- [x] Test count: +1 caso pra cada papel (gestora/admin permitido, mentor/assessor negado) + 1
       caso confirmando que o refresh concorrente atualiza dado alterado desde T1
 
 **Tests**: integration
@@ -583,3 +583,9 @@ _(preenchido durante Execute — task, commit, status)_
   `supabase/tests/saida/numeros-impacto.integration.test.ts` (4 testes, todos verdes) cobrindo
   contratante com 1 contrato, contratante com 2 contratos (agregação + ordem por `dt_inicio`) e
   ausência de filtro de `status` (D4). Gate `full` (unit 460 + integration 4) verde.
+- **T2** (`app.atualiza_numeros_impacto()` + `GRANT SELECT` na MV, AD-036): ✅ Concluída.
+  Migration `20260831022144_saida_numeros_impacto_refresh.sql`. Testes de integração
+  adicionados ao mesmo arquivo (`numeros-impacto.integration.test.ts`, +5 casos): gestora/admin
+  chamam a função e leem a MV depois; mentor/assessor chamam a função (EXECUTE PUBLIC) mas
+  recebem `42501` ao tentar `SELECT` direto na MV; refresh concorrente reflete contrato novo
+  inserido depois da última leitura. Gate `full` (unit 460 + integration 9) verde.
