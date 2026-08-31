@@ -199,12 +199,12 @@ o frontend pronto.
 - Skill: NONE
 
 **Done when**:
-- [ ] `supabase db push` aplica sem erro
-- [ ] Sessão `legisla_gestora` consegue `SELECT * FROM vw_gip_evolucao WHERE id_contrato = X` sem
+- [x] `supabase db push` aplica sem erro
+- [x] Sessão `legisla_gestora` consegue `SELECT * FROM vw_gip_evolucao WHERE id_contrato = X` sem
       erro (regressão: confirmar que ANTES desta migration a mesma query falhava com `42501` —
       documentar no teste como comentário, não precisa reproduzir o estado pré-fix)
-- [ ] Gate check passa: `npm run test:integration -- supabase/tests/saida`
-- [ ] Test count: +1 caso (gestora lê `vw_gip_evolucao` com dado real de GIP aplicado, incluindo
+- [x] Gate check passa: `npm run test:integration -- supabase/tests/saida`
+- [x] Test count: +1 caso (gestora lê `vw_gip_evolucao` com dado real de GIP aplicado, incluindo
       caso `momento='meio'` com `gap`/`situacao` calculados — reaproveitar fixture de
       `supabase/tests/operacao/formularios-gip.integration.test.ts` se possível)
 
@@ -594,3 +594,11 @@ _(preenchido durante Execute — task, commit, status)_
   `supabase/tests/saida/visao-mandato.integration.test.ts` (3 testes): gestora lê a timeline
   ordenada por `ordem_contrato` com `id_contrato_anterior` correto na renovação; mentor/assessor
   recebem `42501`. Gate `full` (unit 460 + integration 3) verde.
+- **T4** (`GRANT SELECT` em `vw_gip_evolucao`, achado real de Design): ✅ Concluída. Migration
+  `20260831022825_saida_gip_evolucao_grant.sql` (`GRANT SELECT` a `legisla_app`, `legisla_admin`,
+  `legisla_gestora` — mesmo escopo de papel de `fat_gip`/`fat_gip_dimensao`). Teste de integração
+  novo `supabase/tests/saida/gip-evolucao-grant.integration.test.ts` (2 testes, fixture inspirada
+  em `formularios-gip.integration.test.ts`): gestora lê a view sem erro e confirma
+  `gap`/`situacao` calculados corretamente para `momento='meio'`. Gate `full` (unit 460 +
+  integration 2) verde. Confirmado por `has_table_privilege` que antes desta migration
+  `legisla_gestora` não tinha `SELECT` na view (achado real do Design, agora corrigido).
