@@ -236,6 +236,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: FRM-22, validation.md Rodada 2 (Discrimination Sensor + verificação manual live) (db-migrations)
 - last seen: 2026-08-16T01:43:45Z
 
+### L-038 — When a spec AC requires a fixed call order between two async operations (e.g. refresh-then-read), extract the sequence into a named, unit-testable function instead of leaving raw sequential awaits inline in a Server Component page, so an accidental reorder has a test to fail.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `frontend/app` · harmful: 0
+- features: saida-numeros-impacto
+- evidence: src/frontend/app/(app)/numeros-impacto/page.tsx:50-51 (validation.md mutant #2) (frontend/app)
+- last seen: 2026-08-31T03:44:03Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

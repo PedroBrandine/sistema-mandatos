@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 38,
+  "next_id": 39,
   "lessons": [
     {
       "id": "L-001",
@@ -670,6 +670,24 @@
       ],
       "created": "2026-08-16T01:43:45Z",
       "last_seen": "2026-08-16T01:43:45Z"
+    },
+    {
+      "id": "L-038",
+      "key": "surviving_mutant::when a spec ac requires a fixed call order between two async operations e g refresh then read extract the sequence into a named unit testable function instead of leaving raw sequential awaits inline in a server component page so an accidental reorder has a test to fail",
+      "text": "When a spec AC requires a fixed call order between two async operations (e.g. refresh-then-read), extract the sequence into a named, unit-testable function instead of leaving raw sequential awaits inline in a Server Component page, so an accidental reorder has a test to fail.",
+      "signal": "surviving_mutant",
+      "scope": "frontend/app",
+      "status": "candidate",
+      "features": [
+        "saida-numeros-impacto"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "src/frontend/app/(app)/numeros-impacto/page.tsx:50-51 (validation.md mutant #2) (frontend/app)"
+      ],
+      "created": "2026-08-31T03:44:03Z",
+      "last_seen": "2026-08-31T03:44:03Z"
     }
   ]
 }
