@@ -133,6 +133,29 @@ custo, não de engenharia.
 
 ## Quando algo dá errado
 
+**`npm run dev` devolvendo 500 em toda rota dinâmica, com "Jest worker
+encountered N child process exceptions, exceeding retry limit".** Não procure
+teste nenhum: a suíte aqui é Vitest, o `jest-worker` é uma dependência interna
+do Next. O erro quer dizer **"o dev server não consegue mais criar processos
+filhos"**, e a causa quase sempre é que o console do terminal que rodou o
+`npm run dev` morreu — aba do VS Code fechada, janela recarregada, máquina
+suspensa — enquanto o servidor continuou de pé. Em dev o Next dá `fork()` de um
+Node novo a cada request de rota dinâmica; herdando um console morto, o filho é
+abatido pelo loader do Windows (`0xC0000142`) antes de conseguir escrever
+qualquer coisa, e o Next só consegue relatar o exit code. Rotas estáticas
+seguem em 200, o que faz o defeito parecer da aplicação.
+
+**Ação: mate o dev server e suba de novo a partir de um terminal vivo.** O
+`experimental.workerThreads` ligado em `src/frontend/next.config.ts` (só na fase
+de dev) faz esse worker rodar em thread e não em processo, então isto não
+deveria voltar a acontecer — se acontecer, é sinal de que o flag saiu do
+config. Se depois de reiniciar as rotas passarem a dar **404** em vez de 500,
+inclusive rotas estáticas que existem, o cache de dev ficou inconsistente
+porque o servidor anterior morreu no meio de uma escrita: `rm -rf
+src/frontend/.next` e suba de novo. Investigação completa, com os experimentos
+que descartaram memória e `NODE_OPTIONS`, em
+`.specs/features/dev-server-rotas-dinamicas-500/`.
+
 **Código quebrado em produção.** Painel da Vercel → *Deployments* → o deploy
 anterior → *Promote to Production*. Um clique, segundos. É por isso que o
 deploy de código não tem trava.

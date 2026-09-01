@@ -520,6 +520,35 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-08-30
 - **Status**: active
 
+### AD-037
+- **Decision**: `src/frontend/next.config.ts` é exportado como **função de fase** e liga
+  `experimental.workerThreads` **exclusivamente** em `PHASE_DEVELOPMENT_SERVER`. Nenhuma opção
+  ligada por fase de dev pode vazar para `next build` — a checagem é sempre por fase, nunca por
+  `NODE_ENV`.
+- **Reason**: Em `next dev` o Next dá `fork()` de um processo Node novo a cada request de rota
+  dinâmica, para rodar `generateStaticParams` (`next-dev-server.js:111` + `base-server.js:1365`) —
+  e faz isso para toda rota dinâmica, tenha ela `generateStaticParams` ou não. Este projeto não tem
+  nenhum. Quando o console do terminal que rodou `npm run dev` morre (aba do VS Code fechada,
+  janela recarregada, máquina suspensa), todo filho que herda esse console é abatido pelo loader do
+  Windows com `0xC0000142` antes de o Node iniciar, sem escrever nada em stderr; o `jest-worker` só
+  consegue relatar "Jest worker encountered 2 child process exceptions, exceeding retry limit" e
+  **toda rota dinâmica vira 500** enquanto as estáticas seguem em 200. Medido no processo doente:
+  `fork`/`spawn` = `0xC0000142`, `spawn` com `detached` (console novo) = ok, `worker_threads` = ok.
+  Thread não é processo, não herda console, não tem esse modo de falha. `NODE_ENV` não serve de
+  guarda porque o Preview da Vercel builda com `NODE_ENV=production` — quem separa dev de build é
+  a fase.
+- **Trade-off**: Depende de um flag `experimental.*` (validado pelo schema do Next,
+  `config-schema.js:316`, default `false`) que o Next pode renomear ou remover numa major — se isso
+  acontecer, o sintoma volta e a pista é o desaparecimento da linha `✓ workerThreads` no boot do
+  dev server. E o `next.config.ts` deixa de ser um objeto literal: qualquer opção nova precisa ser
+  colocada no objeto base, não dentro do ramo de dev, ou passa a valer só em dev sem ninguém
+  perceber.
+- **Scope**: `src/frontend/next.config.ts`; qualquer configuração futura que precise valer só em
+  dev. Zero efeito em `next build`/`next start` — verificado carregando a config pelo próprio
+  loader do Next nas três fases.
+- **Date**: 2026-09-01
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)
@@ -1364,3 +1393,50 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   toda a execução desta feature (outra sessão trabalhando em paralelo) — não tocado por nenhum
   commit desta feature. Um `git worktree` de outra sessão (`wt-sensor`, prunable) também apareceu
   durante o Validate — não removido pelo Verifier desta feature, por não ser dele.
+
+---
+
+## Handoff (Rotas dinâmicas devolvendo 500 no `next dev` — CORRIGIDA e validada)
+
+- **Feature**: `.specs/features/dev-server-rotas-dinamicas-500/` — **CORRIGIDA e validada**, 5/5
+  critérios (DEV-01 a DEV-05). Bugfix de infraestrutura de dev, não de produto: toda rota dinâmica
+  passou a devolver 500 no `npm run dev` com "Jest worker encountered 2 child process exceptions,
+  exceeding retry limit". Nenhuma rota, query, schema ou componente foi tocado.
+- **Causa raiz**: o console do terminal que rodou `npm run dev` morreu (aba do VS Code fechada,
+  janela recarregada, máquina suspensa) com o servidor de pé havia 23,6 h. Em dev o Next dá
+  `fork()` de um Node novo a cada request de rota dinâmica; herdando um console morto, o filho é
+  abatido pelo loader do Windows com `0xC0000142` (`STATUS_DLL_INIT_FAILED`) antes de o runtime
+  iniciar — sem stderr nenhum, o que deixa o `jest-worker` sem nada a relatar além do exit code.
+  Medido dentro do processo doente: `fork`/`spawn` (5 variantes) → `0xC0000142`; `spawn` com
+  `detached`, que ganha console novo → ok; `worker_threads` → ok.
+- **Phase / Task**: Specify → Execute (Design e Tasks pulados, escopo Medium: 4 arquivos) →
+  Validate (fallback standalone).
+- **Completed**: `src/frontend/next.config.ts` exportado como função de fase, com
+  `experimental.workerThreads` ligado só em `PHASE_DEVELOPMENT_SERVER` (**AD-037**);
+  `src/frontend/next.config.test.ts` novo, 5 testes travando o escopo do flag;
+  `docs/fluxo-de-trabalho.md` com a tradução do erro em "Quando algo dá errado".
+- **Verificação**: 478 testes unitários passando; `tsc --noEmit` exit 0; `npm run build` exit 0 sem
+  nenhuma menção a `workerThreads`; config carregada pelo loader do próprio Next nas 3 fases
+  (dev `true`, build `false`, server `false`); 20 requests a 5 rotas dinâmicas com amostragem de
+  processos a cada 40 ms → **zero** filhos novos, threads 24→29; sensor com 4 mutantes, 0
+  sobreviventes.
+- **Desvio do ritual, registrado**: o **Verifier independente não rodou** (a instrução ativa da
+  sessão proíbe despachar sub-agente sem pedido explícito). Autor == verificador. O que substitui —
+  evidência de execução real em vez de leitura de código, mais o sensor — está em `validation.md`,
+  junto do limite de DEV-03 (verificado por inferência de duas medições, não encenando a morte do
+  console). Vale um segundo par de olhos antes de considerar fechado.
+- **Achado operacional**: se depois de reiniciar as rotas passarem a dar **404** em vez de 500,
+  inclusive estáticas que existem, o cache de dev ficou inconsistente porque o servidor anterior
+  morreu no meio de uma escrita — `rm -rf src/frontend/.next`. Aconteceu nesta sessão; documentado.
+- **Débito NÃO desta correção**: `npm run lint:all` acusa 30 problemas (15 erros, 15 warnings) em
+  `components/**`, todos pré-existentes — `next.config.ts`/`next.config.test.ts` não aparecem na
+  saída. Baseline não alterado, não corrigido aqui.
+- **Blockers**: nenhum.
+- **Uncommitted files**: **todos** — nada foi commitado. `src/frontend/next.config.ts` (M),
+  `src/frontend/next.config.test.ts` (novo), `docs/fluxo-de-trabalho.md` (M), `.specs/STATE.md` (M),
+  `.specs/features/dev-server-rotas-dinamicas-500/` (novo). O commit atômico previsto pelo ritual
+  não foi feito porque o usuário não pediu commit nesta sessão.
+- **Branch**: develop.
+- **Atenção — trabalho paralelo, não tocado**: `.specs/features/revisao-constituicao-experiencia/`
+  e `docs/mapa-de-telas.md` seguem untracked no working tree (outra sessão), fora de todo commit
+  desta correção.
