@@ -231,7 +231,7 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Trade-off**: O risco de adoção descrito em §5.7 (assessores voltarem pro Sheets se a edição em grade não for rápida o bastante) deixa de ter uma validação externa prévia como mitigação. Passa a depender de revisão pós-implementação ou feedback informal — sem data nem responsável definidos ainda. Se a adoção falhar depois de construído, o retrabalho é maior do que teria sido com o gate.
 - **Scope**: Planejamento & Monitoramento (Sucessos Mensais).
 - **Date**: 2026-08-10
-- **Status**: active
+- **Status**: superseded (ver AD-039)
 
 ### AD-029
 - **Decision**: O provider global de TanStack Query e o `<Toaster/>` do sonner montam no `app/layout.tsx` **raiz**, não em `(app)/layout.tsx` (AD-027). Sem `next-themes`. Os três componentes de estado padrão (`<CarregandoSkeleton>`, `<ErroInline>`, `<EstadoVazio>`) vivem em `components/ui/`, não em pasta própria.
@@ -547,6 +547,49 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   dev. Zero efeito em `next build`/`next start` — verificado carregando a config pelo próprio
   loader do Next nas três fases.
 - **Date**: 2026-09-01
+- **Status**: active
+
+### AD-038
+- **Decision**: O redesenho da interface é **tela-first**. A tela desenhada no Figma e validada
+  com quem opera passa a ser o **insumo de origem**; `docs/jornadas-de-usuario-v2.md` e as seções
+  de escopo da Constituição (§1.3 A visão, §2 Camadas, §3 RBAC, §6 Definição de Pronto) tornam-se
+  **documentos derivados** — atualizados a partir da tela aprovada, não o contrário. Nenhuma tela
+  vira código antes de passar pela checagem de conformidade de `docs/redesenho-tela-first.md`.
+- **Reason**: Em 2026-09-02 o dono do produto relatou que **nenhuma tarefa da operação roda no
+  sistema**, com 26 das 28 telas classificadas como funcionais em `docs/mapa-de-telas.md`. Logo o
+  problema não é implementação incompleta: é **aderência** — as funções construídas não
+  correspondem ao dia a dia. Especificação escrita não corrige isso, porque ninguém valida
+  operação lendo documento; tela, sim. Inverter a ordem faz o erro aparecer em horas de Figma em
+  vez de semanas de implementação, e dá ao dono do produto uma superfície à qual ele consegue
+  reagir.
+- **Trade-off**: Existe uma janela em que os documentos normativos **não descrevem o sistema
+  pretendido** — quem ler a Constituição ou as jornadas no meio do redesenho lê algo parcialmente
+  vencido. Mitigado por: (a) as travas técnicas (§6 Regras inegociáveis + ADs de infraestrutura)
+  continuam valendo **sobre** a tela, nunca sob ela; (b) a checagem de conformidade é parte
+  obrigatória da spec de cada tela; (c) os dois documentos derivados carregam nota de estado
+  apontando para cá. Risco residual: se a checagem for pulada, o Figma desenha o que a
+  arquitetura não sustenta e o erro reaparece na implementação — o mesmo modo de falha, só mais
+  tarde.
+- **Scope**: Toda camada com superfície de interface. `docs/jornadas-de-usuario-v2.md`;
+  Constituição §1.3/§2/§3/§6; todas as features de redesenho de tela.
+- **Date**: 2026-09-02
+- **Status**: active
+
+### AD-039
+- **Decision**: Retoma o gate de **protótipo validado com pessoa real da operação antes de
+  qualquer linha de código de produção** — originalmente AD-022, restrito à grade de Sucessos
+  Mensais — agora como **regra geral de toda tela redesenhada**. Supersede AD-028.
+- **Reason**: AD-028 dispensou o gate em 2026-08-10 por ritmo de execução e registrou o custo da
+  aposta: "se a adoção falhar depois de construído, o retrabalho é maior do que teria sido com o
+  gate". A adoção falhou — nenhuma tarefa da operação roda no sistema (AD-038) — e o retrabalho
+  chegou como redesenho completo da interface. §5.7 da Constituição havia nomeado exatamente esse
+  risco antes de existir qualquer linha de código.
+- **Trade-off**: Cada tela passa a depender da agenda de alguém da operação, o que reduz a
+  velocidade nominal do desenvolvimento — a mesma objeção que produziu AD-028. A diferença é que
+  agora o custo do caminho sem gate é conhecido e medido, não hipotético. Em compensação, o gate
+  ficou mais barato do que era em AD-022: valida-se Figma, não código pronto.
+- **Scope**: Toda tela nova ou redesenhada, em qualquer camada.
+- **Date**: 2026-09-02
 - **Status**: active
 
 ---
@@ -1440,3 +1483,39 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Atenção — trabalho paralelo, não tocado**: `.specs/features/revisao-constituicao-experiencia/`
   e `docs/mapa-de-telas.md` seguem untracked no working tree (outra sessão), fora de todo commit
   desta correção.
+
+---
+
+## Handoff (Redesenho tela-first — EM ANDAMENTO, fora de código)
+
+- **Situação**: redesenho da interface **aberto em 2026-09-02**, ainda sem nenhuma linha de
+  código. Gatilho: o dono do produto reprovou as telas — não por estética apenas, mas porque
+  **nenhuma tarefa da operação roda no sistema**. Diagnóstico registrado em AD-038: problema de
+  aderência, não de implementação (26 das 28 telas são funcionais, `docs/mapa-de-telas.md`).
+- **Método**: tela-first (AD-038) com gate de validação retomado (AD-039, supersede AD-028).
+  Protocolo por tela em `docs/redesenho-tela-first.md`: 8 perguntas de intake, checagem de
+  conformidade contra as travas técnicas, cobertura de dado e de inventário, então spec.
+- **Feito nesta sessão** (só documentação, nada de código):
+  - `docs/redesenho-tela-first.md` — novo, o protocolo.
+  - `.specs/STATE.md` — AD-038, AD-039; AD-028 marcada `superseded`.
+  - `docs/jornadas-de-usuario-v2.md` — nota de estado no topo: **congelado**, a v3 será derivada
+    das telas. Conteúdo das jornadas **não** alterado.
+  - `docs/Constituição Sistema Mandatos.md` — nota de estado no topo (o que está em revisão vs.
+    estável vs. inegociável) + 5 correções factuais de defasagem, listadas abaixo.
+- **Correções factuais na Constituição** (nenhuma muda regra, só alinha ao real):
+  §2.5 "Quatro artefatos" → **dois** (só dois estavam listados); §4 Modelo de dados, placeholder
+  `[EM PRODUÇÃO]` → aponta para `docs/schema_sistema.sql` + AD-008/AD-025; §5.3 login interno,
+  SSO Google → **e-mail+senha** hoje (AD-026), SSO como alvo; §5.4 "desenvolvimento, homologação e
+  produção" → **dois** ambientes, homologação não existe (`docs/ambientes.md`); §5.7 ganhou o
+  histórico AD-022 → AD-028 → AD-039.
+- **Defasagem conhecida e NÃO corrigida**: **AD-020** afirma três ambientes (dev, homologação,
+  produção); o real são dois. Não editei o texto da AD porque decisão registrada é forward-only —
+  se quiser corrigir, é AD nova, não edição.
+- **Next step**: primeira tela do Figma. Recomendado começar pelo **ciclo mensal de monitoramento**
+  (jornada A6) — loop de maior frequência, onde a operação hoje está inteira na planilha.
+- **Blockers**: nenhum técnico. O redesenho depende de agenda de validação com a operação (AD-039).
+- **Uncommitted files**: **todos os desta sessão**, mais `docs/mapa-de-telas.md`, que segue
+  untracked desde 2026-08-31. **Atenção:** a pasta `.specs/features/revisao-constituicao-experiencia/`,
+  criada por uma sessão paralela na mesma janela e também nunca commitada, **desapareceu** do
+  working tree — trabalho perdido. O mapa de telas é o insumo do Figma; commitar antes de seguir.
+- **Branch**: develop.

@@ -1,3 +1,20 @@
+> ## **Estado deste documento — 2026-09-02**
+>
+> O sistema entrou em **redesenho tela-first** (**AD-038** em `.specs/STATE.md`): as telas ideais
+> são desenhadas no Figma e validadas com a operação **primeiro**, e as seções de escopo deste
+> documento passam a ser atualizadas **a partir delas**. Enquanto o redesenho corre, leia assim:
+>
+> | Parte | Situação |
+> | ----- | ----- |
+> | §1.3 A visão · §2 Camadas · §3 RBAC · §6 Definição de Pronto | **em revisão** — podem mudar por tela validada |
+> | §4 Modelo de dados · §5 Stack, acesso, segredos, limites | **estável** — não muda por decisão de design |
+> | §6 *Regras inegociáveis* | **vigentes sem exceção** — valem **sobre** a tela. Tela que fira uma delas é decisão de arquitetura (AD nova, com custo escrito), nunca escolha de layout |
+>
+> **Motivo.** Em 2026-09-02 o dono do produto relatou que **nenhuma tarefa da operação roda no
+> sistema**, apesar de 26 das 28 telas estarem funcionais (`docs/mapa-de-telas.md`). O problema é
+> de **aderência à operação**, não de implementação incompleta — e §5.7 abaixo já havia nomeado
+> esse risco. O protocolo de cada tela está em `docs/redesenho-tela-first.md`.
+
 ## **1.1 Visão geral**
 
 Sistema de Operações (Mandatos) — Legisla Brasil
@@ -66,7 +83,7 @@ Regra de dependência: uma camada só depende de camadas abaixo dela ou transver
   * **Coalizões** — agrupamento de mandatos via Projeto. **Pode ter planejamento estratégico próprio** (secretaria executiva/grupos) ou não; quando não tem, é uma **visão filtrada por Projeto** sobre os mandatos membros, cada um com seu planejamento de Estratégia (o Projeto carrega a temática — ex.: Imagina 1 e 2).  
   * **Kanban de etapas** — superfície de escrita da transição de etapa, transversal aos três produtos: arrastar o card entre colunas grava a transição com data e autor no fato de etapa (§2.6, requisito estrutural). Colunas são as etapas do produto, cards são os contratos, com recorte por Gestora, Mentor, produto e projeto. É consumido como leitura pela Saída, que não escreve.  
   * Cada formulário é uma **página respondível no sistema** (não upload do Sheets), editável pelo respondente; a Gestora **abre/fecha por formulário e por mandato** ("Organograma aberto/fechado"). Os formulários serão elencados em features  
-* **Em evolução — deferimento explícito.** Quatro artefatos dependem de definição da **área de conhecimento** e por isso **não entram no escopo inicial**: **Mapa Político** (Raio-X, Estratégia e PLL), **Relatório de Diagnóstico de Organograma** (Estratégia). Sem data ainda e não interfere no sistema.  
+* **Em evolução — deferimento explícito.** Dois artefatos dependem de definição da **área de conhecimento** e por isso **não entram no escopo inicial**: **Mapa Político** (Raio-X, Estratégia e PLL), **Relatório de Diagnóstico de Organograma** (Estratégia). Sem data ainda e não interfere no sistema.  
 * Regra de deferimento: cada um permanece como **passo externo ao sistema** (feito na ferramenta atual, resultado anexado ao mandato) até que a área de conhecimento entregue o schema de campos. Nenhum deles bloqueia a Definição de Pronto (§6). Enquanto o schema não existir, o sistema **armazena o resultado, não o método** — anexo ou campo de texto livre, nunca uma estrutura inventada por antecipação.  
 * Quando o schema chegar, cada artefato entra como feature própria com spec, sem alterar as camadas.  
 * **Fronteiras:** cada produto **usa** Planejamento e Incidência — não os reimplementa.
@@ -151,7 +168,13 @@ Quatro papéis. O parlamentar não é papel — é registro.
 
 ## **4\. Modelo de dados (v1)**
 
-\[EM PRODUÇÃO\]
+**Fonte de verdade:** `docs/schema_sistema.sql` — 51 tabelas lógicas e 11 views/materialized
+views, modelo **aprovado** (AD-008). O banco real é provisionado **incrementalmente**, feature por
+feature, a partir dele (AD-025): o arquivo é o desenho aprovado, não o estado atual do banco. Toda
+mudança de schema nasce como migração em `supabase/migrations/` — ver `docs/fluxo-de-trabalho.md`.
+
+*(Esta seção guardava o marcador `[EM PRODUÇÃO]` desde a redação original; substituído em
+2026-09-02 pelo apontamento real.)*
 
 ## **5\. Stack tecnológica**
 
@@ -187,7 +210,7 @@ Existem exceções, e só elas rodam com privilégio elevado, em **Edge Function
 
 | Ator | Método |
 | ----- | ----- |
-| Interno Legisla (Gestora, Admin, áreas clientes) | **SSO Google Workspace**, restrito ao domínio da Legisla |
+| Interno Legisla (Gestora, Admin, áreas clientes) | **E-mail + senha** (`signInWithPassword`) — decisão temporária de **AD-026**. O **SSO Google Workspace** restrito ao domínio da Legisla segue como alvo, ainda não implementado |
 | Mentor / Consultor (externo) | **Magic link** por e-mail |
 | Assessor do mandato | **Magic link** por e-mail |
 
@@ -205,7 +228,7 @@ Regras de sessão:
 * A chave `service_role` **nunca** aparece no frontend, em variável `NEXT_PUBLIC_` ou em log. Existe só como segredo de Edge Function.  
 * Tokens de OAuth de Slack e Google ficam **cifrados em repouso** (Supabase Vault), nunca em coluna de texto puro.  
 * `.env` não vai para o repositório; versiona-se apenas `.env.example` com chaves vazias.  
-* Ambientes de desenvolvimento, homologação e produção têm **projetos Supabase distintos e credenciais distintas**. Nenhum desenvolvimento aponta para o banco de produção.  
+* Ambientes de **desenvolvimento e produção** têm **projetos Supabase distintos e credenciais distintas**. Nenhum desenvolvimento aponta para o banco de produção. **Não existe ambiente de homologação** — são dois projetos, não três (AD-020 diz três; o real são dois). Fonte de verdade operacional: `docs/ambientes.md`.  
 * Rotação de segredos em toda saída de pessoa com acesso técnico.
 
 ### **5.5 Rate limiting e abuso**
@@ -226,6 +249,13 @@ Regras de sessão:
 ### **5.7 O risco conhecido**
 
 O maior risco de adoção não é técnico: os assessores vêm de planilha. Se a tela de Sucessos Mensais não permitir edição rápida em grade — tabular entre células, colar de uma faixa, editar em massa — eles voltam para o Sheets e a Definição de Pronto cai.
+
+**Histórico desta previsão — 2026-09-02.** Ela se confirmou. A mitigação existia: **AD-022** exigia
+protótipo validado com assessor real antes de qualquer linha de código de produção. **AD-028**
+dispensou o gate em 2026-08-10 em nome do ritmo de execução, registrando o custo da aposta — *"se a
+adoção falhar depois de construído, o retrabalho é maior do que teria sido com o gate"*. A adoção
+falhou: nenhuma tarefa da operação roda no sistema hoje. O gate volta como regra geral de toda tela
+redesenhada em **AD-039**, agora mais barato — valida-se Figma, não código pronto.
 
 ### **5.8 O que fica fora**
 

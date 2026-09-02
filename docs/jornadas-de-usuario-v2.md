@@ -4,6 +4,23 @@
 
 Companheiro da **Constituição** e do **Features & Camadas v3**. Traduz os checklists operacionais de **Estratégia** e **PLL** em jornadas por ator, apontando **onde cada passo acontece no sistema** (feature) e **o que ele grava**.
 
+> ### **Estado deste documento — 2026-09-02: congelado, em revisão**
+>
+> O sistema entrou em redesenho **tela-first** (**AD-038** em `.specs/STATE.md`): as telas ideais
+> são desenhadas no Figma e validadas com a operação, e a **v3 destas jornadas será derivada
+> delas**. Até lá:
+>
+> - **Não use este documento como alvo de implementação.** Nenhuma tarefa da operação roda no
+>   sistema hoje, então existe um erro de aderência em algum ponto entre estas jornadas e as telas
+>   construídas a partir delas. Ainda **não se sabe** se a jornada está errada ou se foi bem
+>   descrita e mal implementada — a tela validada é que vai dizer, uma por uma.
+> - **Continue usando-o como inventário.** A §10 (tipos de registro, formulários, métricas) e a
+>   §11 (o que fica fora) vieram dos checklists reais de Estratégia e PLL e seguem sendo o melhor
+>   registro do que a operação faz. Toda tela nova precisa declarar o que faz com cada item da
+>   §10: **cobre**, **substitui** ou **descarta** — descartar é legítimo, esquecer não.
+> - **A cada tela validada**, o bloco de jornada correspondente é **reescrito**, não remendado.
+>   Protocolo em `docs/redesenho-tela-first.md`.
+
 **O que mudou da v1:** os códigos de feature foram reapontados para o **Features & Camadas v3**, e a coluna *Grava* passou a citar a **tabela real do `schema_v4.sql`** em vez de nome aproximado. Nenhum passo foi criado, removido ou reordenado — as jornadas são as mesmas. O diário completo das trocas está na §12.
 
 **Como ler as tabelas:**
