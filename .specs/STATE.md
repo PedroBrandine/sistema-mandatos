@@ -684,6 +684,47 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-09-10
 - **Status**: active
 
+### AD-044
+- **Decision**: As dependências do harness de teste de componente (`@testing-library/react`,
+  `@testing-library/jest-dom`, `jsdom`) vivem no `package.json` da **raiz**, não no do frontend.
+  Corrige a cláusula de escopo de **AD-042**, que dizia "`package.json` do frontend". Todo o
+  restante de AD-042 — harness obrigatório, `.test.tsx` coletado, AC de interface só conta como
+  pronta com teste de render passando — permanece válido.
+- **Reason**: O runner do Vitest é dependência da raiz (`vitest` em `package.json` da raiz,
+  `vitest.config.ts` na raiz), e é ele que precisa resolver `jsdom` para aplicar
+  `environmentMatchGlobs`. Instalado no workspace do frontend, o pacote não é alcançável pelo
+  processo que roda os testes. Descoberto na execução da T1 pelo worker do Batch 1, que
+  implementou o caminho que funciona e reportou a divergência em vez de seguir o texto errado.
+- **Trade-off**: As dependências ficam a um nível de distância do código que as usa, o que é
+  contra-intuitivo lendo só `src/frontend/`. Aceito: é onde o runner as encontra, e a alternativa
+  — duplicar o Vitest no workspace do frontend — criaria duas configurações de teste para manter
+  em sincronia. O registro duplo (AD-042 + esta) é o custo da regra forward-only.
+- **Scope**: `package.json` da raiz; `vitest.config.ts`.
+- **Date**: 2026-09-10
+- **Status**: active
+
+### AD-045
+- **Decision**: O limiar de atraso de etapa é **percentual da duração prevista da própria etapa**
+  (`ref_etapa.duracao_prevista_dias`), não um número absoluto de dias: **Atenção a 70%**,
+  **Atrasado a 100%**. Os percentuais vivem em `ref_limiar_pendencia` (AD-041), nunca em código.
+  Os limiares que não têm etapa de referência — `formulario_aberto` (30) e
+  `sem_registro_recente` (45) — continuam em dias absolutos.
+- **Reason**: Limiar absoluto não distingue contexto. As durações previstas por etapa variam de
+  14 a 120 dias (Pontapé 14, Diagnóstico 21, Imersão 14, Governança 45, Monitoramento 120,
+  Replicação 14): 120 dias em Monitoramento é o esperado, em Pontapé é abandono. Um corte único
+  em dias marcaria metade da carteira como atrasada ou não marcaria nada. Decisão de Pedro em
+  2026-09-10, ao definir o Quadro de Acompanhamento.
+- **Trade-off**: A classificação passa a depender de `duracao_prevista_dias`, cujo seed está
+  marcado como "valores iniciais sugeridos — calibrar com a operação" — ou seja, o badge do card
+  herda uma calibração ainda provisória. Aceito, e preferível ao absoluto: com o percentual, a
+  operação corrige a régua num lugar só (`ref_etapa`) e todos os badges se ajustam, em vez de
+  manter duas listas de números em sincronia. Etapa sem `duracao_prevista_dias` não é
+  classificável — renderiza `Normal`, nunca um estado inventado (AD-005).
+- **Scope**: `ref_limiar_pendencia`; classificação de card do Quadro de Acompanhamento;
+  qualquer superfície futura que exiba atraso de etapa.
+- **Date**: 2026-09-10
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)

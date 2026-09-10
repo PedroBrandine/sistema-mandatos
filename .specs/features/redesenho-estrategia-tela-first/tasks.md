@@ -71,7 +71,7 @@ T1
 
 ### Fase 1: Banco — limiares e renome da régua
 ```
-T2 → T3 → T4
+T2 → T3 → T4 → T4b
 ```
 
 ### Fase 2: Banco — Prospecção pré-contrato
@@ -182,7 +182,7 @@ T31 → T32 → T33
 ### T4: Renome Raio-X → Diagnóstico
 
 **What**: Migration de seed renomeando `ref_etapa.nome` de "Raio-X" para "Diagnóstico" nos produtos Estratégia e Coalizão, preservando `codigo = 'raio_x'`.
-**Where**: `supabase/migrations/<ts>_estrategia_renomeia_raio_x_diagnostico.sql`, `supabase/tests/estrategia/renome-etapa-diagnostico.integration.test.ts`
+**Where**: `supabase/migrations/<ts>_estrategia_renomeia_raio_x_diagnostico.sql`, `supabase/tests/estrategia/renome-etapa-diagnostico.integration.test.ts`, `docs/schema_sistema.sql`
 **Depends on**: None
 **Reuses**: padrão de `20260812163617_kanban_etapas_correcao_ref_etapa.sql` (correção de conteúdo, não de estrutura)
 **Requirement**: EST-14
@@ -193,10 +193,36 @@ T31 → T32 → T33
 - [ ] `SELECT nome FROM ref_etapa WHERE codigo='raio_x'` retorna "Diagnóstico" nos 2 produtos (EST-14 AC1, AC4)
 - [ ] `codigo` inalterado; contagem de `ref_tipo_registro`, `ref_formulario` e `fat_etapa_contrato` por etapa idêntica à de antes (EST-14 AC2)
 - [ ] Migration é idempotente sob `supabase db reset` (roda do zero no CI)
+- [ ] `docs/schema_sistema.sql` (bloco de seed de `ref_etapa`, ~linha 2234) passa a dizer "Diagnóstico" — o modelo aprovado não pode divergir do banco (AD-008)
 - [ ] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): renomeia etapa Raio-X para Diagnostico (EST-14)`
+
+---
+
+### T4b: Limiar de etapa passa a ser percentual da duração prevista
+
+**What**: Migration ajustando `ref_limiar_pendencia` para que os limiares de etapa (`etapa_atencao`, `etapa_atrasado`) sejam **percentuais de `ref_etapa.duracao_prevista_dias`**, não dias absolutos. Os limiares de pendência (`formulario_aberto`, `sem_registro_recente`) continuam em dias absolutos.
+**Where**: `supabase/migrations/<ts>_estrategia_limiar_etapa_percentual.sql`, `supabase/tests/estrategia/limiar-etapa-percentual.integration.test.ts`, `docs/schema_sistema.sql`
+**Depends on**: T2
+**Reuses**: `ref_limiar_pendencia` (T2), `ref_etapa.duracao_prevista_dias`
+**Requirement**: EST-06, EST-07
+
+**Tools**: MCP: NONE · Skill: `supabase`
+
+**Contexto da decisão (Pedro, 2026-09-10):** limiar absoluto não distingue contexto — 120 dias em Monitoramento é normal, em Pontapé é abandono. O corte escolhido é **70% da duração prevista para Atenção** e **100% para Atrasado**. Ex.: Diagnóstico (21 dias) → amarelo aos 15, vermelho aos 22; Monitoramento (120) → amarelo aos 84.
+
+**Done when**:
+- [ ] A tabela distingue as duas bases de limiar (dias absolutos × percentual da duração da etapa), sem coluna ambígua
+- [ ] `etapa_atencao = 70`, `etapa_atrasado = 100`, ambos expressos como percentual
+- [ ] `formulario_aberto = 30` e `sem_registro_recente = 45` seguem em dias absolutos e a `vw_pendencias` da T3 continua verde (não-regressão)
+- [ ] Nenhum percentual e nenhuma duração fica escrita em código (AD-004)
+- [ ] `docs/schema_sistema.sql` reflete a forma final da tabela (AD-008)
+- [ ] Gate: `npm run test:unit && npm run test:integration`
+
+**Tests**: integration · **Gate**: full
+**Commit**: `feat(estrategia): limiar de etapa como percentual da duracao prevista (AD-045)`
 
 ---
 
