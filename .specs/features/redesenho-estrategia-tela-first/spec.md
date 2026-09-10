@@ -77,7 +77,7 @@ superfícies onde a Gestora passa o dia (acompanhar, agendar, listar, cadastrar)
 | T3 — Pendências (5 tipos) | ✅ existe: `vw_pendencias` retorna exatamente `cadastro`, `formulario_aberto`, `etapa_atrasada`, `encontro_vencido`, `sem_registro_recente` |
 | T3 — NPS, IIP, Fatos geradores, Atingimento | ✅ dado existe; **agregação por produto é nova** → EST-08 |
 | T3/T6 — coluna/etapa **Prospecção** | 🔴 **não existe** — removida deliberadamente por D4 → **AD-040 + EST-04** |
-| T3/T6 — etapa **Rota-X** | 🟡 existe como `raio_x` / "Raio-X" → renome de seed → **EST-05** |
+| T3/T6 — etapa **Rota-X** | ✅ existe como `raio_x` / "Raio-X" — "Rota-X" foi **erro de digitação no Figma** (confirmado por Pedro em 2026-09-10). Nenhuma mudança de dado; a correção é no desenho |
 | T3 — limiares "30 / 45 / 60 dias" | 🔴 cravados na view → **EST-06** |
 
 ### Inventário coberto (§10 das jornadas)
@@ -108,7 +108,8 @@ AD-040 (Prospecção pré-contrato) e a correção da violação de AD-004 (limi
 | Assumption / decisão | Default escolhido | Rationale | Confirmado? |
 | :-- | :-- | :-- | :-- |
 | Prospecção é entidade **pré**-contrato | `fat_prospeccao`, sem `id_contrato`; converte criando `fat_contrato` | Decisão de Pedro 2026-09-10; reabre D4, que já previa "volta como tabela própria" | ✅ sim |
-| "Rota-X" é o mesmo que "Raio-X" | Renome de `ref_etapa.nome` (código `raio_x` preservado) | Posições 3-6 do Figma batem 1:1 com o seed; só as duas primeiras divergem | ✅ sim |
+| "Rota-X" no Figma | **Erro de digitação.** A etapa é "Raio-X" e fica como está — nenhuma migration, nenhum renome | Confirmado por Pedro em 2026-09-10. A correção acontece no Figma, não no banco | ✅ sim |
+| "Gestão de Usuários" sai da Topbar | Vira card do Hub, posicionado **depois** de "Números de Impacto" | Decisão de Pedro em 2026-09-10. Consequência: o Hub deixa de ser só seletor de produto e passa a ser ponto de entrada de produtos **e** ferramentas | ✅ sim |
 | Limiares de pendência | `ref_limiar_pendencia` editável; valores iniciais = os da view atual (30/45) | AD-004 / §6 regra 6 | ✅ sim |
 | Gate de teste de UI | Instalar `@testing-library/react` + `jsdom`, abrir `.test.tsx` no vitest | Decisão de Pedro 2026-09-10; encerra L-006/L-007 | ✅ sim |
 | **Pontapé não aparece em nenhum dos 7 designs** | Quadro de Acompanhamento é **data-driven** a partir de `ref_etapa` — renderiza as 6 etapas reais + a raia de Prospecção (7 colunas), não as 6 do Figma | Colunas cravadas repetiriam o erro que a correção `20260812163617` já teve de desfazer. Se Pontapé deve sumir, é migration de seed, não `if` na tela | ⚠️ **pendente de Pedro ao ver o board** |
@@ -150,13 +151,30 @@ chegar ao meu contexto de trabalho em um clique.
 
 **Acceptance Criteria**:
 
-1. WHEN a usuária acessa a raiz autenticada THEN o sistema SHALL exibir um card por produto que ela pode acessar.
-2. WHEN a usuária tem papel sem acesso a um produto THEN o card correspondente SHALL não ser renderizado, **e a restrição SHALL vir do que a role lê no banco**, não de condicional na UI (AD-001).
+1. WHEN a usuária acessa a raiz autenticada THEN o sistema SHALL exibir um card por destino que ela pode acessar — produtos e ferramentas.
+2. WHEN a usuária tem papel sem acesso a um destino THEN o card correspondente SHALL não ser renderizado, **e a restrição SHALL vir do que a role lê no banco**, não de condicional na UI (AD-001).
 3. WHEN o card "Estratégia" é exibido THEN ele SHALL mostrar a contagem real de mandatos ativos.
 4. WHEN o card "Números de Impacto" é exibido THEN ele SHALL mostrar a contagem real de fatos geradores registrados.
-5. WHEN a usuária clica em um card THEN o sistema SHALL navegar para a rota daquele produto.
+5. WHEN a usuária clica em um card THEN o sistema SHALL navegar para a rota daquele destino.
+6. WHEN o Hub é renderizado THEN o card "Gestão de Usuários" SHALL aparecer **depois** de "Números de Impacto" na ordem dos cards.
+7. WHEN a usuária não é Admin do Sistema THEN o card "Gestão de Usuários" SHALL não ser renderizado, pela mesma regra da AC2 (AD-001 + AD-018).
 
-**Independent Test**: logar com dois papéis diferentes e comparar os cards visíveis.
+**Independent Test**: logar com dois papéis diferentes e comparar os cards visíveis e sua ordem.
+
+---
+
+### P1: Topbar enxuta ⭐ MVP
+
+**User Story**: Como usuária, quero que a barra superior carregue só navegação global, para que
+funções administrativas não fiquem competindo com o contexto de trabalho.
+
+**Acceptance Criteria**:
+
+1. WHEN qualquer tela autenticada é renderizada THEN a Topbar SHALL exibir a marca, o link "Hub" e o avatar da usuária.
+2. WHEN qualquer tela autenticada é renderizada THEN a Topbar SHALL **não** exibir "Gestão de Usuários".
+3. WHEN a rota `/usuarios` é acessada diretamente por quem não é Admin THEN o acesso SHALL ser recusado pelo banco, não apenas pela ausência do link (AD-001).
+
+**Independent Test**: percorrer as 7 telas e conferir que a Topbar é idêntica em todas e sem o item removido.
 
 ---
 
@@ -327,7 +345,7 @@ leitura do conjunto antes de olhar caso a caso.
 | EST-02 | P1: Hub de produtos | Design | Pending |
 | EST-03 | P1: Shell do produto Estratégia | Design | Pending |
 | EST-04 | P1: Prospecção pré-contrato (`fat_prospeccao`, AD-040) | Design | Pending |
-| EST-05 | P1: Renome de etapa Raio-X → Rota-X | Design | Pending |
+| EST-05 | P1: Topbar enxuta — "Gestão de Usuários" migra para card do Hub | Design | Pending |
 | EST-06 | P1: `ref_limiar_pendencia` + refactor de `vw_pendencias` (AD-004) | Design | Pending |
 | EST-07 | P1: Quadro de Acompanhamento + Pendências | Design | Pending |
 | EST-08 | P3: View de KPIs agregados por produto (AD-003) | Design | Pending |

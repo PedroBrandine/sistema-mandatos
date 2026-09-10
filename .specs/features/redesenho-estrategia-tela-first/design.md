@@ -57,7 +57,7 @@ graph TD
 | :-- | :-- | :-- |
 | `ProdutoShell` | `components/produtos/produto-shell.tsx` | **Estender** — já tem voltar-ao-hub, título e as 4 abas. Muda só o label `Contratos` → `Mandatos` e o href correspondente |
 | `RouteTabs` | `components/app-shell/route-tabs.tsx` | **Reusar sem alteração** — marcação de aba ativa (EST-03 AC2) |
-| `Topbar` | `components/app-shell/topbar.tsx` | **Estender** — Figma mostra "Hub" e "Gestão de Usuários" |
+| `Topbar` | `components/app-shell/topbar.tsx` | **Enxugar** — remove "Gestão de Usuários", que migra para card do Hub (EST-05). Fica marca + "Hub" + avatar |
 | `KanbanBoard/Coluna/Card` | `components/kanban/` | **Estender** — base do Quadro de Acompanhamento; ganha a raia de Prospecção e o badge de limiar |
 | `buscarBoardKanban`, `ColunaKanban`, `CardKanban`, `FiltroBoard` | `queries/kanban.ts` | **Reusar** — já resolve carteira por papel e filtro de projeto |
 | `moverEtapaKanban` | `rpc/kanban.ts` | **Reusar** — `app.mover_etapa_kanban` (AD-023) |
@@ -91,8 +91,8 @@ graph TD
 - **Purpose**: Listar os produtos que a usuária efetivamente alcança, com contadores reais.
 - **Location**: `src/frontend/app/(app)/page.tsx` + `components/app-shell/hub-card.tsx`
 - **Interfaces**:
-  - `buscarCardsHub(client): Promise<CardHub[]>` — devolve só os cards cuja consulta de contador **não** foi negada pelo banco
-  - `interface CardHub { slug, titulo, descricao, icone, badge?: string }`
+  - `buscarCardsHub(client): Promise<CardHub[]>` — devolve só os cards cuja consulta de contador **não** foi negada pelo banco, na ordem fixa: Estratégia, PLL, Coalizão, Visão Gerencial, Números de Impacto, **Gestão de Usuários**
+  - `interface CardHub { destino: string; tipo: 'produto' | 'ferramenta'; titulo, descricao, icone, badge?: string }`
 - **Dependencies**: `queries/produto.ts`, `queries/estrategia-kpi.ts`
 - **Reuses**: `Card`, `PRODUTO_SLUGS`
 - **Nota AD-001**: a visibilidade dos cards "Visão Gerencial" e "Números de Impacto" **deriva do
@@ -248,6 +248,7 @@ médio (`mv_iip_contrato`), contratos com etapa atrasada, NPS (`mv_avaliacao_nps
 | `fat_prospeccao` quebra a invariante `id_contrato NOT NULL` | modelo | Consultas de carteira podem incluir prospect por engano e inflar número de impacto | Documentado em AD-040; default é **não incluir**; `vw_carteira` e `mv_numeros_impacto` seguem lendo só `fat_contrato` |
 | Agenda é o único greenfield real e o mais tardio nas fases | `produtos/[slug]/agenda/` | Se o orçamento acabar, a jornada fica sem a superfície de encontro | Fatiar Agenda em fase própria, entregável sozinha |
 | `ref_etapa` tem 6 etapas; Figma mostra 5 + Prospecção | seed vs T3 | Pontapé pode aparecer inesperadamente no board | Board data-driven; discrepância vira decisão de seed, registrada como assumption no spec |
+| Hub deixa de ser só seletor de produto | `app/(app)/page.tsx` | Subtítulo "Escolha um produto…" fica incorreto ao ganhar "Gestão de Usuários"; `CardHub` precisa distinguir produto de ferramenta | EST-02 AC1/AC6 tratam os dois tipos; subtítulo revisto e `tipo` no modelo do card |
 
 ---
 
@@ -273,9 +274,9 @@ médio (`mv_iip_contrato`), contratos com etapa atrasada, NPS (`mv_avaliacao_nps
 | Fase | Conteúdo | Requisitos |
 | :-- | :-- | :-- |
 | **F0** | Harness de teste de componente | EST-01 |
-| **F1** | Banco: `ref_limiar_pendencia` + refactor `vw_pendencias`; seed Rota-X | EST-05, EST-06 |
+| **F1** | Banco: `ref_limiar_pendencia` + refactor `vw_pendencias` | EST-06 |
 | **F2** | Banco: `fat_prospeccao` + RLS + grants + auditoria + RPC de conversão | EST-04 |
-| **F3** | Shell: Hub com contadores e visibilidade por leitura; aba Mandatos | EST-02, EST-03 |
+| **F3** | Shell: Topbar enxuta; Hub com contadores, card de Gestão de Usuários e visibilidade por leitura; aba Mandatos | EST-02, EST-03, EST-05 |
 | **F4** | Dashboard: Quadro de Acompanhamento + Pendências | EST-07 |
 | **F5** | Mandatos: lista + filtros | EST-09 |
 | **F6** | Novo Contrato: busca TSE + formulário | EST-10, EST-11 |
