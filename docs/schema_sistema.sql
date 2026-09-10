@@ -300,6 +300,20 @@ CREATE TABLE ref_dimensao_gip (
   CONSTRAINT ck_dimensao_faixa CHECK (valor_max > valor_min)
 );
 
+-- Limiares editáveis de pendência e de estado de etapa (AD-041).
+-- Existe porque vw_pendencias nasceu com INTERVAL '30 days' / '45 days'
+-- cravados no corpo, violando AD-004 ("limiar vive em tabela de referência
+-- editável") -- a view passa a ler daqui. Mudar o número da régua é UPDATE
+-- nesta tabela, não deploy.
+CREATE TABLE ref_limiar_pendencia (
+  id_limiar BIGSERIAL PRIMARY KEY,
+  codigo    TEXT     NOT NULL UNIQUE,
+  nome      TEXT     NOT NULL,
+  dias      SMALLINT NOT NULL,
+  ativo     BOOLEAN  NOT NULL DEFAULT true,
+  CONSTRAINT ck_limiar_dias CHECK (dias > 0)
+);
+
 -- =============================================================================
 -- 2. PLATAFORMA — identidade, vínculo e auditoria
 -- =============================================================================
