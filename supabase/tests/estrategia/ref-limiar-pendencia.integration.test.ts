@@ -52,6 +52,7 @@ describe("ref_limiar_pendencia -- estrutura, seed e GRANT-only (EST-06, AD-041, 
       "nome",
       "dias",
       "ativo",
+      "pct_duracao_etapa",
     ]);
 
     const porNome = Object.fromEntries(rows.map((r) => [r.column_name, r]));
@@ -61,7 +62,14 @@ describe("ref_limiar_pendencia -- estrutura, seed e GRANT-only (EST-06, AD-041, 
     expect(porNome.nome.data_type).toBe("text");
     expect(porNome.nome.is_nullable).toBe("NO");
     expect(porNome.dias.data_type).toBe("smallint");
-    expect(porNome.dias.is_nullable).toBe("NO");
+    // `dias` era NOT NULL quando os 4 limiares eram absolutos. Com AD-045 as
+    // linhas de etapa passam a se expressar em pct_duracao_etapa, e a
+    // obrigatoriedade migra para ck_limiar_base (exatamente uma das duas
+    // preenchida) -- restrição mais forte, não mais fraca. Asserida em
+    // limiar-etapa-percentual.integration.test.ts.
+    expect(porNome.dias.is_nullable).toBe("YES");
+    expect(porNome.pct_duracao_etapa.data_type).toBe("smallint");
+    expect(porNome.pct_duracao_etapa.is_nullable).toBe("YES");
     expect(porNome.ativo.data_type).toBe("boolean");
     expect(porNome.ativo.is_nullable).toBe("NO");
     expect(porNome.ativo.column_default).toBe("true");
@@ -117,13 +125,19 @@ describe("ref_limiar_pendencia -- estrutura, seed e GRANT-only (EST-06, AD-041, 
   });
 
   it("seed: etapa_atencao e etapa_atrasado existem, ativos, com etapa_atencao < etapa_atrasado (progressão Normal -> Atenção -> Atrasado, EST-07 AC3)", async () => {
+    // A base destes dois limiares passou de dias absolutos para percentual da
+    // duração prevista da etapa (AD-045) -- a invariante de ordenação é a
+    // mesma, agora sobre pct_duracao_etapa. Os valores exatos (70 e 100) são
+    // asseridos em limiar-etapa-percentual.integration.test.ts, que é a task
+    // dona da decisão.
     const rows = await runSql<{
       codigo: string;
-      dias: number;
+      dias: number | null;
+      pct_duracao_etapa: number;
       ativo: boolean;
       nome: string;
     }>(`
-      SELECT codigo, nome, dias, ativo FROM ${TABELA}
+      SELECT codigo, nome, dias, pct_duracao_etapa, ativo FROM ${TABELA}
        WHERE codigo IN ('etapa_atencao', 'etapa_atrasado')
        ORDER BY codigo;
     `);
@@ -134,8 +148,12 @@ describe("ref_limiar_pendencia -- estrutura, seed e GRANT-only (EST-06, AD-041, 
     expect(porCodigo.etapa_atrasado.ativo).toBe(true);
     expect(porCodigo.etapa_atencao.nome.length).toBeGreaterThan(0);
     expect(porCodigo.etapa_atrasado.nome.length).toBeGreaterThan(0);
-    expect(porCodigo.etapa_atencao.dias).toBeGreaterThan(0);
-    expect(porCodigo.etapa_atencao.dias).toBeLessThan(porCodigo.etapa_atrasado.dias);
+    expect(porCodigo.etapa_atencao.dias).toBeNull();
+    expect(porCodigo.etapa_atrasado.dias).toBeNull();
+    expect(porCodigo.etapa_atencao.pct_duracao_etapa).toBeGreaterThan(0);
+    expect(porCodigo.etapa_atencao.pct_duracao_etapa).toBeLessThan(
+      porCodigo.etapa_atrasado.pct_duracao_etapa,
+    );
   });
 
   it("seed: os 4 limiares são exatamente os previstos, sem linha extra", async () => {

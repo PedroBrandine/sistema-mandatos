@@ -305,13 +305,25 @@ CREATE TABLE ref_dimensao_gip (
 -- cravados no corpo, violando AD-004 ("limiar vive em tabela de referência
 -- editável") -- a view passa a ler daqui. Mudar o número da régua é UPDATE
 -- nesta tabela, não deploy.
+--
+-- Duas bases de limiar, mutuamente exclusivas, distinguidas pelo NOME da
+-- coluna (AD-045) -- nenhum número pode ser lido na unidade errada:
+--   dias              -> limiar absoluto  (formulario_aberto 30,
+--                                          sem_registro_recente 45)
+--   pct_duracao_etapa -> % de ref_etapa.duracao_prevista_dias
+--                                         (etapa_atencao 70, etapa_atrasado 100)
+-- Limiar de etapa é percentual porque 120 dias em Monitoramento é o esperado
+-- e em Pontapé é abandono: um corte único em dias não distingue contexto.
 CREATE TABLE ref_limiar_pendencia (
-  id_limiar BIGSERIAL PRIMARY KEY,
-  codigo    TEXT     NOT NULL UNIQUE,
-  nome      TEXT     NOT NULL,
-  dias      SMALLINT NOT NULL,
-  ativo     BOOLEAN  NOT NULL DEFAULT true,
-  CONSTRAINT ck_limiar_dias CHECK (dias > 0)
+  id_limiar         BIGSERIAL PRIMARY KEY,
+  codigo            TEXT     NOT NULL UNIQUE,
+  nome              TEXT     NOT NULL,
+  dias              SMALLINT,
+  pct_duracao_etapa SMALLINT,
+  ativo             BOOLEAN  NOT NULL DEFAULT true,
+  CONSTRAINT ck_limiar_dias CHECK (dias > 0),
+  CONSTRAINT ck_limiar_pct  CHECK (pct_duracao_etapa IS NULL OR pct_duracao_etapa > 0),
+  CONSTRAINT ck_limiar_base CHECK (num_nonnulls(dias, pct_duracao_etapa) = 1)
 );
 
 -- =============================================================================
