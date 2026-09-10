@@ -2241,11 +2241,19 @@ ON CONFLICT (nome) DO NOTHING;
 -- cadastrar o contrato no sistema, não um estágio que o contrato "passa por"
 -- depois de existir. Pontapé é a primeira etapa real. Corrigido no dado (não
 -- redesenho de schema, AD-008) via 20260812163617_kanban_etapas_correcao_ref_etapa.sql.
+--
+-- Renome (2026-09-10, decisão de Pedro ao definir o Quadro de Acompanhamento):
+-- a etapa 'raio_x' passa a se chamar "Diagnóstico", que é como a operação
+-- já a chama. `codigo` NÃO muda -- trocá-lo quebraria as linhas de seed de
+-- ref_tipo_registro/ref_formulario que o referenciam e a URL
+-- /contratos/[id]/etapas/raio_x. Aplicado ao dado (não redesenho de schema,
+-- AD-008) via 20260910152709_estrategia_renomeia_raio_x_diagnostico.sql,
+-- que alcança Estratégia e Coalizão (EST-14).
 INSERT INTO ref_etapa (id_produto, codigo, nome, ordem, duracao_prevista_dias, gera_registro)
 SELECT p.id_produto, v.codigo, v.nome, v.ordem, v.dias, v.gera
   FROM ref_produto p, (VALUES
     ('pontape',        'Pontapé',                    1::smallint,  14::smallint, true),
-    ('raio_x',         'Raio-X',                     2,            21,           true),
+    ('raio_x',         'Diagnóstico',                2,            21,           true),
     ('imersao',        'Imersão',                    3,            14,           true),
     ('governanca',     'Governança / Organograma',   4,            45,           true),
     ('monitoramento',  'Monitoramento',              5,           120,           true),
