@@ -660,6 +660,30 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-09-10
 - **Status**: active
 
+### AD-043
+- **Decision**: O shell de tela autenticada é **barra superior fixa (`Topbar`)**, não sidebar.
+  Corrige o registro de **AD-027**, cujo texto afirma que `src/frontend/app/(app)/` "carrega o
+  layout aninhado com a sidebar fixa". O restante de AD-027 — identidade visual por CSS custom
+  properties em `globals.css`, telas autenticadas dentro do route group `(app)/`, rotas
+  pré-sessão fora dele — **permanece integralmente válido**. Esta AD substitui apenas a
+  cláusula do elemento de navegação.
+- **Reason**: `src/frontend/app/(app)/layout.tsx` monta `<Topbar />` desde a feature de cadastro
+  (CAD-14/CAD-15, comentário no próprio arquivo), e as 7 telas do Figma validadas com a operação
+  (AD-039) desenham barra superior em todas. O texto de AD-027 ficou defasado quando o código
+  mudou e ninguém registrou a mudança — a divergência foi encontrada na fase Design de
+  `redesenho-estrategia-tela-first`, ao conferir a feature contra as decisões ativas. Deixá-la
+  em pé faria uma feature futura construir sidebar "seguindo a AD" e quebrar a consistência que
+  o Figma assume.
+- **Trade-off**: O leitor de AD-027 precisa chegar até aqui para saber que uma cláusula dela
+  caiu. É o custo aceito da regra forward-only (§4 do protocolo, `.specs/STATE.md` "só cresce"):
+  editar o texto de AD-027 apagaria o rastro de que houve mudança e de quando. Preferimos o
+  registro duplo à reescrita silenciosa — a mesma escolha feita para a defasagem de AD-020 no
+  commit de abertura do redesenho.
+- **Scope**: `src/frontend/app/(app)/layout.tsx`; `components/app-shell/topbar.tsx`; toda tela
+  autenticada nova.
+- **Date**: 2026-09-10
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)
