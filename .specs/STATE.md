@@ -592,6 +592,74 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-09-02
 - **Status**: active
 
+### AD-040
+- **Decision**: **Prospecção volta ao modelo como entidade própria, anterior ao contrato** —
+  tabela `fat_prospeccao`, sem `id_contrato`, com conversão transacional que cria o
+  `fat_contrato` e marca a prospecção como convertida. Reabre a decisão **D4** de
+  `docs/schema_sistema.sql` ("Prospecção NÃO EXISTE como status"), pelo caminho que a própria
+  D4 deixou aberto: *"Se a operação precisar disso, volta como tabela própria."* Prospecção
+  **não** volta como status de `fat_contrato` nem como linha de `ref_etapa` — o `CHECK` de
+  `fat_contrato.status` e a régua de etapas ficam intactos.
+- **Reason**: As telas T3 (Quadro de Acompanhamento) e T6 (Mandatos) do redesenho tela-first
+  mostram Prospecção como primeira coluna do fluxo. A checagem de conformidade (protocolo §3)
+  identificou o conflito com D4, e Pedro decidiu em 2026-09-10 que Prospecção é de fato
+  **pré-contrato**: a operação trabalha o mandato antes da assinatura e hoje perde esse
+  material. Manter o vazio significaria continuar registrando prospecção fora do sistema —
+  exatamente o tipo de lacuna que AD-038 nomeia como causa da não-adoção.
+- **Trade-off**: O sistema passa a ter duas entidades de "mandato em trabalho" (prospecção e
+  contrato), e toda consulta de carteira precisa decidir explicitamente se inclui prospects.
+  Escolha registrada: **não incluem por padrão** — `vw_carteira`, `mv_numeros_impacto` e a
+  lista de Mandatos (T6) seguem lendo só `fat_contrato`. O custo é uma pergunta a mais em cada
+  consulta nova; o ganho é que nenhum número de impacto ou vigência passa a existir para algo
+  que ainda não foi assinado. Risco residual: prospect que nunca converte acumula
+  indefinidamente — aceito, porque prospecção é histórico comercial, não pendência.
+- **Scope**: `docs/schema_sistema.sql` (D4 passa a ter contraponto registrado); nova migration
+  `fat_prospeccao` + RLS + grants + trigger de auditoria; `.specs/features/redesenho-estrategia-tela-first/`.
+- **Date**: 2026-09-10
+- **Status**: active
+
+### AD-041
+- **Decision**: Os limiares de pendência saem do corpo de `vw_pendencias` e passam a viver em
+  tabela de referência editável (`ref_limiar_pendencia`). A view lê a tabela; nenhum intervalo
+  fica escrito no SQL da view. Valores iniciais preservam o comportamento atual (formulário
+  aberto: 30 dias; sem registro recente: 45 dias).
+- **Reason**: `vw_pendencias` (migration `20260814162237`) tem `INTERVAL '30 days'` e
+  `INTERVAL '45 days'` cravados no corpo — violação direta de **AD-004** / §6 regra 6 ("limiar
+  vive em tabela de referência editável"), que passou despercebida na feature `visao-gerencial`.
+  A checagem de conformidade das telas expôs o sintoma: o Figma do Dashboard escreve "há 60
+  dias" enquanto a view dispara aos 45. Texto de tela e comportamento de banco já discordavam,
+  e ninguém na operação tinha como corrigir sem deploy.
+- **Trade-off**: A view ganha um join a mais e deixa de ser legível de cabo a rabo sem consultar
+  a tabela. Aceito: é o preço de AD-004, e a alternativa — manter o número no SQL — já provou
+  produzir divergência silenciosa entre o que a tela promete e o que o sistema faz. Não é AD
+  nova de política, é a correção de uma violação de AD-004 registrada explicitamente para que a
+  origem do erro fique rastreável.
+- **Scope**: `vw_pendencias`; nova tabela `ref_limiar_pendencia` + seed; classificação de cards
+  do Quadro de Acompanhamento.
+- **Date**: 2026-09-10
+- **Status**: active
+
+### AD-042
+- **Decision**: O projeto passa a ter **harness de teste de componente** — `@testing-library/react`
+  em ambiente `jsdom`, com `.test.tsx` incluído em `vitest.config.ts`. A partir daqui, critério de
+  aceite que descreve comportamento de tela só conta como pronto com teste de componente
+  passando; leitura de código deixa de ser evidência suficiente para AC de UI.
+- **Reason**: `vitest.config.ts` restringia a coleta a `*.test.ts`, deixando toda a camada de
+  render sem gate — dívida registrada como L-006 e L-007 em `.specs/lessons.json`, com o próprio
+  comentário da config admitindo que "o débito permanece". A consequência medida: features
+  anteriores acumularam 11+ ACs de UI sem nenhuma evidência automatizada, e o sensor de
+  discriminação do Verifier confirmou que remover elemento renderizado, inverter branch
+  server/client ou dropar guard de prop passa por build e lint limpos. É o mesmo ponto cego que
+  produziu 26 telas "funcionais" e nenhuma em uso (AD-038).
+- **Trade-off**: Cada tarefa de UI passa a custar o tempo de escrever o teste de render, e o
+  projeto ganha três dependências de desenvolvimento. Em compensação, "tela funcional" volta a
+  ser uma afirmação verificável em vez de autoavaliação — que é precisamente a distinção que
+  AD-038 identificou como ausente.
+- **Scope**: `vitest.config.ts`, `package.json` do frontend; Definição de Pronto para toda AC de
+  interface, em qualquer feature futura.
+- **Date**: 2026-09-10
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)
