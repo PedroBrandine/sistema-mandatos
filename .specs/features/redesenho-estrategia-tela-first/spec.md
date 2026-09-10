@@ -77,7 +77,8 @@ superfícies onde a Gestora passa o dia (acompanhar, agendar, listar, cadastrar)
 | T3 — Pendências (5 tipos) | ✅ existe: `vw_pendencias` retorna exatamente `cadastro`, `formulario_aberto`, `etapa_atrasada`, `encontro_vencido`, `sem_registro_recente` |
 | T3 — NPS, IIP, Fatos geradores, Atingimento | ✅ dado existe; **agregação por produto é nova** → EST-08 |
 | T3/T6 — coluna/etapa **Prospecção** | 🔴 **não existe** — removida deliberadamente por D4 → **AD-040 + EST-04** |
-| T3/T6 — etapa **Rota-X** | ✅ existe como `raio_x` / "Raio-X" — "Rota-X" foi **erro de digitação no Figma** (confirmado por Pedro em 2026-09-10). Nenhuma mudança de dado; a correção é no desenho |
+| T3/T6 — etapa **Rota-X** | ✅ era **erro de digitação no Figma**. A etapa é `raio_x` / "Raio-X" e passa a se chamar **"Diagnóstico"** por decisão de Pedro (2026-09-10) → **EST-14** |
+| T3 — etapa **Pontapé** ausente do desenho | ✅ resolvido: Pontapé **permanece** como etapa, antes de Diagnóstico (Pedro, 2026-09-10). A omissão era do desenho; o board renderiza 7 colunas |
 | T3 — limiares "30 / 45 / 60 dias" | 🔴 cravados na view → **EST-06** |
 
 ### Inventário coberto (§10 das jornadas)
@@ -108,11 +109,13 @@ AD-040 (Prospecção pré-contrato) e a correção da violação de AD-004 (limi
 | Assumption / decisão | Default escolhido | Rationale | Confirmado? |
 | :-- | :-- | :-- | :-- |
 | Prospecção é entidade **pré**-contrato | `fat_prospeccao`, sem `id_contrato`; converte criando `fat_contrato` | Decisão de Pedro 2026-09-10; reabre D4, que já previa "volta como tabela própria" | ✅ sim |
-| "Rota-X" no Figma | **Erro de digitação.** A etapa é "Raio-X" e fica como está — nenhuma migration, nenhum renome | Confirmado por Pedro em 2026-09-10. A correção acontece no Figma, não no banco | ✅ sim |
+| "Rota-X" no Figma | **Erro de digitação** — não existe. A etapa é "Raio-X", e passa a se chamar "Diagnóstico" | Confirmado por Pedro em 2026-09-10 | ✅ sim |
+| Renome Raio-X → Diagnóstico altera `nome` ou `codigo`? | **Só `ref_etapa.nome`.** `codigo` permanece `raio_x` | `codigo` é referenciado por 4 linhas de seed (`comite_politico`, `escuta_diagnostica`, formulário `gip`) e pela rota `contratos/[id]/etapas/[codigo]`. Mesma escolha da correção `20260812163617`, que preservou códigos. Custo aceito: o código diz `raio_x` e a tela diz "Diagnóstico" | ⚠️ assumido |
+| "Diagnóstico" colide com nomes existentes | Aplicar assim mesmo; registrar a colisão como risco | Já existem `Escuta Diagnóstica` (tipo de registro **dentro da própria etapa**), `Diagnóstico de Organograma` (etapa Governança) e `Diagnóstico e Temáticas` (PLL) — e o T5 mostra um badge de registro "Diagnóstico". É vocabulário da operação e a decisão é de Pedro | ⚠️ **confirmar na primeira demo** |
 | "Gestão de Usuários" sai da Topbar | Vira card do Hub, posicionado **depois** de "Números de Impacto" | Decisão de Pedro em 2026-09-10. Consequência: o Hub deixa de ser só seletor de produto e passa a ser ponto de entrada de produtos **e** ferramentas | ✅ sim |
 | Limiares de pendência | `ref_limiar_pendencia` editável; valores iniciais = os da view atual (30/45) | AD-004 / §6 regra 6 | ✅ sim |
 | Gate de teste de UI | Instalar `@testing-library/react` + `jsdom`, abrir `.test.tsx` no vitest | Decisão de Pedro 2026-09-10; encerra L-006/L-007 | ✅ sim |
-| **Pontapé não aparece em nenhum dos 7 designs** | Quadro de Acompanhamento é **data-driven** a partir de `ref_etapa` — renderiza as 6 etapas reais + a raia de Prospecção (7 colunas), não as 6 do Figma | Colunas cravadas repetiriam o erro que a correção `20260812163617` já teve de desfazer. Se Pontapé deve sumir, é migration de seed, não `if` na tela | ⚠️ **pendente de Pedro ao ver o board** |
+| Pontapé não aparece em nenhum dos 7 designs | **Permanece** como etapa, antes de Diagnóstico. A omissão era do desenho. O Quadro é **data-driven** a partir de `ref_etapa` e renderiza **7 colunas**: raia de Prospecção + Pontapé, Diagnóstico, Imersão, Governança, Monitoramento, Replicação | Confirmado por Pedro em 2026-09-10. Colunas cravadas repetiriam o erro que a correção `20260812163617` teve de desfazer — a régua muda por seed, nunca por `if` na tela | ✅ sim |
 | Status `Ativo / Finalizado / Desligado` (T6) | Rótulos de exibição para `ativo / concluido / nao_concluido` | Nenhum status novo aparece no CHECK; a tradução é de apresentação | ⚠️ assumido |
 | KPI "Mandatos em Atraso: 8" com legenda somando 13 | Implementar o número como **contagem de contratos com pendência de etapa atrasada**; legenda mostra a distribuição real | Inconsistência aritmética do desenho; o dado manda | ⚠️ assumido |
 | Aba chamada "Contratos" (T3/T5) vs "Mandatos" (T6) | **"Mandatos"** — é o vocabulário da operação e o título da própria página em T6 | T6 é a tela mais recente e a que nomeia a página | ⚠️ assumido |
@@ -221,7 +224,8 @@ pendente, para saber onde agir hoje.
 
 **Acceptance Criteria**:
 
-1. WHEN o Dashboard abre THEN o Quadro SHALL renderizar **uma coluna por `ref_etapa` do produto**, mais a raia de Prospecção — nunca uma lista fixa no código.
+1. WHEN o Dashboard abre THEN o Quadro SHALL renderizar **uma coluna por `ref_etapa` do produto**, ordenadas por `ref_etapa.ordem`, mais a raia de Prospecção — nunca uma lista fixa no código. Para a Estratégia hoje isso resulta em **7 colunas**: Prospecção, Pontapé, Diagnóstico, Imersão, Governança / Organograma, Monitoramento, Replicação.
+1b. WHEN uma linha é adicionada ou removida de `ref_etapa` THEN o número de colunas SHALL mudar sem alteração de código.
 2. WHEN um contrato está em uma etapa THEN seu card SHALL aparecer na coluna daquela etapa com contratante, cargo/partido e dias na etapa.
 3. WHEN os dias na etapa ultrapassam o limiar lido de `ref_limiar_pendencia` THEN o card SHALL exibir o estado correspondente (`Normal`, `Atenção`, `Atrasado`).
 4. WHEN a tabela de Pendências carrega THEN ela SHALL exibir os 5 tipos de `vw_pendencias`, com mandato, tipo, detalhe e data de referência.
@@ -250,6 +254,22 @@ assinatura") e a razão de AD-040.
 6. WHEN a usuária não tem permissão de leitura sobre a prospecção THEN a RLS SHALL impedir a leitura no banco.
 
 **Independent Test**: criar prospect, converter, e conferir que o contrato nasceu e o prospect saiu da raia.
+
+---
+
+### P1: Renome da etapa Raio-X → "Diagnóstico" ⭐ MVP
+
+**User Story**: Como operação, queremos que a régua da Estratégia use o nome que usamos de
+fato, para que a tela não exija tradução mental.
+
+**Acceptance Criteria**:
+
+1. WHEN a etapa de `ordem = 2` do produto Estratégia é lida THEN `ref_etapa.nome` SHALL ser "Diagnóstico".
+2. WHEN o renome é aplicado THEN `ref_etapa.codigo` SHALL permanecer `raio_x`, e nenhuma linha de `ref_tipo_registro`, `ref_formulario` ou `fat_etapa_contrato` SHALL ser alterada.
+3. WHEN o Quadro de Acompanhamento renderiza THEN a coluna SHALL exibir "Diagnóstico".
+4. WHEN a régua da Coalizão é lida THEN ela SHALL receber o mesmo renome, por compartilhar o código `raio_x` no seed.
+
+**Independent Test**: `SELECT nome FROM ref_etapa WHERE codigo = 'raio_x'` retorna "Diagnóstico", e a contagem de `ref_tipo_registro` por etapa fica idêntica à de antes.
 
 ---
 
@@ -354,8 +374,9 @@ leitura do conjunto antes de olhar caso a caso.
 | EST-11 | P2: Novo Contrato — formulário e transação | Design | Pending |
 | EST-12 | P2: Agenda — calendário e registros | Design | Pending |
 | EST-13 | P2: Popover de encontro — presença e registro | Design | Pending |
+| EST-14 | P1: Renome da etapa Raio-X → "Diagnóstico" (`nome`, não `codigo`) | Design | Pending |
 
-**Coverage:** 13 total, 0 mapeados para tasks, 13 não mapeados ⚠️ (normal antes da fase Tasks)
+**Coverage:** 14 total, 0 mapeados para tasks, 14 não mapeados ⚠️ (normal antes da fase Tasks)
 
 ---
 

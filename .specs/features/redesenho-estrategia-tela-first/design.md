@@ -112,7 +112,9 @@ graph TD
 - **Reuses**: `KanbanBoard`, `KanbanColuna`, `KanbanCard`, `moverEtapaKanban`
 - **Nota EST-07 AC1**: colunas vêm de `ref_etapa` por `id_produto`, ordenadas por `ordem`.
   Nenhuma lista literal no código — é o que impede o board de repetir o erro que a migration
-  `20260812163617` teve de desfazer.
+  `20260812163617` teve de desfazer. Para a Estratégia hoje: **7 colunas** — Prospecção (raia,
+  de `fat_prospeccao`) + Pontapé, Diagnóstico, Imersão, Governança / Organograma, Monitoramento,
+  Replicação (de `ref_etapa`).
 
 ### `TabelaPendencias` (T3 — EST-07)
 
@@ -247,7 +249,8 @@ médio (`mv_iip_contrato`), contratos com etapa atrasada, NPS (`mv_avaliacao_nps
 | Toda a camada de render sem gate de teste | `vitest.config.ts:10` | ACs de UI sem evidência automatizada (L-006/L-007) | EST-01 instala o harness (AD-042) — é a Fase 0 |
 | `fat_prospeccao` quebra a invariante `id_contrato NOT NULL` | modelo | Consultas de carteira podem incluir prospect por engano e inflar número de impacto | Documentado em AD-040; default é **não incluir**; `vw_carteira` e `mv_numeros_impacto` seguem lendo só `fat_contrato` |
 | Agenda é o único greenfield real e o mais tardio nas fases | `produtos/[slug]/agenda/` | Se o orçamento acabar, a jornada fica sem a superfície de encontro | Fatiar Agenda em fase própria, entregável sozinha |
-| `ref_etapa` tem 6 etapas; Figma mostra 5 + Prospecção | seed vs T3 | Pontapé pode aparecer inesperadamente no board | Board data-driven; discrepância vira decisão de seed, registrada como assumption no spec |
+| "Diagnóstico" já nomeia outras três coisas no catálogo | seed `20260810193327` linhas 87, 90, 115 | `Escuta Diagnóstica` é tipo de registro **dentro da própria etapa**; `Diagnóstico de Organograma` pertence a Governança; o T5 mostra badge de registro "Diagnóstico". Risco de a Agenda exibir "Diagnóstico" significando duas coisas | Decisão de vocabulário é de Pedro (2026-09-10). Confirmar na primeira demo se o badge de registro do T5 precisa de outro rótulo — é mudança de seed, não de estrutura |
+| Renome muda `nome` mas não `codigo` | `ref_etapa` | Código diz `raio_x`, tela diz "Diagnóstico"; a rota `contratos/[id]/etapas/raio_x` fica visivelmente divergente | Aceito: mudar `codigo` quebraria 4 linhas de seed e URLs existentes. Mesma escolha da correção `20260812163617` |
 | Hub deixa de ser só seletor de produto | `app/(app)/page.tsx` | Subtítulo "Escolha um produto…" fica incorreto ao ganhar "Gestão de Usuários"; `CardHub` precisa distinguir produto de ferramenta | EST-02 AC1/AC6 tratam os dois tipos; subtítulo revisto e `tipo` no modelo do card |
 
 ---
@@ -274,7 +277,7 @@ médio (`mv_iip_contrato`), contratos com etapa atrasada, NPS (`mv_avaliacao_nps
 | Fase | Conteúdo | Requisitos |
 | :-- | :-- | :-- |
 | **F0** | Harness de teste de componente | EST-01 |
-| **F1** | Banco: `ref_limiar_pendencia` + refactor `vw_pendencias` | EST-06 |
+| **F1** | Banco: `ref_limiar_pendencia` + refactor `vw_pendencias`; renome Raio-X → Diagnóstico | EST-06, EST-14 |
 | **F2** | Banco: `fat_prospeccao` + RLS + grants + auditoria + RPC de conversão | EST-04 |
 | **F3** | Shell: Topbar enxuta; Hub com contadores, card de Gestão de Usuários e visibilidade por leitura; aba Mandatos | EST-02, EST-03, EST-05 |
 | **F4** | Dashboard: Quadro de Acompanhamento + Pendências | EST-07 |
