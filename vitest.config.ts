@@ -4,11 +4,21 @@ import { defineConfig } from "vitest/config";
 // `src/frontend/**/*.test.ts` (não `.test.tsx`) entrou junto com
 // planejamento-estrategico-redesenho/T1-T2: utilitários puros colocados ao lado do
 // consumidor de frontend (permissoes.ts, planejamento-formato.ts), sem React/harness de
-// componente (débito L-006/L-007 permanece — `.test.tsx` continua fora deste include).
+// componente.
+//
+// `.test.tsx` entrou com redesenho-estrategia-tela-first/T1 (AD-042): testes de
+// componente React rodam em `jsdom` via `environmentMatchGlobs` (API do Vitest 2.x),
+// enquanto todo `.test.ts` permanece em `node` — o ambiente é escolhido por arquivo,
+// não globalmente.
 export default defineConfig({
   test: {
-    include: ["src/backend/**/*.test.ts", "src/frontend/**/*.test.ts"],
+    include: [
+      "src/backend/**/*.test.ts",
+      "src/frontend/**/*.test.ts",
+      "src/frontend/**/*.test.tsx",
+    ],
     environment: "node",
+    environmentMatchGlobs: [["src/frontend/**/*.test.tsx", "jsdom"]],
     passWithNoTests: true,
   },
 });
