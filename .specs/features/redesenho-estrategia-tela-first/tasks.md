@@ -12,7 +12,62 @@ sub-agentes, Verifier, sensor de discriminação).
 ---
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
-**Status**: Draft
+**Status**: In Progress — Batch 1 (F0+F1) concluído; escopo aprovado vai até F4
+
+---
+
+## Registro de execução
+
+### Batch 1 — Fases 0 e 1 — ✅ COMPLETO (2026-09-10)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| T1 harness de componente | `53db28f` | build | unit 483/483 · lint 0 · build 0 |
+| T2 `ref_limiar_pendencia` | `efbbd0c` | *reduzido* | unit 483/483 + integração própria 13/13 |
+| T3 `vw_pendencias` lê limiares | `c089bdf` | full | ver desvio 2 |
+| T4 renome Diagnóstico | `0d53fe7` | *reduzido* | unit 483/483 + integração própria 8/8 |
+| T4b limiar percentual (AD-045) | `25b5cee` | full | **64 arquivos / 440 testes / 0 falhas** |
+
+**Migrations aplicadas em dev** (`npnvoolkebhabjkjzqwn`): `20260910145926_estrategia_ref_limiar_pendencia` ·
+`20260910152107_estrategia_vw_pendencias_limiar` · `20260910152709_estrategia_renomeia_raio_x_diagnostico` ·
+`20260910201447_estrategia_limiar_etapa_percentual`.
+
+**Desvios registrados:**
+
+1. **Gate reduzido em T2 e T4.** `tasks.md` declarava `full` para as duas. A suíte de integração roda
+   em série (`fileParallelism: false`) e leva ~20 min, acima do teto de 10 min de uma chamada em
+   foreground — três execuções custariam ~60 min de espera. Autorizado concentrar o gate completo
+   onde está o risco: T3 (refatora view consumida em 6 pontos) e T4b. T2 cria tabela que ninguém
+   consome ainda; T4 é renome de seed com asserção de contagem dependente inalterada.
+
+2. **T3 commitada com a suíte completa vermelha.** Execução pós-T3: 429 testes, 10 falhas.
+   Classificadas por causa, nenhuma atribuível à T3 — 5 eram o teste da própria T4 falhando por a
+   migration não estar aplicada (comportamento correto: prova que o teste não é tautológico), 2
+   eram `Test timed out in 30000ms`, 3 eram `Internal server error` do PostgREST mais 2 cascatas.
+
+3. **Evidência dos isolados.** Antes do commit da T3, `formularios-gip` e `fn-marcar-vigente`
+   rodados isoladamente, sem nenhuma mudança de código: **9/9, 2 arquivos, 0 falhas**. A suíte
+   final confirmou de novo, ainda sem mudança de código — contenção da Management API após ~40 min
+   contra o projeto cloud compartilhado, modo de falha já documentado em `supabase/tests/helpers/sql.ts`.
+
+4. **`ref-limiar-pendencia.integration.test.ts` alterado fora da lista de arquivos da T4b.** A AD-045
+   superou a forma que ele asseria. A mudança **fortalece**: `dias NOT NULL` garantia só que aquela
+   coluna estivesse preenchida e aceitava as duas ao mesmo tempo; `ck_limiar_base CHECK
+   (num_nonnulls(dias, pct_duracao_etapa) = 1)` recusa tanto a linha sem base quanto a com duas.
+   Asserido pelos dois lados em `limiar-etapa-percentual.integration.test.ts`. Diff conferido pelo
+   orquestrador. Nenhuma asserção enfraquecida, apagada ou pulada em nenhuma task.
+
+5. **Lacuna de precisão do spec, fechada no caminho.** A T2 encontrou a progressão
+   `Normal → Atenção → Atrasado` sem valores definidos; semeou 30/45 como default e asseriu só a
+   invariante de ordenação, sem inventar precisão. AD-045 fechou depois com 70%/100%.
+
+**Achados para as fases seguintes:**
+- O harness da T1 teve a discriminação comprovada na prática: removido o `<p>{titulo}</p>` de
+  `estado-vazio.tsx`, 2 dos 5 testes falharam; restaurado, voltaram a passar. `.test.ts` seguem em
+  `node` (probe confirmou `document` indefinido).
+- Bug real de fixture corrigido na T2: `INSERT` e `DELETE` em CTEs do mesmo statement enxergam o
+  mesmo snapshot, então a linha de teste vazava para a asserção de contagem. Vale para quem
+  escrever fixtures de integração nas fases seguintes.
 
 ---
 
