@@ -216,6 +216,7 @@ aprovação.
 | T16 `QuadroAcompanhamento` | `45a3559` | quick | unit 538/538 |
 | T17 `queries/pendencias.ts` | `ddc9ad0` | quick | unit 544/544 |
 | T18 `TabelaPendencias` | `ae4f67c` | quick | unit 547/547 |
+| T18b Montagem da página do Dashboard | *(a seguir)* | quick | unit 550/550 |
 | Fim de fase: gate de build | — | build | lint raiz 0 · lint:frontend 30 problemas pré-existentes, nenhum nos arquivos desta fase (ver "Regra de lint desta feature") · unit **56/56 arquivos, 547/547 testes** · build 0 erros |
 
 **Migrations**: nenhuma — as 5 tasks são todas `quick`, como previsto no tasks.md.
@@ -278,6 +279,23 @@ aprovação.
    categorias reais que a view emite desde a T3 (`sucesso_mensal_atrasado`
    incluída) — tratado como imprecisão herdada do texto da task/design.md, não
    corrigido silenciosamente: a função não impõe nenhum dos dois números.
+
+5. **T18b não ganhou `dashboard/page.test.tsx`.** Mesmo raciocínio do desvio 3
+   deste batch (T12): a orquestração da página é glue trivial sobre peças já
+   testadas isoladamente -- `QuadroAcompanhamento` (7 testes, inclusive raia
+   de Prospecção e badge por estado), `TabelaPendencias` (3 testes) e
+   `moverEtapaKanban` (`rpc/kanban.test.ts`). Testar a página exigiria montar
+   `QueryClientProvider` + mock de 3 queries + harness de DnD sem nenhum AC
+   novo que essas peças não cubram -- nenhum dos Done-when de T18b introduz
+   comportamento que não seja composição do que já está testado. `queries/
+   limiar.ts` (única peça nova de lógica) ganhou `limiar.test.ts` (3 testes:
+   leitura das 4 linhas com as duas bases mapeadas, `data: null` -> `[]`,
+   erro propaga como throw). Layout conferido no Figma `44:5`: Quadro em
+   cima, Pendências abaixo, largura total -- a fileira de KPIs e a barra de
+   filtros de gestora/projeto que o mesmo frame mostra pertencem à Fase 8
+   (T31-T33, ainda sem aprovação) e ao antigo filtro papel+pessoa+projeto do
+   Kanban, fora do Done-when desta task; omitidos de propósito, não por
+   esquecimento.
 
 **Achados para as fases seguintes:**
 - **`queries/limiar.ts` não existe.** design.md cita o arquivo como dependência
@@ -856,12 +874,12 @@ reescrever `produtos/[slug]/dashboard/page.tsx` para renderizar `QuadroAcompanha
 **Tools**: MCP: `Figma` (T3 `44:5`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] `queries/limiar.ts` lê os 4 limiares de `ref_limiar_pendencia`, nenhum número mágico no componente (AD-004)
-- [ ] `/produtos/estrategia/dashboard` renderiza o Quadro com a raia de Prospecção e os badges de limiar, não o dashboard antigo
-- [ ] Tabela de Pendências renderizada na mesma página, abaixo ou ao lado do Quadro (conferir posição no Figma `44:5`)
-- [ ] Arrastar um card de etapa chama `moverEtapaKanban` e a coluna atualiza (EST-07 AC2/AC3, ponta a ponta)
-- [ ] `lint:frontend` limpo nos arquivos tocados
-- [ ] Gate: `npm run test:unit`
+- [x] `queries/limiar.ts` lê os 4 limiares de `ref_limiar_pendencia`, nenhum número mágico no componente (AD-004)
+- [x] `/produtos/estrategia/dashboard` renderiza o Quadro com a raia de Prospecção e os badges de limiar, não o dashboard antigo
+- [x] Tabela de Pendências renderizada na mesma página, abaixo ou ao lado do Quadro (conferir posição no Figma `44:5`)
+- [x] Arrastar um card de etapa chama `moverEtapaKanban` e a coluna atualiza (EST-07 AC2/AC3, ponta a ponta)
+- [x] `lint:frontend` limpo nos arquivos tocados
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): monta pagina do Dashboard com Quadro e Pendencias (EST-07)`

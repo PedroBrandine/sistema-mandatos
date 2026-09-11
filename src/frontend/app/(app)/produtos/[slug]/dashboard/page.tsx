@@ -1,206 +1,175 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use } from "react";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { createClient } from "@backend/supabase/client";
-import {
-  buscarPessoasComPapelNoProduto,
-  contarContratosEAssessoresAtivos,
-} from "@backend/queries/contrato";
-import { buscarProjetosDoProduto, type FiltroBoard } from "@backend/queries/kanban";
+import { buscarLimiares } from "@backend/queries/limiar";
+import type { ColunaEtapaQuadro, ColunaQuadro } from "@backend/queries/quadro";
+import { buscarQuadro } from "@backend/queries/quadro";
+import { buscarPendenciasDashboard } from "@backend/queries/pendencias";
 import type { ProdutoSlug } from "@backend/queries/produto";
+import { moverEtapaKanban } from "@backend/rpc/kanban";
+import { PermissaoNegadaError, TransicaoInvalidaError } from "@backend/rpc/errors";
+
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
-import { usePapelGlobal } from "@/hooks/use-papel-global";
-import { KanbanBoard } from "@/components/kanban/kanban-board";
-import { NpsAvaliacoesCard } from "@/components/produtos/nps-avaliacoes-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import type { LimiaresEtapa } from "@/lib/limiar";
+import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
+import { ErroInline } from "@/components/ui/erro-inline";
+import { EstadoVazio } from "@/components/ui/estado-vazio";
+import { QuadroAcompanhamento } from "@/components/estrategia/quadro-acompanhamento";
+import { TabelaPendencias } from "@/components/estrategia/tabela-pendencias";
 
-type Papel = "gestora" | "mentor";
-
-interface Pessoa {
-  idUsuario: number;
-  nome: string;
-}
-
-interface Projeto {
-  idProjeto: number;
-  nome: string;
-}
-
-interface Contagens {
-  contratosAtivos: number;
-  assessoresAtivos: number;
-}
-
-// NAV-10/NAV-11: contagem de contratos e assessores ativos do produto, com
-// filtro em cascata papel -> pessoa (AC2, literal ao spec). slug já validado
-// pelo layout.tsx pai (T13).
+// EST-07 (T18b, .specs/features/redesenho-estrategia-tela-first/tasks.md).
+// Fecha a lacuna de planejamento de T14-T18: aqueles componentes ficaram
+// prontos e testados isoladamente, mas nenhuma task os ligava a esta
+// página, que seguia servindo o dashboard antigo da feature kanban-etapas
+// (Contratos ativos / Assessores ativos / NPS). Substituído por inteiro
+// pelo Quadro de Acompanhamento + Tabela de Pendências (Figma 44:5),
+// empilhados verticalmente na mesma ordem do design: Quadro em cima,
+// Pendências abaixo, ambos ocupando a largura total.
+//
+// Fora de escopo desta task (ver "Achados" do Batch 4 em tasks.md e a
+// linha KPI do Figma 44:5, que pertence à Fase 8 / T31-T33, ainda sem
+// aprovação): a fileira de KPIs (Mandatos Ativos, IIP, NPS etc.) e a barra
+// de filtros de gestora/projeto que o Figma mostra acima do Quadro. Nenhum
+// dos dois está no Done-when de T18b.
+//
+// AD-046: tela de leitura -- caminho feliz de cada AC, sem par
+// positivo/negativo de cada condicional exigido no teste de componente.
 export default function ProdutoDashboardPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params) as { slug: ProdutoSlug };
-  const { data: produto } = useProdutoAtual(slug);
-  const { papel: papelViewer } = usePapelGlobal();
-  const podeVerNps = papelViewer === "admin" || papelViewer === "gestora";
+  const { data: produto, isLoading: carregandoProduto } = useProdutoAtual(slug);
+  const idProduto = produto?.idProduto;
 
-  const [papel, setPapel] = useState<Papel | "todos">("todos");
-  const [pessoas, setPessoas] = useState<Pessoa[]>([]);
-  const [idUsuario, setIdUsuario] = useState<number | "todos">("todos");
-  const [contagens, setContagens] = useState<Contagens | null>(null);
+  const queryClient = useQueryClient();
+  const quadroQueryKey = ["quadro-acompanhamento", idProduto] as const;
 
-  // KAN-03/KAN-10: filtro de projeto + "Minha carteira" do board Kanban --
-  // combinam por AND com o filtro papel+pessoa já existente acima (T10).
-  const [projetos, setProjetos] = useState<Projeto[]>([]);
-  const [idProjeto, setIdProjeto] = useState<number | "todos">("todos");
-  const [minhaCarteira, setMinhaCarteira] = useState(false);
+  const {
+    data: colunas,
+    isLoading: carregandoQuadro,
+    isError: erroQuadro,
+    refetch: refetchQuadro,
+  } = useQuery({
+    queryKey: quadroQueryKey,
+    queryFn: () => buscarQuadro(createClient(), { idProduto: idProduto as number }),
+    enabled: idProduto !== undefined,
+  });
 
-  // Papel escolhido repopula a lista de pessoas daquele papel (a pessoa
-  // selecionada é resetada no próprio handler do Select de papel, abaixo).
-  // Sem papel escolhido não busca nada -- o Select de pessoa fica disabled
-  // nesse caso, então uma lista desatualizada não chega a ser exibida.
-  useEffect(() => {
-    if (!produto || papel === "todos") return;
-    let cancelado = false;
-    buscarPessoasComPapelNoProduto(createClient(), produto.idProduto, papel).then((lista) => {
-      if (!cancelado) setPessoas(lista);
-    });
-    return () => {
-      cancelado = true;
-    };
-  }, [produto, papel]);
+  const {
+    data: limiaresBrutos,
+    isLoading: carregandoLimiares,
+  } = useQuery({
+    queryKey: ["limiares-pendencia"],
+    queryFn: () => buscarLimiares(createClient()),
+  });
 
-  // Recalcula as duas contagens -- sem filtro (padrão) ou restritas aos
-  // contratos onde a pessoa escolhida tem vínculo ativo naquele papel.
-  useEffect(() => {
-    if (!produto) return;
-    let cancelado = false;
-    const filtro = papel !== "todos" && idUsuario !== "todos" ? { papel, idUsuario } : undefined;
+  const {
+    data: pendencias,
+    isLoading: carregandoPendencias,
+    isError: erroPendencias,
+    refetch: refetchPendencias,
+  } = useQuery({
+    queryKey: ["pendencias-dashboard", idProduto],
+    queryFn: () => buscarPendenciasDashboard(createClient(), { idProduto: idProduto as number }),
+    enabled: idProduto !== undefined,
+  });
 
-    contarContratosEAssessoresAtivos(createClient(), produto.idProduto, filtro).then((resultado) => {
-      if (!cancelado) setContagens(resultado);
-    });
-    return () => {
-      cancelado = true;
-    };
-  }, [produto, papel, idUsuario]);
-
-  // KAN-03: popula o Select de projeto com só os projetos com contrato no
-  // produto atual -- independente do filtro papel+pessoa (dimensão própria).
-  useEffect(() => {
-    if (!produto) return;
-    let cancelado = false;
-    buscarProjetosDoProduto(createClient(), produto.idProduto).then((lista) => {
-      if (!cancelado) setProjetos(lista);
-    });
-    return () => {
-      cancelado = true;
-    };
-  }, [produto]);
-
-  // KAN-01 a KAN-10 (T11): filtro combinado que o KanbanBoard consome --
-  // papel+pessoa, projeto e "minha carteira" por AND (T10), cada dimensão só
-  // entra no objeto quando de fato restringe algo.
-  const filtroBoard: FiltroBoard = {
-    ...(papel === "gestora" && idUsuario !== "todos" ? { idGestora: idUsuario } : {}),
-    ...(papel === "mentor" && idUsuario !== "todos" ? { idMentor: idUsuario } : {}),
-    ...(idProjeto !== "todos" ? { idProjeto } : {}),
-    ...(minhaCarteira ? { minhaCarteira: true } : {}),
+  // AD-004: os dois percentuais de etapa (etapa_atencao/etapa_atrasado)
+  // chegam da tabela, nunca cravados aqui -- classificarLimiar (T14) só
+  // recebe o que buscarLimiares (T18b) devolveu.
+  const limiares: LimiaresEtapa | undefined = limiaresBrutos && {
+    atencaoPct: limiaresBrutos.find((l) => l.codigo === "etapa_atencao" && l.ativo)?.pctDuracaoEtapa ?? null,
+    atrasadoPct: limiaresBrutos.find((l) => l.codigo === "etapa_atrasado" && l.ativo)?.pctDuracaoEtapa ?? null,
   };
+
+  const { mutate: moverCard } = useMutation({
+    mutationFn: (input: { idContrato: number; idEtapaDestino: number }) => moverEtapaKanban(createClient(), input),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: quadroQueryKey });
+      const anterior = queryClient.getQueryData<ColunaQuadro[]>(quadroQueryKey);
+      if (anterior) {
+        queryClient.setQueryData<ColunaQuadro[]>(
+          quadroQueryKey,
+          moverCardOtimista(anterior, input.idContrato, input.idEtapaDestino)
+        );
+      }
+      return { anterior };
+    },
+    onError: (error, _input, context) => {
+      if (context?.anterior) {
+        queryClient.setQueryData(quadroQueryKey, context.anterior);
+      }
+      if (error instanceof TransicaoInvalidaError || error instanceof PermissaoNegadaError) {
+        toast.error(error.message);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: quadroQueryKey });
+    },
+  });
+
+  if (carregandoProduto || carregandoQuadro || carregandoLimiares || carregandoPendencias) {
+    return <CarregandoSkeleton variante="cards" />;
+  }
+
+  if (erroQuadro) {
+    return (
+      <ErroInline
+        mensagem="Não foi possível carregar o Quadro de Acompanhamento."
+        onRetry={() => refetchQuadro()}
+      />
+    );
+  }
 
   return (
     <div className="grid gap-6">
-      <div className="grid grid-cols-1 gap-3 rounded-xl border border-border/60 bg-card p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
-        <Select
-          value={papel}
-          onValueChange={(v) => {
-            setPapel(v as Papel | "todos");
-            setIdUsuario("todos");
-          }}
-        >
-          <SelectTrigger className="bg-background text-xs">
-            <SelectValue placeholder="Filtrar por papel" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="gestora">Gestora</SelectItem>
-            <SelectItem value="mentor">Mentor</SelectItem>
-          </SelectContent>
-        </Select>
+      {!colunas || colunas.length === 0 ? (
+        <EstadoVazio
+          titulo="Nenhuma etapa cadastrada"
+          mensagem="Este produto ainda não tem etapas cadastradas no catálogo."
+        />
+      ) : (
+        <QuadroAcompanhamento
+          colunas={colunas}
+          limiares={limiares}
+          onMoverCard={(input) => moverCard(input)}
+        />
+      )}
 
-        <Select
-          value={String(idUsuario)}
-          onValueChange={(v) => setIdUsuario(v === "todos" ? "todos" : Number(v))}
-          disabled={papel === "todos"}
-        >
-          <SelectTrigger className="bg-background text-xs">
-            <SelectValue placeholder="Filtrar por pessoa" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todas as pessoas</SelectItem>
-            {pessoas.map((p) => (
-              <SelectItem key={p.idUsuario} value={String(p.idUsuario)}>
-                {p.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={String(idProjeto)}
-          onValueChange={(v) => setIdProjeto(v === "todos" ? "todos" : Number(v))}
-        >
-          <SelectTrigger className="bg-background text-xs">
-            <SelectValue placeholder="Filtrar por projeto" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os projetos</SelectItem>
-            {projetos.map((p) => (
-              <SelectItem key={p.idProjeto} value={String(p.idProjeto)}>
-                {p.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Label className="justify-start gap-2 rounded-lg border border-input bg-background px-2.5 text-xs">
-          <Switch checked={minhaCarteira} onCheckedChange={setMinhaCarteira} />
-          Minha carteira
-        </Label>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Contratos ativos</CardTitle>
-          </CardHeader>
-          <CardContent className="font-heading text-3xl font-bold">
-            {contagens ? contagens.contratosAtivos : "—"}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Assessores ativos</CardTitle>
-          </CardHeader>
-          <CardContent className="font-heading text-3xl font-bold">
-            {contagens ? contagens.assessoresAtivos : "—"}
-          </CardContent>
-        </Card>
-      </div>
-
-      {produto && podeVerNps ? <NpsAvaliacoesCard idProduto={produto.idProduto} /> : null}
-
-      {produto ? <KanbanBoard idProduto={produto.idProduto} filtro={filtroBoard} /> : null}
+      {erroPendencias ? (
+        <ErroInline mensagem="Não foi possível carregar as Pendências." onRetry={() => refetchPendencias()} />
+      ) : (
+        <TabelaPendencias pendencias={pendencias ?? []} />
+      )}
     </div>
+  );
+}
+
+// Mesmo padrão de moverCardOtimista de KanbanBoard (kanban-board.tsx):
+// remove da coluna de origem, insere na coluna de destino -- adaptado para
+// ColunaQuadro porque só colunas do tipo "etapa" recebem/perdem card (a
+// raia de Prospecção nunca é destino nem origem de drag, AD-040).
+function moverCardOtimista(colunas: ColunaQuadro[], idContrato: number, idEtapaDestino: number): ColunaQuadro[] {
+  let cardMovido: ColunaEtapaQuadro["cards"][number] | undefined;
+  const semCard = colunas.map((coluna) => {
+    if (coluna.tipo !== "etapa") return coluna;
+    const card = coluna.cards.find((c) => c.idContrato === idContrato);
+    if (!card) return coluna;
+    cardMovido = card;
+    return { ...coluna, cards: coluna.cards.filter((c) => c.idContrato !== idContrato) };
+  });
+  if (!cardMovido) return colunas;
+
+  return semCard.map((coluna) =>
+    coluna.tipo === "etapa" && coluna.idEtapa === idEtapaDestino
+      ? { ...coluna, cards: [...coluna.cards, cardMovido as ColunaEtapaQuadro["cards"][number]] }
+      : coluna
   );
 }
