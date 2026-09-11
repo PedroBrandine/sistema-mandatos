@@ -216,7 +216,7 @@ aprovação.
 | T16 `QuadroAcompanhamento` | `45a3559` | quick | unit 538/538 |
 | T17 `queries/pendencias.ts` | `ddc9ad0` | quick | unit 544/544 |
 | T18 `TabelaPendencias` | `ae4f67c` | quick | unit 547/547 |
-| T18b Montagem da página do Dashboard | *(a seguir)* | quick | unit 550/550 |
+| T18b Montagem da página do Dashboard | `c1150cb` | quick | unit 550/550 |
 | Fim de fase: gate de build | — | build | lint raiz 0 · lint:frontend 30 problemas pré-existentes, nenhum nos arquivos desta fase (ver "Regra de lint desta feature") · unit **56/56 arquivos, 547/547 testes** · build 0 erros |
 
 **Migrations**: nenhuma — as 5 tasks são todas `quick`, como previsto no tasks.md.
