@@ -56,6 +56,15 @@ export class TransicaoInvalidaError extends Error {
   }
 }
 
+/** PRO01: app.converter_prospeccao recusou converter uma prospecção que não
+ * está mais aberta — conversão é mão única (EST-04 AC4, AD-040). */
+export class ProspeccaoEncerradaError extends Error {
+  constructor() {
+    super("Esta prospecção já foi encerrada e não pode ser convertida de novo.");
+    this.name = "ProspeccaoEncerradaError";
+  }
+}
+
 // Mensagens de campo por constraint (ck_*) alcançáveis pelas 4 funções RPC de
 // T20-T23. Constraint não mapeada cai no fallback genérico -- nunca lança sem
 // mensagem.
@@ -133,6 +142,10 @@ export function mapeiaErroRpc(error: PostgrestError): Error {
 
   if (error.code === "KAN01") {
     return new TransicaoInvalidaError();
+  }
+
+  if (error.code === "PRO01") {
+    return new ProspeccaoEncerradaError();
   }
 
   return error;
