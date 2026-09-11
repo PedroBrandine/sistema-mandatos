@@ -12,7 +12,7 @@ sub-agentes, Verifier, sensor de discriminação).
 ---
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
-**Status**: In Progress — Batch 1 (F0+F1) e Batch 2 (F2) concluídos; escopo aprovado vai até F4
+**Status**: In Progress — Batch 1 (F0+F1), Batch 2 (F2) e Batch 3 (F3) concluídos; escopo aprovado vai até F4
 
 ---
 
@@ -124,6 +124,82 @@ sub-agentes, Verifier, sensor de discriminação).
   ao invariante do modelo, coberta pelo índice parcial `uq_prospeccao_aberta_contratante`); RLS
   por linha (não GRANT-only) validada com sessões JWT reais por papel, não só
   `has_table_privilege`.
+
+---
+
+### Batch 3 — Fase 3 — ✅ COMPLETO (2026-09-11)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| T10 Topbar sem "Gestão de Usuários" | `8a690b2` | quick | unit 498/498 |
+| T11 `queries/hub.ts` | `e897242` | quick | unit 506/506 |
+| T12 Hub com 6 cards e contadores | `1874b30` | quick | unit 510/510 |
+| T13 Aba Contratos vira Mandatos | `29a4814` | quick | unit 513/513 |
+| Fim de fase: gate de build | — | build | lint raiz 0 · lint:frontend 30 problemas pré-existentes fora do escopo tocado (ver "Regra de lint desta feature") · unit **51/51 arquivos, 513/513 testes** · build 0 erros |
+
+**Migrations**: nenhuma — Fase 3 é só frontend + 1 módulo de leitura (T11), como previsto no tasks.md.
+
+**Desvios registrados:**
+
+1. **`vitest.config.ts` ganhou `resolve.alias` (T10).** O smoke test de T1 (AD-042)
+   só exercitava `estado-vazio.tsx`, que não importa nada por alias — o gap ficou
+   invisível até o 1º teste de componente real do produto (`topbar.tsx`, que importa
+   `@/lib/utils`) falhar na collect com "Failed to resolve import". Corrigido
+   adicionando `resolve.alias` para `@` e `@backend` replicando verbatim os `paths`
+   de `src/frontend/tsconfig.json`. Necessário para T10, T12 e T13 (todos importam
+   componentes com alias); sem isso nenhum teste de componente além do smoke test
+   original rodaria. Nenhuma AD nova — é extensão direta do escopo de AD-044
+   ("dependências do harness vivem na raiz"), mesmo arquivo, mesma regra.
+
+2. **Risco aceito documentado no código, não só no commit: card "Gestão de
+   Usuários" do Hub (T11/T12, EST-02 AC7).** O padrão "consulta negada por
+   permissão (42501) → card omitido" que rege Visão Gerencial/Números de Impacto
+   (AD-036: `mv_avaliacao_nps`/`mv_numeros_impacto` nunca concedidas a
+   `legisla_mentor`/`legisla_assessor`) **não se aplica** a `dim_usuario`: a
+   política `p_usuario` (`app.papel_atual() IN ('admin','gestora')`) dá SELECT
+   completo tanto a Admin quanto a Gestora — não existe hoje nenhuma consulta cujo
+   42501 distinga as duas roles para este recurso. `queries/hub.ts` (`ehAdmin`)
+   resolve o card lendo `dim_usuario.papel_global` da própria usuária autenticada
+   (dado do banco, resolvido pela sessão — não um papel hardcoded/prop), mas isso
+   é *UI hiding*, não enforcement de RLS: uma Gestora que ignorasse a UI e navegasse
+   direto para `/usuarios` não seria barrada pelo banco hoje (mesma lacuna que já
+   existia antes desta feature — `usuarios/page.tsx:35` já tinha o comentário
+   "Default permissivo para interface"). Enforcement real (uma RLS/GRANT que
+   realmente distinga Admin de Gestora para este recurso) fica pendente de uma
+   migration futura — fora do escopo de T10-T13, que são todas `quick`/sem
+   migration. Recomendação registrada, não decretada: uma feature futura que mexa
+   em `dim_usuario`/`/usuarios` deveria fechar essa lacuna com uma AD nova.
+
+3. **Where de T12 interpretado como "só `hub-card.test.tsx`" — nenhum
+   `page.test.tsx` criado.** O Done-when de T12 inclui "Renderiza um card por item
+   retornado, na ordem recebida (AC1, AC6)", que tecnicamente é comportamento de
+   `app/(app)/page.tsx` (o `cards.map(...)`), não de `hub-card.tsx` (que renderiza
+   1 card). A task só lista `hub-card.test.tsx` em "Where". Tratado como glue
+   trivial já coberto por composição: a ordenação do array vem testada em
+   `hub.test.ts` (T11) e a renderização de 1 card vem testada em
+   `hub-card.test.tsx` (T12) — nenhum teste novo foi adicionado além do escopo
+   declarado.
+
+4. **T13 AC4 ("slug inválido retorna 404") não ganhou teste novo.**
+   `ProdutoShell` recebe `slug: ProdutoSlug` já estreitado pelo tipo — não existe
+   caminho de código dentro do componente para um slug inválido. A fronteira de
+   validação real é `produtos/[slug]/layout.tsx` (chama `notFound()`), arquivo que
+   T13 não toca e cujo comportamento é anterior a esta feature. Documentado no
+   próprio `produto-shell.test.tsx`, não é lacuna silenciosa.
+
+**Achados para as fases seguintes:**
+- O gap do desvio 1 (aliases não resolvidos no Vitest) só apareceu porque T10 foi
+  o primeiro componente real do produto a ser testado — toda task de componente
+  em fases futuras (T16, T18, T20, T21, T22-T24, T26, T28, T30, T33) já herda a
+  correção, sem trabalho extra.
+- O padrão de mock de `next/navigation` (`usePathname`) e de hooks de dados
+  (`vi.mock` de `@/hooks/use-produto-atual`) usado em `produto-shell.test.tsx`
+  é reutilizável por qualquer componente futuro que precise de `RouteTabs` ou de
+  `useProdutoAtual` sem subir um `QueryClientProvider` real.
+- O desvio 2 (Gestão de Usuários) é o único ponto desta fase onde "restrição mora
+  na RLS" (AD-001) não foi literalmente alcançado — vale revisar se alguma fase
+  futura desta feature (ou uma feature própria de `dim_usuario`) deve fechar essa
+  lacuna com uma migration dedicada.
 
 ---
 
