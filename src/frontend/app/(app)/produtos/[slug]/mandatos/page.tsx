@@ -1,21 +1,44 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
-import Link from "next/link";
+import { use, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { createClient } from "@backend/supabase/client";
-import { buscarContratosAtivosPorProduto, type ContratoAtivoResumo } from "@backend/queries/contrato";
+import { buscarMandatosLista, type ContratoCard } from "@backend/queries/mandatos-lista";
+import { buscarEtapasDoProduto } from "@backend/queries/contrato";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EstadoVazio } from "@/components/ui/estado-vazio";
-import { Button } from "@/components/ui/button";
+import { FiltrosMandatos, type OpcaoFiltroMandatos, type ValorFiltrosMandatos } from "@/components/estrategia/filtros-mandatos";
+import { ListaMandatos } from "@/components/estrategia/lista-mandatos";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 
-// NAV-03/EST-03 (T13): aba "Contratos" virou "Mandatos" -- rota movida de
-// contratos/ para mandatos/ dentro do produto (produto-shell.tsx aponta pra
-// cá). slug já validado pelo layout.tsx pai -- única fronteira de validação,
-// ver design.md.
+// EST-09 (T21b, design.md/tasks.md). AD-046: tela de leitura -- caminho
+// feliz de cada AC. Mesma lacuna de planejamento de T18b (ver tasks.md,
+// "### T21b"): T13 só renomeou a aba e moveu a rota, preservando a lista
+// antiga sem os 5 filtros do Figma 202:554. Esta task substitui o conteúdo
+// por FiltrosMandatos (T21) + ListaMandatos (T20), consumindo
+// buscarMandatosLista (T19) com o estado do filtro na página.
+async function buscarGestoras(): Promise<OpcaoFiltroMandatos[]> {
+  const { data, error } = await createClient()
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .eq("papel_global", "gestora")
+    .eq("ativo", true)
+    .order("nome");
+  if (error) throw error;
+  return (data ?? []).map((u) => ({ id: u.id_usuario, nome: u.nome }));
+}
+
+async function buscarProjetosAtivos(): Promise<OpcaoFiltroMandatos[]> {
+  const { data, error } = await createClient()
+    .from("ref_projeto")
+    .select("id_projeto, nome")
+    .eq("ativo", true)
+    .order("nome");
+  if (error) throw error;
+  return (data ?? []).map((p) => ({ id: p.id_projeto, nome: p.nome }));
+}
+
 export default function ProdutoMandatosPage({
   params,
 }: {
@@ -23,53 +46,42 @@ export default function ProdutoMandatosPage({
 }) {
   const { slug } = use(params) as { slug: ProdutoSlug };
   const { data: produto } = useProdutoAtual(slug);
-  const [contratos, setContratos] = useState<ContratoAtivoResumo[] | null>(null);
+  const [filtro, setFiltro] = useState<ValorFiltrosMandatos>({});
 
-  useEffect(() => {
-    if (!produto) return;
-    let cancelado = false;
+  const { data: gestoras } = useQuery({ queryKey: ["mandatos-lista-gestoras"], queryFn: buscarGestoras });
+  const { data: projetos } = useQuery({ queryKey: ["mandatos-lista-projetos"], queryFn: buscarProjetosAtivos });
+  const { data: etapas } = useQuery({
+    queryKey: ["mandatos-lista-etapas", produto?.idProduto],
+    queryFn: () => buscarEtapasDoProduto(createClient(), produto!.idProduto),
+    enabled: produto !== undefined,
+  });
 
-    buscarContratosAtivosPorProduto(createClient(), produto.idProduto).then((lista) => {
-      if (!cancelado) setContratos(lista);
-    });
+  const { data: mandatos } = useQuery<ContratoCard[]>({
+    queryKey: ["mandatos-lista", produto?.idProduto, filtro],
+    queryFn: () => buscarMandatosLista(createClient(), { idProduto: produto!.idProduto, ...filtro }),
+    enabled: produto !== undefined,
+  });
 
-    return () => {
-      cancelado = true;
-    };
-  }, [produto]);
+  const opcoesEtapa = useMemo<OpcaoFiltroMandatos[]>(
+    () => (etapas ?? []).map((e) => ({ id: e.idEtapa, nome: e.nome })),
+    [etapas]
+  );
 
-  if (contratos === null) {
+  if (produto === undefined || mandatos === undefined) {
     return <CarregandoSkeleton />;
   }
 
-  if (contratos.length === 0) {
-    return (
-      <EstadoVazio
-        titulo="Nenhum contrato ativo"
-        mensagem="Este produto ainda não tem contrato ativo."
-        acao={
-          <Link href={`/produtos/${slug}/novo-contrato`}>
-            <Button type="button">Cadastrar novo contrato</Button>
-          </Link>
-        }
-      />
-    );
-  }
-
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {contratos.map((c) => (
-        <Link key={c.idContrato} href={`/contratos/${c.idContrato}`} className="group">
-          <Card className="h-full border border-border/60 shadow-sm transition-all hover:border-primary/50 hover:shadow-md">
-            <CardHeader>
-              <CardTitle>{c.nomeContratante}</CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              Início: {new Date(c.dtInicio).toLocaleDateString("pt-BR")}
-            </CardContent>
-          </Card>
-        </Link>
-      ))}
+    <div className="grid gap-6">
+      <FiltrosMandatos
+        filtro={filtro}
+        onChange={setFiltro}
+        gestoras={gestoras ?? []}
+        projetos={projetos ?? []}
+        etapas={opcoesEtapa}
+        contagem={mandatos.length}
+      />
+      <ListaMandatos mandatos={mandatos} />
     </div>
   );
 }
