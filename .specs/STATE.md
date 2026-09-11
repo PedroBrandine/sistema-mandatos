@@ -725,6 +725,41 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-09-10
 - **Status**: active
 
+### AD-046
+- **Decision**: **Restringe** o alcance de AD-042 para as fases 3-8 (T10-T33) de
+  `redesenho-estrategia-tela-first`. Em telas de **leitura** (Hub, Quadro de
+  Acompanhamento, Pendências, Lista de Mandatos, Agenda — T10-T22, T25-T28,
+  T31-T33), o teste de componente cobre **só o caminho feliz de cada AC** —
+  um teste por comportamento principal, sem exigir o par positivo/negativo de
+  cada condicional (ex.: "card aparece" tem teste; "card some quando negado"
+  não tem teste próprio, vira nota de risco aceito no commit). Em telas com
+  **escrita** — Novo Contrato (T22-T24) e o popover de marcar presença/registro
+  (T28-T30) — a profundidade original de AD-042/`tasks.md` **permanece
+  integral**: os dois lados de cada condicional, estado vazio e estado de erro
+  seguem exigidos.
+- **Reason**: Pedro decidiu acelerar o ritmo de implementação em 2026-09-11,
+  depois de uma sessão consumida majoritariamente por incidentes de ambiente
+  (fixtures órfãs, disco cheio, latência de Management API sob carga) e não
+  por excesso de teste — nenhum dos três incidentes teria sido evitado com
+  menos cobertura. O corte foi proposto como concessão explícita ao ritmo, não
+  como correção de um problema real de excesso. Ciente disso, o corte é
+  restrito a onde o risco de regressão silenciosa é mais baixo: telas de
+  leitura não gravam dado — um bug nelas mostra número errado, não corrompe
+  o banco.
+- **Trade-off**: Reabre parcialmente o débito que AD-042 fechou ontem
+  (L-006/L-007) — um card do Hub que deveria sumir por RLS e não some passa
+  sem teste que capture isso. Mitigado por três limites: (1) restrito a esta
+  feature, não é política permanente do projeto; (2) restrito a telas de
+  leitura, nunca a escrita; (3) cada AC cortada some do relatório do Verifier
+  como "coberto" e precisa aparecer como **spec-precision gap** explícito, não
+  como lacuna silenciosa — o Verifier sempre roda, mesmo sob este corte.
+  Risco residual assumido por decisão de Pedro, não por omissão.
+- **Scope**: `redesenho-estrategia-tela-first`, tasks T10-T33 (exceto T22-T24,
+  T28-T30, que mantêm a Test Coverage Matrix original). Não se aplica a
+  nenhuma feature futura sem decisão própria.
+- **Date**: 2026-09-11
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)

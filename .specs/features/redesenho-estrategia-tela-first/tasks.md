@@ -86,7 +86,8 @@ sub-agentes, Verifier, sensor de discriminação).
 | `src/backend/rpc/**` | unit | Parâmetros passados verbatim (L-004) + mapeamento de cada erro de constraint (L-003) | `src/backend/rpc/*.test.ts` | `npm run test:unit` |
 | `src/backend/schemas/**` | unit | Aceite e recusa por campo, incluindo limites | `src/backend/schemas/*.test.ts` | `npm run test:unit` |
 | Funções puras de frontend | unit | Todas as ramificações, incluindo os dois lados de comparação de data (L-001) | `src/frontend/**/*.test.ts` | `npm run test:unit` |
-| **Componentes React** | **unit (novo — AD-042)** | Todo elemento que uma AC nomeia é asserido; toda ramificação de render tem caso dos dois lados; estado vazio e estado de erro cobertos | `src/frontend/**/*.test.tsx` | `npm run test:unit` |
+| **Componentes React — telas de escrita** (T22-T24, T28-T30) | **unit (AD-042)** | Todo elemento que uma AC nomeia é asserido; toda ramificação de render tem caso dos dois lados; estado vazio e estado de erro cobertos | `src/frontend/**/*.test.tsx` | `npm run test:unit` |
+| **Componentes React — telas de leitura** (T10-T21, T25-T27, T31-T33) | **unit (reduzido — AD-046)** | **Só o caminho feliz de cada AC** — um teste por comportamento principal. Pares positivo/negativo de condicional (ex. "card some quando negado") **não exigidos**; lacuna vira nota de risco aceito no commit, não fica implícita | `src/frontend/**/*.test.tsx` | `npm run test:unit` |
 | Config / tipos gerados | none | — (build gate) | — | build gate |
 
 **Nota de provenance:** o piso de qualidade vem dos testes existentes (13 em `queries/`, 13 em
@@ -389,6 +390,8 @@ T31 → T32 → T33
 
 ### T10: Topbar sem "Gestão de Usuários"
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Remover o item da Topbar, deixando marca + "Hub" + avatar.
 **Where**: `src/frontend/components/app-shell/topbar.tsx`, `topbar.test.tsx`
 **Depends on**: T1
@@ -409,6 +412,8 @@ T31 → T32 → T33
 ---
 
 ### T11: `queries/hub.ts` — cards derivados por leitura
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Montar a lista de cards do Hub, omitindo aquele cuja consulta de contador é negada pelo banco.
 **Where**: `src/backend/queries/hub.ts`, `src/backend/queries/hub.test.ts`
@@ -431,6 +436,8 @@ T31 → T32 → T33
 ---
 
 ### T12: Hub com 6 cards e contadores
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Reescrever a página do Hub consumindo `buscarCardsHub`.
 **Where**: `src/frontend/app/(app)/page.tsx`, `src/frontend/components/app-shell/hub-card.tsx`, `hub-card.test.tsx`
@@ -455,6 +462,8 @@ T31 → T32 → T33
 
 ### T13: Aba "Contratos" vira "Mandatos"
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Renomear a aba no `ProdutoShell` e mover a rota `contratos/` para `mandatos/` no produto.
 **Where**: `src/frontend/components/produtos/produto-shell.tsx`, `produto-shell.test.tsx`, `src/frontend/app/(app)/produtos/[slug]/mandatos/page.tsx`
 **Depends on**: T1
@@ -477,6 +486,8 @@ T31 → T32 → T33
 
 ### T14: `classificarLimiar` — função pura
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Traduzir dias na etapa + limiares em `normal | atencao | atrasado`.
 **Where**: `src/frontend/lib/limiar.ts`, `src/frontend/lib/limiar.test.ts`
 **Depends on**: T2
@@ -497,6 +508,8 @@ T31 → T32 → T33
 ---
 
 ### T15: `queries/quadro.ts` — colunas com raia de Prospecção
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Compor as colunas de `ref_etapa` com a raia de prospecção numa estrutura só.
 **Where**: `src/backend/queries/quadro.ts`, `src/backend/queries/quadro.test.ts`
@@ -521,6 +534,8 @@ T31 → T32 → T33
 
 ### T16: Componente `QuadroAcompanhamento`
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Renderizar o board com badge de estado por limiar; prospect não arrastável.
 **Where**: `src/frontend/components/estrategia/quadro-acompanhamento.tsx`, `.test.tsx`
 **Depends on**: T15
@@ -544,6 +559,8 @@ T31 → T32 → T33
 
 ### T17: `queries/pendencias.ts`
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Ler `vw_pendencias` com os filtros do Dashboard.
 **Where**: `src/backend/queries/pendencias.ts`, `.test.ts`
 **Depends on**: T3
@@ -565,6 +582,8 @@ T31 → T32 → T33
 
 ### T18: Componente `TabelaPendencias`
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Tabela acionável das pendências.
 **Where**: `src/frontend/components/estrategia/tabela-pendencias.tsx`, `.test.tsx`
 **Depends on**: T17
@@ -585,6 +604,8 @@ T31 → T32 → T33
 ---
 
 ### T19: `queries/mandatos-lista.ts`
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Listar contratos do produto com os 5 filtros do Figma.
 **Where**: `src/backend/queries/mandatos-lista.ts`, `.test.ts`
@@ -608,6 +629,8 @@ T31 → T32 → T33
 
 ### T20: Componente `ListaMandatos`
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Grade de cards de contrato.
 **Where**: `src/frontend/components/estrategia/lista-mandatos.tsx`, `.test.tsx`
 **Depends on**: T19
@@ -629,6 +652,8 @@ T31 → T32 → T33
 ---
 
 ### T21: Barra de filtros da lista
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Os 5 filtros mais "Limpar filtros" e a contagem.
 **Where**: `src/frontend/components/estrategia/filtros-mandatos.tsx`, `.test.tsx`
@@ -715,6 +740,8 @@ T31 → T32 → T33
 
 ### T25: `queries/agenda.ts` — encontros do mês
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Buscar encontros de um mês para o produto, com os filtros da tela.
 **Where**: `src/backend/queries/agenda.ts`, `.test.ts`
 **Depends on**: T13
@@ -735,6 +762,8 @@ T31 → T32 → T33
 ---
 
 ### T26: Componente `AgendaMes`
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Grade mensal com os encontros posicionados e navegação entre meses.
 **Where**: `src/frontend/components/estrategia/agenda-mes.tsx`, `.test.tsx`
@@ -758,6 +787,8 @@ T31 → T32 → T33
 ---
 
 ### T27: `queries/registros-agenda.ts`
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Listar registros, opcionalmente filtrados por encontro.
 **Where**: `src/backend/queries/registros-agenda.ts`, `.test.ts`
@@ -845,6 +876,8 @@ T31 → T32 → T33
 
 ### T31: View `vw_estrategia_kpi`
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Agregar por produto os 6 números do topo do Dashboard.
 **Where**: `supabase/migrations/<ts>_estrategia_vw_kpi.sql`, `supabase/tests/estrategia/vw-estrategia-kpi.integration.test.ts`
 **Depends on**: T3, T5
@@ -867,6 +900,8 @@ T31 → T32 → T33
 
 ### T32: `queries/estrategia-kpi.ts`
 
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
+
 **What**: Ler a view com os filtros de gestora e projeto.
 **Where**: `src/backend/queries/estrategia-kpi.ts`, `.test.ts`
 **Depends on**: T31
@@ -886,6 +921,8 @@ T31 → T32 → T33
 ---
 
 ### T33: Componente `KpiRow`
+
+> **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
 
 **What**: Faixa dos 6 KPIs no topo do Dashboard.
 **Where**: `src/frontend/components/estrategia/kpi-row.tsx`, `.test.tsx`
