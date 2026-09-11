@@ -12,7 +12,8 @@ sub-agentes, Verifier, sensor de discriminação).
 ---
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
-**Status**: In Progress — Batch 1 (F0+F1), Batch 2 (F2) e Batch 3 (F3) concluídos; escopo aprovado vai até F4
+**Status**: Escopo aprovado (F0-F4) concluído — Batch 1 (F0+F1), Batch 2 (F2), Batch 3 (F3) e
+Batch 4 (F4) entregues. Fases 5-8 (T19-T33) aguardam nova aprovação de Pedro antes de iniciar.
 
 ---
 
@@ -200,6 +201,102 @@ sub-agentes, Verifier, sensor de discriminação).
   na RLS" (AD-001) não foi literalmente alcançado — vale revisar se alguma fase
   futura desta feature (ou uma feature própria de `dim_usuario`) deve fechar essa
   lacuna com uma migration dedicada.
+
+---
+
+### Batch 4 — Fase 4 — ✅ COMPLETO (2026-09-11)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| T14 `classificarLimiar` | `784a5c0` | quick | unit 522/522 |
+| T15 `queries/quadro.ts` | `2ae4843` | quick | unit 531/531 |
+| T16 `QuadroAcompanhamento` | `45a3559` | quick | unit 538/538 |
+| T17 `queries/pendencias.ts` | `ddc9ad0` | quick | unit 544/544 |
+| T18 `TabelaPendencias` | `ae4f67c` | quick | unit 547/547 |
+| Fim de fase: gate de build | — | build | lint raiz 0 · lint:frontend 30 problemas pré-existentes, nenhum nos arquivos desta fase (ver "Regra de lint desta feature") · unit **56/56 arquivos, 547/547 testes** · build 0 erros |
+
+**Migrations**: nenhuma — as 5 tasks são todas `quick`, como previsto no tasks.md.
+
+**Desvios registrados:**
+
+1. **T14 ganhou o parâmetro `duracaoPrevistaDias`, ausente da assinatura de
+   `classificarLimiar` em design.md.** design.md descreve
+   `classificarLimiar(diasNaEtapa, limiares)`, escrito antes de AD-045 (limiar
+   virou percentual da duração prevista da etapa, não dias absolutos). Sem a
+   duração da etapa não há base para calcular percentual nenhum — a própria
+   migration `20260910201447` já antecipa isso ("regra de apresentação e vive
+   na função pura do frontend, T14"). Assinatura final:
+   `classificarLimiar(diasNaEtapa, duracaoPrevistaDias, limiares)`. Testado dos
+   dois lados de cada fronteira (69/70 para Atenção, 99/100 para Atrasado, com
+   `duracaoPrevistaDias = 100` deixando dias == percentual) e com limiar/duração
+   ausentes ou nulos devolvendo `normal`, nunca lançando (AD-005).
+
+2. **T15 buscou cargo/partido e `duracao_prevista_dias`, além do que "Reuses"
+   listava** (`buscarBoardKanban`, `ColunaKanban`, `CardKanban`,
+   `buscarProspeccoesAbertas`). EST-07 AC2 exige o card com "contratante,
+   cargo/partido e dias na etapa", e a classificação por limiar (T16) depende
+   de `duracaoPrevistaDias` por etapa — nenhuma das duas informações está em
+   `CardKanban`/`ColunaKanban` hoje, e T16 ("Where": só o arquivo do
+   componente) não tem onde buscá-las. Resolvido dentro de `quadro.ts`, único
+   ponto de composição entre a leitura e o componente: uma consulta extra a
+   `ref_etapa` (duração) e uma a `fat_contrato`/`dim_mandato` (cargo/partido),
+   restrita aos ids que já apareceram nas colunas — nunca varre o produto
+   inteiro. Contratante sem `dim_mandato` (ex.: Coalizão) devolve
+   `cargoAtual`/`partidoAtual` nulos, nunca lança.
+
+3. **`QuadroAcompanhamento` (T16) é presentational + interativo via callback,
+   não um container que busca dados.** design.md lista `moverEtapaKanban` em
+   "Reuses" e cita `queries/limiar.ts` como dependência — mas nenhuma task do
+   escopo aprovado (T14-T18) cria `queries/limiar.ts`, e a leitura real de
+   `ref_limiar_pendencia` (limiares em produção) não tem onde acontecer dentro
+   de T14-T18. O componente recebe `colunas` (já resolvidas por `buscarQuadro`,
+   T15) e `limiares` como props, e devolve a intenção de mover um card via
+   `onMoverCard` opcional — sem `useQuery`/`useMutation` embutidos. A
+   orquestração real (buscar `ref_limiar_pendencia`, disparar `moverEtapaKanban`
+   no `onMoverCard`) fica para a task que montar a página do Dashboard,
+   explicitamente fora deste batch. Consequência: o card do Quadro não reusa
+   `KanbanCard` verbatim (badge é por limiar, não por status; há linha de
+   cargo/partido que `KanbanCard` não tem) — o que é reusado literalmente é o
+   esqueleto de DnD de `KanbanBoard`/`KanbanColuna` (sensors, `useDraggable`,
+   `useDroppable`). "Não arrastável" da raia de Prospecção (AD-040) foi testado
+   por ausência de `useDraggable`/classe `cursor-grab` no card, não por
+   simulação de gesto de drag (sem harness de drag no projeto).
+
+4. **T17 não reusa `buscarPendencias` de `queries/visao-gerencial.ts`,
+   apesar do "Reuses" apontar para esse consumo.** A função existente está
+   atrás de `FiltroRecorte` e `resolverIdsContratoDoRecorte`, ambos privados
+   àquele arquivo — fora do "Where" desta task (só `queries/pendencias.ts`).
+   Reimplementado com a mesma regra de interseção AND (nunca união OR) entre
+   gestora e projeto já estabelecida em `visao-gerencial.ts`, testada
+   explicitamente com um cenário onde a união produziria um resultado diferente
+   da interseção (Done-when da task). A função nunca filtra por categoria —
+   repassa o que `vw_pendencias` devolver, para não hardcodar a enumeração
+   (AD-004); o "5 categorias" do Done-when e de design.md diverge das 6
+   categorias reais que a view emite desde a T3 (`sucesso_mensal_atrasado`
+   incluída) — tratado como imprecisão herdada do texto da task/design.md, não
+   corrigido silenciosamente: a função não impõe nenhum dos dois números.
+
+**Achados para as fases seguintes:**
+- **`queries/limiar.ts` não existe.** design.md cita o arquivo como dependência
+  de `QuadroAcompanhamento`, mas nenhuma task de T14-T18 o cria. A task que
+  montar a página do Dashboard precisa: (a) criar essa leitura de
+  `ref_limiar_pendencia` (filtrando `codigo IN ('etapa_atencao',
+  'etapa_atrasado')` e `ativo`), (b) chamar `buscarQuadro` (T15) e
+  `buscarPendenciasDashboard` (T17), e (c) wirear `onMoverCard` do
+  `QuadroAcompanhamento` a `moverEtapaKanban` — nenhuma dessas três
+  orquestrações foi feita neste batch, de propósito (fora do escopo aprovado).
+- A página `produtos/[slug]/dashboard/page.tsx` já existe (da feature
+  `kanban-etapas`) e hoje renderiza o `KanbanBoard` antigo — ela não foi tocada
+  neste batch e continua funcionando como está até a fase que a substituir por
+  `QuadroAcompanhamento` + `TabelaPendencias`.
+- O padrão de mock de `useRouter` (`vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }) }))`) usado em `tabela-pendencias.test.tsx` é
+  reutilizável por qualquer componente futuro com linha clicável fora de
+  `<Link>` (mesmo padrão de `GargalosTabela`, que usa `usePathname`/`useRouter`
+  da mesma família).
+- A discrepância "5 vs. 6 categorias" (desvio 4) vale uma correção de texto em
+  spec.md/design.md numa passada de revisão futura — não foi corrigida aqui
+  para não editar spec/design fora do que a task pedia.
 
 ---
 
