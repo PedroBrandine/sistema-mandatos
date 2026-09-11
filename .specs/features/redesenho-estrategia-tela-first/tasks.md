@@ -12,11 +12,10 @@ sub-agentes, Verifier, sensor de discriminação).
 ---
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
-**Status**: In Progress — Batches 1-4 (F0-F4) entregues, mas F4 tinha lacuna de montagem de
-página (T18b, achada por Pedro ao conferir a tela em 2026-09-11: componentes prontos e testados,
-nunca ligados a `dashboard/page.tsx`). Mesma lacuna encontrada em T19-T21 (T21b). Escopo aprovado
-agora inclui T18b, T21b e a Fase 5 inteira (T19-T21). Fases 6-8 (T22-T33) seguem aguardando nova
-aprovação.
+**Status**: In Progress — Fases 0-5 (F0-F5, incluindo T18b e T21b) entregues e confirmadas na
+tela por Pedro. **Fase 6 (Novo Contrato, T22-T24) em execução** — primeira tela de escrita desta
+feature, profundidade de teste completa (AD-042, sem o corte de AD-046). Fases 7-8 (T25-T33)
+seguem aguardando nova aprovação.
 
 ---
 
