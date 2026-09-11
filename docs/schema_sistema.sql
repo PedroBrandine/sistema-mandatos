@@ -537,6 +537,60 @@ CREATE TABLE rel_coalizao_membro (
 COMMENT ON COLUMN rel_coalizao_membro.id_contrato IS
 'A adesão é do contrato, não do contratante: um mandato pode ser membro num ciclo e não no seguinte.';
 
+-- Uma linha = um mandato/organização em prospecção para um produto, ANTES de
+-- existir contrato (AD-040).
+--
+-- Contraponto registrado a D4. D4 removeu 'prospeccao' do CHECK de
+-- fat_contrato e deixou a porta aberta: "o sistema não guarda material
+-- anterior à assinatura. Se a operação precisar disso, volta como tabela
+-- própria." Precisou — e volta por aqui, como tabela própria. D4 continua
+-- valendo onde foi escrita: prospecção NÃO é status de fat_contrato nem linha
+-- de ref_etapa; o CHECK de fat_contrato.status e a régua de etapas ficam
+-- intactos.
+--
+-- Única tabela de operação SEM id_contrato — exceção deliberada à invariante,
+-- porque a prospecção precede o contrato. id_contrato_gerado é o ponteiro do
+-- desfecho, não a âncora. Trade-off de AD-040: o sistema passa a ter duas
+-- entidades de "mandato em trabalho", e toda consulta de carteira decide
+-- explicitamente se inclui prospects — o default registrado é NÃO incluir
+-- (vw_carteira, mv_numeros_impacto e a lista de Mandatos seguem lendo só
+-- fat_contrato), para que nenhum número de impacto ou vigência exista para
+-- algo que ainda não foi assinado.
+--
+-- RLS (AD-001) por id_usuario_resp + papel global: sem id_contrato,
+-- rel_usuario_contrato não serve de chave de carteira.
+CREATE TABLE fat_prospeccao (
+  id_prospeccao      BIGSERIAL PRIMARY KEY,
+  id_contratante     BIGINT NOT NULL REFERENCES dim_contratante(id_contratante) ON DELETE RESTRICT,
+  id_produto         BIGINT NOT NULL REFERENCES ref_produto(id_produto),
+  id_projeto         BIGINT REFERENCES ref_projeto(id_projeto),
+  id_usuario_resp    BIGINT REFERENCES dim_usuario(id_usuario),
+  status             TEXT NOT NULL DEFAULT 'aberta',
+  dt_abertura        DATE NOT NULL DEFAULT CURRENT_DATE,
+  dt_desfecho        DATE,
+  id_contrato_gerado BIGINT REFERENCES fat_contrato(id_contrato),
+  observacao         texto_limpo,
+  criado_em          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  criado_por         BIGINT REFERENCES dim_usuario(id_usuario),
+  atualizado_em      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT ck_prospeccao_status CHECK (status IN ('aberta','convertida','descartada')),
+  CONSTRAINT ck_prospeccao_convertida CHECK (status <> 'convertida' OR id_contrato_gerado IS NOT NULL),
+  CONSTRAINT ck_prospeccao_desfecho CHECK (status = 'aberta' OR dt_desfecho IS NOT NULL)
+);
+
+-- Trava do edge case de conversão simultânea: duas prospecções abertas do
+-- mesmo contratante no mesmo produto não coexistem, então não há duas
+-- conversões concorrentes gerando dois contratos. Linha convertida ou
+-- descartada sai do índice — o mesmo contratante pode ser prospectado de novo.
+CREATE UNIQUE INDEX uq_prospeccao_aberta_contratante
+  ON fat_prospeccao (id_contratante, id_produto) WHERE status = 'aberta';
+
+COMMENT ON TABLE fat_prospeccao IS
+'Mandato em trabalho antes da assinatura (AD-040). Reabre D4 pelo caminho que a própria D4 deixou aberto. Única tabela de operação sem id_contrato — a prospecção existe antes do contrato.';
+
+COMMENT ON COLUMN fat_prospeccao.id_contrato_gerado IS
+'Ponteiro do desfecho, não âncora. Obrigatório apenas quando status = convertida. Preenchido por app.converter_prospeccao, na mesma transação que cria o contrato (AD-024).';
+
 -- =============================================================================
 -- 5. CAMADA TSE (schema tse) — read-only, particionada por safra
 -- Sem RLS (dado público). Sem CPF em nenhuma coluna. Nunca em JOIN
