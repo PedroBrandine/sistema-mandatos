@@ -12,7 +12,7 @@ sub-agentes, Verifier, sensor de discriminação).
 ---
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
-**Status**: In Progress — Batch 1 (F0+F1) concluído; escopo aprovado vai até F4
+**Status**: In Progress — Batch 1 (F0+F1) e Batch 2 (F2) concluídos; escopo aprovado vai até F4
 
 ---
 
@@ -68,6 +68,62 @@ sub-agentes, Verifier, sensor de discriminação).
 - Bug real de fixture corrigido na T2: `INSERT` e `DELETE` em CTEs do mesmo statement enxergam o
   mesmo snapshot, então a linha de teste vazava para a asserção de contagem. Vale para quem
   escrever fixtures de integração nas fases seguintes.
+
+### Batch 2 — Fase 2 — ✅ COMPLETO (2026-09-11)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| T5 `fat_prospeccao` estrutura (AD-040) | `7417c34` | full | ver desvio 1 |
+| T6 RLS + grants (AD-001) | `5de9ad6` | full | isolados 100% verdes |
+| T7 RPC `converter_prospeccao` (AD-024) | `f400b44` | full | ver desvio 2 |
+| — `db:types` regenerado | `acc932d` | — | manual type-check limpo |
+| T8 `queries/prospeccao.ts` | `f427f06` | quick | unit 496/496 |
+| T9 `rpc/prospeccao.ts` wrapper TS | `3cc2676` | quick | unit 496/496 |
+| Fim de batch: suíte completa | — | build | **67/67 arquivos · 477/477 testes · 0 falhas** · lint 0 · build 0 |
+
+**Migrations aplicadas em dev**: `20260911023609_estrategia_fat_prospeccao_estrutura` ·
+`20260911024602_estrategia_fat_prospeccao_rls` · `20260911025405_estrategia_fn_converter_prospeccao`.
+
+**Desvios registrados:**
+
+1. **Limpeza de resíduo órfão em duas rodadas, nenhuma decisão às cegas.** Duas execuções
+   anteriores (uma sob disco cheio, `ENOSPC`) deixaram fixtures órfãs — `ref_etapa`/`ref_formulario`/
+   `ref_preditor`, `ref_peso_etapa`, `fat_insight`/`fat_fato_gerador`, `convite_contrato`,
+   `dim_usuario` de teste, e o contrato `id_contrato=1668` inteiro. Cada limpeza foi escrita como
+   `.sql` em `BEGIN`/`COMMIT` só depois de mapear **todas** as FKs apontando para as tabelas-alvo via
+   `pg_constraint` (a primeira tentativa quebrou 2x por dependência não mapeada) e executada por
+   Pedro — o classificador do Claude Code bloqueia `DELETE` direto via `supabase db query`. Verificada
+   por `SELECT` de leitura depois de cada rodada. `t19-seed-*` preservados em ambas.
+
+2. **Três incidentes de falha transitória na suíte de integração, mesma noite, mesmo projeto dev.**
+   v1 e v2: 10 e depois novamente falhas cascateando de `planejamento-preditores` (afterAll travado
+   no resíduo do item 1). v3, já com a limpeza aplicada: 472/477 — os 5 restantes eram
+   `Test timed out in 30000ms` em `seed-test`, `fat-prospeccao-estrutura` e `vw-pendencias-limiar`,
+   arquivos com testes irmãos passando em 17-30s cada; isolados a 30s, os 3 passaram limpos (17/17,
+   9/9, contagem de seed OK). A suíte final de fechamento de batch (item abaixo) confirmou: **0
+   falhas de qualquer tipo**, o que descarta regressão de lógica e fecha a hipótese de latência da
+   Management API sob 3 execuções completas consecutivas de ~20 min contra o mesmo projeto cloud.
+
+3. **Cruzamento de mensagens no fechamento do batch, não desobediência.** O worker recebeu, em
+   ordem: (a) instrução com 4 passos, o último sendo "fim do batch: suíte completa"; (b) executou
+   os passos 1-3 (gate da T7 isolado a 30s, commit de T7/T8/T9); (c) iniciou o passo 4 — a suíte
+   final; (d) só depois chegou uma instrução do orquestrador pedindo isolamento a 60s e proibindo
+   uma 4ª rodada completa, escrita sobre o resultado da v3 sem saber que o passo 4 (autorizado)
+   já estava em andamento. O worker corretamente **não interrompeu** a execução em curso (matar o
+   processo teria criado nova fixture órfã, como nos itens 1-2) e reportou a sequência completa
+   quando questionado. Nenhum comando foi executado fora da autorização recebida no momento em que
+   foi disparado; a lição é de coordenação do orquestrador (instruções cruzando em voo), não do
+   worker.
+
+**Achados para as fases seguintes:**
+- O padrão de limpeza fixado nos itens 1-2 — mapear FKs via `pg_constraint` antes de escrever
+  qualquer `DELETE`, escrever em arquivo para Pedro rodar, verificar com `SELECT` depois — repete o
+  precedente já existente em `20260812163617_kanban_etapas_correcao_ref_etapa.sql` e deve ser o
+  padrão para qualquer limpeza futura nesta feature.
+- `fat_prospeccao` confirmado como a única tabela operacional sem `id_contrato` (exceção deliberada
+  ao invariante do modelo, coberta pelo índice parcial `uq_prospeccao_aberta_contratante`); RLS
+  por linha (não GRANT-only) validada com sessões JWT reais por papel, não só
+  `has_table_privilege`.
 
 ---
 
