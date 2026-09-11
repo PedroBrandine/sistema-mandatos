@@ -402,6 +402,139 @@ seguem aguardando nova aprovação.
 
 ---
 
+### Fase 8 — ✅ COMPLETO (2026-09-11)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| T31 `vw_estrategia_kpi` | `2f7ec59` | full | unit 575/575 · integração 485 passes + 3 timeouts (ver desvio 1) · teste próprio 11/11 |
+| T32 `queries/estrategia-kpi.ts` | `d00d3a6` | quick | unit **63 arquivos, 588/588 testes** |
+| — correção de tipo em T32 | `152ba51` | build | ver desvio 3 |
+| T33 `KpiRow` | `5eba92c` | build | unit **63 arquivos, 590/590 testes** |
+| T33b Montagem da faixa no Dashboard | `a37878e` | build | lint raiz 0 · `lint:frontend` 29 problemas pré-existentes, nenhum nos arquivos desta fase · unit **590/590** · build 0 erros |
+
+**Migrations aplicadas em dev** (`npnvoolkebhabjkjzqwn`, project-ref conferido
+imediatamente antes do `db push`): `20260911210203_estrategia_vw_kpi`.
+`docs/schema_sistema.sql` atualizado no mesmo commit (AD-008).
+
+**Desvios registrados:**
+
+1. **Gate `full` de T31 fechou com 3 arquivos falhando, todos por timeout — não
+   por regressão.** `tse-busca-indices`, `auth-hook` e `peso-etapa-seed`
+   falharam com `Test timed out in 30000ms`; **zero `AssertionError`** em toda a
+   suíte. A execução levou **6454s (107 min)** contra os ~20 min típicos, sob
+   latência da Management API com uso concorrente do projeto de dev. Conforme o
+   protocolo de coordenação, os 3 arquivos foram rodados **isolados** em vez de
+   repetir a suíte: **10/10 verdes**, incluindo os 3 testes exatos que
+   estouraram. Nenhum deles toca `vw_estrategia_kpi`. A suíte completa rodou
+   **uma única vez**, e o arquivo novo foi validado isolado **antes** dela, para
+   não gastar o recurso compartilhado com um erro próprio.
+
+2. **`nr_fatos_geradores` é `NUMERIC`, não `BIGINT`.** `SUM(bigint)` devolve
+   `numeric` em Postgres, então a coluna saiu com tipo diferente das outras duas
+   contagens (`COUNT` → `bigint`). Corrigir exigiria `DROP` + `CREATE` da view
+   numa segunda migration (`CREATE OR REPLACE` não muda tipo de coluna), com o
+   risco de perder a ACL recém-configurada. Impacto real avaliado como nulo: o
+   tipo gerado em `database.types.ts` é `number | null` nos dois casos e o
+   PostgREST serializa ambos como número. Mantido deliberadamente, não por
+   omissão.
+
+3. **Um commit a mais que o previsto: `152ba51`, fix de tipo em T32.** A lista de
+   colunas do `select` estava numa constante montada por concatenação; o
+   supabase-js parseia essa string **em tempo de tipo**, e uma concatenação não é
+   literal para o compilador — a inferência degradava para `GenericStringError[]`
+   e o cast virava erro de type check. Não apareceu no gate `quick` de T32 porque
+   `src/backend/**` só é type-checado quando tem consumidor no frontend
+   (`CLAUDE.md`); T33b deu o primeiro, e o erro surgiu no `next build` seguinte.
+   Quebra o "um commit por task" de propósito: T32 já estava commitada e
+   migrations/histórico são forward-only, então a correção é commit novo.
+   **Lição reutilizável**: query nova em `src/backend/queries/` só prova que
+   compila quando alguma tela a importa — rodar `next build` logo após a task de
+   montagem, não antes.
+
+4. **Rótulos e cores passaram por uma segunda rodada, depois que Pedro conferiu a
+   tela.** A primeira versão saiu com os números em `--foreground` (quase preto)
+   e rótulos derivados do enunciado de EST-08 AC1, porque o node do Figma não tem
+   file key registrada no repositório e `get_variable_defs` devolve `{}` — o
+   arquivo **não tem variáveis de design**, então todo mapeamento hex→token é
+   manual. Corrigido para `--secondary` (vinho `#571730`) no número e `--primary`
+   (teal `#035252`) na barra, sempre por token e nunca por hex cru, conferindo
+   contra `globals.css` em vez de transcrever do screenshot. Também entraram a
+   barra de progresso do atingimento e a grafia abreviada dos rótulos
+   ("IIP — Índ. de impacto", "Atingimento plan.", "Fatos geradores reg."), com
+   caixa alta aplicada por CSS e não no texto — rótulo escrito em maiúsculas de
+   verdade faz leitor de tela soletrar sigla e perde a acentuação.
+
+5. **A faixa tem 6 KPIs; o Figma mostra 5. Mantidos os 6, por decisão do spec.**
+   O node `44:227` não desenha "Mandatos em atraso", mas EST-08 AC1 o nomeia
+   explicitamente ("mandatos ativos, IIP, **mandatos em atraso**, NPS das
+   imersões, atingimento do planejamento e fatos geradores"). O spec manda no
+   conjunto de KPIs e remover o card faria a tela deixar de cumprir uma AC
+   aprovada. Confirmado depois que aquele frame está **desatualizado** por outras
+   três marcas: mostra "COALIZÃO", a coluna "Rota-X" (typo já corrigido para
+   "Diagnóstico", migration `20260910152709`) e a aba "Contratos" (hoje
+   "Mandatos", EST-03). O `design.md` referencia `44:5`, não `44:227`.
+
+6. **NPS renderiza só o número: sem a barra segmentada
+   (Promotores/Neutros/Detratores) nem o selo "N avaliações" do Figma.** O dado
+   não passa por `vw_estrategia_kpi`. Ele **existe** na origem —
+   `mv_avaliacao_nps` tem `promotores`, `neutros`, `detratores` e `nr_respostas`
+   — e o que falta é agregá-las na view (migration nova, forward-only),
+   propagá-las pela query e pelo tipo, e então desenhar a barra. Enquanto isso o
+   KPI renderiza `—`, nunca um zero ou uma barra vazia (AD-005). Nota de
+   contexto: `mv_avaliacao_nps` tem **0 linhas em dev**, então este KPI seria `—`
+   hoje de qualquer forma, e o lado "com valor" do NPS não é exercitável sem
+   fixture de submissão de formulário — **spec-precision gap** declarado, não
+   lacuna silenciosa.
+
+7. **NPS não é recortável por gestora, e a view diz isso com `NULL`.**
+   `mv_avaliacao_nps` agrega por (formulário × projeto × métrica) e não carrega
+   `id_contrato`; o vínculo de gestora é por contrato, então ele não sobrevive à
+   agregação. Em vez de repetir o número do produto inteiro dentro do recorte de
+   uma gestora — que seria um número **errado** exibido como se fosse dela — as
+   linhas de `escopo_gestora` devolvem `nps_medio NULL`. Resolver exigiria
+   `id_contrato` em `mv_avaliacao_nps`, mudança na Incidência/Formulários fora do
+   escopo de EST-08.
+
+8. **Achado para as fases seguintes: o bloco `.dark` de `globals.css` define
+   `--secondary` como `oklch(0.269 0 0)` (cinza escuro).** Um número em
+   `text-secondary` sobre card escuro ficaria quase ilegível. Sem impacto hoje —
+   não há `ThemeProvider` nem toggle de tema no código (os únicos hits de busca
+   estão no cache do `.next`), logo `.dark` nunca é aplicado, e o próprio
+   `globals.css` documenta que o bloco "permanece intocado (decisão de design)".
+   Registrado porque deixa de ser inofensivo no dia em que o tema escuro entrar.
+   Nada foi alterado em `globals.css`.
+
+9. **Filtros de gestora/projeto: suportados no banco e na query, sem controle na
+   tela.** `vw_estrategia_kpi` emite a linha dos quatro recortes e
+   `buscarEstrategiaKpi` já os traduz (EST-08 AC3, coberto por teste unitário),
+   mas nenhuma task da Fase 8 desenha a barra de filtros que o Figma mostra acima
+   do Quadro — desenhá-la aqui seria scope creep. Ligar os controles é passar
+   `idGestora`/`idProjeto` no filtro.
+
+**Achados (não são desvios):**
+
+- **A view agrega por escopo em vez de por produto, e isso foi escolha forçada
+  por AD-003.** O caminho óbvio — view no grão de contrato, agregada no
+  TypeScript — faria a média de IIP e a de atingimento existirem dentro de um
+  componente React, que é literalmente a "agregação inventada pela tela" que a AD
+  proíbe. Os escopos são colunas **booleanas** e não o `NULL` de um `ROLLUP`/
+  `CUBE` porque em `id_projeto` o `NULL` já significa "contrato sem projeto":
+  reaproveitá-lo para "todos os projetos" tornaria os dois casos indistinguíveis
+  do lado do PostgREST.
+- **A distinção entre contagem-zero e média-nula é visível no próprio banco de
+  dev, sem fixture**: a linha de total do produto Estratégia tem
+  `nr_fatos_geradores = 1` e `iip_medio = NULL` ao mesmo tempo (o único fato
+  gerador existente não tem níveis d1/d2/d3 lançados). É o par que AD-005 exige
+  distinguir, ocorrendo naturalmente.
+- **`mentor` e `assessor` ficaram fora do GRANT por necessidade, não por
+  preferência.** Eles já não leem `vw_pendencias` nem `mv_avaliacao_nps`; com
+  `security_invoker`, conceder a view sem conceder as fontes trocaria "o número
+  não aparece" por erro `42501` no meio da agregação.
+- **`lint:frontend` caiu de 30 para 29 problemas pré-existentes** (a redução veio
+  de fora desta fase); nenhum dos 29 está em arquivo que a Fase 8 tocou.
+
+---
+
 ## Test Coverage Matrix
 
 > Gerada a partir do codebase, das guidelines do projeto e do spec — confirmar antes de Execute.
@@ -1279,11 +1412,11 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: NONE · Skill: `supabase`, `supabase-postgres-best-practices`
 
 **Done when**:
-- [ ] Os 6 KPIs saem da view, nenhum calculado fora dela (AD-003)
-- [ ] View só lê e agrega; não recalcula o IIP (AD-014, AD-015)
-- [ ] Sem dado suficiente devolve `NULL`, nunca `0` (AD-005 / EST-08 AC2)
-- [ ] `security_invoker = true`; grants coerentes com os `REVOKE` existentes
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] Os 6 KPIs saem da view, nenhum calculado fora dela (AD-003)
+- [x] View só lê e agrega; não recalcula o IIP (AD-014, AD-015)
+- [x] Sem dado suficiente devolve `NULL`, nunca `0` (AD-005 / EST-08 AC2)
+- [x] `security_invoker = true`; grants coerentes com os `REVOKE` existentes
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): vw_estrategia_kpi na camada Saida (AD-003)`
@@ -1303,9 +1436,9 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Filtros recalculam o recorte (EST-08 AC3)
-- [ ] `NULL` do banco chega como ausência, não como `0` (EST-08 AC2)
-- [ ] Gate: `npm run test:unit`
+- [x] Filtros recalculam o recorte (EST-08 AC3)
+- [x] `NULL` do banco chega como ausência, não como `0` (EST-08 AC2)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): query dos KPIs do dashboard`
@@ -1325,10 +1458,10 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: `Figma` (T3 `44:5`) · Skill: `ui-ux-pro-max`, `dataviz`
 
 **Done when**:
-- [ ] Os 6 KPIs renderizam com os rótulos do Figma (EST-08 AC1)
-- [ ] Ausência renderiza "—" e presença renderiza o número — teste dos dois lados (EST-08 AC2)
-- [ ] `lint:frontend` limpo
-- [ ] Gate: `npm run lint && npm run test:unit && npm run build`
+- [x] Os 6 KPIs renderizam com os rótulos do Figma (EST-08 AC1)
+- [x] Ausência renderiza "—" e presença renderiza o número — teste dos dois lados (EST-08 AC2)
+- [x] `lint:frontend` limpo
+- [x] Gate: `npm run lint && npm run test:unit && npm run build`
 
 **Tests**: unit · **Gate**: build
 **Commit**: `feat(estrategia): faixa de KPIs do dashboard (EST-08)`
@@ -1352,11 +1485,11 @@ KPIs aparece acima do quadro.
 **Tools**: MCP: `Figma` (T3 `44:5`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] `/produtos/estrategia/dashboard` renderiza a faixa de KPIs acima do Quadro, com números reais
-- [ ] A orquestração de T18b (Quadro + Pendências + limiares) segue intacta — nenhuma regressão
-- [ ] KPI ausente renderiza "—", nunca zero inventado (AD-005)
-- [ ] `lint:frontend` limpo
-- [ ] Gate: `npm run lint && npm run test:unit && npm run build`
+- [x] `/produtos/estrategia/dashboard` renderiza a faixa de KPIs acima do Quadro, com números reais
+- [x] A orquestração de T18b (Quadro + Pendências + limiares) segue intacta — nenhuma regressão
+- [x] KPI ausente renderiza "—", nunca zero inventado (AD-005)
+- [x] `lint:frontend` limpo
+- [x] Gate: `npm run lint && npm run test:unit && npm run build`
 
 **Tests**: unit · **Gate**: build
 **Commit**: `feat(estrategia): monta faixa de KPIs no Dashboard (EST-08)`
