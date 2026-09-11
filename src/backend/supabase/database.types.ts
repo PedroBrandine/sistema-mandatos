@@ -42,6 +42,10 @@ export type Database = {
         }[]
       }
       contratos_do_usuario: { Args: never; Returns: number[] }
+      converter_prospeccao: {
+        Args: { p_dt_inicio?: string; p_id_prospeccao: number }
+        Returns: number
+      }
       cria_particoes_log: {
         Args: { p_de: string; p_meses?: number }
         Returns: undefined
@@ -1550,6 +1554,146 @@ export type Database = {
           },
         ]
       }
+      fat_prospeccao: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          criado_por: number | null
+          dt_abertura: string
+          dt_desfecho: string | null
+          id_contratante: number
+          id_contrato_gerado: number | null
+          id_produto: number
+          id_projeto: number | null
+          id_prospeccao: number
+          id_usuario_resp: number | null
+          observacao: string | null
+          status: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          criado_por?: number | null
+          dt_abertura?: string
+          dt_desfecho?: string | null
+          id_contratante: number
+          id_contrato_gerado?: number | null
+          id_produto: number
+          id_projeto?: number | null
+          id_prospeccao?: number
+          id_usuario_resp?: number | null
+          observacao?: string | null
+          status?: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          criado_por?: number | null
+          dt_abertura?: string
+          dt_desfecho?: string | null
+          id_contratante?: number
+          id_contrato_gerado?: number | null
+          id_produto?: number
+          id_projeto?: number | null
+          id_prospeccao?: number
+          id_usuario_resp?: number | null
+          observacao?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_prospeccao_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contratante_fkey"
+            columns: ["id_contratante"]
+            isOneToOne: false
+            referencedRelation: "dim_contratante"
+            referencedColumns: ["id_contratante"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contratante_fkey"
+            columns: ["id_contratante"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contratante"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contrato_gerado_fkey"
+            columns: ["id_contrato_gerado"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contrato_gerado_fkey"
+            columns: ["id_contrato_gerado"]
+            isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contrato_gerado_fkey"
+            columns: ["id_contrato_gerado"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contrato_gerado_fkey"
+            columns: ["id_contrato_gerado"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contrato_gerado_fkey"
+            columns: ["id_contrato_gerado"]
+            isOneToOne: false
+            referencedRelation: "vw_cobertura_registro_mensal"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contrato_gerado_fkey"
+            columns: ["id_contrato_gerado"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_contrato_gerado_fkey"
+            columns: ["id_contrato_gerado"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_projeto_fkey"
+            columns: ["id_projeto"]
+            isOneToOne: false
+            referencedRelation: "ref_projeto"
+            referencedColumns: ["id_projeto"]
+          },
+          {
+            foreignKeyName: "fat_prospeccao_id_usuario_resp_fkey"
+            columns: ["id_usuario_resp"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
       fat_registro: {
         Row: {
           canal: string | null
@@ -2779,6 +2923,33 @@ export type Database = {
           id_indicador?: number
           nome?: string
           peso_iip?: number
+        }
+        Relationships: []
+      }
+      ref_limiar_pendencia: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          dias: number | null
+          id_limiar: number
+          nome: string
+          pct_duracao_etapa: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          dias?: number | null
+          id_limiar?: number
+          nome: string
+          pct_duracao_etapa?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          dias?: number | null
+          id_limiar?: number
+          nome?: string
+          pct_duracao_etapa?: number | null
         }
         Relationships: []
       }
@@ -5343,12 +5514,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5372,11 +5543,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5397,11 +5568,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5422,11 +5593,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5439,11 +5610,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
