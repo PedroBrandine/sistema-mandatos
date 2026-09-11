@@ -235,7 +235,7 @@ médio (`mv_iip_contrato`), contratos com etapa atrasada, NPS (`mv_avaliacao_nps
 | Conversão simultânea | `uq_prospeccao_aberta_contratante` faz a 2ª falhar | Segunda usuária vê erro; nenhum contrato duplicado |
 | Leitura negada pela RLS/GRANT (EST-02 AC2) | Erro de permissão tratado como "não visível" | Card do Hub simplesmente não aparece |
 | Mês sem encontros (EST-12) | Lista vazia não é erro | Grade completa + `EstadoVazio` |
-| Contrato sem etapa atual | Coluna "Sem etapa" | Card visível, nunca sumido |
+| Contrato sem etapa atual (`id_etapa_atual IS NULL`) | Coluna da 1ª etapa (Pontapé) — correção de 2026-09-11, não existe "Sem etapa" no processo real (ver spec.md Edge Cases) | Card visível, nunca sumido |
 
 ---
 

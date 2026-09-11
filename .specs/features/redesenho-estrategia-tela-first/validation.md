@@ -244,20 +244,19 @@ default.
 
 ## Fix Plans (não-bloqueantes)
 
-### Fix 1: Coluna "Sem etapa" não existe no Quadro de Acompanhamento
+### Fix 1: Coluna "Sem etapa" não existe no Quadro de Acompanhamento — RESOLVIDO (2026-09-11)
 
 - **Root cause**: `buscarBoardKanban` (`src/backend/queries/kanban.ts:91-95`), reusado
   verbatim por `queries/quadro.ts`, posiciona um contrato com `id_etapa_atual IS NULL` na coluna
   da primeira etapa real (`ordem=1`) — decisão herdada da feature `kanban-etapas`, anterior a
-  este redesenho. `spec.md` (Edge Cases) e `design.md` (Error Handling Strategy) prometem uma
+  este redesenho. `spec.md` (Edge Cases) e `design.md` (Error Handling Strategy) previam uma
   coluna distinta chamada "Sem etapa".
-- **Fix task**: decidir com Pedro se (a) o comportamento atual (cair na 1ª etapa) é aceito
-  retroativamente como a interpretação correta e o texto do spec/design é que deve ser corrigido,
-  ou (b) `buscarBoardKanban`/`queries/quadro.ts` ganham uma coluna sintética "Sem etapa" para
-  `id_etapa_atual IS NULL`. Se (b), toca `kanban.ts` (usado também pelo Kanban de Etapas
-  original) — avaliar impacto ali antes de mudar.
-- **Priority**: Minor — não há contrato desaparecendo (a garantia central do edge case é
-  respeitada), é uma divergência de rótulo/agrupamento visual herdada de código pré-existente.
+- **Decisão de Pedro**: não existe, no processo real, um estado de "contrato sem etapa nenhuma".
+  `id_etapa_atual` só fica NULL entre o cadastro do mandato e a primeira movimentação manual no
+  Kanban — na prática, o mandato já nasce em Pontapé. O comportamento implementado está correto;
+  o texto do spec/design é que estava impreciso, e foi corrigido em `spec.md` (Edge Cases) e
+  `design.md` (Error Handling Strategy) na mesma data. Nenhuma mudança de código necessária.
+- **Priority**: Fechado — não é mais um gap.
 
 ### Fix 2 (registro, não ação): EST-02 AC7 / EST-05 AC3 — enforcement de RLS para "Gestão de Usuários"
 

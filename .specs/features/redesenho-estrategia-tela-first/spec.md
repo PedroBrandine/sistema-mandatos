@@ -347,7 +347,7 @@ leitura do conjunto antes de olhar caso a caso.
 
 ## Edge Cases
 
-- WHEN o contrato não tem etapa atual THEN o card SHALL aparecer numa coluna "Sem etapa", nunca desaparecer silenciosamente.
+- WHEN o contrato não tem etapa atual (`id_etapa_atual IS NULL` — recém-cadastrado, ainda não movido pela primeira vez no Kanban) THEN o card SHALL aparecer na coluna da 1ª etapa (Pontapé), nunca desaparecer silenciosamente. **Correção de 2026-09-11**: o texto original previa uma coluna própria "Sem etapa"; Pedro esclareceu que não existe, no processo real, um estado de "contrato sem etapa nenhuma" — todo mandato cadastrado já está, na prática, em Pontapé, só sem o `UPDATE` explícito até a primeira movimentação. O comportamento implementado (herdado de `kanban.ts`, feature `kanban-etapas`) está correto; o texto do spec é que estava impreciso.
 - WHEN `ref_etapa` tem etapa sem nenhum contrato THEN a coluna SHALL renderizar vazia, com contador zero.
 - WHEN dois usuários convertem a mesma prospecção simultaneamente THEN apenas uma conversão SHALL criar contrato; a outra SHALL falhar com mensagem.
 - WHEN o espelho TSE está indisponível THEN a busca SHALL degradar para o cadastro manual, sem erro não tratado.
