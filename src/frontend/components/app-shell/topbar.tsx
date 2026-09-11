@@ -1,17 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Flag, Home, Users2, User } from "lucide-react";
+import { Flag, Home, User } from "lucide-react";
 
-import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { cn } from "@/lib/utils";
 
 const LINK_CLASSES =
   "flex items-center gap-2.5 rounded-full px-4 py-2 text-sm font-medium text-sidebar-foreground/80 transition-all duration-300 hover:bg-white/10 hover:text-sidebar-foreground active:scale-[0.98]";
 
 export function Topbar() {
-  const { papel } = usePapelGlobal();
-
   return (
     <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/10 bg-sidebar/95 px-6 text-sidebar-foreground backdrop-blur-md supports-[backdrop-filter]:bg-sidebar/85 shadow-sm">
       <div className="flex items-center gap-3">
@@ -34,12 +31,6 @@ export function Topbar() {
             <Home className="size-4 shrink-0 opacity-70" aria-hidden="true" />
             <span>Hub</span>
           </Link>
-          {(papel === "admin" || papel === "gestora") && (
-            <Link href="/usuarios" className={cn(LINK_CLASSES)}>
-              <Users2 className="size-4 shrink-0 opacity-70" aria-hidden="true" />
-              <span>Gestão de Usuários</span>
-            </Link>
-          )}
         </nav>
         
         {/* Placeholder para Avatar de Usuário Logado */}
