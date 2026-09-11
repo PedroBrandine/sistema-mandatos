@@ -1652,3 +1652,46 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   criada por uma sessão paralela na mesma janela e também nunca commitada, **desapareceu** do
   working tree — trabalho perdido. O mapa de telas é o insumo do Figma; commitar antes de seguir.
 - **Branch**: develop.
+
+---
+
+## Handoff (Revisão dos Tipos de Registro — CONCLUÍDA, aguardando confirmação da operação em 1 ponto)
+
+- **Feature**: `.specs/features/revisao-tipos-registro/` — correção de conteúdo de
+  `ref_tipo_registro` (11 linhas) contra os 10 checklists reais da operação de
+  Estratégia, trazidos por Pedro em 2026-09-10. Pré-requisito da Fase 7 (Agenda,
+  T25-T30) de `redesenho-estrategia-tela-first`. Protocolo `redesenho-tela-first.md`
+  aplicado: checagem §3 embutida em `context.md`/`spec.md`.
+- **Resultado**: nenhuma trava técnica ferida, nenhuma AD nova. `sprint` → "Reunião
+  Semanal", `monitoramento` → "Monitoramento" (só `nome`; `codigo` inalterado nos
+  dois — referenciado por 7 fixtures de teste). `organograma` ("Proposta de
+  Organograma") aposentado via `ativo=false` — não aparece em nenhum checklist.
+  `legisla_aliada` confirmado ativo, fechando pendência aberta desde o seed
+  original. Migration `20260911032046_estrategia_revisao_tipos_registro.sql`,
+  commitada; `docs/schema_sistema.sql` e `docs/jornadas-de-usuario-v2.md` §10.1
+  reconciliados na mesma sessão.
+- **Achado real, fora do escopo desta feature**: os 10 checklists da operação pedem
+  **"Presentes"** em todo tipo de registro. O modelo aprovado **não tem** onde
+  guardar isso — só existe `rel_encontro_participante` (do encontro, não do
+  registro). Duas saídas possíveis, nenhuma escolhida: (a) tabela nova
+  `rel_registro_participante`; (b) derivar presença do `fat_registro.id_encontro`
+  quando houver um vinculado (mas registro sem encontro fica sem presença). Não
+  bloqueia a Fase 7 da feature irmã, cuja lista mostra "Responsável", não
+  "Presentes" — mas vai bloquear qualquer tela futura de **lançar** um registro
+  com fidelidade ao checklist real.
+- **Não aplicado**: a migration não rodou contra o banco de dev nesta sessão — só
+  o arquivo foi escrito e commitado (`db push` fica para quando o dev compartilhado
+  estiver livre da sessão concorrente que o estava usando). `npm run
+  test:integration` também não rodou, pela mesma razão; verificação de que nenhum
+  teste quebra foi feita por leitura (ver `spec.md` TIP-04 e a justificativa no
+  commit de teste — não houve edição de teste porque nenhum afirma nome nem
+  `ativo` de `ref_tipo_registro`, só contagem total e `codigo`, que não mudaram).
+- **Ponto a confirmar na próxima demo**: "Proposta de Organograma" (`organograma`)
+  foi tratada como fundida no checklist #9 ("Diagnóstico de Organograma") — a
+  operação não confirmou isso explicitamente, é leitura do conteúdo dos dois
+  checklists. Se for omissão em vez de fusão, é reverter um `UPDATE` de uma linha.
+- **Next step**: rodar `supabase db push` (dev) quando o ambiente compartilhado
+  estiver livre, seguido de `npm run test:integration` para confirmar a leitura
+  acima. Depois disso, a Fase 7 de `redesenho-estrategia-tela-first` pode consumir
+  o catálogo real.
+- **Branch**: develop.

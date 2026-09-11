@@ -358,9 +358,27 @@ Inventário extraído dos dois checklists — hoje já materializado nos catálo
 
 ### 10.1 Tipos de registro (`ref_tipo_registro` → `fat_registro`)
 
-**Estratégia:** pontapé · comitê político · escuta diagnóstica · imersão · sprint (×N, sem limite) · diagnóstico de organograma · organograma (proposta) · monitoramento (mensal, ×4) · replicação · legisla aliada **PLL:** mentoria (×5)
+> **Revisado em 2026-09-10** (`.specs/features/revisao-tipos-registro/`) contra os
+> 10 checklists reais da operação de Estratégia — o inventário anterior vinha
+> transcrito literalmente de planilha. "Legisla aliada" foi **confirmado ativo**
+> pela operação (pendência do seed encerrada). Dois nomes passaram a usar o
+> vocabulário da operação (`sprint`, `monitoramento` — `codigo` não mudou).
+> "Proposta de Organograma" (`organograma`) não aparece em nenhum checklist e foi
+> **aposentada** (`ativo = false`, linha preservada).
 
-> Registro com mais de uma ocorrência usa `nr_sequencia` — não uma coluna por ocorrência. `legisla_aliada` veio das planilhas e não estava em nenhum documento de escopo; entrou no catálogo para não se perder (confirmar com a operação se segue ativo).
+**Estratégia (9 ativos):** pontapé · comitê político - Diagnóstico · escuta
+diagnóstica - Diagnóstico · imersão · reunião semanal - Governança (×N, sem
+limite) · diagnóstico de organograma - Governança · monitoramento (×4) ·
+replicação · legisla aliada. **PLL:** mentoria (×5).
+
+> Registro com mais de uma ocorrência usa `nr_sequencia` — não uma coluna por
+> ocorrência. "Registros Insights" **não é** um tipo de registro: suas 4
+> perguntas (contexto sociopolítico, incidência política, desafio/problema,
+> conquistas/boas práticas) já são as 4 linhas de `ref_pilar_insight`, e o
+> registro é `fat_insight` (A6.3). O campo **"Presentes"**, presente nos 10
+> checklists da operação, não tem tabela no modelo aprovado — só existe
+> `rel_encontro_participante` (do encontro, não do registro); achado registrado,
+> fora do escopo desta revisão.
 
 ### 10.2 Formulários do sistema (`ref_formulario`)
 

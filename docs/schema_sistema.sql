@@ -31,7 +31,9 @@
 --     sai de ref_formulario e vira eixo de fat_gip_dimensao, com vw_gip_evolucao
 --     entregando a comparação e o gap por dimensão.
 -- D7  id_mentorado é timestamp, não CPF -> alarme de LGPD encerrado.
--- D8  'legisla_aliada' segue ativo -> mantido em ref_tipo_registro.
+-- D8  'legisla_aliada' segue ativo -> mantido em ref_tipo_registro. Confirmado
+--     pela operação em 2026-09-10 (feature revisao-tipos-registro): é o
+--     checklist "Legisla Aliada" -- pendência do seed encerrada.
 -- D9  Etapas da Coalizão seguem EM ABERTO (provável reuso da régua de
 --     Estratégia). Sem seed; o INSERT de clonagem está pronto na §16.
 -- D10 Planejamento sobrescreve; memória fica em log_auditoria + snapshot mensal.
@@ -2359,7 +2361,14 @@ ON CONFLICT (id_produto, codigo) DO NOTHING;
 -- Coalizão sem planejamento próprio não tem régua: é visão filtrada por projeto
 -- sobre os contratos membros, cada um com a régua da Estratégia.
 
--- Tipos de registro derivados literalmente das abas de "Registros Slack" e f_mentorias.
+-- Tipos de registro. Seed original derivado literalmente das abas de
+-- "Registros Slack" e f_mentorias -- revisado contra os 10 checklists reais
+-- da operação em 2026-09-10 (revisao-tipos-registro/spec.md, TIP-01/02/03):
+-- 'sprint' e 'monitoramento' passam a usar o nome da operação ('nome' aqui já
+-- reflete a correção; 'codigo' não muda, permanece referenciado por seed e
+-- por fixture de teste). 'organograma' ("Proposta de Organograma") não
+-- aparece em nenhum checklist -- fica ativo=false na migration aplicada
+-- (20260911032046), preservado aqui como o histórico original do INSERT.
 INSERT INTO ref_tipo_registro (id_etapa, codigo, nome, permite_multiplos, qtd_prevista)
 SELECT e.id_etapa, v.codigo, v.nome, v.multiplos, v.qtd
   FROM ref_etapa e
@@ -2369,10 +2378,10 @@ SELECT e.id_etapa, v.codigo, v.nome, v.multiplos, v.qtd
     ('Estratégia','raio_x',                   'comite_politico',        'Comitê Político',                false, NULL),
     ('Estratégia','raio_x',                   'escuta_diagnostica',     'Escuta Diagnóstica',             false, NULL),
     ('Estratégia','imersao',                  'imersao',                'Imersão',                        false, NULL),
-    ('Estratégia','governanca',               'sprint',                 'Sprint',                         true,  NULL),
+    ('Estratégia','governanca',               'sprint',                 'Reunião Semanal',                true,  NULL),
     ('Estratégia','governanca',               'diagnostico_organograma','Diagnóstico de Organograma',     false, NULL),
     ('Estratégia','governanca',               'organograma',            'Proposta de Organograma',        false, NULL),
-    ('Estratégia','monitoramento',            'monitoramento',          'Monitoramento mensal',           true,  4),
+    ('Estratégia','monitoramento',            'monitoramento',          'Monitoramento',                  true,  4),
     ('Estratégia','replicacao',               'replicacao',             'Replicação',                     false, NULL),
     ('Estratégia','monitoramento',            'legisla_aliada',         'Legisla Aliada',                 true,  NULL),
     ('PLL',       'mentorias',                'mentoria',               'Mentoria',                       true,  5)
