@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { createClient } from "@backend/supabase/client";
+import { buscarEstrategiaKpi } from "@backend/queries/estrategia-kpi";
 import { buscarLimiares } from "@backend/queries/limiar";
 import type { ColunaEtapaQuadro, ColunaQuadro } from "@backend/queries/quadro";
 import { buscarQuadro } from "@backend/queries/quadro";
@@ -19,6 +20,7 @@ import type { LimiaresEtapa } from "@/lib/limiar";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
+import { KpiRow } from "@/components/estrategia/kpi-row";
 import { QuadroAcompanhamento } from "@/components/estrategia/quadro-acompanhamento";
 import { TabelaPendencias } from "@/components/estrategia/tabela-pendencias";
 
@@ -31,11 +33,16 @@ import { TabelaPendencias } from "@/components/estrategia/tabela-pendencias";
 // empilhados verticalmente na mesma ordem do design: Quadro em cima,
 // Pendências abaixo, ambos ocupando a largura total.
 //
-// Fora de escopo desta task (ver "Achados" do Batch 4 em tasks.md e a
-// linha KPI do Figma 44:5, que pertence à Fase 8 / T31-T33, ainda sem
-// aprovação): a fileira de KPIs (Mandatos Ativos, IIP, NPS etc.) e a barra
-// de filtros de gestora/projeto que o Figma mostra acima do Quadro. Nenhum
-// dos dois está no Done-when de T18b.
+// A faixa de KPIs que este comentário listava como fora de escopo chegou na
+// Fase 8 (T33b, EST-08): KpiRow fica acima do Quadro, como no Figma 44:5, e
+// lê vw_estrategia_kpi por buscarEstrategiaKpi -- nenhum dos 6 números é
+// calculado aqui (AD-003).
+//
+// Continua fora de escopo: a barra de filtros de gestora/projeto que o Figma
+// mostra acima do Quadro. A view e a query já aceitam os dois recortes
+// (EST-08 AC3), então ligar os controles é só passar idGestora/idProjeto no
+// filtro -- mas nenhuma task da Fase 8 os desenha, e inventá-los aqui seria
+// scope creep.
 //
 // AD-046: tela de leitura -- caminho feliz de cada AC, sem par
 // positivo/negativo de cada condicional exigido no teste de componente.
@@ -59,6 +66,20 @@ export default function ProdutoDashboardPage({
   } = useQuery({
     queryKey: quadroQueryKey,
     queryFn: () => buscarQuadro(createClient(), { idProduto: idProduto as number }),
+    enabled: idProduto !== undefined,
+  });
+
+  // EST-08 (T33b). Os 6 KPIs da faixa do topo. idProduto é o único recorte
+  // hoje: os filtros de gestora/projeto que a view suporta (AC3) ainda não
+  // têm controle na tela.
+  const {
+    data: kpi,
+    isLoading: carregandoKpi,
+    isError: erroKpi,
+    refetch: refetchKpi,
+  } = useQuery({
+    queryKey: ["estrategia-kpi", idProduto],
+    queryFn: () => buscarEstrategiaKpi(createClient(), { idProduto: idProduto as number }),
     enabled: idProduto !== undefined,
   });
 
@@ -115,7 +136,7 @@ export default function ProdutoDashboardPage({
     },
   });
 
-  if (carregandoProduto || carregandoQuadro || carregandoLimiares || carregandoPendencias) {
+  if (carregandoProduto || carregandoQuadro || carregandoLimiares || carregandoPendencias || carregandoKpi) {
     return <CarregandoSkeleton variante="cards" />;
   }
 
@@ -130,6 +151,15 @@ export default function ProdutoDashboardPage({
 
   return (
     <div className="grid gap-6">
+      {/* Faixa de KPIs acima do Quadro (Figma 44:5). Falha de leitura vira
+          ErroInline próprio, no mesmo padrão das Pendências: um KPI que não
+          carregou não pode derrubar o Quadro, que é o centro da tela. */}
+      {erroKpi ? (
+        <ErroInline mensagem="Não foi possível carregar os KPIs." onRetry={() => refetchKpi()} />
+      ) : (
+        kpi && <KpiRow kpi={kpi} />
+      )}
+
       {!colunas || colunas.length === 0 ? (
         <EstadoVazio
           titulo="Nenhuma etapa cadastrada"
