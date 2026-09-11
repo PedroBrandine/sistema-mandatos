@@ -1509,6 +1509,71 @@ JOIN fat_objetivo_especifico o ON o.id_objetivo = mt.id_objetivo
 JOIN dim_planejamento pl       ON pl.id_planejamento = o.id_planejamento
 WHERE sm.status = 'pendente' AND sm.dt_limite < CURRENT_DATE;
 
+-- Os 6 KPIs do topo do Dashboard do produto (EST-08 de
+-- redesenho-estrategia-tela-first). Agregados AQUI, não no componente: AD-003
+-- existe justamente para impedir que cada tela invente a própria agregação.
+-- Uma linha por (produto × escopo de projeto × escopo de gestora) -- as duas
+-- colunas booleanas dizem se a linha é um recorte ou o total, para que o
+-- consumidor leia UMA linha em vez de somar várias, e para não reaproveitar o
+-- NULL de id_projeto (que já significa "contrato sem projeto") como "todos os
+-- projetos". Dentro de cada grupo o contrato entra uma única vez, então AVG e
+-- SUM não inflam com contrato de duas gestoras ativas.
+-- IIP e NPS entram prontos das MVs -- a Saída não recalcula métrica (AD-014);
+-- nr_fatos_geradores lê mv_iip_contrato.nr_fatos em vez de fat_fato_gerador
+-- pelo mesmo motivo de AD-003. As três médias devolvem NULL sem amostra
+-- (AD-005, tela renderiza "—"); as três contagens devolvem 0, que ali é fato
+-- conhecido e não sentinela. nps_medio é NULL em toda linha de escopo_gestora:
+-- mv_avaliacao_nps não carrega id_contrato, logo NPS não é recortável por
+-- gestora, e repetir o número do produto inteiro seria número errado.
+CREATE VIEW vw_estrategia_kpi WITH (security_invoker = true) AS
+WITH contrato_escopo AS (
+  SELECT c.id_contrato, c.id_produto, c.status,
+         prj.escopo_projeto, prj.id_projeto,
+         gst.escopo_gestora, gst.id_usuario_gestora
+  FROM fat_contrato c
+  CROSS JOIN LATERAL (
+    SELECT false AS escopo_projeto, NULL::bigint AS id_projeto
+    UNION ALL SELECT true, c.id_projeto WHERE c.id_projeto IS NOT NULL
+  ) prj
+  CROSS JOIN LATERAL (
+    SELECT false AS escopo_gestora, NULL::bigint AS id_usuario_gestora
+    UNION ALL
+    SELECT true, v.id_usuario FROM rel_usuario_contrato v
+     WHERE v.id_contrato = c.id_contrato AND v.papel_no_contrato = 'gestora'
+       AND (v.dt_fim IS NULL OR v.dt_fim >= CURRENT_DATE)
+  ) gst
+),
+etapa_atrasada AS (
+  SELECT DISTINCT id_contrato FROM vw_pendencias WHERE categoria = 'etapa_atrasada'
+),
+nps_escopo AS (
+  SELECT re.id_produto, prj.escopo_projeto, prj.id_projeto, ROUND(AVG(a.nps), 2) AS nps_medio
+  FROM mv_avaliacao_nps a
+  JOIN ref_formulario rf ON rf.id_formulario = a.id_formulario
+  JOIN ref_etapa re      ON re.id_etapa = rf.id_etapa
+  CROSS JOIN LATERAL (
+    SELECT false AS escopo_projeto, NULL::bigint AS id_projeto
+    UNION ALL SELECT true, a.id_projeto_grupo WHERE a.id_projeto_grupo <> 0
+  ) prj
+  WHERE a.eh_nps AND a.nps IS NOT NULL
+  GROUP BY re.id_produto, prj.escopo_projeto, prj.id_projeto
+)
+SELECT ce.id_produto, ce.escopo_projeto, ce.id_projeto, ce.escopo_gestora, ce.id_usuario_gestora,
+       COUNT(DISTINCT ce.id_contrato) FILTER (WHERE ce.status = 'ativo')        AS mandatos_ativos,
+       ROUND(AVG(iip.iip_provisorio), 2)                                        AS iip_medio,
+       COUNT(DISTINCT ce.id_contrato) FILTER (WHERE ea.id_contrato IS NOT NULL) AS mandatos_em_atraso,
+       CASE WHEN ce.escopo_gestora THEN NULL ELSE MAX(nps.nps_medio) END        AS nps_medio,
+       ROUND(AVG(pl.pct_atingimento), 2)                                        AS pct_atingimento_medio,
+       COALESCE(SUM(iip.nr_fatos), 0)                                           AS nr_fatos_geradores
+FROM contrato_escopo ce
+LEFT JOIN mv_iip_contrato iip ON iip.id_contrato = ce.id_contrato
+LEFT JOIN etapa_atrasada ea   ON ea.id_contrato = ce.id_contrato
+LEFT JOIN dim_planejamento pl ON pl.id_contrato = ce.id_contrato
+LEFT JOIN nps_escopo nps ON nps.id_produto     = ce.id_produto
+                        AND nps.escopo_projeto = ce.escopo_projeto
+                        AND nps.id_projeto IS NOT DISTINCT FROM ce.id_projeto
+GROUP BY ce.id_produto, ce.escopo_projeto, ce.id_projeto, ce.escopo_gestora, ce.id_usuario_gestora;
+
 -- =============================================================================
 -- 10. STAGING DA MIGRAÇÃO (descartável)
 -- =============================================================================
@@ -2184,6 +2249,12 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO legisla_assessor;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO legisla_mentor;
 REVOKE SELECT ON mv_numeros_impacto, mv_avaliacao_nps, log_auditoria FROM legisla_mentor;
 REVOKE SELECT ON mv_numeros_impacto, mv_avaliacao_nps, mv_iip_contrato, log_auditoria FROM legisla_assessor;
+
+-- vw_estrategia_kpi segue a mesma exclusão de vw_pendencias, e pela mesma
+-- razão: ela agrega mv_avaliacao_nps e vw_pendencias, que estes dois papéis
+-- não leem. Com security_invoker, conceder a view sem conceder as fontes
+-- trocaria "o número não aparece" por erro de permissão no meio da agregação.
+REVOKE SELECT ON vw_estrategia_kpi FROM legisla_mentor, legisla_assessor;
 
 COMMENT ON MATERIALIZED VIEW mv_iip_contrato IS
 'Materialized views não respeitam RLS. O recorte por carteira do Mentor acontece no JOIN de vw_carteira; o Assessor não recebe GRANT nenhum aqui. Refresh horário CONCURRENTLY (exige o índice UNIQUE acima).';

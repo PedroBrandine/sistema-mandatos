@@ -4207,6 +4207,30 @@ export type Database = {
           },
         ]
       }
+      vw_estrategia_kpi: {
+        Row: {
+          escopo_gestora: boolean | null
+          escopo_projeto: boolean | null
+          id_produto: number | null
+          id_projeto: number | null
+          id_usuario_gestora: number | null
+          iip_medio: number | null
+          mandatos_ativos: number | null
+          mandatos_em_atraso: number | null
+          nps_medio: number | null
+          nr_fatos_geradores: number | null
+          pct_atingimento_medio: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_contrato_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+        ]
+      }
       vw_etapa_contrato: {
         Row: {
           atualizado_em: string | null
