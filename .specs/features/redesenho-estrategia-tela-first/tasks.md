@@ -12,8 +12,11 @@ sub-agentes, Verifier, sensor de discriminação).
 ---
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
-**Status**: Escopo aprovado (F0-F4) concluído — Batch 1 (F0+F1), Batch 2 (F2), Batch 3 (F3) e
-Batch 4 (F4) entregues. Fases 5-8 (T19-T33) aguardam nova aprovação de Pedro antes de iniciar.
+**Status**: In Progress — Batches 1-4 (F0-F4) entregues, mas F4 tinha lacuna de montagem de
+página (T18b, achada por Pedro ao conferir a tela em 2026-09-11: componentes prontos e testados,
+nunca ligados a `dashboard/page.tsx`). Mesma lacuna encontrada em T19-T21 (T21b). Escopo aprovado
+agora inclui T18b, T21b e a Fase 5 inteira (T19-T21). Fases 6-8 (T22-T33) seguem aguardando nova
+aprovação.
 
 ---
 
@@ -371,12 +374,12 @@ T10 → T11 → T12 → T13
 
 ### Fase 4: Dashboard — Quadro de Acompanhamento e Pendências
 ```
-T14 → T15 → T16 → T17 → T18
+T14 → T15 → T16 → T17 → T18 → T18b
 ```
 
 ### Fase 5: Mandatos — lista e filtros
 ```
-T19 → T20 → T21
+T19 → T20 → T21 → T21b
 ```
 
 ### Fase 6: Novo Contrato — busca TSE e formulário
@@ -832,6 +835,39 @@ T31 → T32 → T33
 
 ---
 
+### T18b: Montagem da página `/produtos/[slug]/dashboard`
+
+> **Lacuna de planejamento, não de execução.** T14-T18 construíram `QuadroAcompanhamento` e
+> `TabelaPendencias` como componentes isolados, cada um com teste unitário verde — mas nenhuma
+> task ligava esses componentes à página real. `dashboard/page.tsx` seguiu servindo o dashboard
+> antigo da feature `kanban-etapas` (Contratos ativos / Assessores ativos / NPS), e foi assim que
+> Pedro encontrou ao conferir a tela em 2026-09-11. Corrigido no mesmo dia, mesma conversa.
+
+**What**: Criar `queries/limiar.ts` (busca os 4 limiares reais de `ref_limiar_pendencia`, T2/T4b),
+orquestrar `buscarQuadro` (T15) + `buscarPendenciasDashboard` (T17) + os limiares na página, ligar
+o callback de `QuadroAcompanhamento` a `moverEtapaKanban` (já existe, feature `kanban-etapas`), e
+reescrever `produtos/[slug]/dashboard/page.tsx` para renderizar `QuadroAcompanhamento` +
+`TabelaPendencias` no lugar do dashboard antigo.
+**Where**: `src/backend/queries/limiar.ts`, `.test.ts`, `src/frontend/app/(app)/produtos/[slug]/dashboard/page.tsx`
+**Depends on**: T15, T16, T17, T18
+**Reuses**: `moverEtapaKanban`, `QuadroAcompanhamento`, `TabelaPendencias`, `buscarQuadro`, `buscarPendenciasDashboard`
+**Requirement**: EST-07
+
+**Tools**: MCP: `Figma` (T3 `44:5`) · Skill: `ui-ux-pro-max`
+
+**Done when**:
+- [ ] `queries/limiar.ts` lê os 4 limiares de `ref_limiar_pendencia`, nenhum número mágico no componente (AD-004)
+- [ ] `/produtos/estrategia/dashboard` renderiza o Quadro com a raia de Prospecção e os badges de limiar, não o dashboard antigo
+- [ ] Tabela de Pendências renderizada na mesma página, abaixo ou ao lado do Quadro (conferir posição no Figma `44:5`)
+- [ ] Arrastar um card de etapa chama `moverEtapaKanban` e a coluna atualiza (EST-07 AC2/AC3, ponta a ponta)
+- [ ] `lint:frontend` limpo nos arquivos tocados
+- [ ] Gate: `npm run test:unit`
+
+**Tests**: unit · **Gate**: quick
+**Commit**: `feat(estrategia): monta pagina do Dashboard com Quadro e Pendencias (EST-07)`
+
+---
+
 ### T19: `queries/mandatos-lista.ts`
 
 > **AD-046**: teste de componente reduzido ao caminho feliz nesta task (tela de leitura). Pares positivo/negativo de condicional não exigidos.
@@ -899,6 +935,34 @@ T31 → T32 → T33
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): filtros da lista de mandatos (EST-09)`
+
+---
+
+### T21b: Montagem da página `/produtos/[slug]/mandatos`
+
+> **Mesma lacuna de planejamento de T18b.** T19-T21 constroem `ListaMandatos` e a barra de
+> filtros isolados; nenhuma delas ligava à página real. T13 apenas renomeou a aba e moveu a rota
+> de `contratos/` para `mandatos/`, preservando o conteúdo antigo (lista simples, sem os 5
+> filtros do Figma `202:554`). Corrigido junto com T18b, mesma causa raiz.
+
+**What**: Reescrever `produtos/[slug]/mandatos/page.tsx` para renderizar a barra de filtros (T21)
+acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o estado dos filtros.
+**Where**: `src/frontend/app/(app)/produtos/[slug]/mandatos/page.tsx`
+**Depends on**: T19, T20, T21
+**Reuses**: `ListaMandatos`, `FiltrosMandatos`, `buscarMandatosLista`
+**Requirement**: EST-09
+
+**Tools**: MCP: `Figma` (T6 `202:554`) · Skill: `ui-ux-pro-max`
+
+**Done when**:
+- [ ] `/produtos/estrategia/mandatos` renderiza a barra de filtros + a grade de cards, não a lista antiga
+- [ ] Mudar um filtro refaz a consulta e atualiza a contagem exibida (EST-09 AC2/AC3, ponta a ponta)
+- [ ] "Limpar filtros" devolve a lista completa (EST-09 AC4)
+- [ ] `lint:frontend` limpo
+- [ ] Gate: `npm run test:unit`
+
+**Tests**: unit · **Gate**: quick
+**Commit**: `feat(estrategia): monta pagina da lista de Mandatos com filtros (EST-09)`
 
 ---
 
