@@ -24,8 +24,16 @@ export function ProdutoShell({ slug, children }: ProdutoShellProps) {
     { href: `${base}/novo-contrato`, label: "Novo Contrato" },
   ];
 
+  // O Quadro de Acompanhamento do Dashboard tem colunas de largura fixa
+  // (w-72) e rola na horizontal: preso nos ~1152px de `max-w-6xl`, ele
+  // mostrava sempre 3,5 colunas e cortava a 4ª em qualquer monitor, com o
+  // espaço extra da tela virando margem vazia -- relato do Pedro,
+  // 2026-09-11. Teto alto e fluido em vez de `max-w-6xl` para que título,
+  // abas e conteúdo cresçam juntos (sem o desalinhamento de um children
+  // full-bleed); quem precisa de largura de leitura curta, como o
+  // formulário de Novo Contrato, aplica o próprio max-w.
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8">
+    <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 p-6 md:p-8">
       <div className="flex flex-col gap-3">
         <Link
           href="/"

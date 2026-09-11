@@ -23,5 +23,13 @@ export default function ProdutoNovoContratoPage({
     return <CarregandoSkeleton />;
   }
 
-  return <NovoContratoView slug={slug} idProduto={produto.idProduto} nomeProduto={produto.nome} />;
+  // ProdutoShell abriu para 1800px por causa do Quadro do Dashboard; um
+  // formulário nessa largura fica ilegível, então esta aba mantém por conta
+  // própria os ~1152px que a tela tinha antes -- centralizados, senão o card
+  // fica colado à esquerda com o resto da tela vazio.
+  return (
+    <div className="mx-auto w-full max-w-6xl">
+      <NovoContratoView slug={slug} idProduto={produto.idProduto} nomeProduto={produto.nome} />
+    </div>
+  );
 }
