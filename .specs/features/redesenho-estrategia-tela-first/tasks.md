@@ -493,7 +493,7 @@ T25 → T26 → T27 → T28 → T29 → T30
 
 ### Fase 8: KPIs do Dashboard
 ```
-T31 → T32 → T33
+T31 → T32 → T33 → T33b
 ```
 
 ---
@@ -1332,6 +1332,34 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 
 **Tests**: unit · **Gate**: build
 **Commit**: `feat(estrategia): faixa de KPIs do dashboard (EST-08)`
+
+---
+
+### T33b: Montagem da faixa de KPIs no Dashboard
+
+> **Lacuna prevenida, não corrigida.** T18b e T21b nasceram de um erro já cometido: componente
+> pronto e testado, nunca ligado à página. Aqui o mesmo padrão foi identificado **antes** de a
+> fase rodar — T33 constrói `KpiRow` mas nenhuma task o ligava a `dashboard/page.tsx`.
+
+**What**: Inserir `KpiRow` no topo da página do Dashboard, acima do `QuadroAcompanhamento`,
+consumindo `buscarEstrategiaKpi` (T32). Conferir a posição contra o Figma `44:5`, onde a faixa de
+KPIs aparece acima do quadro.
+**Where**: `src/frontend/app/(app)/produtos/[slug]/dashboard/page.tsx`
+**Depends on**: T31, T32, T33
+**Reuses**: `KpiRow`, `buscarEstrategiaKpi`, a orquestração já montada por T18b
+**Requirement**: EST-08
+
+**Tools**: MCP: `Figma` (T3 `44:5`) · Skill: `ui-ux-pro-max`
+
+**Done when**:
+- [ ] `/produtos/estrategia/dashboard` renderiza a faixa de KPIs acima do Quadro, com números reais
+- [ ] A orquestração de T18b (Quadro + Pendências + limiares) segue intacta — nenhuma regressão
+- [ ] KPI ausente renderiza "—", nunca zero inventado (AD-005)
+- [ ] `lint:frontend` limpo
+- [ ] Gate: `npm run lint && npm run test:unit && npm run build`
+
+**Tests**: unit · **Gate**: build
+**Commit**: `feat(estrategia): monta faixa de KPIs no Dashboard (EST-08)`
 
 ---
 
