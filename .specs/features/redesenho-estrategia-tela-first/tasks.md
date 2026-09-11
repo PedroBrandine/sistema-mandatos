@@ -321,6 +321,88 @@ aprovação.
 
 ---
 
+### Fase 5 — ✅ COMPLETO (2026-09-11)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| T19 `queries/mandatos-lista.ts` | `b63af58` | quick | unit 58/58 arquivos, 561/561 testes |
+| T20 `ListaMandatos` | `c6da40d` | quick | unit 59/59 arquivos, 567/567 testes |
+| T21 `FiltrosMandatos` | `256eeca` | quick | unit 60/60 arquivos, 570/570 testes |
+| T21b Montagem da página de Mandatos | `c6f2f5d` | quick | unit 60/60 arquivos, 570/570 testes |
+| Fim de fase: gate de build | — | build | lint raiz 0 · lint:frontend 30 problemas pré-existentes, nenhum nos arquivos desta fase (ver "Regra de lint desta feature") · unit **60/60 arquivos, 570/570 testes** · build 0 erros |
+
+**Migrations**: nenhuma — as 4 tasks são todas `quick`, como previsto no tasks.md.
+
+**Desvios registrados:**
+
+1. **Nomes reconciliados entre design.md e tasks.md, mesmo tipo de ajuste de
+   TIP-05/06/07 (commit `2e2ea36`).** design.md ("ListaMandatos", T6) descreve
+   `buscarMandatos(client, filtros): Promise<ContratoCard[]>`; T21b ("Reuses")
+   nomeia explicitamente `buscarMandatosLista`. Mantido `ContratoCard` (nome
+   de design.md, mais descritivo do view-model) e `buscarMandatosLista` (nome
+   de T21b, que é quem efetivamente a task pedia pra existir) — os dois nomes
+   nunca colidiam, só precisavam ser escolhidos de forma consistente.
+
+2. **"Responsável" (EST-09 AC1) mapeado para `papel_no_contrato = 'mentor'`
+   com vínculo ativo.** Nenhum AC nem design.md nomeia a origem literal do
+   campo — só o Figma `202:554` mostra "Responsável" como rótulo, num campo
+   distinto de "Gestão" no mesmo card. `rel_usuario_contrato` (docs/
+   schema_sistema.sql) tem 4 papéis (`gestora`, `mentor`, `assessor`,
+   `leitura`); como "Gestão" já cobre `gestora`, `mentor` é a leitura mais
+   próxima de "responsável do dia a dia pelo mandato" entre as opções
+   restantes. Risco aceito: se a intenção do Figma fosse outro papel (ex.
+   `assessor`), a correção é trocar uma string em
+   `buscarPessoaAtivaPorPapel(client, ids, "mentor")` — mudança local, sem
+   impacto de schema.
+
+3. **Filtro "Data" (EST-09 AC3, 1 dos 5 filtros) implementado como intervalo
+   sobre `fat_contrato.dt_inicio`** (`dtInicioDe`/`dtInicioAte` em
+   `FiltroMandatosLista`), não sobre `dt_fim` nem sobre uma vigência
+   sobreposta. O Figma mostra dois seletores de calendário lado a lado na
+   mesma faixa "Período e gestão", sem rótulo de campo capturado pelo
+   `get_metadata` (só a largura dos nós); nenhum AC/design.md define a
+   semântica. `dt_inicio` foi escolhido por ser o campo mais natural pra "ver
+   mandatos que começaram nesse período" e por já ter precedente de filtro de
+   data em `dt_inicio` noutras queries do produto. Mudança de semântica, se
+   necessária, é local a `buscarMandatosLista` e `FiltrosMandatos`.
+
+4. **T21b não ganhou `page.test.tsx`**, mesmo raciocínio do desvio 5 da Fase 4
+   (T18b): a página é glue trivial sobre peças já testadas isoladamente --
+   `buscarMandatosLista` (11 testes, inclusive os 5 filtros isolados + AND),
+   `ListaMandatos` (6 testes) e `FiltrosMandatos` (3 testes). Testar a página
+   exigiria montar `QueryClientProvider` + mock de 4 queries sem nenhum AC
+   novo que essas peças não cubram -- nenhum Done-when de T21b introduz
+   comportamento que não seja composição do que já está testado.
+
+5. **Bug de fuso horário evitado em `ListaMandatos` (T20), não corrigido
+   depois.** A primeira versão de `formatarData` usava
+   `new Date(data).toLocaleDateString("pt-BR")`; como `dt_inicio`/`dt_fim` são
+   `DATE` puro (sem hora), `new Date("2026-01-10")` vira meia-noite UTC, e em
+   fuso a oeste de UTC (ex. `America/Sao_Paulo`, o fuso deste ambiente de
+   teste) `toLocaleDateString` mostra o dia anterior -- pego pelo teste de
+   AC1 antes do commit, não em produção. Corrigido formatando a string
+   `YYYY-MM-DD` direto (split + remontagem), sem passar por `Date`. Mesma
+   classe de risco que L-001 (comparação de data) documenta para
+   `Date`/fuso horário -- candidato a lição reusável se aparecer de novo
+   noutro componente desta feature.
+
+**Achados para as fases seguintes:**
+- **`FiltrosMandatos` mantém o filtro em estado local da página (`useState`),
+  não na URL.** Diferente de `BarraRecorte` (visão gerencial, que grava os 5
+  filtros em `searchParams`), aqui o filtro se perde ao navegar pra fora da
+  aba Mandatos e voltar. Decisão implícita de T21 ("Reuses: Select, Input",
+  sem menção a `useSearchParams`) e consistente com o padrão presentational +
+  callback já usado por `QuadroAcompanhamento` (Fase 4) -- mas vale registrar
+  como trade-off caso uma fase futura queira link compartilhável com filtro
+  aplicado.
+- Os desvios 2 e 3 (mapeamento de "Responsável" e semântica do filtro "Data")
+  são as duas maiores lacunas de precisão herdadas do Figma nesta fase --
+  nenhuma tem um AC ou nota de design.md que as resolva sem ambiguidade. Boas
+  candidatas a confirmar com Pedro antes de uma eventual Fase 8 (KPIs/filtros
+  do Dashboard) que reuse o mesmo vocabulário.
+
+---
+
 ## Test Coverage Matrix
 
 > Gerada a partir do codebase, das guidelines do projeto e do spec — confirmar antes de Execute.
