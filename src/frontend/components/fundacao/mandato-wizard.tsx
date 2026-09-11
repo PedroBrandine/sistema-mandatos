@@ -5,9 +5,12 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { ChevronRight, IdCard, Landmark, Lock, Pencil, Stamp, Users, XCircle, FileSignature } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { DuplicataDetectadaError, ViolacaoUnicaError } from "@backend/rpc/errors";
 import { criarMandato } from "@backend/rpc/mandato";
+import { vinculoCoalizaoSchema } from "@backend/schemas/coalizao";
+import { aberturaContratoSchema } from "@backend/schemas/contrato";
 import { contratanteSchema } from "@backend/schemas/contratante";
 import { mandatoSchema } from "@backend/schemas/mandato";
 import { createClient } from "@backend/supabase/client";
@@ -29,38 +32,16 @@ import { TseMatchSearch } from "./tse-match-search";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useRouter } from "next/navigation";
 
-const coalizaoSchema = z.object({
-  id_coalizao: z.number().optional().nullable(),
-  papel: z.enum(["membro", "secretaria_executiva", "grupo_trabalho"]).optional().nullable(),
-  nome_grupo: z.string().optional().nullable(),
-}).superRefine((val, ctx) => {
-  if (val.id_coalizao) {
-    if (!val.papel) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Obrigatório quando vinculado a coalizão",
-        path: ["papel"],
-      });
-    }
-    if (val.papel === "grupo_trabalho" && (!val.nome_grupo || val.nome_grupo.trim() === "")) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Obrigatório para Grupo de Trabalho",
-        path: ["nome_grupo"],
-      });
-    }
-  }
-});
-
+// L-005: os 4 blocos vêm de src/backend/schemas/, nunca redeclarados aqui.
+// As versões inline que este arquivo mantinha (a de `contrato` e a de
+// `coalizao`) eram cópias equivalentes que podiam divergir em silêncio da
+// fonte de verdade -- foi exatamente o achado que gerou a lição, apontando
+// para estas linhas.
 const wizardSchema = z.object({
   contratante: contratanteSchema.optional(),
   mandato: mandatoSchema.optional(),
-  contrato: z.object({
-    id_produto: z.number().min(1, "Obrigatório"),
-    id_projeto: z.number().optional().nullable(),
-    dt_inicio: z.string().min(10, "Data inválida"),
-  }),
-  coalizao: coalizaoSchema.optional(),
+  contrato: aberturaContratoSchema,
+  coalizao: vinculoCoalizaoSchema.optional(),
 });
 type WizardFormValues = z.infer<typeof wizardSchema>;
 
@@ -87,6 +68,15 @@ export interface MandatoWizardProps {
   destino?: (resultado: MandatoCriado) => string;
 }
 
+// EST-10 AC3: aparência comum dos campos preenchidos pelo TSE. Fundo
+// abafado e cursor neutro sinalizam "veio da fonte oficial", sem recorrer ao
+// cinza de campo desabilitado nos <Input> -- que continuam readOnly, e
+// portanto focalizáveis e copiáveis.
+const CLASSE_CAMPO_TSE_INPUT = "bg-muted/50 cursor-default focus-visible:ring-0";
+// <Select> do Radix não tem readOnly; a única forma de impedir a troca é
+// `disabled`, então o gatilho carrega a mesma cor de fundo dos inputs.
+const CLASSE_CAMPO_TSE = "w-full bg-muted/50 cursor-default";
+
 const racas = ["Branca", "Preta", "Parda", "Amarela", "Indígena"];
 const identidadesGenero = ["Mulher Cisgênero", "Homem Cisgênero", "Mulher Trans", "Homem Trans", "Não-binário", "Outros"];
 const orientacoes = ["Heterossexual", "Homossexual", "Bissexual", "Pansexual", "Assexual", "Outros"];
@@ -103,7 +93,13 @@ function normalizaRaca(raca: string | null | undefined): "Branca" | "Preta" | "P
   return null;
 }
 
-function ZonaEyebrow({ icon: Icon, children }: { icon: any; children: React.ReactNode }) {
+function ZonaEyebrow({
+  icon: Icon,
+  children,
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
   return (
     <p className="flex items-center gap-2 font-heading text-xs uppercase tracking-wider text-muted-foreground">
       <Icon className="size-3.5" />
@@ -213,7 +209,10 @@ export function MandatoWizard({
        if (!municipioTse && perfil?.nmUe && perfil.nmUe !== candidatura.sgUf) {
          municipioTse = perfil.nmUe;
        }
-    } catch(e) {}
+    } catch {
+      // Perfil do TSE é complemento opcional: sem ele a ficha ainda abre com
+      // o que a candidatura já trouxe. Falha aqui não interrompe o cadastro.
+    }
 
     const idPartido = partidos.find(p => p.nome === candidatura.sgPartido)?.id;
     const idCargo = cargos.find(c => c.cd_cargo_tse === candidatura.cdCargo)?.id;
@@ -322,6 +321,11 @@ export function MandatoWizard({
   }
 
   const isBuscando = passo.tipo === "buscar";
+  // EST-10 AC3/AC4: com candidatura vinculada, os 6 campos que vêm do TSE
+  // (nome, UF, município, título, cargo e partido) ficam somente leitura; no
+  // cadastro manual os MESMOS campos são editáveis. Uma flag só, para os dois
+  // lados nunca saírem de sincronia.
+  const vindoDoTse = passo.tipo === "revisar";
 
   return (
     <div className="w-full space-y-6">
@@ -411,7 +415,7 @@ export function MandatoWizard({
                 <>
                   <CardContent className="grid gap-6 pt-6">
                     <ZonaEyebrow icon={IdCard}>Ficha do mandato</ZonaEyebrow>
-                    <ContratanteFields control={form.control} />
+                    <ContratanteFields control={form.control} somenteLeitura={vindoDoTse} />
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <FormField
                         control={form.control}
@@ -438,11 +442,11 @@ export function MandatoWizard({
                                 value={field.value ?? ""} 
                                 placeholder="Apenas números (12 dígitos)" 
                                 maxLength={12} 
-                                readOnly={passo.tipo === "revisar"}
-                                className={passo.tipo === "revisar" ? "bg-muted/50 cursor-default focus-visible:ring-0" : ""}
+                                readOnly={vindoDoTse}
+                                className={vindoDoTse ? CLASSE_CAMPO_TSE_INPUT : ""}
                               />
                             </FormControl>
-                            {passo.tipo === "revisar" && <p className="text-[10px] text-muted-foreground mt-1">Vindo do TSE</p>}
+                            {vindoDoTse && <p className="text-[10px] text-muted-foreground mt-1">Vindo do TSE</p>}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -481,9 +485,10 @@ export function MandatoWizard({
                             <Select
                               value={field.value ? String(field.value) : undefined}
                               onValueChange={(v) => field.onChange(Number(v))}
+                              disabled={vindoDoTse}
                             >
                               <FormControl>
-                                <SelectTrigger className="w-full bg-background">
+                                <SelectTrigger className={vindoDoTse ? CLASSE_CAMPO_TSE : "w-full bg-background"}>
                                   <SelectValue placeholder="Selecione o cargo" />
                                 </SelectTrigger>
                               </FormControl>
@@ -509,9 +514,10 @@ export function MandatoWizard({
                             <Select
                               value={field.value ? String(field.value) : undefined}
                               onValueChange={(v) => field.onChange(Number(v))}
+                              disabled={vindoDoTse}
                             >
                               <FormControl>
-                                <SelectTrigger className="w-full bg-background">
+                                <SelectTrigger className={vindoDoTse ? CLASSE_CAMPO_TSE : "w-full bg-background"}>
                                   <SelectValue placeholder="Selecione o partido" />
                                 </SelectTrigger>
                               </FormControl>

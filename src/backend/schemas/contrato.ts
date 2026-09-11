@@ -43,3 +43,22 @@ export const contratoSchema = z
   });
 
 export type ContratoInput = z.infer<typeof contratoSchema>;
+
+// Espelha o payload `p_contrato` lido por app.criar_mandato
+// (supabase/migrations/20260813180132_fnd_ctr_05_snapshot_cargo_partido_contrato.sql:132-146)
+// -- o subconjunto que a tela de abertura preenche. Os demais campos de
+// fat_contrato não vêm do formulário: `status` é fixado em 'ativo' pela
+// própria função, e o snapshot de cargo/partido é copiado do mandato.
+//
+// Vive aqui, e não inline no formulário, por L-005: a versão inline de
+// mandato-wizard.tsx era uma cópia equivalente que podia divergir em silêncio
+// deste arquivo. `id_projeto` aceita null porque o campo é opcional na tela.
+export const aberturaContratoSchema = z.object({
+  id_produto: z.number().int().positive("Obrigatório"),
+  id_projeto: z.number().int().positive().nullable().optional(),
+  // NOT NULL em fat_contrato, sem default na função -- exigido aqui para não
+  // chegar no banco como 23502.
+  dt_inicio: z.string().min(10, "Data inválida"),
+});
+
+export type AberturaContratoInput = z.infer<typeof aberturaContratoSchema>;

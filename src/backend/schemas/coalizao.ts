@@ -38,3 +38,54 @@ export const membroCoalizaoSchema = z
   );
 
 export type MembroCoalizaoInput = z.infer<typeof membroCoalizaoSchema>;
+
+// Espelha o payload `p_coalizao` lido por app.criar_mandato
+// (supabase/migrations/20260813180132_...sql:148-155), onde a vinculação é
+// OPCIONAL: a tela de Novo Contrato pode abrir um contrato sem coalizão
+// nenhuma. Por isso não reusa `membroCoalizaoSchema` direto -- lá `papel` é
+// obrigatório, aqui só passa a ser quando uma coalizão foi escolhida.
+//
+// `id_coalizao` é a PK de dim_coalizao, NÃO o id_contratante da coalizão: são
+// chaves surrogate distintas, e confundi-las é exatamente o que quebrava a
+// submissão (FK rel_coalizao_membro.id_coalizao -> dim_coalizao).
+//
+// Vive aqui, e não inline no formulário, por L-005.
+export const vinculoCoalizaoSchema = z
+  .object({
+    id_coalizao: z.number().int().positive().nullable().optional(),
+    papel: z.enum(["membro", "secretaria_executiva", "grupo_trabalho"]).nullable().optional(),
+    nome_grupo: z.string().nullable().optional(),
+  })
+  .superRefine((valor, ctx) => {
+    if (!valor.id_coalizao) return;
+
+    if (!valor.papel) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Obrigatório quando vinculado a coalizão",
+        path: ["papel"],
+      });
+    }
+
+    // espelha ck_membro_grupo, que é uma EQUIVALÊNCIA:
+    // (papel = 'grupo_trabalho') = (nome_grupo IS NOT NULL). Preencher
+    // nome_grupo com outro papel viola a constraint tanto quanto deixá-lo
+    // vazio em grupo_trabalho.
+    const temNomeGrupo = valor.nome_grupo != null && valor.nome_grupo.trim() !== "";
+    if (valor.papel === "grupo_trabalho" && !temNomeGrupo) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Obrigatório para Grupo de Trabalho",
+        path: ["nome_grupo"],
+      });
+    }
+    if (valor.papel && valor.papel !== "grupo_trabalho" && temNomeGrupo) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Nome do grupo só se aplica ao papel Grupo de Trabalho",
+        path: ["nome_grupo"],
+      });
+    }
+  });
+
+export type VinculoCoalizaoInput = z.infer<typeof vinculoCoalizaoSchema>;
