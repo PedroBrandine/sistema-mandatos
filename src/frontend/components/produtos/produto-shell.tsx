@@ -20,7 +20,7 @@ export function ProdutoShell({ slug, children }: ProdutoShellProps) {
   const abas = [
     { href: `${base}/dashboard`, label: "Dashboard" },
     { href: `${base}/agenda`, label: "Agenda" },
-    { href: `${base}/contratos`, label: "Contratos" },
+    { href: `${base}/mandatos`, label: "Mandatos" },
     { href: `${base}/novo-contrato`, label: "Novo Contrato" },
   ];
 

@@ -12,9 +12,11 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 
-// NAV-03: card por fat_contrato ativo do produto. slug já validado pelo
-// layout.tsx pai (T13) -- única fronteira de validação, ver design.md.
-export default function ProdutoContratosPage({
+// NAV-03/EST-03 (T13): aba "Contratos" virou "Mandatos" -- rota movida de
+// contratos/ para mandatos/ dentro do produto (produto-shell.tsx aponta pra
+// cá). slug já validado pelo layout.tsx pai -- única fronteira de validação,
+// ver design.md.
+export default function ProdutoMandatosPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
