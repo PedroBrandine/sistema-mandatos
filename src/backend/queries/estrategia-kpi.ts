@@ -49,10 +49,6 @@ interface RowEstrategiaKpi {
   nr_fatos_geradores: number | null;
 }
 
-const COLUNAS_KPI =
-  "mandatos_ativos, iip_medio, mandatos_em_atraso, nps_medio, " +
-  "pct_atingimento_medio, nr_fatos_geradores";
-
 // Recorte sem nenhum contrato visível não produz linha na view -- e a
 // ausência da linha É a ausência de dado. Os 6 KPIs viram null em bloco, em
 // vez de uma faixa de zeros que diria "medimos e deu zero" (AD-005).
@@ -69,9 +65,15 @@ export async function buscarEstrategiaKpi(
   client: SupabaseClient<Database>,
   filtro: FiltroEstrategiaKpi
 ): Promise<EstrategiaKpi> {
+  // A lista de colunas fica literal e inline de propósito. O supabase-js
+  // parseia essa string em tempo de tipo para inferir o formato da linha; uma
+  // constante montada por concatenação não é um literal para o compilador, a
+  // inferência degrada para GenericStringError[] e o cast abaixo vira erro de
+  // build. Mesmo motivo pelo qual queries/pendencias.ts escreve a lista
+  // inteira dentro do select.
   let query = client
     .from("vw_estrategia_kpi")
-    .select(COLUNAS_KPI)
+    .select("mandatos_ativos, iip_medio, mandatos_em_atraso, nps_medio, pct_atingimento_medio, nr_fatos_geradores")
     .eq("id_produto", filtro.idProduto)
     .eq("escopo_projeto", filtro.idProjeto !== undefined)
     .eq("escopo_gestora", filtro.idGestora !== undefined);
