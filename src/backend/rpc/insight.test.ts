@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../supabase/database.types";
 import { PermissaoNegadaError } from "./errors";
 import { criarInsight } from "./insight";
+import { ErroBancoNaoMapeadoError } from "./errors";
 
 // Spec anchor: incidencia-encontros T24 Done-when (.specs/features/incidencia-encontros/tasks.md) --
 //  - Payload correto: chama rpc("criar_insight", { p_id_contrato, p_conteudo, ... }) com os params
@@ -91,12 +92,22 @@ describe("criarInsight", () => {
     await expect(criarInsight(client, { idContrato: 1, conteudo: "x" })).rejects.toThrow(PermissaoNegadaError);
   });
 
-  it("Meta/Sucesso/Registro de outro contrato (RAISE EXCEPTION sem ERRCODE): relançado sem alteração", async () => {
+  it("Meta/Sucesso/Registro de outro contrato (RAISE EXCEPTION sem ERRCODE): chega como Error", async () => {
     const erroOriginal = { code: "P0001", message: "Meta 4 não pertence ao contrato 1" };
     const { client } = criarClienteMock({ data: null, error: erroOriginal });
 
-    await expect(
-      criarInsight(client, { idContrato: 1, conteudo: "x", idMetaOrigem: 4 })
-    ).rejects.toEqual(erroOriginal);
+    const capturado = await (criarInsight(client, { idContrato: 1, conteudo: "x", idMetaOrigem: 4 })).catch((e: unknown) => e);
+
+    // T24 (redesenho-estrategia-tela-first): esta asserção era
+    // `toEqual(erroOriginal)` e passava porque `mapeiaErroRpc` devolvia o
+    // objeto cru do PostgREST. Só que esse objeto NAO e um Error em runtime,
+    // e todo `catch (e)` da UI na forma
+    // `e instanceof Error ? e.message : "<generico>"` descartava a mensagem
+    // do banco. O contrato agora e mais forte: chega como Error de verdade,
+    // com codigo e mensagem preservados.
+    expect(capturado).toBeInstanceOf(ErroBancoNaoMapeadoError);
+    expect((capturado as ErroBancoNaoMapeadoError).codigo).toBe(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.message);
   });
 });

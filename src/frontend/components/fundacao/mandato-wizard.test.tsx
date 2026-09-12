@@ -110,6 +110,15 @@ vi.mock("./tse-match-search", () => ({
   ),
 }));
 
+// Classes de erro reais (não mockadas): o wizard decide o que mostrar pelo
+// `instanceof`, então trocá-las por dublês invalidaria justamente o que estes
+// testes checam.
+import {
+  ErroBancoNaoMapeadoError,
+  PermissaoNegadaError,
+  ViolacaoUnicaError,
+} from "@backend/rpc/errors";
+
 import { MandatoWizard } from "./mandato-wizard";
 
 beforeEach(() => {
@@ -225,6 +234,157 @@ describe("MandatoWizard — campos do TSE somente leitura (EST-10 AC3/AC4)", () 
     expect(screen.getByLabelText("Nome")).toHaveValue("");
     expect(screen.getByLabelText("Título eleitoral")).toHaveValue("");
     expect(screen.getByText("Preenchimento integral")).toBeInTheDocument();
+  });
+});
+
+describe("MandatoWizard — submissão transacional (EST-11 AC6 / AD-024)", () => {
+  it("submete por uma única chamada de RPC, nunca dois inserts", async () => {
+    renderizar();
+    await irParaRevisar();
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    await waitFor(() => expect(criarMandatoMock).toHaveBeenCalledTimes(1));
+
+    // Mandato e contrato vão no MESMO payload -- é isso que garante a
+    // transação única do lado do banco (app.criar_mandato).
+    const [, payload] = criarMandatoMock.mock.calls[0];
+    expect(payload.mandato).toBeDefined();
+    expect(payload.contrato).toMatchObject({ id_produto: 1 });
+    expect(payload.contratante).toMatchObject({ nome: "PEDRO BIGARDI" });
+    // Candidatura vinculada viaja junto, então a função grava
+    // origem_partido_cargo = 'tse'.
+    expect(payload.candidatura).toMatchObject({ sq_candidato: 111, metodo_match: "nome_uf_cargo" });
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/produtos/estrategia/mandatos/901"));
+  });
+
+  it("a coalizão vai pelo id_coalizao de dim_coalizao, não pelo id_contratante", async () => {
+    renderizar();
+    await irParaManual();
+
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "MARIA DA SILVA" } });
+
+    // O <Select> carregou a partir de dim_coalizao: a opção de "bancada do
+    // clima" tem de valer 104 (id_coalizao), não 447 (id_contratante). É a
+    // confusão entre essas duas chaves que fazia a RPC estourar 23503.
+    const gatilho = screen.getByLabelText("Coalizão existente");
+    await waitFor(() => expect(gatilho).toBeEnabled());
+    fireEvent.click(gatilho);
+    fireEvent.click(await screen.findByRole("option", { name: "bancada do clima" }));
+
+    fireEvent.click(screen.getByLabelText("Papel na coalizão"));
+    fireEvent.click(await screen.findByRole("option", { name: "Membro" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    await waitFor(() => expect(criarMandatoMock).toHaveBeenCalledTimes(1));
+    const [, payload] = criarMandatoMock.mock.calls[0];
+    expect(payload.coalizao).toEqual({ id_coalizao: 104, papel: "membro", nome_grupo: null });
+    expect(payload.coalizao.id_coalizao).not.toBe(447);
+  });
+
+  it("sem coalizão escolhida, o payload manda coalizao nula", async () => {
+    renderizar();
+    await irParaRevisar();
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    await waitFor(() => expect(criarMandatoMock).toHaveBeenCalledTimes(1));
+    expect(criarMandatoMock.mock.calls[0][1].coalizao).toBeNull();
+  });
+});
+
+describe("MandatoWizard — erros da submissão (EST-11 AC7, L-008)", () => {
+  it("título duplicado mostra a mensagem específica e preserva o formulário (AC7)", async () => {
+    criarMandatoMock.mockRejectedValue(
+      new ViolacaoUnicaError(
+        "dim_mandato_nr_titulo_eleitoral_key",
+        "Já existe um mandato cadastrado com este título eleitoral."
+      )
+    );
+
+    renderizar();
+    await irParaRevisar();
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    expect(
+      await screen.findByText("Já existe um mandato cadastrado com este título eleitoral.")
+    ).toBeInTheDocument();
+    // O formulário continua na tela, com os dados preenchidos -- nada de
+    // voltar para a busca e perder o que já foi digitado.
+    expect(screen.getByText("Ficha do mandato")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome")).toHaveValue("PEDRO BIGARDI");
+    expect(screen.getByLabelText("Título eleitoral")).toHaveValue("123456789012");
+    // E oferece a saída para o mandato que já existe.
+    expect(
+      screen.getByRole("button", { name: /ver mandato existente/i })
+    ).toBeInTheDocument();
+  });
+
+  it("erro propaga pelo ErroInline, o componente padrão (L-008)", async () => {
+    criarMandatoMock.mockRejectedValue(new PermissaoNegadaError());
+
+    renderizar();
+    await irParaRevisar();
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    const alerta = await screen.findByRole("alert");
+    // ErroInline = <Alert variant="destructive"> com este título padrão.
+    expect(alerta).toHaveTextContent("Não foi possível carregar");
+    expect(alerta).toHaveTextContent("Você não tem permissão para realizar esta operação.");
+  });
+
+  it("erro do banco sem mapeamento chega à tela com código e mensagem, não com frase genérica", async () => {
+    // Exatamente o caso que o Pedro viu: 23503 vindo do insert em
+    // rel_coalizao_membro. Antes, `mapeiaErroRpc` devolvia o objeto cru do
+    // PostgREST (que não é Error em runtime) e o catch o trocava por
+    // "Erro ao cadastrar mandato ou contrato.".
+    criarMandatoMock.mockRejectedValue(
+      new ErroBancoNaoMapeadoError(
+        "23503",
+        'insert or update on table "rel_coalizao_membro" violates foreign key constraint "rel_coalizao_membro_id_coalizao_fkey"'
+      )
+    );
+
+    renderizar();
+    await irParaRevisar();
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("23503");
+    expect(alerta).toHaveTextContent("rel_coalizao_membro");
+    expect(alerta).not.toHaveTextContent("Erro ao cadastrar mandato ou contrato.");
+  });
+
+  it("erro que não é Error nenhum ainda diz algo útil, em vez de fingir uma causa", async () => {
+    // O objeto cru do PostgREST, caso escape por um caminho que não passe
+    // por mapeiaErroRpc.
+    criarMandatoMock.mockRejectedValue({
+      code: "22P02",
+      message: 'invalid input syntax for type bigint: ""',
+      details: null,
+      hint: null,
+    });
+
+    renderizar();
+    await irParaRevisar();
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("22P02");
+    expect(alerta).toHaveTextContent("invalid input syntax");
+  });
+
+  it("sem erro nenhum, nenhum ErroInline aparece (lado oposto)", async () => {
+    renderizar();
+    await irParaRevisar();
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+    await waitFor(() => expect(pushMock).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 

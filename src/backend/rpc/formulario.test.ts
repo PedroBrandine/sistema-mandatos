@@ -4,11 +4,12 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../supabase/database.types";
 import { atualizarAvaliacaoNps } from "./formulario";
 import { PermissaoNegadaError } from "./errors";
+import { ErroBancoNaoMapeadoError } from "./errors";
 
 // Spec anchor: formularios-produto T13 Done-when (.specs/features/formularios-produto/tasks.md) --
 //  - Função chama client.schema("app").rpc("atualiza_avaliacao_nps"), sem nenhum parâmetro
 //  - 42501 -> PermissaoNegadaError (reuso, mesmo padrão de rpc/iip.ts)
-//  - Código não mapeado é relançado sem alteração
+//  - Código não mapeado chega como Error, com código e mensagem preservados
 //
 // spec.md FRM-21.
 
@@ -42,10 +43,22 @@ describe("atualizarAvaliacaoNps", () => {
     await expect(atualizarAvaliacaoNps(client)).rejects.toThrow(PermissaoNegadaError);
   });
 
-  it("código não mapeado é relançado sem alteração", async () => {
+  it("código não mapeado chega como Error, com código e mensagem preservados", async () => {
     const erroOriginal = { code: "P0001", message: "erro inesperado" };
     const { client } = criarClienteMock({ data: null, error: erroOriginal });
 
-    await expect(atualizarAvaliacaoNps(client)).rejects.toEqual(erroOriginal);
+    const capturado = await (atualizarAvaliacaoNps(client)).catch((e: unknown) => e);
+
+    // T24 (redesenho-estrategia-tela-first): esta asserção era
+    // `toEqual(erroOriginal)` e passava porque `mapeiaErroRpc` devolvia o
+    // objeto cru do PostgREST. Só que esse objeto NAO e um Error em runtime,
+    // e todo `catch (e)` da UI na forma
+    // `e instanceof Error ? e.message : "<generico>"` descartava a mensagem
+    // do banco. O contrato agora e mais forte: chega como Error de verdade,
+    // com codigo e mensagem preservados.
+    expect(capturado).toBeInstanceOf(ErroBancoNaoMapeadoError);
+    expect((capturado as ErroBancoNaoMapeadoError).codigo).toBe(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.message);
   });
 });

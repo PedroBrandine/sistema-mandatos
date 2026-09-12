@@ -7,7 +7,11 @@ import { z } from "zod";
 import { ChevronRight, IdCard, Landmark, Lock, Pencil, Stamp, Users, XCircle, FileSignature } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { DuplicataDetectadaError, ViolacaoUnicaError } from "@backend/rpc/errors";
+import {
+  descreveErroDesconhecido,
+  DuplicataDetectadaError,
+  ViolacaoUnicaError,
+} from "@backend/rpc/errors";
 import { criarMandato } from "@backend/rpc/mandato";
 import { vinculoCoalizaoSchema } from "@backend/schemas/coalizao";
 import { aberturaContratoSchema } from "@backend/schemas/contrato";
@@ -158,8 +162,28 @@ export function MandatoWizard({
       .then(({ data }) => setProdutos((data ?? []).map((p) => ({ id: p.id_produto, nome: p.nome }))));
     supabase.from("ref_projeto").select("id_projeto, nome").eq("ativo", true)
       .then(({ data }) => setProjetos((data ?? []).map((p) => ({ id: p.id_projeto, nome: p.nome }))));
-    supabase.from("dim_contratante").select("id_contratante, nome").eq("tipo_contratante", "coalizao")
-      .then(({ data }) => setCoalizoes((data ?? []).map((c) => ({ id: c.id_contratante, nome: c.nome }))));
+    // O valor deste <Select> vai para `coalizao.id_coalizao`, que a RPC grava
+    // em rel_coalizao_membro.id_coalizao -- coluna com FK para
+    // dim_coalizao(id_coalizao). Portanto a opção TEM de ser a PK de
+    // dim_coalizao.
+    //
+    // Antes esta query lia dim_contratante e usava `id_contratante` como
+    // valor. São chaves surrogate distintas: "bancada do clima" é
+    // id_contratante 447 e id_coalizao 104. O 447 ia para a FK e o insert
+    // morria com 23503 -- e como o wizard descartava erro não-Error, a tela
+    // só dizia "Erro ao cadastrar mandato ou contrato". Não era caso de
+    // borda: nenhum dos id_contratante de coalizão coincide com um
+    // id_coalizao existente, então QUALQUER coalizão escolhida falhava.
+    //
+    // O join ainda traz o nome de dim_contratante porque é lá que ele mora;
+    // `!inner` descarta coalizão órfã de contratante, que não teria rótulo.
+    supabase.from("dim_coalizao").select("id_coalizao, dim_contratante!inner(nome)")
+      .then(({ data }) => setCoalizoes(
+        (data ?? []).map((c: { id_coalizao: number; dim_contratante: { nome: string } | { nome: string }[] }) => ({
+          id: c.id_coalizao,
+          nome: Array.isArray(c.dim_contratante) ? c.dim_contratante[0]?.nome ?? "—" : c.dim_contratante.nome,
+        }))
+      ));
   }, []);
 
   async function checkExistente(nrTituloEleitoral: string | null | undefined): Promise<boolean> {
@@ -313,7 +337,11 @@ export function MandatoWizard({
         setErro(e.message);
         setDuplicataTitulo(valores.mandato?.nr_titulo_eleitoral ?? null);
       } else {
-        setErro(e instanceof Error ? e.message : "Erro ao cadastrar mandato ou contrato.");
+        // Nunca trocar a causa por uma frase genérica: era exatamente isso
+        // que escondia o 23503 da coalizão, transformando a mensagem do
+        // Postgres em "Erro ao cadastrar mandato ou contrato." e deixando a
+        // tela sem nada acionável (AD-005).
+        setErro(descreveErroDesconhecido(e));
       }
     } finally {
       setEnviando(false);

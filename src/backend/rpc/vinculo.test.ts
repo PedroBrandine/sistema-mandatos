@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../supabase/database.types";
 import { PermissaoNegadaError, ViolacaoConstraintError, ViolacaoUnicaError } from "./errors";
 import { substituirVinculo } from "./vinculo";
+import { ErroBancoNaoMapeadoError } from "./errors";
 
 type Chamada = { fn: string; params: unknown };
 
@@ -71,10 +72,22 @@ describe("substituirVinculo", () => {
 
   // T23: "vínculo já encerrado" usa SQLSTATE padrão P0001 (sem ERRCODE
   // customizado) -- não é um dos 4 códigos mapeados; deve passar sem alteração.
-  it("código não mapeado (ex.: P0001, vínculo já encerrado) é relançado sem alteração", async () => {
+  it("código não mapeado chega como Error, com código e mensagem preservados", async () => {
     const erroOriginal = { code: "P0001", message: "vínculo já encerrado" };
     const { client } = criarClienteMock({ data: null, error: erroOriginal });
 
-    await expect(substituirVinculo(client, { idVinculoAntigo: 1, idUsuarioNovo: 2 })).rejects.toEqual(erroOriginal);
+    const capturado = await (substituirVinculo(client, { idVinculoAntigo: 1, idUsuarioNovo: 2 })).catch((e: unknown) => e);
+
+    // T24 (redesenho-estrategia-tela-first): esta asserção era
+    // `toEqual(erroOriginal)` e passava porque `mapeiaErroRpc` devolvia o
+    // objeto cru do PostgREST. Só que esse objeto NAO e um Error em runtime,
+    // e todo `catch (e)` da UI na forma
+    // `e instanceof Error ? e.message : "<generico>"` descartava a mensagem
+    // do banco. O contrato agora e mais forte: chega como Error de verdade,
+    // com codigo e mensagem preservados.
+    expect(capturado).toBeInstanceOf(ErroBancoNaoMapeadoError);
+    expect((capturado as ErroBancoNaoMapeadoError).codigo).toBe(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.message);
   });
 });

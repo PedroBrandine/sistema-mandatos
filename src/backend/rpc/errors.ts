@@ -65,6 +65,55 @@ export class ProspeccaoEncerradaError extends Error {
   }
 }
 
+/** 23503 (foreign_key_violation): a linha aponta para um registro que não
+ * existe. Na prática da tela, é um `<Select>` oferecendo um id de uma tabela
+ * e a função gravando esse id numa coluna que referencia outra. */
+export class ViolacaoChaveEstrangeiraError extends Error {
+  constructor(
+    public readonly constraint: string | null,
+    message: string
+  ) {
+    super(message);
+    this.name = "ViolacaoChaveEstrangeiraError";
+  }
+}
+
+/**
+ * Erro do banco que nenhum código acima cobre.
+ *
+ * Existe porque o fallback anterior (`return error`) devolvia o objeto do
+ * PostgREST cru, e esse objeto NÃO é um Error: apesar de `PostgrestError` ser
+ * declarado como `class ... extends Error` no .d.ts, em runtime
+ * (postgrest-js 2.111.0, dist/index.mjs:419) o `error` de `{ data, error }`
+ * vem de `JSON.parse(body)` -- um objeto literal. `new PostgrestError` só é
+ * construído quando `shouldThrowOnError` está ligado, que não é o nosso caso.
+ * Verificado em runtime contra o banco de dev: `error instanceof Error` é
+ * `false`, `error.constructor.name` é `"Object"`.
+ *
+ * A consequência era uma tela que engolia a causa: todo `catch (e)` na forma
+ * `e instanceof Error ? e.message : "<mensagem genérica>"` caía no genérico e
+ * descartava o que o Postgres tinha dito. Envolver aqui garante que todo
+ * caminho de erro chegue à tela como Error de verdade, com o código do
+ * SQLSTATE e a mensagem do banco -- AD-005: erro explícito, nunca uma
+ * mensagem que finge saber o que aconteceu.
+ *
+ * `details` e `hint` ficam de fora de propósito: são os campos que carregam
+ * valores da linha recusada (ex.: `Key (id_coalizao)=(447) is not present`).
+ * Continuam acessíveis em código para log, mas não vão para a tela.
+ */
+export class ErroBancoNaoMapeadoError extends Error {
+  constructor(
+    public readonly codigo: string | null,
+    public readonly mensagemBanco: string
+  ) {
+    super(
+      `O banco recusou a operação${codigo ? ` (código ${codigo})` : ""}` +
+        `${mensagemBanco ? `: ${mensagemBanco}` : "."}`
+    );
+    this.name = "ErroBancoNaoMapeadoError";
+  }
+}
+
 // Mensagens de campo por constraint (ck_*) alcançáveis pelas 4 funções RPC de
 // T20-T23. Constraint não mapeada cai no fallback genérico -- nunca lança sem
 // mensagem.
@@ -111,6 +160,19 @@ const MENSAGENS_UNICA: Record<string, string> = {
   uq_encontro_participante_usuario: "Este participante já está na lista.",
 };
 
+// Mensagens por constraint de chave estrangeira. A FK de
+// rel_coalizao_membro.id_coalizao é declarada inline em
+// supabase/migrations/0009_fundacao_tabelas.sql:124, então o nome é o que o
+// Postgres gera por padrão (<tabela>_<coluna>_fkey).
+const MENSAGENS_CHAVE_ESTRANGEIRA: Record<string, string> = {
+  rel_coalizao_membro_id_coalizao_fkey:
+    "A coalizão selecionada não existe mais. Recarregue a página e escolha de novo.",
+  fat_contrato_id_produto_fkey: "O produto selecionado não existe mais.",
+  fat_contrato_id_projeto_fkey: "O projeto selecionado não existe mais.",
+  dim_mandato_id_cargo_atual_fkey: "O cargo selecionado não existe mais.",
+  dim_mandato_id_partido_atual_fkey: "O partido selecionado não existe mais.",
+};
+
 function extraiNomeConstraint(mensagem: string): string | null {
   const encontrado = /constraint "([^"]+)"/.exec(mensagem);
   return encontrado ? encontrado[1] : null;
@@ -148,5 +210,40 @@ export function mapeiaErroRpc(error: PostgrestError): Error {
     return new ProspeccaoEncerradaError();
   }
 
-  return error;
+  if (error.code === "23503") {
+    const constraint = extraiNomeConstraint(error.message);
+    const mensagem =
+      (constraint && MENSAGENS_CHAVE_ESTRANGEIRA[constraint]) ||
+      "Um dos itens selecionados não existe mais. Recarregue a página e escolha de novo.";
+    return new ViolacaoChaveEstrangeiraError(constraint, mensagem);
+  }
+
+  // Nunca `return error`: ver ErroBancoNaoMapeadoError -- o objeto do
+  // PostgREST não é um Error em runtime, e devolvê-lo cru fazia a tela
+  // descartar a mensagem do banco.
+  return new ErroBancoNaoMapeadoError(error.code ?? null, error.message ?? "");
+}
+
+/**
+ * Normaliza qualquer coisa capturada num `catch` para uma mensagem exibível.
+ *
+ * Serve ao mesmo princípio do ErroBancoNaoMapeadoError, um nível acima: a
+ * tela nunca deve trocar uma causa desconhecida por uma frase genérica que
+ * finge saber o que houve (AD-005). Cobre inclusive o objeto cru do
+ * PostgREST, caso ele escape por um caminho que não passe por
+ * `mapeiaErroRpc`.
+ */
+export function descreveErroDesconhecido(erro: unknown): string {
+  if (erro instanceof Error && erro.message) return erro.message;
+
+  if (typeof erro === "object" && erro !== null) {
+    const { code, message } = erro as { code?: unknown; message?: unknown };
+    if (typeof message === "string" && message) {
+      return new ErroBancoNaoMapeadoError(typeof code === "string" ? code : null, message).message;
+    }
+  }
+
+  if (typeof erro === "string" && erro) return erro;
+
+  return `Erro inesperado, sem mensagem (${typeof erro}). Tente de novo; se repetir, avise o time.`;
 }

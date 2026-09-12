@@ -4,13 +4,14 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../supabase/database.types";
 import { PermissaoNegadaError, ViolacaoConstraintError } from "./errors";
 import { atualizarSucessosEmLote, recalcularAtingimento, substituirPreditoresPlanejamento } from "./planejamento";
+import { ErroBancoNaoMapeadoError } from "./errors";
 
 // Spec anchor: PLM-02, PLM-03, PLM-07, PLM-16 (.specs/features/planejamento-planilha-monitoramento/spec.md) --
 //  - recalcularAtingimento chama rpc("recalcula_atingimento", { p_id_planejamento })
 //  - atualizarSucessosEmLote chama rpc("atualiza_sucessos_mensais_lote", { p_valores }) serializado em snake_case
 //  - substituirPreditoresPlanejamento chama rpc("substitui_preditores_planejamento", { p_id_planejamento, p_preditores }) serializado em snake_case
 //  - 42501 -> PermissaoNegadaError; 23514 em ck_sucesso_pct -> ViolacaoConstraintError com a mensagem certa
-//  - código não mapeado é relançado sem alteração
+//  - código não mapeado chega como Error, com código e mensagem preservados
 
 type Chamada = { fn: string; params: unknown };
 
@@ -81,13 +82,23 @@ describe("atualizarSucessosEmLote", () => {
     }
   });
 
-  it("código não mapeado é relançado sem alteração", async () => {
+  it("código não mapeado chega como Error, com código e mensagem preservados", async () => {
     const erroOriginal = { code: "P0001", message: "erro inesperado" };
     const { client } = criarClienteMock({ data: null, error: erroOriginal });
 
-    await expect(atualizarSucessosEmLote(client, [{ idSucesso: 1, pctAtingimento: 50 }])).rejects.toEqual(
-      erroOriginal
-    );
+    const capturado = await (atualizarSucessosEmLote(client, [{ idSucesso: 1, pctAtingimento: 50 }])).catch((e: unknown) => e);
+
+    // T24 (redesenho-estrategia-tela-first): esta asserção era
+    // `toEqual(erroOriginal)` e passava porque `mapeiaErroRpc` devolvia o
+    // objeto cru do PostgREST. Só que esse objeto NAO e um Error em runtime,
+    // e todo `catch (e)` da UI na forma
+    // `e instanceof Error ? e.message : "<generico>"` descartava a mensagem
+    // do banco. O contrato agora e mais forte: chega como Error de verdade,
+    // com codigo e mensagem preservados.
+    expect(capturado).toBeInstanceOf(ErroBancoNaoMapeadoError);
+    expect((capturado as ErroBancoNaoMapeadoError).codigo).toBe(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.message);
   });
 });
 
