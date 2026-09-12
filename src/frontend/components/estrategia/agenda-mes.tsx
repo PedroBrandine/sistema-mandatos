@@ -80,6 +80,17 @@ export function diaNoFusoDoProduto(iso: string): string {
   return deslocado.toISOString().slice(0, 10);
 }
 
+// "HH:MM" do instante, no mesmo fuso. Fica aqui, ao lado de
+// diaNoFusoDoProduto e de offsetEmMinutos, para a aritmética de fuso viver
+// num arquivo só -- EncontroPopover (T28) importa as duas em vez de
+// recalcular o offset por conta própria (licao L-005).
+export function horaNoFusoDoProduto(iso: string): string {
+  const instante = new Date(iso);
+  if (Number.isNaN(instante.getTime())) return "";
+  const deslocado = new Date(instante.getTime() + offsetEmMinutos() * 60_000);
+  return deslocado.toISOString().slice(11, 16);
+}
+
 function chaveDia(ano: number, mes: number, dia: number): string {
   return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }

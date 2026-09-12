@@ -99,6 +99,12 @@ export function EncontrosLista({ idContrato, atualizarSinal }: EncontrosListaPro
   }
 
   useEffect(() => {
+    // set-state-in-effect é falso-positivo aqui: o analisador não atravessa a
+    // fronteira da função, mas todo setState de `carregar` roda depois do
+    // `await buscarEncontrosDoContrato` -- nenhum deles é síncrono ao efeito,
+    // então não há cascata de render. `carregar` não pode ser declarada
+    // dentro do efeito porque os 3 handlers de mutação abaixo também a chamam.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void carregar();
     // idContrato/atualizarSinal são os únicos gatilhos de refetch -- carregar
     // em si é recriada a cada render, incluí-la quebraria o efeito em loop.
