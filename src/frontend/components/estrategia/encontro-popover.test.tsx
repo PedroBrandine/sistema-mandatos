@@ -31,6 +31,8 @@ import {
   EncontroPopover,
   encontroVencido,
   formatarDataHorario,
+  formatarModalidadeLocal,
+  formatarParticipantes,
 } from "./encontro-popover";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T28
@@ -94,12 +96,12 @@ const HOJE = "2026-09-15";
 describe("formatarDataHorario (EST-13 AC1)", () => {
   it("compõe data e intervalo de horário no fuso do produto", () => {
     expect(formatarDataHorario("2026-09-15T14:00:00-03:00", "2026-09-15T15:30:00-03:00")).toBe(
-      "15/09/2026 · 14:00 — 15:30"
+      "15/set/2026, 14:00 – 15:30"
     );
   });
 
   it("sem horário de fim exibe só o início", () => {
-    expect(formatarDataHorario("2026-09-15T14:00:00-03:00", null)).toBe("15/09/2026 · 14:00");
+    expect(formatarDataHorario("2026-09-15T14:00:00-03:00", null)).toBe("15/set/2026, 14:00");
   });
 
   it("sem data prevista devolve ausência, nunca uma data inventada (AD-005)", () => {
@@ -108,7 +110,7 @@ describe("formatarDataHorario (EST-13 AC1)", () => {
 
   it("instante em UTC é convertido para o fuso do produto, não exibido cru", () => {
     // 2026-10-01T00:00Z === 2026-09-30 21:00 no fuso do produto.
-    expect(formatarDataHorario("2026-10-01T00:00:00Z", null)).toBe("30/09/2026 · 21:00");
+    expect(formatarDataHorario("2026-10-01T00:00:00Z", null)).toBe("30/set/2026, 21:00");
   });
 });
 
@@ -119,9 +121,8 @@ describe("ConteudoEncontro (EST-13 AC1) — os 8 campos que a AC nomeia", () => 
     expect(screen.getByText("Agendada")).toBeInTheDocument();
     expect(screen.getByText("Diagnóstico")).toBeInTheDocument();
     expect(screen.getByText("Escuta Diagnóstica")).toBeInTheDocument();
-    expect(screen.getByText("15/09/2026 · 14:00 — 15:30")).toBeInTheDocument();
-    expect(screen.getByText("Online")).toBeInTheDocument();
-    expect(screen.getByText("Sala 2")).toBeInTheDocument();
+    expect(screen.getByText("15/set/2026, 14:00 – 15:30")).toBeInTheDocument();
+    expect(screen.getByText("Online · Sala 2")).toBeInTheDocument();
     expect(screen.getByText("Orçamento")).toBeInTheDocument();
     expect(screen.getByText("Ana Gestora, Assessor convidado")).toBeInTheDocument();
   });
@@ -142,15 +143,16 @@ describe("ConteudoEncontro (EST-13 AC1) — os 8 campos que a AC nomeia", () => 
   it("modalidade presencial sai com o rótulo próprio — lado oposto de online", () => {
     render(<ConteudoEncontro encontro={{ ...ENCONTRO, modalidade: "presencial" }} registros={[]} hoje={HOJE} />);
 
-    expect(screen.getByText("Presencial")).toBeInTheDocument();
-    expect(screen.queryByText("Online")).not.toBeInTheDocument();
+    expect(screen.getByText("Presencial · Sala 2")).toBeInTheDocument();
+    expect(screen.queryByText(/^Online/)).not.toBeInTheDocument();
   });
 
   it("cada campo nulo renderiza ausência, nunca string vazia (AD-005)", () => {
     const { container } = render(<ConteudoEncontro encontro={ENCONTRO_SEM_DADOS} registros={[]} hoje={HOJE} />);
 
-    // Etapa, tipo, data/horário, modalidade, local, tema e participantes = 7.
-    expect(screen.getAllByText("—")).toHaveLength(7);
+    // Etapa, tipo, data/horário, modalidade(+local numa linha só), tema e
+    // participantes = 6 campos (Figma 90:206 funde modalidade e local).
+    expect(screen.getAllByText("—")).toHaveLength(6);
     expect(container.textContent).not.toContain("null");
     expect(container.textContent).not.toContain("undefined");
   });
@@ -175,14 +177,17 @@ describe("ConteudoEncontro (EST-13 AC2) — registros vinculados", () => {
   it("COM registros exibe a contagem e o link para eles", () => {
     render(<ConteudoEncontro encontro={ENCONTRO} registros={[REGISTRO, { ...REGISTRO, idRegistro: 901 }]} hoje={HOJE} />);
 
-    const link = screen.getByRole("link", { name: "2 registros vinculados" });
+    // Figma 90:206 separa as duas metades de AC2: a contagem à esquerda e o
+    // link "Ver registros" à direita. As duas continuam asseridas.
+    expect(screen.getByText("2 registros vinculados")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Ver registros/ });
     expect(link).toHaveAttribute("href", "/contratos/42/encontros");
   });
 
   it("UM registro sai no singular", () => {
     render(<ConteudoEncontro encontro={ENCONTRO} registros={[REGISTRO]} hoje={HOJE} />);
 
-    expect(screen.getByRole("link", { name: "1 registro vinculado" })).toBeInTheDocument();
+    expect(screen.getByText("1 registro vinculado")).toBeInTheDocument();
   });
 
   it("SEM registros não exibe contagem nem link — lado oposto do AC2", () => {
@@ -206,7 +211,7 @@ describe("EncontroPopover — composição", () => {
     expect(screen.getByTestId("popover")).toHaveAttribute("data-open", "true");
     expect(screen.getByRole("button", { name: "Mentoria 3" })).toBeInTheDocument();
     expect(screen.getByText("Diagnóstico")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "1 registro vinculado" })).toBeInTheDocument();
+    expect(screen.getByText("1 registro vinculado")).toBeInTheDocument();
   });
 
   it("o conteúdo do encontro chega inteiro ao ConteudoEncontro", () => {
@@ -217,7 +222,7 @@ describe("EncontroPopover — composição", () => {
     );
 
     expect(screen.getByText("Diagnóstico")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "1 registro vinculado" })).toBeInTheDocument();
+    expect(screen.getByText("1 registro vinculado")).toBeInTheDocument();
   });
 });
 
@@ -370,5 +375,63 @@ describe("ConteudoEncontro (EST-13 AC6) — adicionar registro", () => {
     );
 
     expect(screen.getByRole("button", { name: "Adicionar registro" })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Conformidade com o Figma 90:206 — as duas funções puras que a mudança de
+// desenho introduziu. Ambas são caminhos de ausência (AD-005), então cada
+// ramificação tem caso próprio.
+// ---------------------------------------------------------------------------
+
+describe("formatarModalidadeLocal (Figma 90:206) — modalidade e local numa linha", () => {
+  it("com os dois, junta com separador do design", () => {
+    expect(formatarModalidadeLocal("presencial", "Gabinete 312")).toBe("Presencial · Gabinete 312");
+  });
+
+  it("só modalidade não deixa separador solto", () => {
+    expect(formatarModalidadeLocal("online", null)).toBe("Online");
+  });
+
+  it("só local não deixa separador solto — lado oposto", () => {
+    expect(formatarModalidadeLocal(null, "Gabinete 312")).toBe("Gabinete 312");
+  });
+
+  it("nenhum dos dois vira ausência, nunca string vazia (AD-005)", () => {
+    expect(formatarModalidadeLocal(null, null)).toBe("—");
+  });
+
+  it("local em branco conta como ausente, não como local vazio", () => {
+    expect(formatarModalidadeLocal("online", "   ")).toBe("Online");
+  });
+
+  it("modalidade fora do catálogo passa adiante crua, nunca some", () => {
+    expect(formatarModalidadeLocal("hibrido", null)).toBe("hibrido");
+  });
+});
+
+describe("formatarParticipantes (Figma 90:206) — resumo com +N", () => {
+  it("lista vazia vira ausência (AD-005)", () => {
+    expect(formatarParticipantes([])).toBe("—");
+  });
+
+  it("um participante sai sozinho", () => {
+    expect(formatarParticipantes(["Ana Ribeiro"])).toBe("Ana Ribeiro");
+  });
+
+  it("dois cabem inteiros, sem +N", () => {
+    expect(formatarParticipantes(["Ana Ribeiro", "Carlos Mendes"])).toBe(
+      "Ana Ribeiro, Carlos Mendes"
+    );
+  });
+
+  it("acima de dois, o excedente vira +N — fronteira do truncamento", () => {
+    expect(
+      formatarParticipantes(["Ana Ribeiro", "Carlos Mendes", "João Silva", "Maria Souza"])
+    ).toBe("Ana Ribeiro, Carlos Mendes, +2");
+  });
+
+  it("exatamente três resume um só", () => {
+    expect(formatarParticipantes(["Ana", "Carlos", "João"])).toBe("Ana, Carlos, +1");
   });
 });

@@ -1,5 +1,16 @@
 "use client";
 
+import {
+  Calendar,
+  CheckSquare,
+  Folder,
+  Link2,
+  type LucideIcon,
+  MapPin,
+  MessageCircle,
+  Tag,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 
 import type { EncontroAgenda } from "@backend/queries/agenda";
@@ -45,24 +56,79 @@ const MODALIDADE_LABEL: Record<string, string> = {
 // Ausência é "—", nunca string vazia nem valor inventado (AD-005).
 const AUSENTE = "—";
 
+const MESES_ABREVIADOS = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
+
 function textoOuAusente(valor: string | null | undefined): string {
   return valor && valor.trim() !== "" ? valor : AUSENTE;
 }
 
-// "15/09/2026 · 14:00 — 15:30". Sem dt_prevista_inicio não há data/horário a
-// exibir: devolve a ausência, nunca uma data inventada.
+// "15/set/2026, 14:00 – 15:30" — formato do Figma 90:206, com o mês abreviado
+// em texto. Sem dt_prevista_inicio não há data/horário a exibir: devolve a
+// ausência, nunca uma data inventada.
 export function formatarDataHorario(inicio: string | null, fim: string | null): string {
   if (!inicio) return AUSENTE;
   const [ano, mes, dia] = diaNoFusoDoProduto(inicio).split("-");
-  const base = `${dia}/${mes}/${ano} · ${horaNoFusoDoProduto(inicio)}`;
-  return fim ? `${base} — ${horaNoFusoDoProduto(fim)}` : base;
+  const base = `${dia}/${MESES_ABREVIADOS[Number(mes) - 1]}/${ano}, ${horaNoFusoDoProduto(inicio)}`;
+  return fim ? `${base} – ${horaNoFusoDoProduto(fim)}` : base;
 }
 
-function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
+// Figma 90:206 junta modalidade e local numa linha só ("Presencial · Gabinete
+// 312") em vez de dois campos separados. Cada metade pode faltar
+// independentemente: só modalidade, só local, ou nenhum dos dois (AD-005).
+export function formatarModalidadeLocal(modalidade: string | null, local: string | null): string {
+  const partes = [
+    modalidade ? MODALIDADE_LABEL[modalidade] ?? modalidade : null,
+    local && local.trim() !== "" ? local : null,
+  ].filter((p): p is string => p !== null);
+  return partes.length > 0 ? partes.join(" · ") : AUSENTE;
+}
+
+// Figma 90:206 mostra os dois primeiros nomes e resume o resto em "+N", em vez
+// de derramar a lista inteira numa linha.
+const MAX_PARTICIPANTES_VISIVEIS = 2;
+
+export function formatarParticipantes(nomes: string[]): string {
+  if (nomes.length === 0) return AUSENTE;
+  const visiveis = nomes.slice(0, MAX_PARTICIPANTES_VISIVEIS);
+  const restantes = nomes.length - visiveis.length;
+  return restantes > 0 ? `${visiveis.join(", ")}, +${restantes}` : visiveis.join(", ");
+}
+
+// Linha rótulo/valor do Figma: ícone + rótulo em caixa alta pequeno, valor
+// abaixo. Substitui a grade de 2 colunas anterior.
+function Campo({
+  icone: Icone,
+  rotulo,
+  valor,
+  children,
+}: {
+  icone: LucideIcon;
+  rotulo: string;
+  valor?: string;
+  children?: React.ReactNode;
+}) {
   return (
-    <div className="grid gap-0.5">
-      <p className="text-xs text-muted-foreground">{rotulo}</p>
-      <p className="text-sm">{valor}</p>
+    <div className="flex items-start gap-2.5">
+      <Icone aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <div className="grid gap-0.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {rotulo}
+        </p>
+        {children ?? <p className="text-sm">{valor}</p>}
+      </div>
     </div>
   );
 }
@@ -106,62 +172,94 @@ export function ConteudoEncontro({
 
   return (
     <div className="grid gap-3">
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-heading text-base font-medium">{encontro.titulo}</p>
-        <Badge variant={STATUS_VARIANT[encontro.status]}>{STATUS_LABEL[encontro.status]}</Badge>
+      {/* Figma 90:206: badge de status ACIMA do título, cada um na sua linha,
+          e o título no display da marca. */}
+      <div className="grid gap-1.5">
+        <div>
+          <Badge variant={STATUS_VARIANT[encontro.status]}>{STATUS_LABEL[encontro.status]}</Badge>
+        </div>
+        <p className="font-heading text-xl text-secondary">{encontro.titulo}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
-        <Campo rotulo="Etapa" valor={textoOuAusente(encontro.nomeEtapa)} />
-        <Campo rotulo="Tipo" valor={textoOuAusente(encontro.nomeTipo)} />
+      {/* Lista vertical com ícone por campo, na ordem do Figma. Modalidade e
+          local ocupam UMA linha ("Presencial · Gabinete 312"). */}
+      <div className="grid gap-2.5">
+        <Campo icone={Tag} rotulo="Etapa" valor={textoOuAusente(encontro.nomeEtapa)} />
+        <Campo icone={Folder} rotulo="Tipo" valor={textoOuAusente(encontro.nomeTipo)} />
         <Campo
+          icone={Calendar}
           rotulo="Data e horário"
           valor={formatarDataHorario(encontro.dtPrevistaInicio, encontro.dtPrevistaFim)}
         />
         <Campo
+          icone={MapPin}
           rotulo="Modalidade"
-          valor={
-            encontro.modalidade
-              ? MODALIDADE_LABEL[encontro.modalidade] ?? encontro.modalidade
-              : AUSENTE
-          }
+          valor={formatarModalidadeLocal(encontro.modalidade, encontro.local)}
         />
-        <Campo rotulo="Local" valor={textoOuAusente(encontro.local)} />
-        <Campo rotulo="Tema" valor={textoOuAusente(encontro.temaPrioritario)} />
+        <Campo
+          icone={MessageCircle}
+          rotulo="Tema"
+          valor={textoOuAusente(encontro.temaPrioritario)}
+        />
+        <Campo icone={Users} rotulo="Participantes">
+          <div className="flex items-center gap-2">
+            {participantes.length > 0 && (
+              <div aria-hidden="true" className="flex -space-x-1.5">
+                {participantes.slice(0, 4).map((nome) => (
+                  <span
+                    key={nome}
+                    className="size-5 rounded-full bg-secondary ring-2 ring-popover"
+                  />
+                ))}
+              </div>
+            )}
+            <p className="text-sm">{formatarParticipantes(participantes)}</p>
+          </div>
+        </Campo>
       </div>
-
-      <Campo
-        rotulo="Participantes"
-        valor={participantes.length > 0 ? participantes.join(", ") : AUSENTE}
-      />
 
       {/* EST-13 AC2: contagem e link só existem quando há registro vinculado.
           Sem registro, nem a contagem nem o link são renderizados -- não é um
-          "0 registros" cinza, é ausência. */}
+          "0 registros" cinza, é ausência. Figma 90:206 separa os dois: a
+          contagem à esquerda, o link "Ver registros" à direita. */}
       {registros.length > 0 && (
-        <Link
-          href={`/contratos/${encontro.idContrato}/encontros`}
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          {registros.length === 1 ? "1 registro vinculado" : `${registros.length} registros vinculados`}
-        </Link>
+        <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+          <span className="flex items-center gap-2 text-sm">
+            <Link2 aria-hidden="true" className="size-4 text-chart-4" />
+            {registros.length === 1
+              ? "1 registro vinculado"
+              : `${registros.length} registros vinculados`}
+          </span>
+          <Link
+            href={`/contratos/${encontro.idContrato}/encontros`}
+            className="text-sm font-medium text-secondary underline-offset-4 hover:underline"
+          >
+            Ver registros →
+          </Link>
+        </div>
       )}
 
       {/* EST-13 AC3: aviso + ação de presença, só no encontro vencido e
-          planejado. */}
+          planejado. Caixa âmbar do Figma 90:206.
+          O controle é BOTÃO com ícone de caixa marcada, não <input checkbox>:
+          visualmente é o do desenho, mas marcar presença é uma escrita
+          irreversível de mão única (planejado -> realizado), e checkbox
+          anuncia estado alternável para leitor de tela. SPEC-PRECISION: o
+          Figma desenha o controle, não a semântica. */}
       {vencido && (
-        <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 dark:border-amber-900 dark:bg-amber-950/40">
-          <p className="text-xs text-amber-900 dark:text-amber-100">
-            A data prevista já passou e este encontro segue como agendado.
+        <div className="grid gap-2 rounded-md border border-chart-2 bg-chart-2/20 p-3">
+          <p className="text-xs text-foreground">
+            A data prevista já passou. Marque presença para registrar como Realizada.
           </p>
-          <Button
+          <button
             type="button"
-            size="sm"
             disabled={marcandoPresenca}
             onClick={() => onMarcarPresenca?.({ idEncontro: encontro.idEncontro })}
+            className="flex w-fit items-center gap-2 text-sm font-medium text-foreground disabled:opacity-60"
           >
+            <CheckSquare aria-hidden="true" className="size-4" />
             {marcandoPresenca ? "Marcando…" : "Marcar presença"}
-          </Button>
+          </button>
         </div>
       )}
 
@@ -170,11 +268,11 @@ export function ConteudoEncontro({
       {erroPresenca && <ErroInline titulo="Não foi possível marcar presença" mensagem={erroPresenca} />}
 
       {/* EST-13 AC6: a criação já nasce vinculada ao encontro E ao contrato --
-          os dois identificadores vão no payload, não só o encontro. */}
+          os dois identificadores vão no payload, não só o encontro.
+          Figma 90:206: botão primário de largura total no rodapé. */}
       <Button
         type="button"
-        variant="outline"
-        size="sm"
+        className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
         onClick={() =>
           onAdicionarRegistro?.({
             idEncontro: encontro.idEncontro,

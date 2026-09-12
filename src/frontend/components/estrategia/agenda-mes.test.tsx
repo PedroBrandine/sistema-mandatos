@@ -80,8 +80,45 @@ describe("AgendaMes (EST-12)", () => {
   it("encontro agendado (planejado) sai com o rótulo e a cor de Agendada (AC2)", () => {
     render(<AgendaMes ano={2026} mes={9} encontros={[ENCONTRO_BASE]} hoje="2026-09-15" />);
 
-    const botao = screen.getByRole("button", { name: /Agendada: Mentoria 3/ });
-    expect(botao.className).toContain("sky");
+    // Figma 163:4 pinta o chip com o vinho da marca (--secondary), não com
+    // paleta genérica do Tailwind.
+    const botao = screen.getByRole("button", { name: /Agendada:.*Mentoria 3/ });
+    expect(botao.className).toContain("bg-secondary");
+  });
+
+  it("o chip mostra a hora antes do título, no fuso do produto (Figma 163:4)", () => {
+    render(<AgendaMes ano={2026} mes={9} encontros={[ENCONTRO_BASE]} hoje="2026-09-15" />);
+
+    expect(celula("2026-09-15")).toHaveTextContent("14:00 Mentoria 3");
+  });
+
+  it("encontro sem hora prevista mostra só o título, nunca uma hora inventada (AD-005)", () => {
+    render(
+      <AgendaMes
+        ano={2026}
+        mes={9}
+        encontros={[{ ...ENCONTRO_BASE, dtPrevistaInicio: null }]}
+        hoje="2026-09-15"
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /Mentoria 3/ })).not.toBeInTheDocument();
+  });
+
+  it("a grade começa na segunda-feira, com os rótulos do Figma em caixa alta", () => {
+    render(<AgendaMes ano={2026} mes={9} encontros={[]} hoje="2026-09-15" />);
+
+    const colunas = screen.getAllByRole("columnheader").map((c) => c.textContent);
+    expect(colunas).toEqual(["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"]);
+  });
+
+  it("01/09/2026 é uma terça e cai na segunda coluna da grade (início na segunda)", () => {
+    render(<AgendaMes ano={2026} mes={9} encontros={[]} hoje="2026-09-15" />);
+
+    const primeiraLinha = screen.getAllByRole("row")[1];
+    const celulas = Array.from(primeiraLinha.querySelectorAll("[role='gridcell']"));
+    expect(celulas[0].hasAttribute("data-dia")).toBe(false);
+    expect(celulas[1]).toHaveAttribute("data-dia", "2026-09-01");
   });
 
   it("encontro realizado sai com o rótulo e a cor de Realizada — lado oposto do AC2", () => {
@@ -100,9 +137,9 @@ describe("AgendaMes (EST-12)", () => {
       />
     );
 
-    const botao = screen.getByRole("button", { name: /Realizada: Mentoria 3/ });
-    expect(botao.className).toContain("emerald");
-    expect(botao.className).not.toContain("sky");
+    const botao = screen.getByRole("button", { name: /Realizada:.*Mentoria 3/ });
+    expect(botao.className).toContain("bg-chart-4");
+    expect(botao.className).not.toContain("bg-secondary");
   });
 
   it("avançar um mês pede o mês seguinte a quem monta a página (AC3)", () => {

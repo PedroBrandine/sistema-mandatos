@@ -23,7 +23,11 @@ import { cn } from "@/lib/utils";
 // torna AC6 testável dos dois lados (hoje dentro e fora do mês exibido) sem
 // congelar relógio no teste.
 
-const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+// Figma 163:4: a grade começa na SEGUNDA (SEG TER QUA QUI SEX SÁB DOM), não no
+// domingo, e os rótulos são de 3 letras em caixa alta. O fim de semana são as
+// duas últimas colunas — por isso o índice 5/6 é o recorte de sábado/domingo.
+const DIAS_SEMANA = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
+const PRIMEIRA_COLUNA_FIM_DE_SEMANA = 5;
 
 const NOMES_MES = [
   "Janeiro",
@@ -52,12 +56,23 @@ const STATUS_LABEL: Record<EncontroAgenda["status"], string> = {
   remarcado: "Remarcada",
 };
 
+// Cores da marca (globals.css, CAD-13), nunca paleta genérica do Tailwind:
+// Figma 163:4 pinta o chip de "Agendada" com o vinho da identidade
+// (--secondary #571730) e a legenda de "Realizada" com o verde-água
+// (--chart-4 #4ABFB2).
 const STATUS_CLASS: Record<EncontroAgenda["status"], string> = {
-  planejado: "bg-sky-100 text-sky-900 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-100",
-  realizado: "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-100",
+  planejado: "bg-secondary text-secondary-foreground hover:bg-secondary/90",
+  realizado: "bg-chart-4 text-foreground hover:bg-chart-4/90",
   cancelado: "bg-muted text-muted-foreground hover:bg-muted/80 line-through",
-  remarcado: "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100",
+  remarcado: "bg-chart-2 text-foreground hover:bg-chart-2/90",
 };
+
+// Bolinha da legenda "● Agendada ● Realizada" (Figma 163:4, canto superior
+// direito da faixa do mês).
+const LEGENDA: { status: EncontroAgenda["status"]; classe: string }[] = [
+  { status: "planejado", classe: "bg-secondary" },
+  { status: "realizado", classe: "bg-chart-4" },
+];
 
 // Offset fixo do fuso do produto, derivado da constante única de
 // queries/agenda.ts -- nunca um "3" solto aqui (a mesma decisão vale para o
@@ -111,9 +126,12 @@ function chaveDia(ano: number, mes: number, dia: number): string {
 // grade fechar em semanas completas. Mês sem nenhum encontro continua
 // renderizando a grade inteira (edge case do spec).
 function montarCelulas(ano: number, mes: number): (string | null)[] {
-  const primeiroDiaSemana = new Date(Date.UTC(ano, mes - 1, 1)).getUTCDay();
+  // getUTCDay() devolve 0=domingo; a grade do Figma começa na segunda, então
+  // o deslocamento é (dia + 6) % 7 -- segunda vira 0 e domingo vira 6.
+  const diaDaSemana = new Date(Date.UTC(ano, mes - 1, 1)).getUTCDay();
+  const primeiraColuna = (diaDaSemana + 6) % 7;
   const diasNoMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
-  const celulas: (string | null)[] = Array(primeiroDiaSemana).fill(null);
+  const celulas: (string | null)[] = Array(primeiraColuna).fill(null);
   for (let dia = 1; dia <= diasNoMes; dia += 1) {
     celulas.push(chaveDia(ano, mes, dia));
   }
@@ -159,28 +177,44 @@ export function AgendaMes({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-        <CardTitle className="font-heading text-xl">
-          {NOMES_MES[mes - 1]} de {ano}
-        </CardTitle>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Mês anterior"
-            onClick={() => irPara(-1)}
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Próximo mês"
-            onClick={() => irPara(1)}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
+      {/* Figma 163:4: título do mês e setas ANDAM JUNTOS à esquerda (as setas
+          logo depois do título, não na borda oposta), e a legenda de status
+          fica à direita. O título é "Setembro 2025", sem "de". */}
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+        <div className="flex items-center gap-2">
+          <CardTitle className="font-heading text-2xl text-secondary">
+            {NOMES_MES[mes - 1]} {ano}
+          </CardTitle>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              aria-label="Mês anterior"
+              onClick={() => irPara(-1)}
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              aria-label="Próximo mês"
+              onClick={() => irPara(1)}
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
         </div>
+
+        <ul className="flex items-center gap-4">
+          {LEGENDA.map(({ status, classe }) => (
+            <li key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span aria-hidden="true" className={cn("size-2 rounded-full", classe)} />
+              {STATUS_LABEL[status]}
+            </li>
+          ))}
+        </ul>
       </CardHeader>
 
       <CardContent>
@@ -200,13 +234,14 @@ export function AgendaMes({
           {Array.from({ length: celulas.length / 7 }, (_, semana) => (
             <div role="row" key={semana} className="grid grid-cols-7 gap-px">
               {celulas.slice(semana * 7, semana * 7 + 7).map((chave, indice) => {
+                const ehFimDeSemana = indice >= PRIMEIRA_COLUNA_FIM_DE_SEMANA;
                 if (chave === null) {
                   return (
                     <div
                       key={`vazia-${semana}-${indice}`}
                       role="gridcell"
                       aria-hidden="true"
-                      className="min-h-24 rounded-md bg-muted/20"
+                      className={cn("min-h-28", ehFimDeSemana ? "bg-muted/50" : "bg-transparent")}
                     />
                   );
                 }
@@ -219,19 +254,34 @@ export function AgendaMes({
                     data-dia={chave}
                     data-hoje={ehHoje ? "true" : undefined}
                     className={cn(
-                      "min-h-24 rounded-md border border-border/50 p-1.5 align-top",
-                      ehHoje && "border-primary bg-primary/5 ring-1 ring-primary"
+                      "min-h-28 p-2 align-top",
+                      // Figma 163:4: fim de semana com fundo bege da marca
+                      // (--muted), não uma cor nova.
+                      ehFimDeSemana ? "bg-muted/50" : "bg-card",
+                      ehHoje && "ring-1 ring-inset ring-secondary"
                     )}
                   >
-                    <span
-                      className={cn(
-                        "text-xs font-medium text-muted-foreground",
-                        ehHoje && "text-primary"
+                    {/* Hoje: número dentro de um círculo dourado (--chart-2) e
+                        a palavra HOJE ao lado, como no Figma. */}
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={cn(
+                          "text-xs font-semibold",
+                          ehHoje
+                            ? "flex size-6 items-center justify-center rounded-full bg-chart-2 text-foreground"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {Number(chave.slice(8, 10))}
+                      </span>
+                      {ehHoje && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Hoje
+                        </span>
                       )}
-                    >
-                      {Number(chave.slice(8, 10))}
-                    </span>
-                    <div className="mt-1 grid gap-1">
+                    </div>
+
+                    <div className="mt-1.5 grid gap-1">
                       {doDia.map((encontro) => (
                         <button
                           key={encontro.idEncontro}
@@ -243,7 +293,11 @@ export function AgendaMes({
                           )}
                         >
                           <span className="sr-only">{STATUS_LABEL[encontro.status]}: </span>
-                          {encontro.titulo}
+                          {/* Figma 163:4: o chip mostra HORA + título
+                              ("14:00 Sprint de Planeja..."), não só o título. */}
+                          {encontro.dtPrevistaInicio
+                            ? `${horaNoFusoDoProduto(encontro.dtPrevistaInicio)} ${encontro.titulo}`
+                            : encontro.titulo}
                         </button>
                       ))}
                     </div>

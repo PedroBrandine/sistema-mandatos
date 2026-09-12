@@ -143,8 +143,23 @@ function aguardarGrade() {
   return screen.findByRole("grid");
 }
 
+// O chip da grade expõe "<Status>: <hora> <título>" (Figma 163:4 põe a hora
+// antes do título). Uma string exata aqui casaria só por acidente, então a
+// busca é por status E título, que é o que cada teste quer discriminar; a
+// hora fica livre no meio.
 function botaoDoEncontro(nomeAcessivel: string | RegExp) {
+  if (typeof nomeAcessivel === "string" && nomeAcessivel.includes(": ")) {
+    const [status, ...resto] = nomeAcessivel.split(": ");
+    return screen.getByRole("button", { name: regexDoChip(status, resto.join(": ")) });
+  }
+  // Botões comuns do popover ("Adicionar registro", "Marcar presença") não
+  // têm prefixo de status: casam pelo nome exato, como antes.
   return screen.getByRole("button", { name: nomeAcessivel });
+}
+
+function regexDoChip(status: string, titulo: string): RegExp {
+  const escapar = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escapar(status)}:.*${escapar(titulo)}$`);
 }
 
 beforeEach(() => {
@@ -236,7 +251,7 @@ describe("Agenda (EST-12 AC3) — navegar de mês refaz a consulta", () => {
       expect.objectContaining({ ano: 2026, mes: 10 })
     );
     expect(botaoDoEncontro("Agendada: Devolutiva Diagnóstica")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Agendada: Mentoria 3" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: regexDoChip("Agendada", "Mentoria 3") })).not.toBeInTheDocument();
   });
 
   it("voltar um mês consulta o mês anterior — lado oposto da navegação", async () => {
@@ -276,7 +291,7 @@ describe("Agenda (EST-12 AC4/AC5) — seleção de encontro, popover e filtro da
     expect(await screen.findByTestId("popover")).toHaveAttribute("data-open", "true");
     // Campos do encontro clicado, não de outro: etapa e horário vêm do 501.
     expect(screen.getByText("Diagnóstico")).toBeInTheDocument();
-    expect(screen.getByText("15/09/2026 · 14:00 — 15:30")).toBeInTheDocument();
+    expect(screen.getByText("15/set/2026, 14:00 – 15:30")).toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.buscarRegistrosDaAgenda).toHaveBeenCalledWith(
         expect.anything(),
@@ -351,8 +366,8 @@ describe("Agenda (EST-13 AC4) — marcar presença", () => {
 
     botaoDoEncontro("Marcar presença").click();
 
-    expect(await screen.findByRole("button", { name: "Realizada: Mentoria 3" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Agendada: Mentoria 3" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: regexDoChip("Realizada", "Mentoria 3") })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: regexDoChip("Agendada", "Mentoria 3") })).not.toBeInTheDocument();
     // O popover aberto acompanha: o aviso de encontro vencido some junto.
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Marcar presença" })).not.toBeInTheDocument()
