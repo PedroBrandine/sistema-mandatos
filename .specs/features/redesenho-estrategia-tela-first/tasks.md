@@ -657,6 +657,7 @@ lados de cada condicional, estado vazio e estado de erro estão cobertos em
 | T28 `EncontroPopover` | `6ca81ea` | quick | unit **68 arquivos, 673/673** · `encontros-lista.tsx` sem lint |
 | T29 RPC `marcar_presenca` | `8f2eaf4` | *reduzido* | integração própria 6/6 · unit 678/678 · build 0 (ver desvio 1) |
 | T30 Presença e registro no popover | `e2f0b05` | build | lint raiz 0 · unit **69 arquivos, 692/692** · build 0 erros |
+| T30b Montagem da página `/produtos/[slug]/agenda` | *(este commit)* | build | lint 0 nos arquivos tocados · unit **70 arquivos, 717/717** · build 0 erros · sensor 3/3 mutações mortas |
 
 **Migration aplicada em dev** (`npnvoolkebhabjkjzqwn`, project-ref conferido
 imediatamente antes do `db push`): `20260912023810_estrategia_fn_marcar_presenca`.
@@ -726,10 +727,75 @@ commit que não type-checa.
 - **A Fase 7 não tem task de montagem de página.** F4, F5 e F8 ganharam
   T18b/T21b/T33b exatamente para isso; a rota `/produtos/[slug]/agenda` segue
   como `EmDesenvolvimento`. Do jeito que o plano está, F7 entrega componentes
-  que nada renderiza.
+  que nada renderiza. **Fechado pela T30b** — ver desvios 7 a 11.
 - **`RegistroForm` exige `idEtapa`**, que `EncontroAgenda` não carrega. A T30
   entrega o payload que AC6 nomeia (`idEncontro` + `idContrato`); quem montar
-  a tela precisa resolver a etapa.
+  a tela precisa resolver a etapa. **Confirmado na T30b e não resolvido lá** —
+  ver desvio 10.
+
+---
+
+#### Desvios da T30b (montagem da página)
+
+7. **Dois arquivos fora do "Where" da task, ambos mínimos.**
+   - `page.test.tsx` (novo): a task declarava só `page.tsx`, mas AD-042 exige
+     teste de render para AC de interface, e AD-046 mantém profundidade
+     **integral** aqui porque a tela grava. É o primeiro `.test.tsx` de página
+     do projeto — `vitest.config.ts` já o coleta (`src/frontend/**/*.test.tsx`),
+     inclusive dentro do segmento `[slug]`, verificado na execução.
+   - `agenda-mes.tsx` (+12 linhas): `hojeNoFusoDoProduto(agora: Date)`
+     exportada ao lado de `diaNoFusoDoProduto`/`horaNoFusoDoProduto`. A página
+     precisa de "hoje" no fuso do produto, e o comentário da própria T26 diz
+     que a aritmética de offset vive nesse arquivo justamente para não ser
+     reimplementada por consumidor (lição L-005). Duplicar a regex de offset na
+     página seria a duplicata que deriva em silêncio. O instante entra por
+     parâmetro — a função não lê o relógio (L-002).
+
+8. **O popover não ancora na célula do encontro.** `AgendaMes` entrega o
+   encontro clicado (`onSelecionarEncontro`), não o elemento DOM dele, e
+   envolver o calendário inteiro num `PopoverTrigger` faria cada clique numa
+   célula alternar o popover pelo toggle do Radix
+   (`@radix-ui/react-popover/dist/index.mjs:96`). O gatilho é um âncora
+   `sr-only` logo abaixo da grade: EST-12 AC4 ("abre o popover de detalhe") é
+   cumprida, e nenhuma AC define a posição. Ancorar na célula exigiria mudar o
+   contrato de `AgendaMes`, fora desta task.
+
+9. **A lista "Registros de Agenda" nasceu aqui, dentro da página.** O Verifier
+   da Fase 7 registrou que ela não existia em lugar nenhum ("não existe
+   componente de lista de Registros da Agenda"), e é ela que fecha EST-12 AC5
+   (filtro ativo removível) e o edge case do spec (mês sem encontro →
+   "estado explicativo na lista"). Ficou como função local em vez de componente
+   próprio em `components/estrategia/` para respeitar o "Where"; se uma segunda
+   tela precisar dela, extrair é o movimento seguinte.
+
+10. **EST-13 AC6 fica PARCIAL — spec-precision gap, declarado, não silencioso.**
+    A AC pede "abrir a criação de registro **já vinculada** àquele encontro e
+    contrato". O payload existe e é testado desde a T30, mas nenhuma tela de
+    destino aceita o vínculo: `RegistroForm` exige `idEtapa`, `EncontroAgenda`
+    não carrega etapa (só `nomeEtapa`), e a rota que hospeda o formulário é
+    `/contratos/[id]/etapas/[codigo]`, que precisa do **código** da etapa.
+    Implementado o máximo honesto: "Adicionar registro" navega para
+    `/contratos/{idContrato}/encontros`, o mesmo destino que a T28 já escolheu
+    para o link de registros vinculados. Fechar a AC de verdade pede uma task
+    própria: expor a etapa em `EncontroAgenda` (T25) **e** fazer o formulário
+    aceitar encontro pré-selecionado.
+
+11. **`use(params)` prende a árvore no Suspense dentro do harness jsdom.** O
+    render do Testing Library termina antes de o React retomar o trabalho
+    suspenso, e a página fica no fallback para sempre — 23 de 25 testes
+    falharam assim na primeira execução. Resolvido entregando `params` no
+    formato que o React trata como já resolvido (`status`/`value` do protocolo
+    de thenable), que é o mesmo formato em que o Next.js entrega `params`
+    resolvidos em runtime: `use` lê o valor direto, sem suspender. **A página
+    não muda por isso** — segue recebendo uma `Promise` e chamando `use`. Vale
+    para qualquer teste de página futura deste App Router.
+
+**Sensor de discriminação da T30b** (estado descartável, backup no scratchpad,
+restauração conferida por `git status` após cada mutação): 3 mutações, 3 mortas.
+Remover o filtro `idEncontro` da consulta de registros → 1 falha; remover a
+invalidação da grade após marcar presença → 1 falha dirigida ("depois da
+escrita o encontro aparece como Realizada"); trocar a tradução do erro por
+texto genérico → 2 falhas, incluindo a do objeto cru do PostgREST.
 
 ---
 
@@ -1622,14 +1688,14 @@ de encontro, orquestrando `buscarEncontrosDoMes` (T25), `buscarRegistrosDaAgenda
 se aplica a essa parte — vale AD-042 integral.
 
 **Done when**:
-- [ ] `/produtos/estrategia/agenda` renderiza a grade mensal com encontros reais, não o placeholder
-- [ ] Navegar de mês refaz a consulta e atualiza a grade (EST-12)
-- [ ] Clicar num encontro abre o popover com os registros daquele encontro (EST-13)
-- [ ] Marcar presença chama a RPC e reflete na tela; erro aparece traduzido, nunca silencioso
-- [ ] `hoje` é passado explicitamente, nunca lido do relógio dentro do componente (L-002)
-- [ ] Mês sem encontro renderiza estado vazio explícito, nunca grade em branco sem explicação
-- [ ] `lint:frontend` limpo
-- [ ] Gate: `npm run lint && npm run test:unit && npm run build`
+- [x] `/produtos/estrategia/agenda` renderiza a grade mensal com encontros reais, não o placeholder
+- [x] Navegar de mês refaz a consulta e atualiza a grade (EST-12)
+- [x] Clicar num encontro abre o popover com os registros daquele encontro (EST-13)
+- [x] Marcar presença chama a RPC e reflete na tela; erro aparece traduzido, nunca silencioso
+- [x] `hoje` é passado explicitamente, nunca lido do relógio dentro do componente (L-002)
+- [x] Mês sem encontro renderiza estado vazio explícito, nunca grade em branco sem explicação
+- [x] `lint:frontend` limpo — 0 problemas nos arquivos tocados; os 24 restantes são a baseline pré-existente, em arquivos que esta task não toca
+- [x] Gate: `npm run lint && npm run test:unit && npm run build`
 
 **Tests**: unit · **Gate**: build
 **Commit**: `feat(agenda): monta pagina da Agenda com grade e popover (EST-12/EST-13)`

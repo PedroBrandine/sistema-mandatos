@@ -91,6 +91,18 @@ export function horaNoFusoDoProduto(iso: string): string {
   return deslocado.toISOString().slice(11, 16);
 }
 
+// "YYYY-MM-DD" de AGORA, no mesmo fuso. Terceiro consumidor da aritmética de
+// offset (grade, popover e a página da Agenda, T30b): mora aqui pelo mesmo
+// motivo que horaNoFusoDoProduto -- a conversão de fuso vive num arquivo só,
+// senão a borda do dia discordaria da borda do mês (lição L-005).
+// O instante entra por PARÂMETRO, nunca `new Date()` aqui dentro: quem monta
+// a página decide quando leu o relógio, e o teste passa um instante fixo
+// sem congelar o relógio global (lição L-002).
+export function hojeNoFusoDoProduto(agora: Date): string {
+  const deslocado = new Date(agora.getTime() + offsetEmMinutos() * 60_000);
+  return deslocado.toISOString().slice(0, 10);
+}
+
 function chaveDia(ano: number, mes: number, dia: number): string {
   return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
