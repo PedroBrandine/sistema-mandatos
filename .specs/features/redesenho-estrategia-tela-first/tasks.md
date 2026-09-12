@@ -13,9 +13,10 @@ sub-agentes, Verifier, sensor de discriminação).
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
 **Status**: In Progress — Fases 0-5 (F0-F5, incluindo T18b e T21b) entregues e confirmadas na
-tela por Pedro. **Fase 6 (Novo Contrato, T22-T24) em execução** — primeira tela de escrita desta
-feature, profundidade de teste completa (AD-042, sem o corte de AD-046). Fases 7-8 (T25-T33)
-seguem aguardando nova aprovação.
+tela por Pedro. **Fase 6 (Novo Contrato, T22-T24) entregue** — primeira tela de escrita desta
+feature, profundidade de teste completa (AD-042, sem o corte de AD-046); inclui a correção do
+bug de submissão reportado da tela (ver desvios 3-5 da Fase 6), **ainda não confirmada na tela
+por Pedro**. Fase 8 (T31-T33b) entregue. Fase 7 (T25-T30) segue aguardando nova aprovação.
 
 ---
 
@@ -532,6 +533,118 @@ imediatamente antes do `db push`): `20260911210203_estrategia_vw_kpi`.
   não aparece" por erro `42501` no meio da agregação.
 - **`lint:frontend` caiu de 30 para 29 problemas pré-existentes** (a redução veio
   de fora desta fase); nenhum dos 29 está em arquivo que a Fase 8 tocou.
+
+---
+
+### Fase 6 — ✅ COMPLETO (2026-09-11)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| — alargamento do contêiner do produto (T13, ver desvio 1) | `3d7a8d6` | quick | unit **595/595** |
+| T22 Busca TSE do Novo Contrato | `f796c23` | quick | unit **63 arquivos, 595/595** · eslint 0 erros nos arquivos da task |
+| T23 Formulário em 4 seções | `88506fe` | build | unit **64 arquivos, 603/603** · eslint 0 erros · build 0 erros |
+| T24 Submissão transacional + bug de produção | `a23531c` | build | unit **64 arquivos, 621/621** · eslint 0 erros · build 0 erros |
+
+Fase de **tela de escrita**: AD-042 integral, sem o corte de AD-046. Os dois
+lados de cada condicional, estado vazio e estado de erro estão cobertos em
+`tse-match-search.test.tsx` (10 casos), `mandato-wizard.test.tsx` (16) e
+`errors.test.ts` (19, sendo 10 novos).
+
+**Desvios registrados:**
+
+1. **`produto-shell.tsx` saiu em commit próprio, antes da T22, e levou junto
+   `novo-contrato/page.tsx`.** O alargamento do contêiner (`max-w-6xl` →
+   `w-full max-w-[1800px]`) é da T13, não desta fase: o Quadro de
+   Acompanhamento tem colunas de largura fixa e mostrava 3,5 delas, cortando a
+   4ª na borda — confirmado no screenshot do Pedro, coluna "Governança"
+   cortada. As 4 abas foram conferidas uma a uma; a única que regredia era
+   Novo Contrato, porque formulário em 1800px fica ilegível. O wrapper
+   `max-w-6xl` que a aba passou a aplicar entrou **no mesmo commit**, e não na
+   T22, porque não implementa nenhum critério de EST-10/EST-11 — é a
+   compensação inseparável da mudança de layout, e separá-la deixaria um
+   commit que quebra uma tela.
+
+2. **Retomada depois de interrupção: o trabalho não commitado foi auditado,
+   não herdado.** Um worker anterior parou no meio e deixou
+   `tse-match-search.tsx` modificado e um `.test.tsx` novo (5 casos). A
+   auditoria confirmou o que estava certo — a extração de `useBuscaTse`, com
+   o achado empírico de que o `<Popover>` impede o timer do debounce de
+   disparar em jsdom, e a correção do `w-full` que cortava UF e Ano — e achou
+   **uma lacuna real**: nenhum teste asseria que o `ErroInline` de AC8
+   *renderiza*, só que o estado `erro` era preenchido; o estado vazio também
+   não tinha asserção de DOM. Verifiquei que `<Command>` sozinho (sem o
+   Popover em volta) monta normalmente em jsdom, extraí `ResultadosBuscaTse`
+   e cobri os 4 estados da lista no DOM de verdade. A `.test.tsx` foi de 5
+   para 10 casos.
+
+3. **Bug de produção (parte da T24): a coalizão era enviada com a chave
+   errada.** O `<Select>` "Coalizão existente" lia `dim_contratante` e usava
+   `id_contratante` como valor; esse número ia para `coalizao.id_coalizao`,
+   que `app.criar_mandato` grava em `rel_coalizao_membro.id_coalizao` —
+   coluna com FK para `dim_coalizao(id_coalizao)`, uma chave surrogate
+   diferente. "bancada do clima" é `id_contratante` 447 e `id_coalizao` 104,
+   então o insert estourava `23503`. Confirmado em dev que **nenhum** dos 12
+   `id_contratante` de coalizão coincide com um `id_coalizao` existente: toda
+   seleção de coalizão falhava, sempre. Corrigido lendo `dim_coalizao` com
+   join para o nome.
+
+4. **O encobrimento do erro era um defeito próprio, e foi corrigido junto.**
+   `mapeiaErroRpc` terminava em `return error`, devolvendo o objeto do
+   PostgREST cru. O `.d.ts` declara `class PostgrestError extends Error`, mas
+   em runtime (postgrest-js 2.111.0, `dist/index.mjs:419`) o objeto vem de
+   `JSON.parse(body)` — `new PostgrestError` só é construído sob
+   `shouldThrowOnError`. Verificado contra o banco de dev:
+   `error instanceof Error === false`, `constructor.name === "Object"`. Por
+   isso o `e instanceof Error ? e.message : "<genérico>"` do wizard caía
+   sempre no genérico. Agora 23503 vira `ViolacaoChaveEstrangeiraError` e
+   todo o resto vira `ErroBancoNaoMapeadoError`, com SQLSTATE e mensagem do
+   banco; `details` e `hint` ficam fora de propósito, porque carregam valores
+   da linha recusada. AD-005 no espírito: erro explícito, nunca mensagem que
+   finge saber a causa.
+
+5. **Por que o bug escapou dos testes existentes.** Os wrappers RPC eram
+   testados com dublês que devolviam `{ code, message }` — fiéis ao formato
+   do PostgREST, e por isso a diferença de *tipo* nunca aparecia: nenhum
+   teste levava o erro até a camada que consulta `instanceof`. E nenhum teste
+   de componente cobria a submissão do wizard. O bug vivia exatamente no vão
+   entre as duas suítes. Pior: 10 testes afirmavam "código não mapeado é
+   relançado **sem alteração**" com `toEqual` contra o objeto cru, ou seja,
+   **documentavam o defeito como se fosse o contrato desejado** — e um deles
+   se chamava "nunca engolido em silêncio", descrevendo a intenção oposta ao
+   que o código fazia. Foram reescritos para o contrato novo e mais forte
+   (instanceof Error, código e mensagem preservados), não afrouxados.
+
+6. **L-005 estava registrada apontando para este arquivo e nunca fora
+   aplicada.** A lição cita `mandato-wizard.tsx:56-60,30-51`, e os blocos
+   `contrato` e `coalizao` seguiam declarados inline lá. T23 moveu os dois
+   para `src/backend/schemas/` (`aberturaContratoSchema`,
+   `vinculoCoalizaoSchema`). De quebra, a versão compartilhada passou a
+   espelhar `ck_membro_grupo` como a equivalência que ela é — a cópia inline
+   só validava um dos lados.
+
+7. **AC3 cobria só 1 dos 6 campos antes desta fase.** A tela dizia "Nome, UF,
+   município, título, cargo e partido vieram do TSE — somente leitura", mas
+   apenas o título eleitoral estava travado. Os `<Input>` usam `readOnly` (e
+   não `disabled`) para continuarem focalizáveis e copiáveis; cargo e partido
+   são `<Select>` do Radix, que não tem `readOnly`, então usam `disabled`.
+
+8. **Sensor de discriminação rodado à mão na T23.** Fixar
+   `vindoDoTse = false` mata o caso de AC3, confirmando que o teste observa o
+   comportamento e não a implementação. Mutação descartada em seguida.
+
+9. **`lint:all` caiu de 29 para 25 problemas.** Os 3 erros pré-existentes dos
+   arquivos tocados (`any` em `ContratanteFieldsProps` e em `ZonaEyebrow`,
+   `catch(e)` sem uso) foram zerados. Sobra, em `mandato-wizard.tsx`, um
+   aviso do React Compiler sobre `form.watch()` — inerente ao
+   react-hook-form, não removível sem trocar a API. Nenhum dos 25 restantes
+   está em arquivo desta fase.
+
+10. **Nenhuma migration nesta fase**, portanto a suíte de integração não foi
+    executada. O diagnóstico do bug foi feito com leituras somente-leitura
+    contra dev (e a inspeção do runtime do postgrest-js), sem DML. O SQL de
+    confirmação com `BEGIN … ROLLBACK` ficou preparado para o Pedro rodar,
+    mas a causa já estava provada por duas evidências independentes — o
+    catálogo de dev e a leitura da própria função.
 
 ---
 
