@@ -12,11 +12,10 @@ sub-agentes, Verifier, sensor de discriminação).
 ---
 
 **Design**: `.specs/features/redesenho-estrategia-tela-first/design.md`
-**Status**: In Progress — Fases 0-5 (F0-F5, incluindo T18b e T21b) entregues e confirmadas na
-tela por Pedro. **Fase 6 (Novo Contrato, T22-T24) entregue** — primeira tela de escrita desta
-feature, profundidade de teste completa (AD-042, sem o corte de AD-046); inclui a correção do
-bug de submissão reportado da tela (ver desvios 3-5 da Fase 6), **ainda não confirmada na tela
-por Pedro**. Fase 8 (T31-T33b) entregue. Fase 7 (T25-T30) segue aguardando nova aprovação.
+**Status**: In Progress — **as 9 fases (F0-F8, 37 tasks) estão entregues.** F0-F5
+confirmadas na tela por Pedro. F6 (Novo Contrato), F8 (KPIs) e F7 (Agenda, T25-T30,
+2026-09-12) entregues e **ainda não confirmadas na tela**. Verifier pendente sobre
+F5-F8 — o validation.md em disco cobre só T1-T18.
 
 ---
 
@@ -645,6 +644,82 @@ lados de cada condicional, estado vazio e estado de erro estão cobertos em
     confirmação com `BEGIN … ROLLBACK` ficou preparado para o Pedro rodar,
     mas a causa já estava provada por duas evidências independentes — o
     catálogo de dev e a leitura da própria função.
+
+---
+
+### Fase 7 — ✅ COMPLETO (2026-09-12)
+
+| Task | Commit | Gate | Resultado |
+| :-- | :-- | :-- | :-- |
+| T25 `queries/agenda.ts` | `0356335` | quick | unit **65 arquivos, 635/635** |
+| T26 `AgendaMes` | `12a214a` | quick | unit **66 arquivos, 650/650** · lint limpo no arquivo novo |
+| T27 `queries/registros-agenda.ts` | `ac6a45d` | quick | unit **67 arquivos, 659/659** |
+| T28 `EncontroPopover` | `6ca81ea` | quick | unit **68 arquivos, 673/673** · `encontros-lista.tsx` sem lint |
+| T29 RPC `marcar_presenca` | `8f2eaf4` | *reduzido* | integração própria 6/6 · unit 678/678 · build 0 (ver desvio 1) |
+| T30 Presença e registro no popover | `e2f0b05` | build | lint raiz 0 · unit **69 arquivos, 692/692** · build 0 erros |
+
+**Migration aplicada em dev** (`npnvoolkebhabjkjzqwn`, project-ref conferido
+imediatamente antes do `db push`): `20260912023810_estrategia_fn_marcar_presenca`.
+`database.types.ts` regenerado no mesmo commit da T29 — separar deixaria um
+commit que não type-checa.
+
+**Desvios registrados:**
+
+1. **Gate reduzido em T29, autorizado por Pedro.** `tasks.md` declarava `full`.
+   A suíte de integração completa passou de **1h16 sem emitir saída** — mesmo
+   modo de latência da Management API que a Fase 8 registrou em 107 min, com o
+   projeto cloud de dev compartilhado. Evidência aceita no lugar: teste de
+   integração próprio isolado **6/6 verdes** (SECURITY INVOKER, AC4, auditoria,
+   idempotência dos dois lados, 42501), unit 678/678, build 0. A função é nova
+   e nenhum outro objeto a consome, então não pode regredir comportamento
+   existente — mesmo racional de concentração de gate usado em T2/T4.
+
+2. **O teste de auditoria da T29 provou não ser tautológico.** Falhou na
+   primeira execução esperando 1 linha e encontrando 2: a segunda era o
+   `insert` da própria fixture. A consulta foi corrigida para `acao='update'`,
+   que é o que AC4 exige auditar — asserção ficou mais precisa, não mais frouxa.
+
+3. **T27 exportou `resolverIdsContratoDoFiltro` de `agenda.ts`, fora do seu
+   "Where".** Uma palavra, sem mudança de comportamento. A alternativa era
+   clonar ~30 linhas com o mesmo tipo `FiltroAgenda` — a duplicata equivalente
+   que deriva em silêncio da lição L-005. Diferente do precedente
+   `pendencias.ts` vs `visao-gerencial.ts`, onde os tipos de filtro eram
+   distintos e o clone se justificou.
+
+4. **O `<Popover>` do Radix é inviável neste harness jsdom.** Medido: UM render
+   aberto custa ~50s (12s de teste + ~38s de teardown pendurado) contra 2,5s
+   dos 8 testes de conteúdo juntos — levaria a suíte de 22s para 54s. O
+   conteúdo foi separado em `ConteudoEncontro` e o primitivo é stubado no teste
+   de composição, que segue asserindo a fiação da feature. É o mesmo obstáculo
+   que a Fase 6 já havia encontrado em `tse-match-search.tsx`.
+
+5. **SPEC-PRECISION GAPS abertos nesta fase** (nenhum silencioso):
+   - **Fuso horário.** `dt_prevista_inicio` é TIMESTAMPTZ e o spec pede "dia
+     correto" (EST-12 AC1) sem nomear fuso; o projeto não tinha convenção.
+     Escolhido `-03:00` numa constante única (`FUSO_HORARIO_PRODUTO`),
+     congelada por teste. Um encontro às 21h de 30/09 cairia em outubro se
+     lido em UTC.
+   - **Status fora de AC2.** EST-12 AC2 nomeia só Agendada/Realizada, mas
+     `ck_encontro_status` permite 4. `cancelado`/`remarcado` recebem rótulo
+     próprio e cor neutra em vez de sumirem da grade.
+   - **Encontro cancelado + marcar presença.** EST-13 não define o caso;
+     `app.marcar_presenca` não inventa regra e transiciona como qualquer
+     não-realizado. Registrado no `COMMENT ON FUNCTION`.
+
+6. **`encontro-form.tsx` sai com 0 erros, não "limpo".** Resta o warning 45:18
+   do React Compiler sobre `form.watch()`, inerente ao react-hook-form e não
+   corrigível sem trocar a biblioteca — mesma linha que a Fase 6 aceitou em
+   `mandato-wizard.tsx` 152:31. Total do frontend: 25 → 24 problemas, 11 → 10
+   erros.
+
+**Achados para quem seguir:**
+- **A Fase 7 não tem task de montagem de página.** F4, F5 e F8 ganharam
+  T18b/T21b/T33b exatamente para isso; a rota `/produtos/[slug]/agenda` segue
+  como `EmDesenvolvimento`. Do jeito que o plano está, F7 entrega componentes
+  que nada renderiza.
+- **`RegistroForm` exige `idEtapa`**, que `EncontroAgenda` não carrega. A T30
+  entrega o payload que AC6 nomeia (`idEncontro` + `idContrato`); quem montar
+  a tela precisa resolver a etapa.
 
 ---
 
