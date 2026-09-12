@@ -105,6 +105,22 @@ describe("AgendaMes (EST-12)", () => {
     expect(screen.queryByRole("button", { name: /Mentoria 3/ })).not.toBeInTheDocument();
   });
 
+  // AD-005: mês sem encontro diz que está vazio, em vez de mostrar uma grade
+  // muda que parece tela quebrada (leitura do Pedro em 2026-09-12).
+  it("mês sem encontro diz explicitamente que está vazio, nomeando o mês", () => {
+    render(<AgendaMes ano={2026} mes={9} encontros={[]} hoje="2026-09-15" />);
+
+    expect(screen.getByText("Nenhum encontro em Setembro de 2026.")).toBeInTheDocument();
+  });
+
+  // Lado oposto: havendo encontro, a frase de vazio some -- senão ela apareceria
+  // junto dos chips e diria o contrário do que a tela mostra.
+  it("mês com encontro não exibe a frase de vazio", () => {
+    render(<AgendaMes ano={2026} mes={9} encontros={[ENCONTRO_BASE]} hoje="2026-09-15" />);
+
+    expect(screen.queryByText(/Nenhum encontro em/)).not.toBeInTheDocument();
+  });
+
   it("a grade começa na segunda-feira, com os rótulos do Figma em caixa alta", () => {
     render(<AgendaMes ano={2026} mes={9} encontros={[]} hoje="2026-09-15" />);
 

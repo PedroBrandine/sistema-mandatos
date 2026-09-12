@@ -307,6 +307,19 @@ export function AgendaMes({
             </div>
           ))}
         </div>
+
+        {/* AD-005: ausência é explícita. Uma grade muda, sem nenhum chip e sem
+            nenhuma frase, é indistinguível de uma tela quebrada -- foi essa a
+            leitura do Pedro em 2026-09-12, quando `fat_encontro` estava vazia
+            em dev. A grade continua visível (o mês ainda é contexto útil), só
+            ganha a frase que faltava. A lista de Registros ao lado já fazia
+            isso ("3 registros encontrados"); o calendário passa a ter a mesma
+            franqueza. */}
+        {encontros.length === 0 ? (
+          <p className="pt-4 text-center text-sm text-muted-foreground">
+            Nenhum encontro em {NOMES_MES[mes - 1]} de {ano}.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
