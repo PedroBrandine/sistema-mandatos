@@ -674,6 +674,16 @@ commit que não type-checa.
    e nenhum outro objeto a consome, então não pode regredir comportamento
    existente — mesmo racional de concentração de gate usado em T2/T4.
 
+   **Desfecho (2026-09-12 01:45).** A suíte terminou sozinha depois de **7083s
+   (118 min)**: **490/494**, 67 de 69 arquivos verdes, **0 `AssertionError` em
+   toda a execução**. As 4 falhas são `Test timed out` puro — 1 no próprio
+   `fn-marcar-presenca` (o teste da AC4, verde 6/6 isolado às 23:43) e 3 em
+   `fn-marcar-vigente`, o mesmo arquivo que o desvio 3 do Batch 1 já havia
+   documentado como falso-positivo sob contenção da Management API. O gate
+   completo não produziu nenhuma informação em nível de asserção que os
+   isolados já não tivessem dado — a redução autorizada está confirmada por
+   dados, não por argumento.
+
 2. **O teste de auditoria da T29 provou não ser tautológico.** Falhou na
    primeira execução esperando 1 linha e encontrando 2: a segunda era o
    `insert` da própria fixture. A consulta foi corrigida para `acao='update'`,
