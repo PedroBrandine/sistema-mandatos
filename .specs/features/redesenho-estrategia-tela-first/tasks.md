@@ -809,7 +809,7 @@ T22 → T23 → T24
 
 ### Fase 7: Agenda — calendário, registros e presença
 ```
-T25 → T26 → T27 → T28 → T29 → T30
+T25 → T26 → T27 → T28 → T29 → T30 → T30b
 ```
 
 ### Fase 8: KPIs do Dashboard
@@ -1584,6 +1584,45 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(agenda): marcar presenca e adicionar registro no popover (EST-13)`
+
+---
+
+### T30b: Montagem da página `/produtos/[slug]/agenda`
+
+> **Quarta ocorrência do mesmo padrão, e a que mais incomoda.** T18b, T21b e T33b foram criadas
+> hoje justamente para fechar essa lacuna — mas só nas fases que o orquestrador tinha em mãos. A
+> Fase 7 rodou em sessão paralela, com um plano que nunca recebeu a task equivalente, e o resultado
+> foi idêntico: T25-T30 entregaram queries, RPC e componentes testados, e `agenda/page.tsx` seguiu
+> servindo o placeholder `<EmDesenvolvimento titulo="Agenda em desenvolvimento" />` de `13d72f2`.
+> Pedro encontrou abrindo a aba. **Lição: quando um padrão de lacuna é identificado, a varredura
+> tem que cobrir todas as fases abertas, não só as da frente.**
+
+**What**: Reescrever `produtos/[slug]/agenda/page.tsx` para renderizar a grade mensal com o popover
+de encontro, orquestrando `buscarEncontrosDoMes` (T25), `buscarRegistrosDaAgenda` (T27) e
+`marcarPresenca` (T29), com o estado de mês e de encontro selecionado.
+**Where**: `src/frontend/app/(app)/produtos/[slug]/agenda/page.tsx`
+**Depends on**: T25, T26, T27, T28, T29, T30
+**Reuses**: `AgendaMes`, `EncontroPopover`, `buscarEncontrosDoMes`, `buscarRegistrosDaAgenda`,
+`marcarPresenca`, o padrão de orquestração já montado em T18b (`dashboard/page.tsx`)
+**Requirement**: EST-12, EST-13
+
+**Tools**: MCP: `Figma` (T5 `163:4` Agenda, T7 `90:206` popover) · Skill: `ui-ux-pro-max`
+
+**Profundidade de teste**: o popover **grava** (`marcarPresenca`, adicionar registro). AD-046 **não**
+se aplica a essa parte — vale AD-042 integral.
+
+**Done when**:
+- [ ] `/produtos/estrategia/agenda` renderiza a grade mensal com encontros reais, não o placeholder
+- [ ] Navegar de mês refaz a consulta e atualiza a grade (EST-12)
+- [ ] Clicar num encontro abre o popover com os registros daquele encontro (EST-13)
+- [ ] Marcar presença chama a RPC e reflete na tela; erro aparece traduzido, nunca silencioso
+- [ ] `hoje` é passado explicitamente, nunca lido do relógio dentro do componente (L-002)
+- [ ] Mês sem encontro renderiza estado vazio explícito, nunca grade em branco sem explicação
+- [ ] `lint:frontend` limpo
+- [ ] Gate: `npm run lint && npm run test:unit && npm run build`
+
+**Tests**: unit · **Gate**: build
+**Commit**: `feat(agenda): monta pagina da Agenda com grade e popover (EST-12/EST-13)`
 
 ---
 
