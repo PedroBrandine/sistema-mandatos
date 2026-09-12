@@ -10,7 +10,6 @@ import type { CandidaturaSugerida } from "@backend/types/fundacao";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Command,
   CommandEmpty,
@@ -32,10 +31,14 @@ export interface TseMatchSearchProps {
   onSelecionar: (candidatura: CandidaturaSugerida) => void;
 }
 
+// UF e ano seguem aceitos pelo hook porque `buscarCandidaturas` filtra por
+// eles, mas a tela de Novo Contrato não os expõe mais (decisão do Pedro,
+// 2026-09-12): a busca por nome já discrimina o suficiente, e os dois campos
+// disputavam a linha com o campo de busca.
 interface ParametrosBuscaTse {
   nome: string;
-  sgUf: string;
-  anoEleicao: string;
+  sgUf?: string;
+  anoEleicao?: string;
 }
 
 interface EstadoBuscaTse {
@@ -78,7 +81,7 @@ export function useBuscaTse({ nome, sgUf, anoEleicao }: ParametrosBuscaTse): Est
         const supabase = createClient();
         const resultado = await buscarCandidaturas(supabase, {
           nome: debouncedNome.trim() || undefined,
-          sgUf: sgUf.trim() || undefined,
+          sgUf: sgUf?.trim() || undefined,
           anoEleicao: anoEleicao ? Number(anoEleicao) : undefined,
         });
         setResultados(resultado);
@@ -165,10 +168,8 @@ export function ResultadosBuscaTse({ buscando, erro, resultados, onSelecionar }:
 
 export function TseMatchSearch({ onSelecionar }: TseMatchSearchProps) {
   const [nome, setNome] = useState("");
-  const [sgUf, setSgUf] = useState("");
-  const [anoEleicao, setAnoEleicao] = useState("");
   const [open, setOpen] = useState(false);
-  const { buscando, erro, resultadosExibidos, modoManualAtivo } = useBuscaTse({ nome, sgUf, anoEleicao });
+  const { buscando, erro, resultadosExibidos, modoManualAtivo } = useBuscaTse({ nome });
 
   function selecionar(candidatura: CandidaturaSugerida) {
     onSelecionar(modoManualAtivo ? { ...candidatura, metodoMatch: "manual" } : candidatura);
@@ -177,54 +178,34 @@ export function TseMatchSearch({ onSelecionar }: TseMatchSearchProps) {
 
   return (
     <div className="grid gap-4">
-      {/* `w-full` no botão de busca ignorava os irmãos deste flex: empurrava
-          os campos UF e Ano (`shrink-0`) para fora da linha, onde o
-          `overflow-hidden` do Card do MandatoWizard os cortava. `flex-1
-          min-w-0` reparte a linha entre os três. */}
-      <div className="flex gap-2">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              className="min-w-0 flex-1 justify-between font-normal text-muted-foreground"
-            >
-              Buscar candidato no TSE (mín. 3 letras)...
-              <Search className="ml-2 size-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[400px] p-0" align="start">
-            <Command shouldFilter={false}>
-              <CommandInput 
-                placeholder="Digite o nome..." 
-                value={nome} 
-                onValueChange={setNome} 
-              />
-              <ResultadosBuscaTse
-                buscando={buscando}
-                erro={erro}
-                resultados={resultadosExibidos}
-                onSelecionar={selecionar}
-              />
-            </Command>
-          </PopoverContent>
-        </Popover>
-        <Input
-          placeholder="UF"
-          maxLength={2}
-          value={sgUf}
-          onChange={(e) => setSgUf(e.target.value.toUpperCase())}
-          className="w-20 shrink-0"
-        />
-        <Input
-          placeholder="Ano"
-          inputMode="numeric"
-          value={anoEleicao}
-          onChange={(e) => setAnoEleicao(e.target.value.replace(/\D/g, ""))}
-          className="w-24 shrink-0"
-        />
-      </div>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between font-normal text-muted-foreground"
+          >
+            Buscar candidato no TSE (mín. 3 letras)...
+            <Search className="ml-2 size-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[400px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Digite o nome..."
+              value={nome}
+              onValueChange={setNome}
+            />
+            <ResultadosBuscaTse
+              buscando={buscando}
+              erro={erro}
+              resultados={resultadosExibidos}
+              onSelecionar={selecionar}
+            />
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
