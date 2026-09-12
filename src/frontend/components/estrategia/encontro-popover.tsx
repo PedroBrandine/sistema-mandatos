@@ -6,6 +6,8 @@ import type { EncontroAgenda } from "@backend/queries/agenda";
 import type { RegistroAgenda } from "@backend/queries/registros-agenda";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ErroInline } from "@/components/ui/erro-inline";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { diaNoFusoDoProduto, horaNoFusoDoProduto } from "./agenda-mes";
@@ -65,14 +67,42 @@ function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
   );
 }
 
+// EST-13 AC3: o aviso e a ação de presença existem só quando a data prevista
+// JÁ PASSOU **e** o status é `planejado`. As duas metades são independentes e
+// cada uma tem caso dos dois lados no teste (lição L-036): um encontro futuro
+// planejado não oferece a ação, e um encontro vencido já realizado também
+// não. Comparação de strings "YYYY-MM-DD" no fuso do produto -- nunca Date
+// contra Date, que reintroduziria o fuso da máquina.
+export function encontroVencido(encontro: EncontroAgenda, hoje: string): boolean {
+  if (encontro.status !== "planejado") return false;
+  if (!encontro.dtPrevistaInicio) return false;
+  return diaNoFusoDoProduto(encontro.dtPrevistaInicio) < hoje;
+}
+
 export interface ConteudoEncontroProps {
   encontro: EncontroAgenda;
   /** Registros já filtrados por este encontro (buscarRegistrosDaAgenda, T27). */
   registros: RegistroAgenda[];
+  /** Data de referência "YYYY-MM-DD" — explícita, nunca lida do relógio (L-002). */
+  hoje: string;
+  onMarcarPresenca?: (input: { idEncontro: number }) => void;
+  onAdicionarRegistro?: (input: { idEncontro: number; idContrato: number }) => void;
+  marcandoPresenca?: boolean;
+  /** Falha da RPC de presença, já traduzida por mapeiaErroRpc. */
+  erroPresenca?: string | null;
 }
 
-export function ConteudoEncontro({ encontro, registros }: ConteudoEncontroProps) {
+export function ConteudoEncontro({
+  encontro,
+  registros,
+  hoje,
+  onMarcarPresenca,
+  onAdicionarRegistro,
+  marcandoPresenca = false,
+  erroPresenca = null,
+}: ConteudoEncontroProps) {
   const participantes = encontro.participantes.map((p) => p.nome).filter((n) => n.trim() !== "");
+  const vencido = encontroVencido(encontro, hoje);
 
   return (
     <div className="grid gap-3">
@@ -116,6 +146,44 @@ export function ConteudoEncontro({ encontro, registros }: ConteudoEncontroProps)
           {registros.length === 1 ? "1 registro vinculado" : `${registros.length} registros vinculados`}
         </Link>
       )}
+
+      {/* EST-13 AC3: aviso + ação de presença, só no encontro vencido e
+          planejado. */}
+      {vencido && (
+        <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 dark:border-amber-900 dark:bg-amber-950/40">
+          <p className="text-xs text-amber-900 dark:text-amber-100">
+            A data prevista já passou e este encontro segue como agendado.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            disabled={marcandoPresenca}
+            onClick={() => onMarcarPresenca?.({ idEncontro: encontro.idEncontro })}
+          >
+            {marcandoPresenca ? "Marcando…" : "Marcar presença"}
+          </Button>
+        </div>
+      )}
+
+      {/* Erro da escrita pelo componente padrão do projeto (lição L-008),
+          nunca por um elemento ad-hoc. */}
+      {erroPresenca && <ErroInline titulo="Não foi possível marcar presença" mensagem={erroPresenca} />}
+
+      {/* EST-13 AC6: a criação já nasce vinculada ao encontro E ao contrato --
+          os dois identificadores vão no payload, não só o encontro. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          onAdicionarRegistro?.({
+            idEncontro: encontro.idEncontro,
+            idContrato: encontro.idContrato,
+          })
+        }
+      >
+        Adicionar registro
+      </Button>
     </div>
   );
 }
@@ -126,18 +194,21 @@ export interface EncontroPopoverProps extends ConteudoEncontroProps {
   onAbertoChange?: (aberto: boolean) => void;
 }
 
+// O rest repassa TODAS as props de conteúdo (incluindo hoje, callbacks e
+// estado de erro) em vez de listá-las uma a uma: uma prop nova acrescentada a
+// ConteudoEncontroProps passa a chegar sozinha, sem virar prop silenciosamente
+// descartada aqui.
 export function EncontroPopover({
-  encontro,
-  registros,
   children,
   aberto,
   onAbertoChange,
+  ...conteudo
 }: EncontroPopoverProps) {
   return (
     <Popover open={aberto} onOpenChange={onAbertoChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent className="w-80" align="start">
-        <ConteudoEncontro encontro={encontro} registros={registros} />
+        <ConteudoEncontro {...conteudo} />
       </PopoverContent>
     </Popover>
   );

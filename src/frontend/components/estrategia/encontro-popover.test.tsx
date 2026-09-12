@@ -26,7 +26,12 @@ vi.mock("@/components/ui/popover", () => ({
 import type { EncontroAgenda } from "@backend/queries/agenda";
 import type { RegistroAgenda } from "@backend/queries/registros-agenda";
 
-import { ConteudoEncontro, EncontroPopover, formatarDataHorario } from "./encontro-popover";
+import {
+  ConteudoEncontro,
+  EncontroPopover,
+  encontroVencido,
+  formatarDataHorario,
+} from "./encontro-popover";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T28
 // "Done when" (EST-13 AC1, AC2; AD-005) --
@@ -84,6 +89,8 @@ const ENCONTRO_SEM_DADOS: EncontroAgenda = {
   participantes: [],
 };
 
+const HOJE = "2026-09-15";
+
 describe("formatarDataHorario (EST-13 AC1)", () => {
   it("compõe data e intervalo de horário no fuso do produto", () => {
     expect(formatarDataHorario("2026-09-15T14:00:00-03:00", "2026-09-15T15:30:00-03:00")).toBe(
@@ -107,7 +114,7 @@ describe("formatarDataHorario (EST-13 AC1)", () => {
 
 describe("ConteudoEncontro (EST-13 AC1) — os 8 campos que a AC nomeia", () => {
   it("exibe status, etapa, tipo, data/horário, modalidade, local, tema e participantes", () => {
-    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} />);
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje={HOJE} />);
 
     expect(screen.getByText("Agendada")).toBeInTheDocument();
     expect(screen.getByText("Diagnóstico")).toBeInTheDocument();
@@ -124,6 +131,7 @@ describe("ConteudoEncontro (EST-13 AC1) — os 8 campos que a AC nomeia", () => 
       <ConteudoEncontro
         encontro={{ ...ENCONTRO, status: "realizado", dtRealizada: "2026-09-15T14:10:00-03:00" }}
         registros={[]}
+        hoje={HOJE}
       />
     );
 
@@ -132,14 +140,14 @@ describe("ConteudoEncontro (EST-13 AC1) — os 8 campos que a AC nomeia", () => 
   });
 
   it("modalidade presencial sai com o rótulo próprio — lado oposto de online", () => {
-    render(<ConteudoEncontro encontro={{ ...ENCONTRO, modalidade: "presencial" }} registros={[]} />);
+    render(<ConteudoEncontro encontro={{ ...ENCONTRO, modalidade: "presencial" }} registros={[]} hoje={HOJE} />);
 
     expect(screen.getByText("Presencial")).toBeInTheDocument();
     expect(screen.queryByText("Online")).not.toBeInTheDocument();
   });
 
   it("cada campo nulo renderiza ausência, nunca string vazia (AD-005)", () => {
-    const { container } = render(<ConteudoEncontro encontro={ENCONTRO_SEM_DADOS} registros={[]} />);
+    const { container } = render(<ConteudoEncontro encontro={ENCONTRO_SEM_DADOS} registros={[]} hoje={HOJE} />);
 
     // Etapa, tipo, data/horário, modalidade, local, tema e participantes = 7.
     expect(screen.getAllByText("—")).toHaveLength(7);
@@ -155,6 +163,7 @@ describe("ConteudoEncontro (EST-13 AC1) — os 8 campos que a AC nomeia", () => 
           participantes: [{ idParticipacao: 3, nome: "", origem: "externo", presente: true }],
         }}
         registros={[]}
+        hoje={HOJE}
       />
     );
 
@@ -164,30 +173,32 @@ describe("ConteudoEncontro (EST-13 AC1) — os 8 campos que a AC nomeia", () => 
 
 describe("ConteudoEncontro (EST-13 AC2) — registros vinculados", () => {
   it("COM registros exibe a contagem e o link para eles", () => {
-    render(<ConteudoEncontro encontro={ENCONTRO} registros={[REGISTRO, { ...REGISTRO, idRegistro: 901 }]} />);
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[REGISTRO, { ...REGISTRO, idRegistro: 901 }]} hoje={HOJE} />);
 
     const link = screen.getByRole("link", { name: "2 registros vinculados" });
     expect(link).toHaveAttribute("href", "/contratos/42/encontros");
   });
 
   it("UM registro sai no singular", () => {
-    render(<ConteudoEncontro encontro={ENCONTRO} registros={[REGISTRO]} />);
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[REGISTRO]} hoje={HOJE} />);
 
     expect(screen.getByRole("link", { name: "1 registro vinculado" })).toBeInTheDocument();
   });
 
   it("SEM registros não exibe contagem nem link — lado oposto do AC2", () => {
-    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} />);
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje={HOJE} />);
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.queryByText(/registro/i)).not.toBeInTheDocument();
+    // Precisa mirar a contagem, não qualquer texto com "registro": a ação
+    // "Adicionar registro" (AC6) é sempre renderizada e não é a contagem.
+    expect(screen.queryByText(/registros? vinculados?/i)).not.toBeInTheDocument();
   });
 });
 
 describe("EncontroPopover — composição", () => {
   it("repassa encontro e registros para o conteúdo, e o estado de aberto para o Popover", () => {
     render(
-      <EncontroPopover encontro={ENCONTRO} registros={[REGISTRO]} aberto>
+      <EncontroPopover encontro={ENCONTRO} registros={[REGISTRO]} hoje={HOJE} aberto>
         <button type="button">Mentoria 3</button>
       </EncontroPopover>
     );
@@ -200,12 +211,164 @@ describe("EncontroPopover — composição", () => {
 
   it("o conteúdo do encontro chega inteiro ao ConteudoEncontro", () => {
     render(
-      <EncontroPopover encontro={ENCONTRO} registros={[REGISTRO]} aberto>
+      <EncontroPopover encontro={ENCONTRO} registros={[REGISTRO]} hoje={HOJE} aberto>
         <button type="button">Mentoria 3</button>
       </EncontroPopover>
     );
 
     expect(screen.getByText("Diagnóstico")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "1 registro vinculado" })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T30 — Spec anchor: tasks.md T30 "Done when" (EST-13 AC3, AC4, AC6) --
+//  - Aviso e ação aparecem só quando a data passou E o status é planejado,
+//    teste dos dois lados
+//  - Marcar presença atualiza o status na grade
+//  - "Adicionar registro" abre a criação já vinculada ao encontro e contrato
+//
+// AC3 é uma conjunção: as duas metades são verificadas independentemente
+// (lição L-036), não só a combinação verdadeira.
+// ---------------------------------------------------------------------------
+
+const DEPOIS_DO_ENCONTRO = "2026-09-20";
+
+describe("encontroVencido (EST-13 AC3) — as duas metades da conjunção", () => {
+  it("data passou E planejado: vencido", () => {
+    expect(encontroVencido(ENCONTRO, DEPOIS_DO_ENCONTRO)).toBe(true);
+  });
+
+  it("data NÃO passou, ainda que planejado: não vencido", () => {
+    expect(encontroVencido(ENCONTRO, "2026-09-10")).toBe(false);
+  });
+
+  it("data passou mas status é realizado: não vencido", () => {
+    expect(encontroVencido({ ...ENCONTRO, status: "realizado" }, DEPOIS_DO_ENCONTRO)).toBe(false);
+  });
+
+  it("o próprio dia do encontro ainda não conta como passado (fronteira)", () => {
+    expect(encontroVencido(ENCONTRO, HOJE)).toBe(false);
+  });
+
+  it("sem data prevista nunca é vencido, nunca lança", () => {
+    expect(encontroVencido({ ...ENCONTRO, dtPrevistaInicio: null }, DEPOIS_DO_ENCONTRO)).toBe(false);
+  });
+});
+
+describe("ConteudoEncontro (EST-13 AC3) — aviso e ação de presença", () => {
+  it("encontro vencido e planejado exibe o aviso e a ação Marcar presença", () => {
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje={DEPOIS_DO_ENCONTRO} />);
+
+    expect(screen.getByText(/data prevista já passou/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Marcar presença" })).toBeInTheDocument();
+  });
+
+  it("encontro futuro não exibe aviso nem ação — lado oposto da metade da data", () => {
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje="2026-09-10" />);
+
+    expect(screen.queryByText(/data prevista já passou/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Marcar presença" })).not.toBeInTheDocument();
+  });
+
+  it("encontro vencido já realizado não exibe aviso nem ação — lado oposto da metade do status", () => {
+    render(
+      <ConteudoEncontro
+        encontro={{ ...ENCONTRO, status: "realizado", dtRealizada: "2026-09-16T10:00:00-03:00" }}
+        registros={[]}
+        hoje={DEPOIS_DO_ENCONTRO}
+      />
+    );
+
+    expect(screen.queryByText(/data prevista já passou/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Marcar presença" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ConteudoEncontro (EST-13 AC4) — marcar presença", () => {
+  it("clicar em Marcar presença entrega o idEncontro a quem chama a RPC", () => {
+    const onMarcarPresenca = vi.fn();
+    render(
+      <ConteudoEncontro
+        encontro={ENCONTRO}
+        registros={[]}
+        hoje={DEPOIS_DO_ENCONTRO}
+        onMarcarPresenca={onMarcarPresenca}
+      />
+    );
+
+    screen.getByRole("button", { name: "Marcar presença" }).click();
+
+    expect(onMarcarPresenca).toHaveBeenCalledWith({ idEncontro: 501 });
+  });
+
+  it("durante a escrita a ação fica desabilitada, sem permitir dupla submissão", () => {
+    const onMarcarPresenca = vi.fn();
+    render(
+      <ConteudoEncontro
+        encontro={ENCONTRO}
+        registros={[]}
+        hoje={DEPOIS_DO_ENCONTRO}
+        marcandoPresenca
+        onMarcarPresenca={onMarcarPresenca}
+      />
+    );
+
+    const botao = screen.getByRole("button", { name: "Marcando…" });
+    expect(botao).toBeDisabled();
+    botao.click();
+    expect(onMarcarPresenca).not.toHaveBeenCalled();
+  });
+
+  it("falha da RPC é exibida pelo ErroInline, o componente padrão (L-008)", () => {
+    render(
+      <ConteudoEncontro
+        encontro={ENCONTRO}
+        registros={[]}
+        hoje={DEPOIS_DO_ENCONTRO}
+        erroPresenca="Você não tem permissão para realizar esta operação."
+      />
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Você não tem permissão para realizar esta operação."
+    );
+    expect(screen.getByText("Não foi possível marcar presença")).toBeInTheDocument();
+  });
+
+  it("sem erro, nenhum alerta é renderizado — lado oposto", () => {
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje={DEPOIS_DO_ENCONTRO} />);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("ConteudoEncontro (EST-13 AC6) — adicionar registro", () => {
+  it("a criação nasce vinculada ao encontro E ao contrato, os dois ids no payload", () => {
+    const onAdicionarRegistro = vi.fn();
+    render(
+      <ConteudoEncontro
+        encontro={ENCONTRO}
+        registros={[]}
+        hoje={HOJE}
+        onAdicionarRegistro={onAdicionarRegistro}
+      />
+    );
+
+    screen.getByRole("button", { name: "Adicionar registro" }).click();
+
+    expect(onAdicionarRegistro).toHaveBeenCalledWith({ idEncontro: 501, idContrato: 42 });
+  });
+
+  it("a ação existe mesmo em encontro já realizado — registrar não depende de estar vencido", () => {
+    render(
+      <ConteudoEncontro
+        encontro={{ ...ENCONTRO, status: "realizado", dtRealizada: "2026-09-15T14:10:00-03:00" }}
+        registros={[]}
+        hoje={HOJE}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Adicionar registro" })).toBeInTheDocument();
   });
 });
