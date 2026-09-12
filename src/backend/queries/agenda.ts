@@ -103,7 +103,13 @@ interface RowParticipante {
 // Gestora, projeto e contrato restringem por interseção (AND), nunca por
 // união -- mesma regra de resolverIdsContratoDoFiltro em queries/pendencias.ts.
 // idProduto sempre entra: a Agenda é por produto.
-async function resolverIdsContratoDoFiltro(
+//
+// Exportada para queries/registros-agenda.ts (T27): a lista de Registros da
+// Agenda usa exatamente este recorte, com o mesmo tipo FiltroAgenda. Clonar
+// a função lá seria uma duplicata equivalente que deriva em silêncio quando
+// uma das duas mudar (lição L-005) -- diferente do caso de pendencias.ts vs
+// visao-gerencial.ts, onde os tipos de filtro eram de fato distintos.
+export async function resolverIdsContratoDoFiltro(
   client: SupabaseClient<Database>,
   filtro: FiltroAgenda
 ): Promise<number[]> {
