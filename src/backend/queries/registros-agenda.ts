@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../supabase/database.types";
-import { resolverIdsContratoDoFiltro, type FiltroAgenda } from "./agenda";
+import { intervaloDoMes, resolverIdsContratoDoFiltro, type FiltroAgenda } from "./agenda";
 
 // EST-12 AC5 (T27, design.md "AgendaMes + EncontroPopover" -- Interfaces:
 // `buscarRegistrosDaAgenda(client, { idEncontro? })`).
@@ -52,10 +52,20 @@ export async function buscarRegistrosDaAgenda(
   const idsContrato = await resolverIdsContratoDoFiltro(client, filtro);
   if (idsContrato.length === 0) return [];
 
+  // O recorte de mês vale para os registros tanto quanto para os encontros:
+  // sem ele, `ano`/`mes` do filtro só resolviam os contratos e a lista repetia
+  // os mesmos registros em qualquer mês navegado (relato do Pedro, 2026-09-12,
+  // vendo registros de agosto na tela de setembro). Mesmo par gte/lt e mesmo
+  // `intervaloDoMes` de buscarEncontrosDoMes (T25), para os dois recortes não
+  // divergirem na virada de mês nem no fuso.
+  const { inicio, fim } = intervaloDoMes(filtro.ano, filtro.mes);
+
   let query = client
     .from("fat_registro")
     .select("id_registro, id_encontro, id_contrato, id_tipo_registro, ocorrido_em, resumo, id_usuario_autor")
-    .in("id_contrato", idsContrato);
+    .in("id_contrato", idsContrato)
+    .gte("ocorrido_em", inicio)
+    .lt("ocorrido_em", fim);
 
   if (filtro.idEncontro !== undefined) {
     query = query.eq("id_encontro", filtro.idEncontro);

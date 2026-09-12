@@ -43,6 +43,8 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | Re
       eq: registrar("eq"),
       in: registrar("in"),
       is: registrar("is"),
+      gte: registrar("gte"),
+      lt: registrar("lt"),
       order: registrar("order"),
       then: (resolve: (valor: RespostaTabela) => void, reject: (erro: unknown) => void) =>
         Promise.resolve(resposta).then(resolve, reject),
@@ -92,6 +94,36 @@ describe("buscarRegistrosDaAgenda (EST-12 AC5)", () => {
 
     expect(argsDe(chamadas, "fat_registro", "eq")).toEqual([]);
     expect(resultado).toHaveLength(1);
+  });
+
+  // Regressão: a lista repetia os mesmos registros em todo mês navegado porque
+  // `ano`/`mes` só resolviam os contratos e nunca recortavam `ocorrido_em`.
+  // Pedro viu registros de agosto na tela de setembro em 2026-09-12.
+  it("recorta por mês: registro fora da janela não é pedido ao banco", async () => {
+    const { client, chamadas } = criarClienteMock(respostasPadrao([REGISTRO_1]));
+
+    await buscarRegistrosDaAgenda(client, RECORTE);
+
+    expect(argsDe(chamadas, "fat_registro", "gte")).toEqual([
+      ["ocorrido_em", "2026-09-01T00:00:00-03:00"],
+    ]);
+    expect(argsDe(chamadas, "fat_registro", "lt")).toEqual([
+      ["ocorrido_em", "2026-10-01T00:00:00-03:00"],
+    ]);
+  });
+
+  // Lado oposto do anterior: a janela acompanha o mês pedido, não é constante.
+  it("a janela do recorte muda com o mês navegado (dezembro vira janeiro seguinte)", async () => {
+    const { client, chamadas } = criarClienteMock(respostasPadrao([REGISTRO_1]));
+
+    await buscarRegistrosDaAgenda(client, { idProduto: 1, ano: 2026, mes: 12 });
+
+    expect(argsDe(chamadas, "fat_registro", "gte")).toEqual([
+      ["ocorrido_em", "2026-12-01T00:00:00-03:00"],
+    ]);
+    expect(argsDe(chamadas, "fat_registro", "lt")).toEqual([
+      ["ocorrido_em", "2027-01-01T00:00:00-03:00"],
+    ]);
   });
 
   it("com idEncontro filtra a consulta por aquele encontro (AC5, lado oposto)", async () => {
