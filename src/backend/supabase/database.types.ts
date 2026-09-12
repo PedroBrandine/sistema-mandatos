@@ -125,6 +125,7 @@ export type Database = {
         Args: { p_id_vinculo_tse: number }
         Returns: undefined
       }
+      marcar_presenca: { Args: { p_id_encontro: number }; Returns: undefined }
       mover_etapa_kanban: {
         Args: { p_id_contrato: number; p_id_etapa_destino: number }
         Returns: undefined
