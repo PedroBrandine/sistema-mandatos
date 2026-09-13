@@ -17,6 +17,46 @@ confirmadas na tela por Pedro. F6 (Novo Contrato), F8 (KPIs) e F7 (Agenda, T25-T
 2026-09-12) entregues e **ainda não confirmadas na tela**. Verifier pendente sobre
 F5-F8 — o validation.md em disco cobre só T1-T18.
 
+> ### ⏭️ PENDENTE — Verifier final (adiado para 2026-09-13 por limite de créditos)
+>
+> Decisão do Pedro em 2026-09-12: o Verifier final roda **amanhã, quando os créditos
+> resetarem**. Ele ainda **não rodou** sobre F5-F8 — `validation.md` em disco cobre
+> apenas T1-T18 (Fases 0-4), com diff range `53db28f`..`ae4f67c`.
+>
+> O que ele precisa cobrir quando rodar:
+> - **Mais de 25 commits sem auditoria independente**: Fases 5, 6, 7 e 8, mais as
+>   quatro tasks de montagem de página (T18b, T21b, T30b, T33b) e as correções de
+>   2026-09-12 (`b4afcea` recorte de mês, `1f8ee44` estado vazio da grade).
+> - **EST-01 a EST-14 inteiros**, não só os requisitos de F0-F4.
+> - **Telas de escrita em profundidade integral** (Novo Contrato T22-T24, popover de
+>   presença T28-T30) — AD-046 não as alcança.
+> - **As ACs cortadas por AD-046** nas telas de leitura, que devem aparecer como
+>   spec-precision gaps explícitos, nunca como "coberto".
+> - **Os 3 gaps herdados** que o Verifier anterior deixou abertos, para dizer se
+>   seguem válidos: "Gestão de Usuários" como UI-hiding e não RLS; slug inválido → 404
+>   sem teste; e agora EST-13 AC6 (abaixo).
+> - **Por que os testes não pegaram o que o Pedro pegou**: em 2026-09-12, quatro
+>   defeitos reais foram encontrados por ele abrindo a tela, não por gate nenhum —
+>   Agenda nunca montada, bug da coalizão (`id_contratante` onde a FK pedia
+>   `id_coalizao`), lista de registros sem recorte de mês, e grade vazia sem
+>   estado explícito. Vale o Verifier olhar para esse padrão, não só para ACs.
+
+> ### Sobre as marcações `[x]` deste documento
+>
+> Em 2026-09-12, a pedido do Pedro, os 150 critérios de "Done when" que seguiam
+> desmarcados foram marcados **em bloco**. A evidência usada foi indireta: toda task
+> tem commit próprio, gate registrado como verde no Registro de execução da sua fase,
+> e desvios documentados. **Não** houve re-verificação item a item — isso é justamente
+> o trabalho do Verifier final acima.
+>
+> Um único critério foi deixado **desmarcado de propósito**: T30, "Adicionar registro
+> abre a criação já vinculada ao encontro e contrato" (EST-13 AC6), porque está
+> declarado PARCIAL no desvio 10 da Fase 7. Marcá-lo seria registrar como feito algo
+> que o próprio worker documentou como não feito.
+>
+> Leia as marcações como "a task foi entregue e passou no gate", não como "cada
+> critério foi conferido individualmente".
+
 ---
 
 ## Registro de execução
@@ -908,11 +948,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] `npm run test:unit` coleta e executa `.test.tsx` (EST-01 AC1)
-- [ ] O smoke test renderiza via `@testing-library/react` em `jsdom` (EST-01 AC2)
-- [ ] Remover o texto renderizado de `estado-vazio.tsx` faz o teste falhar (EST-01 AC3) — verificado manualmente e desfeito
-- [ ] `.test.ts` existentes continuam em `node`; contagem de testes anterior preservada
-- [ ] Gate: `npm run lint && npm run test:unit && npm run build`
+- [x] `npm run test:unit` coleta e executa `.test.tsx` (EST-01 AC1)
+- [x] O smoke test renderiza via `@testing-library/react` em `jsdom` (EST-01 AC2)
+- [x] Remover o texto renderizado de `estado-vazio.tsx` faz o teste falhar (EST-01 AC3) — verificado manualmente e desfeito
+- [x] `.test.ts` existentes continuam em `node`; contagem de testes anterior preservada
+- [x] Gate: `npm run lint && npm run test:unit && npm run build`
 
 **Tests**: unit · **Gate**: build
 **Commit**: `chore(teste): harness de componente -- jsdom + testing-library (AD-042)`
@@ -930,11 +970,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: `supabase`
 
 **Done when**:
-- [ ] Tabela criada com `CHECK (dias > 0)` e `codigo` UNIQUE
-- [ ] Seed: `formulario_aberto=30`, `sem_registro_recente=45`, `etapa_atencao`, `etapa_atrasado`
-- [ ] GRANT SELECT para `authenticated` + as 5 roles `legisla_*`; `anon` sem SELECT (AD-030)
-- [ ] Teste de integração assere estrutura, seed e uma linha por role × privilégio
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] Tabela criada com `CHECK (dias > 0)` e `codigo` UNIQUE
+- [x] Seed: `formulario_aberto=30`, `sem_registro_recente=45`, `etapa_atencao`, `etapa_atrasado`
+- [x] GRANT SELECT para `authenticated` + as 5 roles `legisla_*`; `anon` sem SELECT (AD-030)
+- [x] Teste de integração assere estrutura, seed e uma linha por role × privilégio
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): ref_limiar_pendencia com GRANT-only (AD-041)`
@@ -952,11 +992,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: `supabase`, `supabase-postgres-best-practices`
 
 **Done when**:
-- [ ] Nenhum literal `INTERVAL '<n> days'` permanece no corpo da view (AD-004)
-- [ ] As 6 categorias continuam retornando as mesmas linhas com o seed padrão (não-regressão)
-- [ ] Alterar `ref_limiar_pendencia.dias` muda o resultado da view sem deploy (EST-06 / edge case)
-- [ ] `security_invoker = true` preservado
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] Nenhum literal `INTERVAL '<n> days'` permanece no corpo da view (AD-004)
+- [x] As 6 categorias continuam retornando as mesmas linhas com o seed padrão (não-regressão)
+- [x] Alterar `ref_limiar_pendencia.dias` muda o resultado da view sem deploy (EST-06 / edge case)
+- [x] `security_invoker = true` preservado
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `refactor(estrategia): vw_pendencias le limiares de tabela (AD-041)`
@@ -974,11 +1014,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: `supabase`
 
 **Done when**:
-- [ ] `SELECT nome FROM ref_etapa WHERE codigo='raio_x'` retorna "Diagnóstico" nos 2 produtos (EST-14 AC1, AC4)
-- [ ] `codigo` inalterado; contagem de `ref_tipo_registro`, `ref_formulario` e `fat_etapa_contrato` por etapa idêntica à de antes (EST-14 AC2)
-- [ ] Migration é idempotente sob `supabase db reset` (roda do zero no CI)
-- [ ] `docs/schema_sistema.sql` (bloco de seed de `ref_etapa`, ~linha 2234) passa a dizer "Diagnóstico" — o modelo aprovado não pode divergir do banco (AD-008)
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] `SELECT nome FROM ref_etapa WHERE codigo='raio_x'` retorna "Diagnóstico" nos 2 produtos (EST-14 AC1, AC4)
+- [x] `codigo` inalterado; contagem de `ref_tipo_registro`, `ref_formulario` e `fat_etapa_contrato` por etapa idêntica à de antes (EST-14 AC2)
+- [x] Migration é idempotente sob `supabase db reset` (roda do zero no CI)
+- [x] `docs/schema_sistema.sql` (bloco de seed de `ref_etapa`, ~linha 2234) passa a dizer "Diagnóstico" — o modelo aprovado não pode divergir do banco (AD-008)
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): renomeia etapa Raio-X para Diagnostico (EST-14)`
@@ -998,12 +1038,12 @@ T31 → T32 → T33 → T33b
 **Contexto da decisão (Pedro, 2026-09-10):** limiar absoluto não distingue contexto — 120 dias em Monitoramento é normal, em Pontapé é abandono. O corte escolhido é **70% da duração prevista para Atenção** e **100% para Atrasado**. Ex.: Diagnóstico (21 dias) → amarelo aos 15, vermelho aos 22; Monitoramento (120) → amarelo aos 84.
 
 **Done when**:
-- [ ] A tabela distingue as duas bases de limiar (dias absolutos × percentual da duração da etapa), sem coluna ambígua
-- [ ] `etapa_atencao = 70`, `etapa_atrasado = 100`, ambos expressos como percentual
-- [ ] `formulario_aberto = 30` e `sem_registro_recente = 45` seguem em dias absolutos e a `vw_pendencias` da T3 continua verde (não-regressão)
-- [ ] Nenhum percentual e nenhuma duração fica escrita em código (AD-004)
-- [ ] `docs/schema_sistema.sql` reflete a forma final da tabela (AD-008)
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] A tabela distingue as duas bases de limiar (dias absolutos × percentual da duração da etapa), sem coluna ambígua
+- [x] `etapa_atencao = 70`, `etapa_atrasado = 100`, ambos expressos como percentual
+- [x] `formulario_aberto = 30` e `sem_registro_recente = 45` seguem em dias absolutos e a `vw_pendencias` da T3 continua verde (não-regressão)
+- [x] Nenhum percentual e nenhuma duração fica escrita em código (AD-004)
+- [x] `docs/schema_sistema.sql` reflete a forma final da tabela (AD-008)
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): limiar de etapa como percentual da duracao prevista (AD-045)`
@@ -1021,11 +1061,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: `supabase`, `supabase-postgres-best-practices`
 
 **Done when**:
-- [ ] Tabela criada **sem** `id_contrato`, com os 3 CHECKs do design
-- [ ] `uq_prospeccao_aberta_contratante` recusa a 2ª prospecção aberta do mesmo contratante+produto (EST-04 edge case)
-- [ ] `trg_audit_fat_prospeccao` grava em `log_auditoria` no INSERT e no UPDATE (EST-04 AC2 / AD-006)
-- [ ] `docs/schema_sistema.sql` recebe a tabela com comentário referenciando AD-040 (AD-008)
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] Tabela criada **sem** `id_contrato`, com os 3 CHECKs do design
+- [x] `uq_prospeccao_aberta_contratante` recusa a 2ª prospecção aberta do mesmo contratante+produto (EST-04 edge case)
+- [x] `trg_audit_fat_prospeccao` grava em `log_auditoria` no INSERT e no UPDATE (EST-04 AC2 / AD-006)
+- [x] `docs/schema_sistema.sql` recebe a tabela com comentário referenciando AD-040 (AD-008)
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): fat_prospeccao -- prospeccao pre-contrato (AD-040)`
@@ -1043,10 +1083,10 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: `supabase`
 
 **Done when**:
-- [ ] RLS habilitada; leitura permitida a Gestora/Admin e ao `id_usuario_resp`; negada às demais (EST-04 AC6)
-- [ ] Escrita restrita às roles que podem criar contrato; `anon` sem nenhum privilégio (AD-002)
-- [ ] Teste com sessão JWT real por papel, não só `has_table_privilege`
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] RLS habilitada; leitura permitida a Gestora/Admin e ao `id_usuario_resp`; negada às demais (EST-04 AC6)
+- [x] Escrita restrita às roles que podem criar contrato; `anon` sem nenhum privilégio (AD-002)
+- [x] Teste com sessão JWT real por papel, não só `has_table_privilege`
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): RLS e grants de fat_prospeccao (AD-001)`
@@ -1064,11 +1104,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: `supabase`, `supabase-postgres-best-practices`
 
 **Done when**:
-- [ ] `SECURITY INVOKER` explícito; `SECURITY DEFINER` ausente (AD-024)
-- [ ] Caminho feliz: cria contrato, seta `status='convertida'`, `id_contrato_gerado` e `dt_desfecho` (EST-04 AC3)
-- [ ] Segunda conversão da mesma prospecção falha com erro tipado, sem criar contrato (EST-04 AC4)
-- [ ] Falha no meio não deixa contrato órfão — asserido com rollback forçado
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] `SECURITY INVOKER` explícito; `SECURITY DEFINER` ausente (AD-024)
+- [x] Caminho feliz: cria contrato, seta `status='convertida'`, `id_contrato_gerado` e `dt_desfecho` (EST-04 AC3)
+- [x] Segunda conversão da mesma prospecção falha com erro tipado, sem criar contrato (EST-04 AC4)
+- [x] Falha no meio não deixa contrato órfão — asserido com rollback forçado
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(estrategia): RPC converter_prospeccao transacional (AD-024)`
@@ -1086,10 +1126,10 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Retorna só `status='aberta'` do produto pedido
-- [ ] Produto sem prospecção retorna `[]`, nunca lança (padrão de `buscarBoardKanban`)
-- [ ] Erro do PostgREST propaga como `throw` (padrão do projeto)
-- [ ] Gate: `npm run test:unit`
+- [x] Retorna só `status='aberta'` do produto pedido
+- [x] Produto sem prospecção retorna `[]`, nunca lança (padrão de `buscarBoardKanban`)
+- [x] Erro do PostgREST propaga como `throw` (padrão do projeto)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): query de prospeccoes abertas`
@@ -1107,9 +1147,9 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Cada parâmetro é repassado verbatim à RPC e asserido individualmente (lição L-004)
-- [ ] Cada erro tipado da T7 mapeia para mensagem própria, uma asserção por erro (lição L-003)
-- [ ] Gate: `npm run test:unit`
+- [x] Cada parâmetro é repassado verbatim à RPC e asserido individualmente (lição L-004)
+- [x] Cada erro tipado da T7 mapeia para mensagem própria, uma asserção por erro (lição L-003)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): wrapper TS de converter_prospeccao`
@@ -1129,10 +1169,10 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: `Figma` (T1 `59:4` para conferir a barra) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] Topbar renderiza marca, "Hub" e avatar (EST-05 AC1)
-- [ ] Topbar **não** renderiza "Gestão de Usuários" — asserção negativa explícita (EST-05 AC2)
-- [ ] `npm run lint:frontend` limpo neste arquivo
-- [ ] Gate: `npm run test:unit`
+- [x] Topbar renderiza marca, "Hub" e avatar (EST-05 AC1)
+- [x] Topbar **não** renderiza "Gestão de Usuários" — asserção negativa explícita (EST-05 AC2)
+- [x] `npm run lint:frontend` limpo neste arquivo
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `refactor(shell): Gestao de Usuarios sai da topbar (EST-05)`
@@ -1152,11 +1192,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Ordem fixa: Estratégia, PLL, Coalizão, Visão Gerencial, Números de Impacto, Gestão de Usuários (EST-02 AC6)
-- [ ] Consulta negada por permissão → card omitido; erro de outra natureza → propaga (EST-02 AC2, AC7)
-- [ ] `tipo: 'produto' | 'ferramenta'` correto por card
-- [ ] Contagens de mandatos ativos e fatos geradores vêm da consulta, nunca fixas (EST-02 AC3, AC4)
-- [ ] Gate: `npm run test:unit`
+- [x] Ordem fixa: Estratégia, PLL, Coalizão, Visão Gerencial, Números de Impacto, Gestão de Usuários (EST-02 AC6)
+- [x] Consulta negada por permissão → card omitido; erro de outra natureza → propaga (EST-02 AC2, AC7)
+- [x] `tipo: 'produto' | 'ferramenta'` correto por card
+- [x] Contagens de mandatos ativos e fatos geradores vêm da consulta, nunca fixas (EST-02 AC3, AC4)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(hub): cards derivados do que a role consegue ler (AD-001)`
@@ -1176,12 +1216,12 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: `Figma` (T1 `59:4`) · Skill: `ui-ux-pro-max`, `frontend-design`
 
 **Done when**:
-- [ ] Renderiza um card por item retornado, na ordem recebida (EST-02 AC1, AC6)
-- [ ] Card exibe badge de contador quando presente e o omite quando ausente — caso de teste dos dois lados
-- [ ] Subtítulo revisto: não diz mais "Escolha um produto" (risco registrado no design)
-- [ ] Clique navega para a rota do destino (EST-02 AC5)
-- [ ] `lint:frontend` limpo nos arquivos tocados
-- [ ] Gate: `npm run test:unit`
+- [x] Renderiza um card por item retornado, na ordem recebida (EST-02 AC1, AC6)
+- [x] Card exibe badge de contador quando presente e o omite quando ausente — caso de teste dos dois lados
+- [x] Subtítulo revisto: não diz mais "Escolha um produto" (risco registrado no design)
+- [x] Clique navega para a rota do destino (EST-02 AC5)
+- [x] `lint:frontend` limpo nos arquivos tocados
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(hub): 6 cards com contadores reais (EST-02)`
@@ -1201,11 +1241,11 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: `Figma` (T6 `202:554`) · Skill: NONE
 
 **Done when**:
-- [ ] As 4 abas renderizam com "Mandatos" no lugar de "Contratos" (EST-03 AC1)
-- [ ] Aba ativa marcada e as demais não — teste dos dois lados (EST-03 AC2)
-- [ ] "Voltar ao hub" navega para `/` (EST-03 AC3)
-- [ ] Slug inválido retorna 404 (EST-03 AC4)
-- [ ] Gate: `npm run test:unit`
+- [x] As 4 abas renderizam com "Mandatos" no lugar de "Contratos" (EST-03 AC1)
+- [x] Aba ativa marcada e as demais não — teste dos dois lados (EST-03 AC2)
+- [x] "Voltar ao hub" navega para `/` (EST-03 AC3)
+- [x] Slug inválido retorna 404 (EST-03 AC4)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `refactor(estrategia): aba Contratos vira Mandatos (EST-03)`
@@ -1225,10 +1265,10 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Um caso de teste **de cada lado** de cada limiar, incluindo o valor exato de fronteira (lição L-001)
-- [ ] Limiar ausente ou nulo devolve `normal`, nunca lança
-- [ ] Nenhum número mágico no arquivo — limiares chegam por parâmetro (AD-004)
-- [ ] Gate: `npm run test:unit`
+- [x] Um caso de teste **de cada lado** de cada limiar, incluindo o valor exato de fronteira (lição L-001)
+- [x] Limiar ausente ou nulo devolve `normal`, nunca lança
+- [x] Nenhum número mágico no arquivo — limiares chegam por parâmetro (AD-004)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): classificacao de limiar de etapa`
@@ -1248,12 +1288,12 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Raia de Prospecção vem primeiro; demais colunas por `ref_etapa.ordem` (EST-07 AC1)
-- [ ] Para a Estratégia com o seed atual retorna **7 colunas** (EST-07 AC1)
-- [ ] Etapa sem contrato retorna coluna vazia com contador 0 (edge case)
-- [ ] Contrato sem `id_etapa_atual` cai em coluna "Sem etapa", nunca some (edge case)
-- [ ] Adicionar linha em `ref_etapa` muda a contagem de colunas sem tocar em código (EST-07 AC1b)
-- [ ] Gate: `npm run test:unit`
+- [x] Raia de Prospecção vem primeiro; demais colunas por `ref_etapa.ordem` (EST-07 AC1)
+- [x] Para a Estratégia com o seed atual retorna **7 colunas** (EST-07 AC1)
+- [x] Etapa sem contrato retorna coluna vazia com contador 0 (edge case)
+- [x] Contrato sem `id_etapa_atual` cai em coluna "Sem etapa", nunca some (edge case)
+- [x] Adicionar linha em `ref_etapa` muda a contagem de colunas sem tocar em código (EST-07 AC1b)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): quadro com raia de prospeccao e colunas data-driven`
@@ -1273,12 +1313,12 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: `Figma` (T3 `44:5`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] Card exibe contratante, cargo/partido e dias na etapa (EST-07 AC2)
-- [ ] Badge reflete o estado do limiar — um caso de teste por estado (EST-07 AC3)
-- [ ] Card da raia de Prospecção não é arrastável para coluna de etapa (AD-040)
-- [ ] Estado vazio por coluna renderiza, não some
-- [ ] `lint:frontend` limpo
-- [ ] Gate: `npm run test:unit`
+- [x] Card exibe contratante, cargo/partido e dias na etapa (EST-07 AC2)
+- [x] Badge reflete o estado do limiar — um caso de teste por estado (EST-07 AC3)
+- [x] Card da raia de Prospecção não é arrastável para coluna de etapa (AD-040)
+- [x] Estado vazio por coluna renderiza, não some
+- [x] `lint:frontend` limpo
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): Quadro de Acompanhamento (EST-07)`
@@ -1298,10 +1338,10 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Retorna as 5 categorias com mandato, tipo, detalhe e data de referência (EST-07 AC4)
-- [ ] Sem pendências retorna `[]` (EST-07 AC6)
-- [ ] Filtros de gestora e projeto aplicam AND, não OR
-- [ ] Gate: `npm run test:unit`
+- [x] Retorna as 5 categorias com mandato, tipo, detalhe e data de referência (EST-07 AC4)
+- [x] Sem pendências retorna `[]` (EST-07 AC6)
+- [x] Filtros de gestora e projeto aplicam AND, não OR
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): query de pendencias do dashboard`
@@ -1321,10 +1361,10 @@ T31 → T32 → T33 → T33b
 **Tools**: MCP: `Figma` (T3 `44:5`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] Uma linha por pendência, com badge por tipo (EST-07 AC4)
-- [ ] Clique navega para o contrato correspondente (EST-07 AC5)
-- [ ] Lista vazia renderiza `EstadoVazio`, não tabela vazia (EST-07 AC6)
-- [ ] Gate: `npm run test:unit`
+- [x] Uma linha por pendência, com badge por tipo (EST-07 AC4)
+- [x] Clique navega para o contrato correspondente (EST-07 AC5)
+- [x] Lista vazia renderiza `EstadoVazio`, não tabela vazia (EST-07 AC6)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): tabela de pendencias acionavel (EST-07)`
@@ -1377,11 +1417,11 @@ reescrever `produtos/[slug]/dashboard/page.tsx` para renderizar `QuadroAcompanha
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Cada filtro (data, gestora, projeto, etapa, status) restringe isoladamente (EST-09 AC3)
-- [ ] Dois filtros juntos aplicam AND
-- [ ] Prospecções **não** aparecem (EST-04 AC5)
-- [ ] Contagem total acompanha o filtro (EST-09 AC2)
-- [ ] Gate: `npm run test:unit`
+- [x] Cada filtro (data, gestora, projeto, etapa, status) restringe isoladamente (EST-09 AC3)
+- [x] Dois filtros juntos aplicam AND
+- [x] Prospecções **não** aparecem (EST-04 AC5)
+- [x] Contagem total acompanha o filtro (EST-09 AC2)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): query da lista de mandatos com filtros`
@@ -1401,11 +1441,11 @@ reescrever `produtos/[slug]/dashboard/page.tsx` para renderizar `QuadroAcompanha
 **Tools**: MCP: `Figma` (T6 `202:554`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] Card exibe contratante, vigência, status, gestora, projeto, etapa e responsável (EST-09 AC1)
-- [ ] `dt_fim` nula renderiza "—" (EST-09 AC5 / AD-005)
-- [ ] Status traduz `ativo|concluido|nao_concluido` para Ativo|Finalizado|Desligado — um caso por status
-- [ ] Lista vazia renderiza estado vazio explicativo (EST-09 AC6)
-- [ ] Gate: `npm run test:unit`
+- [x] Card exibe contratante, vigência, status, gestora, projeto, etapa e responsável (EST-09 AC1)
+- [x] `dt_fim` nula renderiza "—" (EST-09 AC5 / AD-005)
+- [x] Status traduz `ativo|concluido|nao_concluido` para Ativo|Finalizado|Desligado — um caso por status
+- [x] Lista vazia renderiza estado vazio explicativo (EST-09 AC6)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): lista de mandatos em cards (EST-09)`
@@ -1425,9 +1465,9 @@ reescrever `produtos/[slug]/dashboard/page.tsx` para renderizar `QuadroAcompanha
 **Tools**: MCP: `Figma` (T6 `202:554`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] Cada filtro altera a consulta e a contagem exibida (EST-09 AC2, AC3)
-- [ ] "Limpar filtros" devolve todos ao estado inicial (EST-09 AC4)
-- [ ] Gate: `npm run test:unit`
+- [x] Cada filtro altera a consulta e a contagem exibida (EST-09 AC2, AC3)
+- [x] "Limpar filtros" devolve todos ao estado inicial (EST-09 AC4)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): filtros da lista de mandatos (EST-09)`
@@ -1451,11 +1491,11 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: `Figma` (T6 `202:554`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] `/produtos/estrategia/mandatos` renderiza a barra de filtros + a grade de cards, não a lista antiga
-- [ ] Mudar um filtro refaz a consulta e atualiza a contagem exibida (EST-09 AC2/AC3, ponta a ponta)
-- [ ] "Limpar filtros" devolve a lista completa (EST-09 AC4)
-- [ ] `lint:frontend` limpo
-- [ ] Gate: `npm run test:unit`
+- [x] `/produtos/estrategia/mandatos` renderiza a barra de filtros + a grade de cards, não a lista antiga
+- [x] Mudar um filtro refaz a consulta e atualiza a contagem exibida (EST-09 AC2/AC3, ponta a ponta)
+- [x] "Limpar filtros" devolve a lista completa (EST-09 AC4)
+- [x] `lint:frontend` limpo
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): monta pagina da lista de Mandatos com filtros (EST-09)`
@@ -1473,10 +1513,10 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: `Figma` (T4 `188:192`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] Menos de 3 letras não dispara busca; 3 ou mais dispara — teste dos dois lados (EST-10 AC1, AC2)
-- [ ] Falha da busca renderiza `ErroInline` e mantém "Cadastro manual" acessível (EST-10 AC8)
-- [ ] `lint:frontend` limpo em `tse-match-search.tsx` (2 problemas atuais resolvidos)
-- [ ] Gate: `npm run test:unit`
+- [x] Menos de 3 letras não dispara busca; 3 ou mais dispara — teste dos dois lados (EST-10 AC1, AC2)
+- [x] Falha da busca renderiza `ErroInline` e mantém "Cadastro manual" acessível (EST-10 AC8)
+- [x] `lint:frontend` limpo em `tse-match-search.tsx` (2 problemas atuais resolvidos)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): busca TSE do Novo Contrato (EST-10)`
@@ -1494,12 +1534,12 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: `Figma` (T2 `188:5`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] As 4 seções do Figma renderizam com os campos do design
-- [ ] Campos vindos do TSE são `readOnly`; no modo manual são editáveis — teste dos dois lados (EST-10 AC3, AC4)
-- [ ] "Cancelar e buscar novamente" desfaz o vínculo e reabre a busca (EST-10 AC5)
-- [ ] Schema Zod **importado**, não redeclarado inline (lição L-005)
-- [ ] `lint:frontend` limpo nos arquivos tocados
-- [ ] Gate: `npm run test:unit`
+- [x] As 4 seções do Figma renderizam com os campos do design
+- [x] Campos vindos do TSE são `readOnly`; no modo manual são editáveis — teste dos dois lados (EST-10 AC3, AC4)
+- [x] "Cancelar e buscar novamente" desfaz o vínculo e reabre a busca (EST-10 AC5)
+- [x] Schema Zod **importado**, não redeclarado inline (lição L-005)
+- [x] `lint:frontend` limpo nos arquivos tocados
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): formulario de Novo Contrato em 4 secoes (EST-10)`
@@ -1517,10 +1557,10 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Submissão chama a RPC única; nunca dois inserts sequenciais (EST-11 AC6 / AD-024)
-- [ ] Título duplicado exibe mensagem específica e preserva o formulário (EST-11 AC7)
-- [ ] Erro propaga por `ErroInline`, o componente padrão (lição L-008)
-- [ ] Gate: `npm run test:unit`
+- [x] Submissão chama a RPC única; nunca dois inserts sequenciais (EST-11 AC6 / AD-024)
+- [x] Título duplicado exibe mensagem específica e preserva o formulário (EST-11 AC7)
+- [x] Erro propaga por `ErroInline`, o componente padrão (lição L-008)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(estrategia): submissao transacional de mandato e contrato (EST-11)`
@@ -1540,10 +1580,10 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Retorna só encontros dentro do intervalo do mês pedido — teste de fronteira nos dois extremos (lição L-001)
-- [ ] Mês sem encontros retorna `[]`, nunca lança (EST-12 / edge case)
-- [ ] Filtros de gestora, projeto e contrato aplicam AND
-- [ ] Gate: `npm run test:unit`
+- [x] Retorna só encontros dentro do intervalo do mês pedido — teste de fronteira nos dois extremos (lição L-001)
+- [x] Mês sem encontros retorna `[]`, nunca lança (EST-12 / edge case)
+- [x] Filtros de gestora, projeto e contrato aplicam AND
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(agenda): query de encontros do mes`
@@ -1563,12 +1603,12 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: `Figma` (T5 `163:4`) · Skill: `ui-ux-pro-max`, `frontend-design`
 
 **Done when**:
-- [ ] Encontro aparece na célula do dia correto (EST-12 AC1)
-- [ ] Cor reflete o status Agendada/Realizada — um caso por status (EST-12 AC2)
-- [ ] Navegar de mês recarrega os encontros (EST-12 AC3)
-- [ ] Célula de hoje destacada; caso de teste com hoje dentro e fora do mês exibido (EST-12 AC6, lição L-002 — data de referência explícita, nunca `now()` implícito)
-- [ ] Mês vazio renderiza a grade completa (edge case)
-- [ ] Gate: `npm run test:unit`
+- [x] Encontro aparece na célula do dia correto (EST-12 AC1)
+- [x] Cor reflete o status Agendada/Realizada — um caso por status (EST-12 AC2)
+- [x] Navegar de mês recarrega os encontros (EST-12 AC3)
+- [x] Célula de hoje destacada; caso de teste com hoje dentro e fora do mês exibido (EST-12 AC6, lição L-002 — data de referência explícita, nunca `now()` implícito)
+- [x] Mês vazio renderiza a grade completa (edge case)
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(agenda): grade mensal de encontros (EST-12)`
@@ -1588,9 +1628,9 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: NONE · Skill: NONE
 
 **Done when**:
-- [ ] Sem filtro retorna todos do recorte; com `idEncontro` retorna só os dele (EST-12 AC5)
-- [ ] Retorna tipo, data, descrição e responsável
-- [ ] Gate: `npm run test:unit`
+- [x] Sem filtro retorna todos do recorte; com `idEncontro` retorna só os dele (EST-12 AC5)
+- [x] Retorna tipo, data, descrição e responsável
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(agenda): query de registros da agenda`
@@ -1608,11 +1648,11 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: `Figma` (T7 `90:206`) · Skill: `ui-ux-pro-max`
 
 **Done when**:
-- [ ] Exibe status, etapa, tipo, data/horário, modalidade, local, tema e participantes (EST-13 AC1)
-- [ ] Contagem de registros vinculados e link aparecem quando há registros e somem quando não há — teste dos dois lados (EST-13 AC2)
-- [ ] Campo nulo renderiza ausência, nunca string vazia (AD-005)
-- [ ] `lint:frontend` limpo em `encontros-lista.tsx`
-- [ ] Gate: `npm run test:unit`
+- [x] Exibe status, etapa, tipo, data/horário, modalidade, local, tema e participantes (EST-13 AC1)
+- [x] Contagem de registros vinculados e link aparecem quando há registros e somem quando não há — teste dos dois lados (EST-13 AC2)
+- [x] Campo nulo renderiza ausência, nunca string vazia (AD-005)
+- [x] `lint:frontend` limpo em `encontros-lista.tsx`
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(agenda): popover de detalhe do encontro (EST-13)`
@@ -1630,11 +1670,11 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: NONE · Skill: `supabase`
 
 **Done when**:
-- [ ] `SECURITY INVOKER` (AD-024); grava `status='realizado'` e `dt_realizada` (EST-13 AC4)
-- [ ] Autor e timestamp registrados em `log_auditoria` (AD-006)
-- [ ] Chamada em encontro já realizado é idempotente — não duplica transição (EST-13 AC5)
-- [ ] Wrapper assere cada parâmetro repassado (lição L-004)
-- [ ] Gate: `npm run test:unit && npm run test:integration`
+- [x] `SECURITY INVOKER` (AD-024); grava `status='realizado'` e `dt_realizada` (EST-13 AC4)
+- [x] Autor e timestamp registrados em `log_auditoria` (AD-006)
+- [x] Chamada em encontro já realizado é idempotente — não duplica transição (EST-13 AC5)
+- [x] Wrapper assere cada parâmetro repassado (lição L-004)
+- [x] Gate: `npm run test:unit && npm run test:integration`
 
 **Tests**: integration + unit · **Gate**: full
 **Commit**: `feat(agenda): RPC marcar_presenca idempotente (EST-13)`
@@ -1652,11 +1692,11 @@ acima de `ListaMandatos` (T20), consumindo `buscarMandatosLista` (T19) com o est
 **Tools**: MCP: `Figma` (T7 `90:206`) · Skill: NONE
 
 **Done when**:
-- [ ] Aviso e ação aparecem só quando a data passou e o status é `planejado` — teste dos dois lados (EST-13 AC3)
-- [ ] Marcar presença atualiza o status na grade (EST-13 AC4)
+- [x] Aviso e ação aparecem só quando a data passou e o status é `planejado` — teste dos dois lados (EST-13 AC3)
+- [x] Marcar presença atualiza o status na grade (EST-13 AC4)
 - [ ] "Adicionar registro" abre a criação já vinculada ao encontro e contrato (EST-13 AC6)
-- [ ] `lint:frontend` limpo em `encontro-form.tsx`
-- [ ] Gate: `npm run test:unit`
+- [x] `lint:frontend` limpo em `encontro-form.tsx`
+- [x] Gate: `npm run test:unit`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(agenda): marcar presenca e adicionar registro no popover (EST-13)`
