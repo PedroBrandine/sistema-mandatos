@@ -1,15 +1,23 @@
 import type { Metadata } from "next";
-import { Outfit, Inter } from "next/font/google";
+import { Anton, Commissioner } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "@/components/providers";
 
-const outfit = Outfit({
+// docs/Identidade Visual Legisla.md ("Tipografia"): Anton só para títulos
+// grandes de página e números de KPI (sempre caixa alta); Commissioner para
+// todo o resto -- rótulos, tabelas, botões, corpo. Substitui Outfit/Inter,
+// que divergiam do documento aprovado (AD-027 manda a identidade visual
+// entrar via CSS vars nestes dois tokens, nunca font-family hardcoded
+// componente a componente). Anton só tem peso 400 no Google Fonts -- correto,
+// a marca não usa Anton em outro peso.
+const anton = Anton({
   variable: "--font-heading",
+  weight: "400",
   subsets: ["latin"],
 });
 
-const inter = Inter({
+const commissioner = Commissioner({
   variable: "--font-sans",
   subsets: ["latin"],
 });
@@ -27,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${outfit.variable} ${inter.variable} h-full antialiased`}
+      className={`${anton.variable} ${commissioner.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
