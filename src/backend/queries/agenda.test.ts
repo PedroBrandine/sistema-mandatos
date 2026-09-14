@@ -2,7 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarEncontrosDoMes, FUSO_HORARIO_PRODUTO, intervaloDoMes } from "./agenda";
+import {
+  buscarEncontrosDoMes,
+  buscarOpcoesContrato,
+  buscarOpcoesGestora,
+  buscarOpcoesProjeto,
+  FUSO_HORARIO_PRODUTO,
+  intervaloDoMes,
+} from "./agenda";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T25
 // "Done when" (EST-12) --
@@ -305,5 +312,106 @@ describe("buscarEncontrosDoMes (EST-12)", () => {
     expect(encontro.participantes).toEqual([
       { idParticipacao: 9002, nome: "Assessor convidado", origem: "externo", presente: false },
     ]);
+  });
+});
+
+// Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4
+// "filter-bar"). Pedro: "os filtros de gestora, projeto e contrato também
+// não aparecem como foi definido no Figma". `FiltroAgenda` já aceitava os
+// três recortes na CONSULTA de encontros/registros -- estas 3 funções são as
+// opções que alimentam os dropdowns, faltantes até aqui.
+describe("buscarOpcoesGestora (ajuste de fidelidade visual 2026-09-14)", () => {
+  it("lista gestoras ativas, ordenadas por nome", async () => {
+    const { client, chamadas } = criarClienteMock({
+      dim_usuario: { data: [{ id_usuario: 1, nome: "Ana Gestora" }], error: null },
+    });
+
+    const opcoes = await buscarOpcoesGestora(client);
+
+    expect(opcoes).toEqual([{ id: 1, nome: "Ana Gestora" }]);
+    expect(argsDe(chamadas, "dim_usuario", "eq")).toEqual([
+      ["papel_global", "gestora"],
+      ["ativo", true],
+    ]);
+  });
+
+  it("sem gestora nenhuma retorna [], nunca lança", async () => {
+    const { client } = criarClienteMock({ dim_usuario: { data: [], error: null } });
+
+    await expect(buscarOpcoesGestora(client)).resolves.toEqual([]);
+  });
+
+  it("erro do PostgREST propaga como throw (padrão do projeto)", async () => {
+    const { client } = criarClienteMock({
+      dim_usuario: { data: null, error: { message: "permission denied" } },
+    });
+
+    await expect(buscarOpcoesGestora(client)).rejects.toEqual({ message: "permission denied" });
+  });
+});
+
+describe("buscarOpcoesProjeto (ajuste de fidelidade visual 2026-09-14)", () => {
+  it("lista projetos ativos", async () => {
+    const { client, chamadas } = criarClienteMock({
+      ref_projeto: { data: [{ id_projeto: 10, nome: "Projeto Alfa" }], error: null },
+    });
+
+    const opcoes = await buscarOpcoesProjeto(client);
+
+    expect(opcoes).toEqual([{ id: 10, nome: "Projeto Alfa" }]);
+    expect(argsDe(chamadas, "ref_projeto", "eq")).toEqual([["ativo", true]]);
+  });
+
+  it("erro do PostgREST propaga como throw", async () => {
+    const { client } = criarClienteMock({
+      ref_projeto: { data: null, error: { message: "timeout" } },
+    });
+
+    await expect(buscarOpcoesProjeto(client)).rejects.toEqual({ message: "timeout" });
+  });
+});
+
+describe("buscarOpcoesContrato (ajuste de fidelidade visual 2026-09-14) — terceiro filtro, novo na tela", () => {
+  it("lista os contratos do produto, rotulados pelo nome do contratante", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: {
+        data: [
+          { id_contrato: 1, dim_contratante: { nome: "Dep. Beatriz" } },
+          { id_contrato: 2, dim_contratante: { nome: "Dep. Ana Ribeiro" } },
+        ],
+        error: null,
+      },
+    });
+
+    const opcoes = await buscarOpcoesContrato(client, 1);
+
+    // Ordenado por nome, não pela ordem de retorno do banco.
+    expect(opcoes).toEqual([
+      { id: 2, nome: "Dep. Ana Ribeiro" },
+      { id: 1, nome: "Dep. Beatriz" },
+    ]);
+    expect(argsDe(chamadas, "fat_contrato", "eq")).toEqual([["id_produto", 1]]);
+  });
+
+  it("contrato sem contratante resolvido sai com nome vazio, nunca lança (AD-005)", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1, dim_contratante: null }], error: null },
+    });
+
+    await expect(buscarOpcoesContrato(client, 1)).resolves.toEqual([{ id: 1, nome: "" }]);
+  });
+
+  it("produto sem nenhum contrato retorna []", async () => {
+    const { client } = criarClienteMock({ fat_contrato: { data: [], error: null } });
+
+    await expect(buscarOpcoesContrato(client, 99)).resolves.toEqual([]);
+  });
+
+  it("erro do PostgREST propaga como throw", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: null, error: { message: "permission denied" } },
+    });
+
+    await expect(buscarOpcoesContrato(client, 1)).rejects.toEqual({ message: "permission denied" });
   });
 });

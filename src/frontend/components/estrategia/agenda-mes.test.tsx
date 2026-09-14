@@ -236,3 +236,51 @@ describe("AgendaMes (EST-12)", () => {
     expect(document.querySelectorAll("[data-dia]")).toHaveLength(29);
   });
 });
+
+// Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4 "btn-add"):
+// "+ Novo agendamento" na mesma linha do título do mês. Quem monta a página
+// decide destino e estado de desabilitado (page.tsx) -- aqui só o contrato de
+// props: sem handler o botão não desenha, com handler ele desenha e repassa
+// clique/estado.
+describe("AgendaMes — botão Novo agendamento (ajuste de fidelidade visual 2026-09-14)", () => {
+  it("sem onNovoAgendamento o botão não é desenhado", () => {
+    render(<AgendaMes ano={2026} mes={9} encontros={[]} hoje="2026-09-15" />);
+
+    expect(screen.queryByRole("button", { name: /Novo agendamento/ })).not.toBeInTheDocument();
+  });
+
+  it("com onNovoAgendamento o botão aparece e chama o callback ao ser clicado", () => {
+    const onNovoAgendamento = vi.fn();
+    render(
+      <AgendaMes
+        ano={2026}
+        mes={9}
+        encontros={[]}
+        hoje="2026-09-15"
+        onNovoAgendamento={onNovoAgendamento}
+      />
+    );
+
+    screen.getByRole("button", { name: /Novo agendamento/ }).click();
+
+    expect(onNovoAgendamento).toHaveBeenCalledTimes(1);
+  });
+
+  it("novoAgendamentoDesabilitado desenha o botão desabilitado, nunca escondido (AD-005)", () => {
+    render(
+      <AgendaMes
+        ano={2026}
+        mes={9}
+        encontros={[]}
+        hoje="2026-09-15"
+        onNovoAgendamento={vi.fn()}
+        novoAgendamentoDesabilitado
+        motivoNovoAgendamentoDesabilitado="Selecione um contrato."
+      />
+    );
+
+    const botao = screen.getByRole("button", { name: /Novo agendamento/ });
+    expect(botao).toBeDisabled();
+    expect(botao).toHaveAttribute("title", "Selecione um contrato.");
+  });
+});

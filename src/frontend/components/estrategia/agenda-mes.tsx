@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import type { EncontroAgenda } from "@backend/queries/agenda";
 import { FUSO_HORARIO_PRODUTO } from "@backend/queries/agenda";
@@ -147,6 +147,19 @@ export interface AgendaMesProps {
   hoje: string;
   onMudarMes?: (input: { ano: number; mes: number }) => void;
   onSelecionarEncontro?: (encontro: EncontroAgenda) => void;
+  /**
+   * Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4 "btn-add"):
+   * "+ Novo agendamento", na mesma linha do título do mês. Ausente, o botão
+   * não é desenhado (mesma convenção de onMudarMes/onSelecionarEncontro
+   * opcionais) -- quem monta a página decide a lacuna de destino (SPEC-
+   * PRECISION GAP: não existe ainda uma tela de criação de encontro no nível
+   * do produto, sem contrato pré-selecionado).
+   */
+  onNovoAgendamento?: () => void;
+  /** Desabilita o botão sem escondê-lo -- AD-005, a ausência de ação é explícita. */
+  novoAgendamentoDesabilitado?: boolean;
+  /** Explica por que o botão está desabilitado (title acessível). */
+  motivoNovoAgendamentoDesabilitado?: string;
 }
 
 export function AgendaMes({
@@ -156,6 +169,9 @@ export function AgendaMes({
   hoje,
   onMudarMes,
   onSelecionarEncontro,
+  onNovoAgendamento,
+  novoAgendamentoDesabilitado = false,
+  motivoNovoAgendamentoDesabilitado,
 }: AgendaMesProps) {
   const celulas = montarCelulas(ano, mes);
 
@@ -207,14 +223,29 @@ export function AgendaMes({
           </div>
         </div>
 
-        <ul className="flex items-center gap-4">
-          {LEGENDA.map(({ status, classe }) => (
-            <li key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span aria-hidden="true" className={cn("size-2 rounded-full", classe)} />
-              {STATUS_LABEL[status]}
-            </li>
-          ))}
-        </ul>
+        <div className="flex items-center gap-6">
+          <ul className="flex items-center gap-4">
+            {LEGENDA.map(({ status, classe }) => (
+              <li key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span aria-hidden="true" className={cn("size-2 rounded-full", classe)} />
+                {STATUS_LABEL[status]}
+              </li>
+            ))}
+          </ul>
+
+          {onNovoAgendamento && (
+            <Button
+              type="button"
+              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={onNovoAgendamento}
+              disabled={novoAgendamentoDesabilitado}
+              title={novoAgendamentoDesabilitado ? motivoNovoAgendamentoDesabilitado : undefined}
+            >
+              <Plus className="size-4" />
+              Novo agendamento
+            </Button>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent>

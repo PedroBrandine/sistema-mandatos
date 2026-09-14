@@ -6,7 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { buscarEncontrosDoMes, type EncontroAgenda } from "@backend/queries/agenda";
+import {
+  buscarEncontrosDoMes,
+  buscarOpcoesContrato,
+  buscarOpcoesGestora,
+  buscarOpcoesProjeto,
+  type EncontroAgenda,
+} from "@backend/queries/agenda";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { buscarRegistrosDaAgenda, type RegistroAgenda } from "@backend/queries/registros-agenda";
 import { marcarPresenca } from "@backend/rpc/encontro";
@@ -15,6 +21,7 @@ import { createClient } from "@backend/supabase/client";
 
 import { AgendaMes, hojeNoFusoDoProduto } from "@/components/estrategia/agenda-mes";
 import { EncontroPopover } from "@/components/estrategia/encontro-popover";
+import { FiltrosAgenda, type ValorFiltrosAgenda } from "@/components/estrategia/filtros-agenda";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
@@ -22,6 +29,7 @@ import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
+import { cn } from "@/lib/utils";
 
 // EST-12/EST-13 (T30b, .specs/features/redesenho-estrategia-tela-first/tasks.md).
 // Fecha a lacuna de planejamento da Fase 7, quarta ocorrência do mesmo padrão
@@ -37,16 +45,25 @@ import { useProdutoAtual } from "@/hooks/use-produto-atual";
 // dashboard (T18b/T33b) -- useQuery para leitura, useMutation para escrita,
 // componentes presentational recebendo tudo por prop.
 //
-// Fora de escopo, como no Dashboard: a barra de filtros de gestora/projeto/
-// contrato e o botão "+ Novo agendamento" que o Figma `163:4` desenha acima
-// da grade. `FiltroAgenda` já aceita os três recortes (idGestora, idProjeto,
-// idContrato) e a query os aplica por interseção, então ligar os controles é
-// só passá-los no filtro -- mas nenhuma task da Fase 7 os desenha, e
-// inventá-los aqui seria scope creep.
-//
 // AD-046 NÃO reduz a profundidade desta task: o popover grava (marcar
 // presença), então vale AD-042 integral -- os dois lados de cada condicional,
 // estado vazio e estado de erro, em `page.test.tsx`.
+//
+// Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4): a barra de
+// filtros de gestora/projeto/contrato e o botão "+ Novo agendamento" citados
+// acima como fora de escopo entram aqui. `FiltroAgenda` já aceitava os três
+// recortes por interseção (idGestora, idProjeto, idContrato via
+// resolverIdsContratoDoFiltro) -- faltava só o controle, então esta task
+// LIGA a UI aos três, sem tocar no encanamento de queries/agenda.ts.
+//
+// "+ Novo agendamento" é SPEC-PRECISION GAP: não existe (Fase 7 nem
+// Incidência) uma tela de criação de encontro no nível do PRODUTO, sem
+// contrato já conhecido -- `encontroSchema` (schemas/encontro.ts) exige
+// id_contrato, e a única superfície de criação hoje é o Dialog de
+// EncontroForm em /contratos/[id]/encontros (INC-15..18). O botão reaproveita
+// essa rota (mesma lógica de "Adicionar registro" do popover, EST-13 AC6) com
+// o contrato do FILTRO ativo, e fica desabilitado -- nunca escondido, AD-005
+// -- até a usuária escolher um contrato, com o motivo no `title`.
 
 function mesDoDia(dia: string): { ano: number; mes: number } {
   return { ano: Number(dia.slice(0, 4)), mes: Number(dia.slice(5, 7)) };
@@ -82,7 +99,28 @@ export default function ProdutoAgendaPage({
   const [periodo, setPeriodo] = useState<{ ano: number; mes: number }>(() => mesDoDia(hoje));
   const [idEncontroSelecionado, setIdEncontroSelecionado] = useState<number | null>(null);
 
-  const chaveEncontros = ["agenda-encontros", idProduto, periodo.ano, periodo.mes] as const;
+  // Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4
+  // "filter-bar"): os três recortes que `FiltroAgenda` já aceitava, agora com
+  // controle na tela. Estado vazio (`{}`) não adiciona nenhuma chave ao
+  // filtro passado às queries -- gestora/projeto/contrato continuam
+  // opcionais nelas.
+  const [filtro, setFiltro] = useState<ValorFiltrosAgenda>({});
+
+  const { data: gestoras } = useQuery({
+    queryKey: ["agenda-opcoes-gestora"],
+    queryFn: () => buscarOpcoesGestora(createClient()),
+  });
+  const { data: projetos } = useQuery({
+    queryKey: ["agenda-opcoes-projeto"],
+    queryFn: () => buscarOpcoesProjeto(createClient()),
+  });
+  const { data: contratos } = useQuery({
+    queryKey: ["agenda-opcoes-contrato", idProduto],
+    queryFn: () => buscarOpcoesContrato(createClient(), idProduto as number),
+    enabled: idProduto !== undefined,
+  });
+
+  const chaveEncontros = ["agenda-encontros", idProduto, periodo.ano, periodo.mes, filtro] as const;
 
   // EST-12 AC3: ano/mes entram na queryKey, então navegar de mês é uma
   // consulta nova -- a grade não pode exibir mês novo com dado velho.
@@ -98,6 +136,7 @@ export default function ProdutoAgendaPage({
         idProduto: idProduto as number,
         ano: periodo.ano,
         mes: periodo.mes,
+        ...filtro,
       }),
     enabled: idProduto !== undefined,
   });
@@ -111,13 +150,14 @@ export default function ProdutoAgendaPage({
     isError: erroRegistros,
     refetch: refetchRegistros,
   } = useQuery({
-    queryKey: ["agenda-registros", idProduto, periodo.ano, periodo.mes, idEncontroSelecionado],
+    queryKey: ["agenda-registros", idProduto, periodo.ano, periodo.mes, idEncontroSelecionado, filtro],
     queryFn: () =>
       buscarRegistrosDaAgenda(createClient(), {
         idProduto: idProduto as number,
         ano: periodo.ano,
         mes: periodo.mes,
         idEncontro: idEncontroSelecionado ?? undefined,
+        ...filtro,
       }),
     enabled: idProduto !== undefined,
   });
@@ -185,6 +225,14 @@ export default function ProdutoAgendaPage({
 
   return (
     <div className="grid gap-6">
+      <FiltrosAgenda
+        filtro={filtro}
+        onChange={setFiltro}
+        gestoras={gestoras ?? []}
+        projetos={projetos ?? []}
+        contratos={contratos ?? []}
+      />
+
       <AgendaMes
         ano={periodo.ano}
         mes={periodo.mes}
@@ -192,6 +240,13 @@ export default function ProdutoAgendaPage({
         hoje={hoje}
         onMudarMes={irParaMes}
         onSelecionarEncontro={selecionarEncontro}
+        onNovoAgendamento={() => {
+          if (filtro.idContrato !== undefined) {
+            router.push(`/contratos/${filtro.idContrato}/encontros`);
+          }
+        }}
+        novoAgendamentoDesabilitado={filtro.idContrato === undefined}
+        motivoNovoAgendamentoDesabilitado="Selecione um contrato no filtro para agendar um novo encontro."
       />
 
       {/* EST-12 AC4 / EST-13: o popover existe enquanto há encontro
@@ -235,6 +290,54 @@ export default function ProdutoAgendaPage({
         />
       )}
     </div>
+  );
+}
+
+// Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4
+// "registros-table"): badge de Tipo com cor própria por tipo ("Sprint",
+// "Monitoramento", "Diagnóstico" no mock do Figma têm cada um sua cor). SPEC-
+// PRECISION GAP: `ref_tipo_registro` (docs/schema_sistema.sql) não tem coluna
+// de cor -- os nomes reais do catálogo (`catalogos_referencia_seed.sql`:
+// "Sprint", "Monitoramento mensal", "Diagnóstico de Organograma" etc.) nem
+// batem literalmente com os rótulos do mock. Em vez de uma tabela nome->cor
+// que quebraria a cada tipo novo, a cor sai de hash do NOME sobre uma paleta
+// FIXA das cores da marca (globals.css) -- determinística (o mesmo tipo
+// sempre pinta igual) e nunca exige código novo pra um tipo futuro.
+const PALETA_BADGE_TIPO = [
+  { bg: "bg-secondary", fg: "text-secondary-foreground" }, // vinho #571730
+  { bg: "bg-chart-4", fg: "text-foreground" }, // verde-água #4ABFB2
+  { bg: "bg-chart-3", fg: "text-foreground" }, // vermelho #EB5454
+  { bg: "bg-chart-2", fg: "text-foreground" }, // dourado #FFD278
+  { bg: "bg-chart-5", fg: "text-foreground" }, // roxo #BA6BED
+  { bg: "bg-primary", fg: "text-primary-foreground" }, // teal #035252
+] as const;
+
+function hashDeterministico(valor: string): number {
+  let hash = 0;
+  for (let i = 0; i < valor.length; i += 1) {
+    hash = (hash * 31 + valor.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function corBadgeTipo(tipoRegistro: string): (typeof PALETA_BADGE_TIPO)[number] {
+  return PALETA_BADGE_TIPO[hashDeterministico(tipoRegistro) % PALETA_BADGE_TIPO.length];
+}
+
+// Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4 "avatar" na
+// célula de Responsável): círculo com a inicial do nome. SPEC-PRECISION GAP:
+// `RegistroAgenda.nomeAutor` (queries/registros-agenda.ts) não carrega URL de
+// foto -- não existe esse campo em `dim_usuario` (docs/schema_sistema.sql) --
+// então o avatar é a inicial, nunca uma imagem inventada.
+function AvatarResponsavel({ nome }: { nome: string }) {
+  const inicial = nome.trim().charAt(0).toUpperCase();
+  return (
+    <span
+      aria-hidden="true"
+      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-secondary-foreground"
+    >
+      {inicial || "?"}
+    </span>
   );
 }
 
@@ -307,17 +410,25 @@ function ListaRegistros({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {registros.map((registro) => (
-              <TableRow key={registro.idRegistro}>
-                <TableCell>
-                  <Badge variant="secondary">{registro.tipoRegistro}</Badge>
-                </TableCell>
-                <TableCell>{dataBr(registro.ocorridoEm)}</TableCell>
-                {/* Nulo vira ausência explícita, nunca célula em branco (AD-005). */}
-                <TableCell>{registro.resumo ?? "—"}</TableCell>
-                <TableCell>{registro.nomeAutor}</TableCell>
-              </TableRow>
-            ))}
+            {registros.map((registro) => {
+              const cor = corBadgeTipo(registro.tipoRegistro);
+              return (
+                <TableRow key={registro.idRegistro}>
+                  <TableCell>
+                    <Badge className={cn(cor.bg, cor.fg, "font-bold")}>{registro.tipoRegistro}</Badge>
+                  </TableCell>
+                  <TableCell>{dataBr(registro.ocorridoEm)}</TableCell>
+                  {/* Nulo vira ausência explícita, nunca célula em branco (AD-005). */}
+                  <TableCell>{registro.resumo ?? "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <AvatarResponsavel nome={registro.nomeAutor} />
+                      {registro.nomeAutor}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}

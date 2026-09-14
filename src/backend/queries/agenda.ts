@@ -72,6 +72,75 @@ export interface FiltroAgenda {
   idContrato?: number;
 }
 
+// Opção genérica de dropdown (id + rótulo) -- forma que EST-12/EST-13 (T30b,
+// ajuste de fidelidade visual 2026-09-14) usa nas 3 opções da barra de
+// filtros do Figma 163:4 ("Filtrar por gestora/projeto/contrato").
+export interface OpcaoAgenda {
+  id: number;
+  nome: string;
+}
+
+interface RowOpcao {
+  id: number;
+  nome: string;
+}
+
+// Dropdown "Filtrar por gestora" (Figma 163:4, filter-bar). Mesmo recorte de
+// `buscarGestoras` em produtos/[slug]/mandatos/page.tsx (papel_global
+// 'gestora', ativa) -- reimplementado aqui, não importado de lá: a Agenda não
+// deve depender de uma página como módulo de dados (mesma reconciliação da
+// Fase 5 para pequenas leituras específicas de tela).
+export async function buscarOpcoesGestora(client: SupabaseClient<Database>): Promise<OpcaoAgenda[]> {
+  const { data, error } = await client
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .eq("papel_global", "gestora")
+    .eq("ativo", true)
+    .order("nome");
+  if (error) throw error;
+  return ((data ?? []) as unknown as { id_usuario: number; nome: string }[]).map((u) => ({
+    id: u.id_usuario,
+    nome: u.nome,
+  }));
+}
+
+// Dropdown "Filtrar por projeto" (Figma 163:4). Mesmo recorte de
+// `buscarProjetosAtivos` em produtos/[slug]/mandatos/page.tsx.
+export async function buscarOpcoesProjeto(client: SupabaseClient<Database>): Promise<OpcaoAgenda[]> {
+  const { data, error } = await client
+    .from("ref_projeto")
+    .select("id_projeto, nome")
+    .eq("ativo", true)
+    .order("nome");
+  if (error) throw error;
+  return ((data ?? []) as unknown as { id_projeto: number; nome: string }[]).map((p) => ({
+    id: p.id_projeto,
+    nome: p.nome,
+  }));
+}
+
+// Dropdown "Filtrar por contrato" (Figma 163:4) -- terceiro filtro que ainda
+// não existia na tela (relato do Pedro, 2026-09-14). Todos os contratos do
+// produto, rotulados pelo nome do CONTRATANTE (dim_contratante via embed do
+// PostgREST, mesma leitura de `buscarContratoParaFicha` em queries/
+// contrato.ts): o Figma não nomeia número de contrato, só quem contratou.
+// Sem filtro de status -- um contrato encerrado pode ter encontros passados
+// que a usuária ainda quer filtrar.
+export async function buscarOpcoesContrato(
+  client: SupabaseClient<Database>,
+  idProduto: number
+): Promise<OpcaoAgenda[]> {
+  const { data, error } = await client
+    .from("fat_contrato")
+    .select("id_contrato, dim_contratante(nome)")
+    .eq("id_produto", idProduto);
+  if (error) throw error;
+  const linhas = (data ?? []) as unknown as { id_contrato: number; dim_contratante: RowOpcao | null }[];
+  return linhas
+    .map((c) => ({ id: c.id_contrato, nome: c.dim_contratante?.nome ?? "" }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
 interface RowEncontro {
   id_encontro: number;
   id_contrato: number;

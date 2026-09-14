@@ -33,6 +33,9 @@ vi.mock("@/components/ui/popover", () => ({
 
 const mocks = vi.hoisted(() => ({
   buscarEncontrosDoMes: vi.fn(),
+  buscarOpcoesGestora: vi.fn(),
+  buscarOpcoesProjeto: vi.fn(),
+  buscarOpcoesContrato: vi.fn(),
   buscarRegistrosDaAgenda: vi.fn(),
   marcarPresenca: vi.fn(),
   push: vi.fn(),
@@ -40,9 +43,17 @@ const mocks = vi.hoisted(() => ({
 
 // importOriginal preserva FUSO_HORARIO_PRODUTO: sem ele o offset lido por
 // agenda-mes.tsx viraria 0 e o teste de fuso passaria a afirmar UTC.
+//
+// Ajuste de fidelidade visual — Agenda (2026-09-14): buscarOpcoesGestora/
+// Projeto/Contrato também mockados -- sem isso eles chamariam `.from()` no
+// client fake (`createClient: () => ({})` logo abaixo) e lançariam em toda
+// consulta das 3 novas opções da barra de filtros.
 vi.mock("@backend/queries/agenda", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@backend/queries/agenda")>()),
   buscarEncontrosDoMes: mocks.buscarEncontrosDoMes,
+  buscarOpcoesGestora: mocks.buscarOpcoesGestora,
+  buscarOpcoesProjeto: mocks.buscarOpcoesProjeto,
+  buscarOpcoesContrato: mocks.buscarOpcoesContrato,
 }));
 
 vi.mock("@backend/queries/registros-agenda", () => ({
@@ -170,6 +181,9 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(AGORA);
   mocks.buscarEncontrosDoMes.mockReset().mockResolvedValue([ENCONTRO_SETEMBRO]);
+  mocks.buscarOpcoesGestora.mockReset().mockResolvedValue([{ id: 1, nome: "Ana Gestora" }]);
+  mocks.buscarOpcoesProjeto.mockReset().mockResolvedValue([{ id: 10, nome: "Projeto Alfa" }]);
+  mocks.buscarOpcoesContrato.mockReset().mockResolvedValue([{ id: 42, nome: "Dep. Ana Ribeiro" }]);
   mocks.buscarRegistrosDaAgenda.mockReset().mockResolvedValue([]);
   mocks.marcarPresenca.mockReset().mockResolvedValue(undefined);
   mocks.push.mockReset();
@@ -499,5 +513,54 @@ describe("Agenda — estados de falha de leitura", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Não foi possível carregar os registros da Agenda."
     );
+  });
+});
+
+// Ajuste de fidelidade visual — Agenda (2026-09-14). Pedro: "os filtros de
+// gestora, projeto e contrato também não aparecem como foi definido no
+// Figma" (163:4). `FiltroAgenda` (queries/agenda.ts) já aceitava os três
+// recortes -- esta seção cobre só a UI nova: a barra de filtros, o botão
+// "+ Novo agendamento" (SPEC-PRECISION GAP: sem tela de criação de encontro
+// no nível do produto, o botão exige um contrato escolhido no filtro) e o
+// badge/avatar da tabela de registros.
+describe("Ajuste de fidelidade visual — Agenda (2026-09-14)", () => {
+  it("a barra de filtros mostra os 3 dropdowns do Figma, cada um com o próprio rótulo por padrão", async () => {
+    renderizarAgenda();
+    await aguardarGrade();
+
+    expect(screen.getByRole("combobox", { name: "Filtrar por gestora" })).toHaveTextContent(
+      "Filtrar por gestora"
+    );
+    expect(screen.getByRole("combobox", { name: "Filtrar por projeto" })).toHaveTextContent(
+      "Filtrar por projeto"
+    );
+    expect(screen.getByRole("combobox", { name: "Filtrar por contrato" })).toHaveTextContent(
+      "Filtrar por contrato"
+    );
+  });
+
+  it("'+ Novo agendamento' existe mas começa desabilitado -- nenhum contrato foi escolhido no filtro ainda", async () => {
+    renderizarAgenda();
+    await aguardarGrade();
+
+    const botao = screen.getByRole("button", { name: /Novo agendamento/ });
+    expect(botao).toBeDisabled();
+
+    botao.click();
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("registros da tabela mostram badge de tipo colorido e avatar de iniciais do responsável", async () => {
+    mocks.buscarRegistrosDaAgenda.mockResolvedValue([REGISTRO]);
+    renderizarAgenda();
+    await aguardarGrade();
+
+    const badge = await screen.findByText("Escuta Diagnóstica");
+    // Badge com cor de marca (paleta de globals.css), não a variante cinza
+    // genérica que a tabela usava antes deste ajuste.
+    expect(badge.className).toMatch(/bg-(secondary|chart-\d|primary)/);
+
+    // "Ana Ribeiro" -> avatar com a inicial "A" ao lado do nome.
+    expect(screen.getByText("A", { selector: "span[aria-hidden='true']" })).toBeInTheDocument();
   });
 });
