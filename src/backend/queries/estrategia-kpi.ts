@@ -26,11 +26,23 @@ export interface FiltroEstrategiaKpi {
   idProjeto?: number;
 }
 
-// Os 6 KPIs de EST-08 AC1. Todos anuláveis, e nenhum recebe fallback: um
-// KPI sem dado suficiente chega como null e a tela renderiza "—" (EST-08 AC2,
-// AD-005). Trocar qualquer um destes por `?? 0` aqui seria exatamente o zero
-// inventado que a AD proíbe -- e o mais perigoso, porque um zero numa faixa
-// de KPI é indistinguível de um número real medido.
+// Os 6 KPIs de EST-08 AC1, mais a quebra por status do KPI "Mandatos em
+// atraso" (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql).
+// Todos anuláveis, e nenhum recebe fallback: um KPI sem dado suficiente
+// chega como null e a tela renderiza "—" (EST-08 AC2, AD-005). Trocar
+// qualquer um destes por `?? 0` aqui seria exatamente o zero inventado que a
+// AD proíbe -- e o mais perigoso, porque um zero numa faixa de KPI é
+// indistinguível de um número real medido.
+//
+// mandatosAtrasoAtrasados/Atencao/Normal NÃO somam mandatosEmAtraso -- são
+// métricas diferentes por construção (ver comentário da view/migration): a
+// quebra mede a etapa ATUAL pelo tempo real decorrido nela, mandatosEmAtraso
+// mede qualquer etapa (inclusive nunca iniciada) contra o prazo planejado
+// original. mandatosAtrasoAtrasados/Atencao ficam null quando o limiar
+// correspondente de ref_limiar_pendencia está inativo (coluna inteira
+// indefinida, não zero); mandatosAtrasoNormal não tem essa trava (é o
+// resíduo do que não bateu em nenhum limiar ativo, mesmo espírito de
+// classificarLimiar quando um dos dois parâmetros vem null).
 export interface EstrategiaKpi {
   mandatosAtivos: number | null;
   iipMedio: number | null;
@@ -38,6 +50,9 @@ export interface EstrategiaKpi {
   npsMedio: number | null;
   pctAtingimentoMedio: number | null;
   nrFatosGeradores: number | null;
+  mandatosAtrasoAtrasados: number | null;
+  mandatosAtrasoAtencao: number | null;
+  mandatosAtrasoNormal: number | null;
 }
 
 interface RowEstrategiaKpi {
@@ -47,10 +62,13 @@ interface RowEstrategiaKpi {
   nps_medio: number | null;
   pct_atingimento_medio: number | null;
   nr_fatos_geradores: number | null;
+  mandatos_atraso_atrasados: number | null;
+  mandatos_atraso_atencao: number | null;
+  mandatos_atraso_normal: number | null;
 }
 
 // Recorte sem nenhum contrato visível não produz linha na view -- e a
-// ausência da linha É a ausência de dado. Os 6 KPIs viram null em bloco, em
+// ausência da linha É a ausência de dado. Os 9 KPIs viram null em bloco, em
 // vez de uma faixa de zeros que diria "medimos e deu zero" (AD-005).
 const KPI_AUSENTE: EstrategiaKpi = {
   mandatosAtivos: null,
@@ -59,6 +77,9 @@ const KPI_AUSENTE: EstrategiaKpi = {
   npsMedio: null,
   pctAtingimentoMedio: null,
   nrFatosGeradores: null,
+  mandatosAtrasoAtrasados: null,
+  mandatosAtrasoAtencao: null,
+  mandatosAtrasoNormal: null,
 };
 
 export async function buscarEstrategiaKpi(
@@ -73,7 +94,9 @@ export async function buscarEstrategiaKpi(
   // inteira dentro do select.
   let query = client
     .from("vw_estrategia_kpi")
-    .select("mandatos_ativos, iip_medio, mandatos_em_atraso, nps_medio, pct_atingimento_medio, nr_fatos_geradores")
+    .select(
+      "mandatos_ativos, iip_medio, mandatos_em_atraso, nps_medio, pct_atingimento_medio, nr_fatos_geradores, mandatos_atraso_atrasados, mandatos_atraso_atencao, mandatos_atraso_normal"
+    )
     .eq("id_produto", filtro.idProduto)
     .eq("escopo_projeto", filtro.idProjeto !== undefined)
     .eq("escopo_gestora", filtro.idGestora !== undefined);
@@ -98,5 +121,8 @@ export async function buscarEstrategiaKpi(
     npsMedio: linha.nps_medio,
     pctAtingimentoMedio: linha.pct_atingimento_medio,
     nrFatosGeradores: linha.nr_fatos_geradores,
+    mandatosAtrasoAtrasados: linha.mandatos_atraso_atrasados,
+    mandatosAtrasoAtencao: linha.mandatos_atraso_atencao,
+    mandatosAtrasoNormal: linha.mandatos_atraso_normal,
   };
 }

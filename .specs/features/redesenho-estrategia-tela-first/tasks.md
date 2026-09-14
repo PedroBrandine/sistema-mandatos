@@ -2334,3 +2334,64 @@ arquivos falharam, 9 testes individuais**, além dos 8 arquivos historicamente v
 `vw_estrategia_kpi` para expor atrasado/atenção/normal) por causa disso — seguir com a migration,
 tratar este achado como investigação separada. **Ninguém deve considerar isso resolvido até
 alguém rodar os 5 arquivos isolados contra o CI (não só contra dev) e classificar cada um.**
+
+---
+
+### Migration — quebra de status do KPI de atraso (2026-09-14)
+
+Pedro reportou (screenshot do Dashboard) que o KPI "Mandatos em atraso" mostrava "—" fixo nas 3
+linhas de status (atrasado/atenção/normal), independente do total — `kpi-row.tsx` nunca teve de
+onde ler esses 3 números, só o total agregado. Investigação inicial cogitou contar isso no cliente
+a partir dos cards do Kanban (`classificarLimiar` sobre `ColunaQuadro[]`), mas o próprio comentário
+de `kpi-row.tsx` proíbe: métrica é camada de Saída (AD-003), não agregação inventada na tela. Não
+existia, em lugar nenhum do banco, um equivalente SQL do limiar de 70% ("atenção") — só o de 100%
+("atrasado", via `vw_pendencias`/`etapa_atrasada`). Reportado a Pedro como migration real, não
+ajuste de tela; ele autorizou explicitamente abrir a exceção ("iremos abrir esta exceção...
+necessário e o que eu desejo para mostrar a tela pronta").
+
+**O que foi feito** (`supabase/migrations/20260914161230_estrategia_vw_kpi_quebra_atraso.sql`):
+`vw_estrategia_kpi` ganhou 3 colunas novas — `mandatos_atraso_atrasados`, `mandatos_atraso_atencao`,
+`mandatos_atraso_normal` — réplica em SQL de `classificarLimiar` (`src/frontend/lib/limiar.ts`,
+AD-045): `pct_decorrido = (CURRENT_DATE - dt_inicio da etapa atual) / duracao_prevista_dias * 100`,
+comparado aos dois percentuais de `ref_limiar_pendencia` (`etapa_atrasado`/`etapa_atencao`), mesma
+prioridade (atrasado testado antes de atenção), mesmo `>=`. Contrato sem `id_etapa_atual`, sem
+`duracao_prevista_dias` classificável, ou não `status = 'ativo'` não entra em nenhuma das 3
+contagens — nunca cai em "normal" por omissão (AD-005). Coluna inteira vira NULL (não 0) quando o
+limiar correspondente está desligado em `ref_limiar_pendencia`. `estrategia-kpi.ts` e `kpi-row.tsx`
+atualizados para ler e renderizar os 3 números reais, cada linha com seu próprio "—" independente.
+
+**Achado, investigado e documentado na migration (não é bug)**: a nova contagem de
+`mandatos_atraso_atrasados` **não bate** com `mandatos_em_atraso` (o total já existente no mesmo
+KPI) — no dev, 2 contratos vs. 12. São métricas diferentes por construção:
+`mandatos_em_atraso` conta qualquer etapa (concluída ou nunca iniciada) cujo prazo **planejado
+original** (`dt_prevista_conclusao`, fixado na instanciação) já venceu; a quebra nova mede a etapa
+**atual**, pelo tempo **real** decorrido desde que o contrato entrou nela. Os 11 contratos que só
+aparecem no método antigo: 10 nunca foram movidos no Kanban (`id_etapa_atual IS NULL`, não há de
+onde derivar "dias na etapa atual" — não classificável, por decisão explícita); 1 está
+`status = 'concluido'` (a quebra nova filtra por contrato ativo, o método antigo não). O contrato
+que só aparece no método novo (id 192) está atrasado pelo tempo real decorrido na etapa atual, mas
+sua `dt_prevista_conclusao` fixa ainda está no futuro porque o Kanban nunca reancora essa data ao
+mover etapa. Nenhuma das duas definições está errada; não foram forçadas a bater.
+
+**Gate completo, rodado após o commit do worker (verificado por mim antes de commitar, já que o
+worker não deixou relatório nem tocou este arquivo):**
+- `test:unit`: 25/25 nos arquivos tocados (`estrategia-kpi`, `kpi-row`, `filtro-dashboard`,
+  `filtros-agenda`), suíte não quebrada.
+- `test:integration` — `vw-estrategia-kpi.integration.test.ts` contra o **dev**: 19/19,
+  incluindo a verificação cruzada com `mandatos_em_atraso` e o "Independent Test" (reclassificação
+  independente no banco inteiro).
+- `lint:all`: mesmos 24 problemas pré-existentes (10 erros, 14 warnings), nenhum novo, nenhum nos
+  arquivos tocados.
+- `npm run build`: verde.
+
+**Pendente, deixado deliberadamente fora de escopo desta migration**: a barra segmentada de NPS
+(Figma 44:5, node 44:53) continua mostrando "—" — `vw_estrategia_kpi` ainda não expõe a
+segmentação promotor/neutro/detrator nem a contagem de avaliações. Gap remanescente, não deste
+pedido do Pedro.
+
+Também nesta rodada, pedido do Pedro ("aproveitar que já está mexendo"): botão "Limpar filtros" no
+Dashboard (`filtro-dashboard.tsx`) e na Agenda (`filtros-agenda.tsx`) — nenhum dos dois Figmas
+desenha o botão, mas com filtragem real ligada, não ter como voltar ao estado sem filtro é lacuna
+de uso. Mesmo rótulo/variant de `FiltrosMandatos` (T21), para não inventar um terceiro padrão
+visual de "limpar" no produto. Testado nos dois componentes (`onChange({})` mesmo com todos os
+filtros aplicados).

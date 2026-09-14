@@ -22,6 +22,9 @@ const KPI_COMPLETO: EstrategiaKpi = {
   npsMedio: 62.5,
   pctAtingimentoMedio: 55.2,
   nrFatosGeradores: 1240,
+  mandatosAtrasoAtrasados: 4,
+  mandatosAtrasoAtencao: 3,
+  mandatosAtrasoNormal: 18,
 };
 
 const KPI_VAZIO: EstrategiaKpi = {
@@ -31,6 +34,9 @@ const KPI_VAZIO: EstrategiaKpi = {
   npsMedio: null,
   pctAtingimentoMedio: null,
   nrFatosGeradores: null,
+  mandatosAtrasoAtrasados: null,
+  mandatosAtrasoAtencao: null,
+  mandatosAtrasoNormal: null,
 };
 
 // Grafia do Figma 44:227 (caixa alta vem do CSS, não do texto). "Mandatos em
@@ -105,7 +111,9 @@ describe("KpiRow (EST-08)", () => {
   it("a ausência é anunciada para leitor de tela, não só pela pontuação", () => {
     render(<KpiRow kpi={KPI_VAZIO} />);
 
-    expect(screen.getAllByText("Sem dado suficiente")).toHaveLength(6);
+    // 6 valores simples/totais ausentes + 3 linhas da quebra por status de
+    // Mandatos em atraso, cada uma com seu próprio anúncio independente.
+    expect(screen.getAllByText("Sem dado suficiente")).toHaveLength(9);
   });
 
   it("Figma 44:227: atingimento com valor ganha barra de progresso proporcional", () => {
@@ -124,18 +132,42 @@ describe("KpiRow (EST-08)", () => {
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
-  // Ajuste de fidelidade visual, 2026-09-14 (Figma 86:44). vw_estrategia_kpi
-  // não expõe quebra por status (atrasado/atenção/normal) -- só o total. O
-  // layout das 3 linhas existe mesmo assim; cada uma declara ausência, nunca
-  // inventa uma contagem por status.
-  it("Figma 86:44: Mandatos em atraso mostra o layout de quebra por status mesmo sem o dado (spec-precision gap)", () => {
+  // Figma 86:44. vw_estrategia_kpi passou a expor a quebra por status
+  // (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql) -- as 3
+  // linhas renderizam número real, cada uma independente das outras.
+  it("Figma 86:44 / migration 20260914161230: Mandatos em atraso renderiza os 3 números reais da quebra por status", () => {
     render(<KpiRow kpi={KPI_COMPLETO} />);
 
-    expect(screen.getByText(/atrasados/)).toBeInTheDocument();
-    expect(screen.getByText(/atenção/)).toBeInTheDocument();
-    expect(screen.getByText(/normal/)).toBeInTheDocument();
-    // O total (11) segue vindo da view -- só a quebra por status é que falta.
+    // Cada linha ("— rótulo" ou "N rótulo") é um único nó de texto misto na
+    // mesma <span> (getByText de string exata não enxerga um número isolado
+    // ali) -- por isso a asserção é toHaveTextContent (substring) sobre a
+    // linha inteira, achada pelo rótulo.
+    expect(screen.getByText(/atrasados/)).toHaveTextContent("4");
+    expect(screen.getByText(/atenção/)).toHaveTextContent("3");
+    expect(screen.getByText(/normal/)).toHaveTextContent("18");
+    // O total (11) é nó isolado (sem rótulo ao lado) -- continua casável por
+    // texto exato, como antes desta migration.
     expect(screen.getByText("11")).toBeInTheDocument();
+  });
+
+  it("AD-005: cada linha da quebra por status declara ausência de forma independente -- um '—' não contamina as outras 2 linhas", () => {
+    render(
+      <KpiRow
+        kpi={{
+          ...KPI_COMPLETO,
+          // Limiar de 'atrasado' desligado (ref_limiar_pendencia.ativo =
+          // false): a coluna vem NULL, não 0 -- as outras 2 continuam com
+          // número real na MESMA faixa.
+          mandatosAtrasoAtrasados: null,
+        }}
+      />
+    );
+
+    expect(screen.getByText(/atenção/)).toHaveTextContent("3");
+    expect(screen.getByText(/normal/)).toHaveTextContent("18");
+    // Só a linha de "atrasados" mostra "—" -- as outras duas, no mesmo card,
+    // continuam com número real.
+    expect(screen.getByText(/atrasados/)).toHaveTextContent("—");
   });
 
   // Ajuste de fidelidade visual, 2026-09-14 (Figma 44:53). vw_estrategia_kpi

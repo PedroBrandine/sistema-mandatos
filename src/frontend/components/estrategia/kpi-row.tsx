@@ -19,12 +19,22 @@ import { cn } from "@/lib/utils";
 // são stat tiles simples -- número + rótulo, com barra só no Atingimento
 // (única escala 0-100 conhecida). Os outros dois (Mandatos em atraso, NPS)
 // têm layout próprio no Figma 44:5 (nodes 86:44 e 44:53): quebra por status
-// e barra segmentada, respectivamente. `vw_estrategia_kpi` não expõe nenhum
-// dos dois detalhamentos (só a contagem/média agregada) -- ajuste de
-// fidelidade visual 2026-09-14: o layout das duas peças existe, mas cada
-// parte sem dado de origem mostra "—" (AUSENCIA_KPI) em vez de inventar uma
-// proporção ou contagem (AD-005). Documentado como spec-precision gap na
-// seção "Ajuste de fidelidade visual" de tasks.md.
+// e barra segmentada, respectivamente.
+//
+// Mandatos em atraso: `vw_estrategia_kpi` passou a expor a quebra por status
+// (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql, exceção
+// deliberada -- SQL na view, não contagem de cards no cliente, que violaria
+// o próprio parágrafo abaixo) -- as 3 linhas (atrasado/atenção/normal)
+// renderizam número real, cada uma com seu próprio "—" quando aquele valor
+// específico vem null (limiar correspondente inativo em
+// ref_limiar_pendencia, ou nenhum contrato classificável).
+//
+// NPS: `vw_estrategia_kpi` ainda não expõe a segmentação
+// promotor/neutro/detrator nem a contagem de avaliações -- o layout da barra
+// segmentada e do chip existe (não desaparece), mas cada parte sem dado de
+// origem mostra "—" (AUSENCIA_KPI) em vez de inventar uma proporção ou
+// contagem (AD-005). Gap remanescente, documentado na seção "Ajuste de
+// fidelidade visual" de tasks.md.
 //
 // As cores usadas são tokens da identidade (globals.css) e classes de
 // paleta do Tailwind já em uso pelo Quadro de Acompanhamento
@@ -116,13 +126,28 @@ const ESTADO_BREAKDOWN: { chave: "atrasado" | "atencao" | "normal"; rotulo: stri
   { chave: "normal", rotulo: "normal", dotClass: "bg-emerald-500" },
 ];
 
+interface KpiMandatosAtrasoProps {
+  valor: number | null;
+  atrasados: number | null;
+  atencao: number | null;
+  normal: number | null;
+}
+
 // Figma 86:44 ("kpi-atrasos"): número grande + 3 linhas de status (dot +
-// contagem) ao lado. vw_estrategia_kpi não expõe a quebra por status, só o
-// total -- o layout das 3 linhas existe (a peça não some), cada uma mostra
-// "—" em vez de uma contagem inventada.
-function KpiMandatosAtraso({ valor }: { valor: number | null }) {
+// contagem) ao lado. `mandatos_atraso_atrasados/atencao/normal`
+// (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql) trazem os 3
+// números reais -- cada linha formata o seu próprio valor independentemente
+// (AD-005): "—" só aparece onde aquele valor específico vier null (limiar
+// correspondente desligado em ref_limiar_pendencia, ou nenhum contrato
+// classificável), nunca como travessão fixo para o card inteiro.
+function KpiMandatosAtraso({ valor, atrasados, atencao, normal }: KpiMandatosAtrasoProps) {
   const rotuloId = useId();
   const texto = formatar(valor, "inteiro");
+  const valoresPorEstado: Record<"atrasado" | "atencao" | "normal", number | null> = {
+    atrasado: atrasados,
+    atencao,
+    normal,
+  };
 
   return (
     <Card size="sm" role="group" aria-labelledby={rotuloId}>
@@ -135,15 +160,17 @@ function KpiMandatosAtraso({ valor }: { valor: number | null }) {
             <ValorOuAusencia texto={texto} />
           </p>
           <div className="flex flex-col gap-1">
-            {ESTADO_BREAKDOWN.map((estado) => (
-              <div key={estado.chave} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className={cn("size-1.5 shrink-0 rounded-full", estado.dotClass)} />
-                <span>
-                  {AUSENCIA_KPI} {estado.rotulo}
-                  <span className="sr-only"> — sem dado suficiente</span>
-                </span>
-              </div>
-            ))}
+            {ESTADO_BREAKDOWN.map((estado) => {
+              const textoEstado = formatar(valoresPorEstado[estado.chave], "inteiro");
+              return (
+                <div key={estado.chave} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className={cn("size-1.5 shrink-0 rounded-full", estado.dotClass)} />
+                  <span>
+                    <ValorOuAusencia texto={textoEstado} /> {estado.rotulo}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </CardContent>
@@ -204,7 +231,12 @@ export function KpiRow({ kpi }: KpiRowProps) {
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       <KpiSimples rotulo="Mandatos ativos" formato="inteiro" valor={kpi.mandatosAtivos} />
       <KpiSimples rotulo="IIP — Índ. de impacto" formato="decimal" valor={kpi.iipMedio} />
-      <KpiMandatosAtraso valor={kpi.mandatosEmAtraso} />
+      <KpiMandatosAtraso
+        valor={kpi.mandatosEmAtraso}
+        atrasados={kpi.mandatosAtrasoAtrasados}
+        atencao={kpi.mandatosAtrasoAtencao}
+        normal={kpi.mandatosAtrasoNormal}
+      />
       <KpiNps valor={kpi.npsMedio} />
       <KpiSimples rotulo="Atingimento plan." formato="percentual" valor={kpi.pctAtingimentoMedio} barraProgresso />
       <KpiSimples rotulo="Fatos geradores reg." formato="inteiro" valor={kpi.nrFatosGeradores} />

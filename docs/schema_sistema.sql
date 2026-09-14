@@ -1525,6 +1525,23 @@ WHERE sm.status = 'pendente' AND sm.dt_limite < CURRENT_DATE;
 -- conhecido e não sentinela. nps_medio é NULL em toda linha de escopo_gestora:
 -- mv_avaliacao_nps não carrega id_contrato, logo NPS não é recortável por
 -- gestora, e repetir o número do produto inteiro seria número errado.
+--
+-- Estendida em 2026-09-14 (migration
+-- 20260914161230_estrategia_vw_kpi_quebra_atraso.sql, mesmo padrão forward-
+-- only de AD-041 sobre vw_pendencias) com 3 colunas na mesma granularidade:
+-- mandatos_atraso_atrasados/atencao/normal, a quebra por status do KPI
+-- "Mandatos em atraso" (kpi-row.tsx, KpiMandatosAtraso) -- réplica em SQL de
+-- classificarLimiar (src/frontend/lib/limiar.ts, AD-045), medida sobre
+-- fat_contrato.id_etapa_atual e o tempo REAL decorrido desde a transição pra
+-- ela. NÃO somam mandatos_em_atraso -- métrica diferente por construção
+-- (aquela mede qualquer etapa, inclusive nunca iniciada, contra o prazo
+-- PLANEJADO original; a quebra mede só a etapa atual contra o tempo real
+-- decorrido nela). Contrato sem etapa atual classificável (id_etapa_atual
+-- nulo, etapa sem duracao_prevista_dias, ou contrato não ativo) não entra em
+-- nenhuma das 3, nunca é forçado em "normal" (AD-005). Coluna inteira NULL,
+-- não 0, quando o limiar correspondente de ref_limiar_pendencia está
+-- inativo. Divergência contra mandatos_em_atraso investigada e documentada
+-- no cabeçalho da migration, não corrigida à força.
 CREATE VIEW vw_estrategia_kpi WITH (security_invoker = true) AS
 WITH contrato_escopo AS (
   SELECT c.id_contrato, c.id_produto, c.status,

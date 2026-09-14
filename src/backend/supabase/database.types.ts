@@ -4217,6 +4217,9 @@ export type Database = {
           id_usuario_gestora: number | null
           iip_medio: number | null
           mandatos_ativos: number | null
+          mandatos_atraso_atencao: number | null
+          mandatos_atraso_atrasados: number | null
+          mandatos_atraso_normal: number | null
           mandatos_em_atraso: number | null
           nps_medio: number | null
           nr_fatos_geradores: number | null
