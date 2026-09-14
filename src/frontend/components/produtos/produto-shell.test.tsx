@@ -49,8 +49,10 @@ describe("ProdutoShell (EST-03)", () => {
     pathnameAtual = "/produtos/estrategia/mandatos";
     render(<ProdutoShell slug="estrategia">{null}</ProdutoShell>);
 
-    expect(screen.getByRole("link", { name: "Mandatos" })).toHaveClass("text-primary");
-    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveClass("text-primary");
+    // Ajuste de fidelidade visual, 2026-09-14 (Figma 44:20/44:21): aba ativa
+    // em secondary (vinho), não primary (teal) -- ver route-tabs.tsx.
+    expect(screen.getByRole("link", { name: "Mandatos" })).toHaveClass("text-secondary");
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveClass("text-secondary");
   });
 
   it("'Voltar ao hub' navega para '/' (AC3)", () => {

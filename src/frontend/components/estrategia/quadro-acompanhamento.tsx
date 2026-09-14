@@ -43,6 +43,16 @@ const ESTADO_DOT_CLASS: Record<EstadoLimiarEtapa, string> = {
   atrasado: "bg-destructive",
 };
 
+// Ajuste de fidelidade visual, 2026-09-14 (Figma 86:2/86:5/211:51): o badge
+// do card é um chip com fundo na cor do estado a ~14% de opacidade, não só
+// dot + texto solto. Reaproveita as mesmas classes de paleta de
+// ESTADO_DOT_CLASS (Tailwind, sem hex cru) só com o modificador de opacidade.
+const ESTADO_BADGE_CLASS: Record<EstadoLimiarEtapa, string> = {
+  normal: "bg-emerald-500/14 text-emerald-600",
+  atencao: "bg-amber-500/14 text-amber-600",
+  atrasado: "bg-destructive/14 text-destructive",
+};
+
 function formatarCargoPartido(cargo: string | null, partido: string | null): string | null {
   const partes = [cargo, partido].filter((v): v is string => Boolean(v && v.trim() !== ""));
   return partes.length > 0 ? partes.join(" · ") : null;
@@ -80,6 +90,16 @@ export function QuadroAcompanhamento({ colunas, limiares, onMoverCard }: QuadroA
   );
 }
 
+// Ajuste de fidelidade visual, 2026-09-14: pedido explícito do Pedro --
+// "max-height + scroll interno no Kanban". Cada coluna ganha altura fixa
+// (em vez de esticar com o conteúdo) e só a lista de cards dentro dela rola
+// (overflow-y-auto no min-h-0 acima); o cabeçalho da coluna (nome + contagem)
+// fica sempre visível. Isso também é o que trava a altura da seção inteira
+// do Quadro, independente de quantos cards qualquer coluna acumule --
+// independente da rolagem própria da TabelaPendencias (EstadoVazio da seção
+// de baixo).
+const ALTURA_COLUNA = "h-[520px]";
+
 const PREFIXO_DRAGGABLE_CONTRATO = "contrato-";
 
 function idContratoDoDraggable(id: string | number): number | null {
@@ -95,14 +115,14 @@ function idEtapaDoDroppable(id: string | number): number | null {
 
 function ColunaProspeccao({ coluna }: { coluna: Extract<ColunaQuadro, { tipo: "prospeccao" }> }) {
   return (
-    <Card size="sm" className="flex h-full w-72 shrink-0 flex-col gap-3 bg-muted/30">
+    <Card size="sm" className={cn(ALTURA_COLUNA, "flex w-72 shrink-0 flex-col gap-3 bg-muted/30")}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2 text-sm">
           <span>{coluna.nome}</span>
           <span className="text-xs font-normal text-muted-foreground">{coluna.cards.length}</span>
         </CardTitle>
       </CardHeader>
-      <div className="flex min-h-24 flex-1 flex-col gap-2 rounded-lg p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-lg p-2">
         {coluna.cards.length === 0 ? (
           <p className="p-2 text-xs italic text-muted-foreground">Nenhuma prospecção aberta.</p>
         ) : (
@@ -128,7 +148,7 @@ function ColunaEtapa({ coluna, limiares }: { coluna: ColunaEtapaQuadro; limiares
   const { setNodeRef, isOver } = useDroppable({ id: coluna.idEtapa });
 
   return (
-    <Card size="sm" className="flex h-full w-72 shrink-0 flex-col gap-3">
+    <Card size="sm" className={cn(ALTURA_COLUNA, "flex w-72 shrink-0 flex-col gap-3")}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2 text-sm">
           <span>{coluna.nome}</span>
@@ -138,7 +158,7 @@ function ColunaEtapa({ coluna, limiares }: { coluna: ColunaEtapaQuadro; limiares
       <div
         ref={setNodeRef}
         className={cn(
-          "flex min-h-24 flex-1 flex-col gap-2 rounded-lg p-2 transition-colors",
+          "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-lg p-2 transition-colors",
           isOver && "bg-muted/60"
         )}
       >
@@ -181,11 +201,16 @@ function CardEtapaArrastavel({
       <Card size="sm" className="gap-1.5 p-3">
         <p className="text-sm font-medium leading-snug">{card.nomeContratante}</p>
         {subtitulo ? <p className="text-xs text-muted-foreground">{subtitulo}</p> : null}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span>
+        <div className="flex items-center justify-between gap-1.5">
+          <span className="text-[11px] font-medium text-secondary">
             {card.diasNaEtapaAtual} {card.diasNaEtapaAtual === 1 ? "dia" : "dias"} na etapa
           </span>
-          <span className="inline-flex items-center gap-1">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[9px] font-medium",
+              ESTADO_BADGE_CLASS[estado]
+            )}
+          >
             <span className={cn("size-1.5 rounded-full", ESTADO_DOT_CLASS[estado])} />
             {ESTADO_LABEL[estado]}
           </span>

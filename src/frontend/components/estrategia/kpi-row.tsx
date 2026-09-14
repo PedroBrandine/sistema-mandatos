@@ -5,6 +5,7 @@ import { useId } from "react";
 import type { EstrategiaKpi } from "@backend/queries/estrategia-kpi";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 // EST-08 (T33, design.md "KpiRow"). A faixa dos números no topo do Dashboard
 // do produto, acima do Quadro de Acompanhamento (Figma 44:5 / 44:227).
@@ -14,46 +15,23 @@ import { Card, CardContent } from "@/components/ui/card";
 // qualquer coisa aqui seria a "agregação inventada pela tela" que a AD
 // proíbe -- e a razão de a view existir.
 //
-// É um painel de stat tiles, não um gráfico: nenhuma escala ou paleta
-// categórica de série entra aqui. As duas cores usadas são tokens da
-// identidade (globals.css): o número em `secondary` (vinho #571730) e a barra
-// de atingimento em `primary` (teal #035252). Nenhum hex cru no componente --
-// o arquivo do Figma não tem variáveis de design (get_variable_defs devolve
-// {}), então o mapeamento hex->token é manual e a fonte de verdade é o
-// globals.css, nunca o valor transcrito de um screenshot.
-
+// Quatro dos seis KPIs (Mandatos ativos, IIP, Atingimento, Fatos geradores)
+// são stat tiles simples -- número + rótulo, com barra só no Atingimento
+// (única escala 0-100 conhecida). Os outros dois (Mandatos em atraso, NPS)
+// têm layout próprio no Figma 44:5 (nodes 86:44 e 44:53): quebra por status
+// e barra segmentada, respectivamente. `vw_estrategia_kpi` não expõe nenhum
+// dos dois detalhamentos (só a contagem/média agregada) -- ajuste de
+// fidelidade visual 2026-09-14: o layout das duas peças existe, mas cada
+// parte sem dado de origem mostra "—" (AUSENCIA_KPI) em vez de inventar uma
+// proporção ou contagem (AD-005). Documentado como spec-precision gap na
+// seção "Ajuste de fidelidade visual" de tasks.md.
+//
+// As cores usadas são tokens da identidade (globals.css) e classes de
+// paleta do Tailwind já em uso pelo Quadro de Acompanhamento
+// (quadro-acompanhamento.tsx: emerald/amber/destructive para normal/
+// atenção/atrasado) -- nenhum hex cru novo introduzido aqui.
 type FormatoKpi = "inteiro" | "decimal" | "percentual";
 
-interface DefinicaoKpi {
-  chave: keyof EstrategiaKpi;
-  rotulo: string;
-  formato: FormatoKpi;
-  // Só o atingimento tem barra: é o único KPI cuja escala (0-100) é conhecida
-  // e fixa, então a barra representa proporção de verdade. IIP e NPS não têm
-  // máximo declarado em lugar nenhum do modelo -- desenhar uma barra para
-  // eles exigiria inventar o denominador.
-  barraProgresso?: true;
-}
-
-// Rótulos e ordem: o spec (EST-08 AC1) manda no CONJUNTO, o Figma manda na
-// GRAFIA. AC1 enumera seis -- "mandatos ativos, IIP, mandatos em atraso, NPS
-// das imersões, atingimento do planejamento e fatos geradores" -- e o node
-// 44:227 desenha cinco, sem "Mandatos em atraso". Mantidos os seis: o spec é
-// a fonte de verdade dos ACs e remover o card faria a tela deixar de cumprir
-// uma AC aprovada. Divergência registrada como desvio em tasks.md (Fase 8).
-const KPIS: DefinicaoKpi[] = [
-  { chave: "mandatosAtivos", rotulo: "Mandatos ativos", formato: "inteiro" },
-  { chave: "iipMedio", rotulo: "IIP — Índ. de impacto", formato: "decimal" },
-  { chave: "mandatosEmAtraso", rotulo: "Mandatos em atraso", formato: "inteiro" },
-  { chave: "npsMedio", rotulo: "NPS das imersões", formato: "decimal" },
-  { chave: "pctAtingimentoMedio", rotulo: "Atingimento plan.", formato: "percentual", barraProgresso: true },
-  { chave: "nrFatosGeradores", rotulo: "Fatos geradores reg.", formato: "inteiro" },
-];
-
-// Contagens são inteiras por construção; médias ganham uma casa decimal --
-// numa faixa de leitura de conjunto, a segunda casa só adiciona ruído sem
-// mudar nenhuma decisão. Não é regra de negócio (AD-004): o valor exato
-// continua na view, isto é apresentação.
 const FORMATADOR: Record<FormatoKpi, Intl.NumberFormat> = {
   inteiro: new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }),
   decimal: new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }),
@@ -72,63 +50,164 @@ function formatar(valor: number | null, formato: FormatoKpi): string | null {
   return formato === "percentual" ? `${texto}%` : texto;
 }
 
+function ValorOuAusencia({ texto }: { texto: string | null }) {
+  return (
+    <>
+      {texto ?? (
+        <>
+          {AUSENCIA_KPI}
+          {/* O travessão comunica ausência visualmente; sem isto o leitor de
+              tela anuncia só a pontuação. */}
+          <span className="sr-only">Sem dado suficiente</span>
+        </>
+      )}
+    </>
+  );
+}
+
+interface KpiSimplesProps {
+  rotulo: string;
+  formato: FormatoKpi;
+  valor: number | null;
+  barraProgresso?: boolean;
+}
+
+function KpiSimples({ rotulo, formato, valor, barraProgresso }: KpiSimplesProps) {
+  const rotuloId = useId();
+  const texto = formatar(valor, formato);
+
+  return (
+    <Card size="sm" role="group" aria-labelledby={rotuloId}>
+      <CardContent>
+        {/* Caixa alta pelo CSS, não no texto: o rótulo escrito em maiúsculas
+            de verdade faz leitor de tela soletrar sigla e perde a
+            acentuação correta na leitura. */}
+        <p id={rotuloId} className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
+          {rotulo}
+        </p>
+        <p className="mt-1 font-heading text-3xl text-secondary">
+          <ValorOuAusencia texto={texto} />
+        </p>
+
+        {/* Barra só existe quando há número. Renderizá-la vazia num KPI
+            ausente desenharia "0% atingido", que é precisamente o zero
+            inventado que AD-005 proíbe -- e, numa barra, mente com mais
+            força que um dígito. */}
+        {barraProgresso && valor !== null && (
+          <div
+            className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-labelledby={rotuloId}
+            aria-valuenow={valor}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div className="h-full rounded-full bg-primary" style={{ width: `${valor}%` }} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const ESTADO_BREAKDOWN: { chave: "atrasado" | "atencao" | "normal"; rotulo: string; dotClass: string }[] = [
+  { chave: "atrasado", rotulo: "atrasados", dotClass: "bg-destructive" },
+  { chave: "atencao", rotulo: "atenção", dotClass: "bg-amber-500" },
+  { chave: "normal", rotulo: "normal", dotClass: "bg-emerald-500" },
+];
+
+// Figma 86:44 ("kpi-atrasos"): número grande + 3 linhas de status (dot +
+// contagem) ao lado. vw_estrategia_kpi não expõe a quebra por status, só o
+// total -- o layout das 3 linhas existe (a peça não some), cada uma mostra
+// "—" em vez de uma contagem inventada.
+function KpiMandatosAtraso({ valor }: { valor: number | null }) {
+  const rotuloId = useId();
+  const texto = formatar(valor, "inteiro");
+
+  return (
+    <Card size="sm" role="group" aria-labelledby={rotuloId}>
+      <CardContent className="flex flex-col gap-3">
+        <p id={rotuloId} className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
+          Mandatos em atraso
+        </p>
+        <div className="flex items-center gap-3">
+          <p className="font-heading text-3xl text-secondary">
+            <ValorOuAusencia texto={texto} />
+          </p>
+          <div className="flex flex-col gap-1">
+            {ESTADO_BREAKDOWN.map((estado) => (
+              <div key={estado.chave} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className={cn("size-1.5 shrink-0 rounded-full", estado.dotClass)} />
+                <span>
+                  {AUSENCIA_KPI} {estado.rotulo}
+                  <span className="sr-only"> — sem dado suficiente</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Figma 44:53 ("kpi-4"): número grande + barra segmentada (promotor/neutro/
+// detrator) + rótulos de percentual + chip de nº de avaliações.
+// vw_estrategia_kpi só expõe a média (npsMedio) -- nenhuma das duas quebras
+// (segmentos, contagem de avaliações) existe na view hoje. A barra e o chip
+// permanecem no layout: a barra desenha um único segmento neutro (sem
+// proporção inventada) e o chip mostra "—" em vez de uma contagem forjada.
+function KpiNps({ valor }: { valor: number | null }) {
+  const rotuloId = useId();
+  const texto = formatar(valor, "decimal");
+
+  return (
+    <Card size="sm" role="group" aria-labelledby={rotuloId} className="sm:col-span-2 lg:col-span-1">
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <p id={rotuloId} className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
+            NPS das imersões
+          </p>
+          <span className="inline-flex items-center whitespace-nowrap rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-foreground">
+            {AUSENCIA_KPI} avaliações
+            <span className="sr-only"> — número de avaliações indisponível nesta view</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <p className="font-heading text-3xl text-primary">
+            <ValorOuAusencia texto={texto} />
+          </p>
+          <div className="flex flex-1 flex-col gap-2">
+            <div
+              className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+              role="img"
+              aria-label="Distribuição de promotores, neutros e detratores indisponível nesta view"
+            />
+            <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground">
+              <span>Promotores: {AUSENCIA_KPI}</span>
+              <span>Neutros: {AUSENCIA_KPI}</span>
+              <span>Detratores: {AUSENCIA_KPI}</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export interface KpiRowProps {
   kpi: EstrategiaKpi;
 }
 
 export function KpiRow({ kpi }: KpiRowProps) {
-  const baseId = useId();
-
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-      {KPIS.map((def) => {
-        const rotuloId = `${baseId}-${def.chave}`;
-        const bruto = kpi[def.chave];
-        const valor = formatar(bruto, def.formato);
-
-        return (
-          <Card key={def.chave} size="sm" role="group" aria-labelledby={rotuloId}>
-            <CardContent>
-              {/* Caixa alta pelo CSS, não no texto: o rótulo escrito em
-                  maiúsculas de verdade faz leitor de tela soletrar sigla e
-                  perde a acentuação correta na leitura. */}
-              <p
-                id={rotuloId}
-                className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground"
-              >
-                {def.rotulo}
-              </p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums text-secondary">
-                {valor ?? (
-                  <>
-                    {AUSENCIA_KPI}
-                    {/* O travessão comunica ausência visualmente; sem isto o
-                        leitor de tela anuncia só a pontuação. */}
-                    <span className="sr-only">Sem dado suficiente</span>
-                  </>
-                )}
-              </p>
-
-              {/* Barra só existe quando há número. Renderizá-la vazia num KPI
-                  ausente desenharia "0% atingido", que é precisamente o zero
-                  inventado que AD-005 proíbe -- e, numa barra, mente com mais
-                  força que um dígito. Mesmo padrão de PlanejamentoHeader. */}
-              {def.barraProgresso && bruto !== null && (
-                <div
-                  className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
-                  role="progressbar"
-                  aria-labelledby={rotuloId}
-                  aria-valuenow={bruto}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${bruto}%` }} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+      <KpiSimples rotulo="Mandatos ativos" formato="inteiro" valor={kpi.mandatosAtivos} />
+      <KpiSimples rotulo="IIP — Índ. de impacto" formato="decimal" valor={kpi.iipMedio} />
+      <KpiMandatosAtraso valor={kpi.mandatosEmAtraso} />
+      <KpiNps valor={kpi.npsMedio} />
+      <KpiSimples rotulo="Atingimento plan." formato="percentual" valor={kpi.pctAtingimentoMedio} barraProgresso />
+      <KpiSimples rotulo="Fatos geradores reg." formato="inteiro" valor={kpi.nrFatosGeradores} />
     </div>
   );
 }

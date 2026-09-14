@@ -46,13 +46,26 @@ function LinhaPendencia({ pendencia }: { pendencia: Pendencia }) {
     >
       <TableCell>{pendencia.nomeContratante}</TableCell>
       <TableCell>
-        <Badge variant="destructive">{ROTULO_CATEGORIA[pendencia.categoria]}</Badge>
+        <Badge variant="destructive" className="h-auto rounded-md px-2.5 py-1 text-xs font-bold">
+          {ROTULO_CATEGORIA[pendencia.categoria]}
+        </Badge>
       </TableCell>
       <TableCell>{pendencia.detalhe ?? "—"}</TableCell>
       <TableCell>{new Date(pendencia.dtReferencia).toLocaleDateString("pt-BR")}</TableCell>
     </TableRow>
   );
 }
+
+// Ajuste de fidelidade visual, 2026-09-14 (Figma 44:174). Cabeçalho sticky
+// dentro do wrapper com scroll: uppercase/bold/pequeno, como o Figma, e fixo
+// no topo enquanto as linhas rolam por baixo. bg-background porque é
+// exatamente o tom do cabeçalho no Figma (#faf7f2 == --background).
+const CLASSE_CABECALHO = "sticky top-0 z-10 bg-background text-xs font-bold uppercase tracking-wide text-muted-foreground";
+
+// Pedido explícito do Pedro: max-height + scroll interno na tabela,
+// independente do Kanban. O card com borda arredondada é o "table-container"
+// do Figma; só o miolo (abaixo do cabeçalho, que fica sticky) rola.
+const ALTURA_TABELA = "max-h-[420px] overflow-y-auto";
 
 export function TabelaPendencias({ pendencias }: TabelaPendenciasProps) {
   if (pendencias.length === 0) {
@@ -62,20 +75,24 @@ export function TabelaPendencias({ pendencias }: TabelaPendenciasProps) {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Mandato</TableHead>
-          <TableHead>Tipo de pendência</TableHead>
-          <TableHead>Detalhe</TableHead>
-          <TableHead>Data de referência</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {pendencias.map((p) => (
-          <LinhaPendencia key={`${p.idContrato}-${p.categoria}-${p.detalhe}`} pendencia={p} />
-        ))}
-      </TableBody>
-    </Table>
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className={ALTURA_TABELA}>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className={CLASSE_CABECALHO}>Mandato</TableHead>
+              <TableHead className={CLASSE_CABECALHO}>Tipo de pendência</TableHead>
+              <TableHead className={CLASSE_CABECALHO}>Detalhe</TableHead>
+              <TableHead className={CLASSE_CABECALHO}>Data de referência</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pendencias.map((p) => (
+              <LinhaPendencia key={`${p.idContrato}-${p.categoria}-${p.detalhe}`} pendencia={p} />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 }

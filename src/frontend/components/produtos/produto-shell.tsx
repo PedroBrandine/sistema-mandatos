@@ -43,7 +43,10 @@ export function ProdutoShell({ slug, children }: ProdutoShellProps) {
           Voltar ao hub
         </Link>
         <div className="flex items-center justify-between">
-           <h1 className="font-heading text-3xl font-semibold tracking-tight text-primary">
+           {/* Ajuste de fidelidade visual, 2026-09-14 (Figma 44:19): Anton,
+               caixa alta, cor secondary (vinho) -- era primary (teal) e sem
+               uppercase. */}
+           <h1 className="font-heading text-4xl uppercase tracking-tight text-secondary">
              {tituloProduto}
            </h1>
            {/* Futuro botão de ações globais do produto */}

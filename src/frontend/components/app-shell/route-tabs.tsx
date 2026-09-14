@@ -31,15 +31,17 @@ export function RouteTabs({ items }: RouteTabsProps) {
             href={href}
             className={cn(
               "relative pb-3 text-sm font-medium transition-colors duration-200 whitespace-nowrap",
+              // Ajuste de fidelidade visual, 2026-09-14 (Figma 44:20/44:21):
+              // aba ativa em secondary (vinho), não primary (teal).
               ativo
-                ? "text-primary font-semibold"
+                ? "text-secondary font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
             {label}
             {/* Active Indicator (Underline) */}
             {ativo && (
-              <span className="absolute bottom-0 left-0 w-full h-[2.5px] rounded-t-full bg-primary" />
+              <span className="absolute bottom-0 left-0 w-full h-[2.5px] rounded-t-full bg-secondary" />
             )}
           </Link>
         );

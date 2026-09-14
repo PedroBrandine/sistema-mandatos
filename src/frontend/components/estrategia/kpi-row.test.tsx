@@ -123,4 +123,36 @@ describe("KpiRow (EST-08)", () => {
 
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
+
+  // Ajuste de fidelidade visual, 2026-09-14 (Figma 86:44). vw_estrategia_kpi
+  // não expõe quebra por status (atrasado/atenção/normal) -- só o total. O
+  // layout das 3 linhas existe mesmo assim; cada uma declara ausência, nunca
+  // inventa uma contagem por status.
+  it("Figma 86:44: Mandatos em atraso mostra o layout de quebra por status mesmo sem o dado (spec-precision gap)", () => {
+    render(<KpiRow kpi={KPI_COMPLETO} />);
+
+    expect(screen.getByText(/atrasados/)).toBeInTheDocument();
+    expect(screen.getByText(/atenção/)).toBeInTheDocument();
+    expect(screen.getByText(/normal/)).toBeInTheDocument();
+    // O total (11) segue vindo da view -- só a quebra por status é que falta.
+    expect(screen.getByText("11")).toBeInTheDocument();
+  });
+
+  // Ajuste de fidelidade visual, 2026-09-14 (Figma 44:53). vw_estrategia_kpi
+  // não expõe segmentação promotor/neutro/detrator nem contagem de
+  // avaliações -- só a média. A barra e o chip continuam no layout; a barra
+  // não desenha proporção nenhuma (nem chuta uma distribuição) e o chip
+  // declara ausência em vez de uma contagem forjada.
+  it("Figma 44:53: NPS mostra a barra e o chip de avaliações mesmo sem a quebra (spec-precision gap)", () => {
+    render(<KpiRow kpi={KPI_COMPLETO} />);
+
+    expect(screen.getByText(/Promotores/)).toBeInTheDocument();
+    expect(screen.getByText(/Neutros/)).toBeInTheDocument();
+    expect(screen.getByText(/Detratores/)).toBeInTheDocument();
+    // Duas ocorrências: o chip visível e o texto sr-only que explica a
+    // ausência -- getAllByText em vez de getByText por causa disso.
+    expect(screen.getAllByText(/avaliações/).length).toBeGreaterThan(0);
+    // A média (62,5) segue vindo da view -- só a segmentação é que falta.
+    expect(screen.getByText("62,5")).toBeInTheDocument();
+  });
 });
