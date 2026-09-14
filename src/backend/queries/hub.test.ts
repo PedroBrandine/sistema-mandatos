@@ -163,10 +163,21 @@ describe("buscarCardsHub", () => {
     expect(resultado.map((c) => c.titulo)).toEqual(["Estratégia", "PLL", "Coalizão", "Visão Gerencial", "Gestão de Usuários"]);
   });
 
-  // Done-when: "Consulta negada por permissão -> card omitido (AC7)" --
-  // usuária não-Admin não vê "Gestão de Usuários".
-  it("usuária Gestora (não-Admin) não vê o card Gestão de Usuários", async () => {
+  // Done-when (corrigido 2026-09-14): AC7 original pedia "só Admin", mas a
+  // RLS p_usuario sempre permitiu SELECT/UPDATE completos a legisla_gestora
+  // também -- o card do Hub era o único lugar ainda restringindo mais que o
+  // banco. Gestora vê o card, no mesmo lugar que Admin veria.
+  it("usuária Gestora também vê o card Gestão de Usuários (mesmo acesso do banco)", async () => {
     const { client } = criarClienteMock(respostasTudoPermitido({ dim_usuario: { data: GESTORA, error: null } }));
+
+    const resultado = await buscarCardsHub(client);
+
+    expect(resultado.map((c) => c.titulo)).toEqual(["Estratégia", "PLL", "Coalizão", "Visão Gerencial", "Números de Impacto", "Gestão de Usuários"]);
+  });
+
+  // Lado oposto: papel sem nenhum acesso a gestão de usuários não vê o card.
+  it("usuária Mentor (sem acesso a gestão de usuários) não vê o card", async () => {
+    const { client } = criarClienteMock(respostasTudoPermitido({ dim_usuario: { data: { papel_global: "mentor" }, error: null } }));
 
     const resultado = await buscarCardsHub(client);
 

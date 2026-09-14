@@ -32,9 +32,10 @@ F5-F8 — o validation.md em disco cobre só T1-T18.
 >   presença T28-T30) — AD-046 não as alcança.
 > - **As ACs cortadas por AD-046** nas telas de leitura, que devem aparecer como
 >   spec-precision gaps explícitos, nunca como "coberto".
-> - **Os 3 gaps herdados** que o Verifier anterior deixou abertos, para dizer se
->   seguem válidos: "Gestão de Usuários" como UI-hiding e não RLS; slug inválido → 404
->   sem teste; e agora EST-13 AC6 (abaixo).
+> - **2 dos 3 gaps herdados fechados em 2026-09-14**: "Gestão de Usuários" (era
+>   diagnóstico invertido, não RLS faltando — ver desvio 2 do Batch 3) e slug
+>   inválido → 404 (ganhou `layout.test.ts` — ver desvio 4 do Batch 3). Resta
+>   EST-13 AC6, ainda parcial, arrumo a seguir.
 > - **Por que os testes não pegaram o que o Pedro pegou**: em 2026-09-12, quatro
 >   defeitos reais foram encontrados por ele abrindo a tela, não por gate nenhum —
 >   Agenda nunca montada, bug da coalizão (`id_contratante` onde a FK pedia
@@ -194,17 +195,36 @@ F5-F8 — o validation.md em disco cobre só T1-T18.
    original rodaria. Nenhuma AD nova — é extensão direta do escopo de AD-044
    ("dependências do harness vivem na raiz"), mesmo arquivo, mesma regra.
 
-2. **Risco aceito documentado no código, não só no commit: card "Gestão de
-   Usuários" do Hub (T11/T12, EST-02 AC7).** O padrão "consulta negada por
+2. **RESOLVIDO em 2026-09-14 — o "risco aceito" abaixo (texto original de
+   2026-09-11) tinha o diagnóstico invertido.** A análise original concluía que
+   faltava "uma RLS que distinga Admin de Gestora" para o card "Gestão de
+   Usuários". Pedro corrigiu: Gestora **deve** gerenciar usuários — a política
+   `p_usuario` já implementa exatamente isso (SELECT/UPDATE completos a Admin e
+   Gestora; só a promoção de alguém a admin/gestora é restrita a quem já é admin,
+   via `WITH CHECK`), e `/usuarios/page.tsx` (`souAdmin`) já respeita essa
+   distinção fina havia tempo. **O único lugar com o critério errado era o card do
+   Hub** (`queries/hub.ts`, `ehAdmin` restringia a só-Admin) — que por sua vez
+   só reproduzia um AC do `spec.md` (EST-02 AC7) que eu, ao escrever o spec,
+   registrei errado. Corrigido: `ehAdmin` → `podeGerenciarUsuarios` (Admin OU
+   Gestora), `spec.md` EST-02 AC7 e EST-05 AC3 com nota de correção datada,
+   teste do Hub trocado (Gestora agora tem caso "vê o card"; Mentor ganhou o
+   par negativo que faltava). Nenhuma migration necessária — a RLS já estava
+   certa; o código é que divergia dela. Ver histórico abaixo por transparência,
+   mas a recomendação de "AD nova" nele **não se aplica mais**.
+
+   <details><summary>Texto original do desvio (2026-09-11, mantido para histórico)</summary>
+
+   Risco aceito documentado no código, não só no commit: card "Gestão de
+   Usuários" do Hub (T11/T12, EST-02 AC7). O padrão "consulta negada por
    permissão (42501) → card omitido" que rege Visão Gerencial/Números de Impacto
    (AD-036: `mv_avaliacao_nps`/`mv_numeros_impacto` nunca concedidas a
-   `legisla_mentor`/`legisla_assessor`) **não se aplica** a `dim_usuario`: a
+   `legisla_mentor`/`legisla_assessor`) não se aplica a `dim_usuario`: a
    política `p_usuario` (`app.papel_atual() IN ('admin','gestora')`) dá SELECT
    completo tanto a Admin quanto a Gestora — não existe hoje nenhuma consulta cujo
    42501 distinga as duas roles para este recurso. `queries/hub.ts` (`ehAdmin`)
    resolve o card lendo `dim_usuario.papel_global` da própria usuária autenticada
    (dado do banco, resolvido pela sessão — não um papel hardcoded/prop), mas isso
-   é *UI hiding*, não enforcement de RLS: uma Gestora que ignorasse a UI e navegasse
+   é UI hiding, não enforcement de RLS: uma Gestora que ignorasse a UI e navegasse
    direto para `/usuarios` não seria barrada pelo banco hoje (mesma lacuna que já
    existia antes desta feature — `usuarios/page.tsx:35` já tinha o comentário
    "Default permissivo para interface"). Enforcement real (uma RLS/GRANT que
@@ -212,6 +232,8 @@ F5-F8 — o validation.md em disco cobre só T1-T18.
    migration futura — fora do escopo de T10-T13, que são todas `quick`/sem
    migration. Recomendação registrada, não decretada: uma feature futura que mexa
    em `dim_usuario`/`/usuarios` deveria fechar essa lacuna com uma AD nova.
+
+   </details>
 
 3. **Where de T12 interpretado como "só `hub-card.test.tsx`" — nenhum
    `page.test.tsx` criado.** O Done-when de T12 inclui "Renderiza um card por item
@@ -223,12 +245,17 @@ F5-F8 — o validation.md em disco cobre só T1-T18.
    `hub-card.test.tsx` (T12) — nenhum teste novo foi adicionado além do escopo
    declarado.
 
-4. **T13 AC4 ("slug inválido retorna 404") não ganhou teste novo.**
-   `ProdutoShell` recebe `slug: ProdutoSlug` já estreitado pelo tipo — não existe
-   caminho de código dentro do componente para um slug inválido. A fronteira de
-   validação real é `produtos/[slug]/layout.tsx` (chama `notFound()`), arquivo que
-   T13 não toca e cujo comportamento é anterior a esta feature. Documentado no
-   próprio `produto-shell.test.tsx`, não é lacuna silenciosa.
+4. **FECHADO em 2026-09-14.** T13 AC4 ("slug inválido retorna 404") não tinha
+   teste novo — `ProdutoShell` recebe `slug: ProdutoSlug` já estreitado pelo tipo
+   (não existe caminho de código dentro dele para slug inválido); a fronteira
+   real é `produtos/[slug]/layout.tsx` (`notFound()`), anterior a esta feature.
+   Pedro pediu para fechar: `layout.test.ts` novo, chamando o Server Component
+   direto (função async, sem `@testing-library/react` — não há nada para
+   renderizar em jsdom aqui). Trava o `digest` real do Next
+   (`"NEXT_HTTP_ERROR_FALLBACK;404"`, não um throw genérico) para slug inválido,
+   e o lado oposto (slug válido monta `ProdutoShell` com slug e children certos).
+   Sensor: `isProdutoSlug` mutado para sempre `true`, o teste do lado inválido
+   morreu; restaurado, voltou a passar. Gate: unit 739/739.
 
 **Achados para as fases seguintes:**
 - O gap do desvio 1 (aliases não resolvidos no Vitest) só apareceu porque T10 foi

@@ -41,17 +41,18 @@ async function contarMandatosAtivosEstrategia(client: SupabaseClient<Database>):
   return String(count ?? 0);
 }
 
-// AC7: card "Gestão de Usuários" só para Admin. RISCO ACEITO (documentado no
-// commit desta task): dim_usuario permite SELECT completo a legisla_gestora
-// via RLS `p_usuario` (`app.papel_atual() IN ('admin','gestora')`), então não
-// existe hoje nenhuma consulta cujo 42501 distinga Admin de Gestora -- o
-// padrão de negação-por-permissão usado nos demais cards não se aplica aqui.
-// Esta função lê o papel_global da própria usuária (dado do banco, resolvido
-// pela sessão autenticada) em vez de aceitar um papel já hardcoded/prop --
-// mas não é enforcement de RLS. Enforcement real de "só Admin" em
-// `/usuarios` continua dependendo de uma migration futura (fora do escopo
-// desta task, que não inclui migration).
-async function ehAdmin(client: SupabaseClient<Database>): Promise<boolean> {
+// AC7 (corrigido 2026-09-14): card "Gestão de Usuários" para Admin OU
+// Gestora. O critério original desta task ("só Admin") estava errado -- o
+// spec.md pedia isso, mas a RLS `p_usuario` sempre permitiu SELECT e UPDATE
+// completos a legisla_gestora também (só a promoção de alguém a admin/gestora
+// fica restrita a quem já é admin, via WITH CHECK da própria policy).
+// `/usuarios/page.tsx` já implementa exatamente essa distinção mais fina
+// (`souAdmin` restringe só o dropdown de papel, não a página inteira) -- o
+// card do Hub era o único lugar ainda usando o critério errado, escondendo a
+// ferramenta inteira de quem tinha acesso de verdade. Pedro corrigiu em
+// 2026-09-14: "Gestora também pode ver e editar gestão de usuários, pelo
+// menos deveria."
+async function podeGerenciarUsuarios(client: SupabaseClient<Database>): Promise<boolean> {
   const { data: auth } = await client.auth.getUser();
   const email = auth.user?.email ?? null;
   if (!email) return false;
@@ -60,7 +61,7 @@ async function ehAdmin(client: SupabaseClient<Database>): Promise<boolean> {
   if (negadoPorPermissao(error)) return false;
   if (error) throw error;
 
-  return data?.papel_global === "admin";
+  return data?.papel_global === "admin" || data?.papel_global === "gestora";
 }
 
 // AC4: contagem real de fatos geradores registrados (organização inteira,
@@ -102,7 +103,7 @@ export async function buscarCardsHub(client: SupabaseClient<Database>): Promise<
     contarMandatosAtivosEstrategia(client),
     podeLerMvAvaliacaoNps(client),
     podeLerMvNumerosImpacto(client),
-    ehAdmin(client),
+    podeGerenciarUsuarios(client),
   ]);
 
   const cards: (CardHub | null)[] = [

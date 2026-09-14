@@ -160,7 +160,7 @@ chegar ao meu contexto de trabalho em um clique.
 4. WHEN o card "Números de Impacto" é exibido THEN ele SHALL mostrar a contagem real de fatos geradores registrados.
 5. WHEN a usuária clica em um card THEN o sistema SHALL navegar para a rota daquele destino.
 6. WHEN o Hub é renderizado THEN o card "Gestão de Usuários" SHALL aparecer **depois** de "Números de Impacto" na ordem dos cards.
-7. WHEN a usuária não é Admin do Sistema THEN o card "Gestão de Usuários" SHALL não ser renderizado, pela mesma regra da AC2 (AD-001 + AD-018).
+7. WHEN a usuária não é Admin nem Gestora THEN o card "Gestão de Usuários" SHALL não ser renderizado, pela mesma regra da AC2 (AD-001 + AD-018). **Correção de 2026-09-14**: o texto original dizia "não é Admin"; Pedro esclareceu que Gestora também gerencia usuários, e a RLS `p_usuario` sempre permitiu isso (Gestora só não pode promover alguém a admin/gestora, restrição que `/usuarios/page.tsx` já implementava corretamente). O card do Hub era o único lugar ainda usando o critério errado.
 
 **Independent Test**: logar com dois papéis diferentes e comparar os cards visíveis e sua ordem.
 
@@ -175,7 +175,7 @@ funções administrativas não fiquem competindo com o contexto de trabalho.
 
 1. WHEN qualquer tela autenticada é renderizada THEN a Topbar SHALL exibir a marca, o link "Hub" e o avatar da usuária.
 2. WHEN qualquer tela autenticada é renderizada THEN a Topbar SHALL **não** exibir "Gestão de Usuários".
-3. WHEN a rota `/usuarios` é acessada diretamente por quem não é Admin THEN o acesso SHALL ser recusado pelo banco, não apenas pela ausência do link (AD-001).
+3. WHEN a rota `/usuarios` é acessada diretamente por quem não é Admin nem Gestora THEN o acesso SHALL ser recusado pelo banco, não apenas pela ausência do link (AD-001). **Correção de 2026-09-14**, mesma causa da AC7 de EST-02: já é o que a RLS `p_usuario` faz — quem não é Admin/Gestora só lê a própria linha de `dim_usuario` (`id_usuario = app.id_usuario()`), nunca o diretório completo. Não havia gap de código aqui, só o texto do AC desatualizado.
 
 **Independent Test**: percorrer as 7 telas e conferir que a Topbar é idêntica em todas e sem o item removido.
 

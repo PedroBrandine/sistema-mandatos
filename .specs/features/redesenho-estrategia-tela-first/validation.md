@@ -103,7 +103,7 @@ nenhum foi encontrado com asserção enfraquecida, apagada ou pulada.
 | AC4 | Card Números de Impacto com contagem real de fatos geradores | mesmos testes, mock de `fat_fato_gerador` | ✅ PASS |
 | AC5 | Clique navega para a rota do destino | `hub-card.test.tsx:33-37` — `toHaveAttribute("href","/produtos/estrategia")` | ✅ PASS |
 | AC6 | "Gestão de Usuários" depois de "Números de Impacto" | `hub.test.ts:92-99` — array de ordem inclui a sequência exata | ✅ PASS |
-| AC7 | Card "Gestão de Usuários" só para Admin, **pela mesma regra da AC2** (AD-001+AD-018) | `hub.test.ts:168-174` testa a omissão, mas via `dim_usuario.papel_global === "gestora"` lido por uma política que dá SELECT completo a Admin **e** Gestora (`hub.ts:54-64`, `ehAdmin`) — não há caminho de erro `42501` exercitado aqui, ao contrário da AC2 | ⚠️ **Spec-precision gap** — a AC pede explicitamente "a mesma regra da AC2" e a implementação não a segue; é UI-hiding sobre dado lido do banco, não enforcement de RLS/GRANT. Já registrado como risco aceito em tasks.md (desvio 2, Batch 3) e recomendado para AD nova em feature futura de `dim_usuario` |
+| AC7 | Card "Gestão de Usuários" para Admin **ou Gestora** — texto corrigido em 2026-09-14, ver Atualização no fim do documento | `hub.test.ts` — Gestora vê o card (par positivo), Mentor não (par negativo, sem acesso a `dim_usuario` além da própria linha) | ✅ PASS (pós-correção) |
 
 ### EST-03: Shell do produto Estratégia
 
@@ -131,7 +131,7 @@ nenhum foi encontrado com asserção enfraquecida, apagada ou pulada.
 | :-- | :-- | :-- | :-- |
 | AC1 | Marca + "Hub" + avatar sempre presentes | `topbar.test.tsx:14-20` | ✅ PASS |
 | AC2 | Topbar **não** exibe "Gestão de Usuários" | `topbar.test.tsx:22-27` — negativa explícita: `queryByText(...)).not.toBeInTheDocument()` e `queryByRole("link", ...)` | ✅ PASS |
-| AC3 | `/usuarios` acessado direto por não-Admin é recusado pelo banco | Nenhum teste cobre isso; RLS de `dim_usuario` não distingue Admin de Gestora hoje (mesma causa raiz de EST-02 AC7, pré-existente à feature) | ⚠️ **Spec-precision gap** — a AC descreve um comportamento que hoje é **falso** em produção (não é debito introduzido por esta feature — `usuarios/page.tsx:35` já tinha o comentário "Default permissivo" antes do redesenho), mas a spec desta feature promete o enforcement e ele não existe |
+| AC3 | `/usuarios` acessado direto por quem não é Admin **nem Gestora** é recusado pelo banco — texto corrigido em 2026-09-14 | RLS `p_usuario`: quem não é Admin/Gestora só lê a própria linha, nunca o diretório completo — já era assim antes desta feature | ✅ PASS (pós-correção; não havia gap de código, só texto do AC) |
 
 ### EST-06: `ref_limiar_pendencia` + refactor `vw_pendencias` (AD-004)
 
@@ -315,3 +315,28 @@ dependentes, com teste que distinguiria um `DROP`+recriação acidental de um `U
 **Next steps**: nenhuma ação bloqueia o relatório "F0-F4 completo" a Pedro. Recomendado incluir os
 4 itens acima no relatório para decisão consciente dele (mesma prática já usada nos Batches 1-4),
 não como pendência de código.
+
+---
+
+## Atualização — 2026-09-14
+
+Item 1 acima (**"Gestão de Usuários" sem RLS que distinga Admin de Gestora") tinha o diagnóstico
+**invertido**. Pedro esclareceu: Gestora deve gerenciar usuários — não é um privilégio a mais que
+precisa de trava nova, é o comportamento correto. A RLS `p_usuario` já implementava exatamente isso
+desde antes desta feature (SELECT/UPDATE completos a Admin e Gestora; só a promoção de alguém a
+admin/gestora é restrita a quem já é admin). O único lugar com o critério errado era
+`queries/hub.ts` (`ehAdmin`, restringia a só-Admin), que por sua vez só reproduzia um AC que eu
+registrei errado no `spec.md` (EST-02 AC7) ao escrevê-lo.
+
+Corrigido: `ehAdmin` → `podeGerenciarUsuarios` (Admin OU Gestora); `spec.md` EST-02 AC7 e EST-05
+AC3 com nota de correção datada; `hub.test.ts` com o par certo (Gestora vê o card; Mentor, que não
+tem acesso nenhum a `dim_usuario` além da própria linha, não vê). Nenhuma migration necessária — a
+RLS estava certa, o código divergia dela. Gate: unit 737/737, lint 0.
+
+**Item 1 e item 2 desta lista considerados fechados.** Item 2 (slug inválido → 404) ganhou teste
+próprio em `layout.test.ts`: um caso trava o `notFound()` real (`digest: "NEXT_HTTP_ERROR_FALLBACK;404"`,
+não um throw genérico) e o lado oposto trava que slug válido monta `ProdutoShell` com o slug e os
+children certos. Sensor de discriminação: `isProdutoSlug` mutado para sempre `true`, o teste do
+lado inválido morreu; restaurado, voltou a passar — nenhum resíduo (`git diff` conferido). Gate:
+unit 739/739. Item 3 ("5 vs 6 categorias") segue como imprecisão de texto de baixa prioridade.
+Achado novo de EST-13 AC6 (Fase 7, 2026-09-12) segue parcial — Pedro pediu para corrigir a seguir.
