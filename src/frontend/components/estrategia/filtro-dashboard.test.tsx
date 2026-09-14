@@ -31,4 +31,16 @@ describe("FiltroDashboard", () => {
     expect(screen.getByText("Gestora Um")).toBeInTheDocument();
     expect(screen.getByText("Projeto Alfa")).toBeInTheDocument();
   });
+
+  // Pedido do Pedro, 2026-09-14: com filtragem real ligada, não ter como
+  // voltar ao estado sem filtro é lacuna de uso -- o Figma não desenha o
+  // botão, mas a função exige ele.
+  it("Limpar filtros devolve o filtro vazio, mesmo com gestora e projeto aplicados", () => {
+    const onChange = vi.fn();
+    render(<FiltroDashboard filtro={{ idGestora: 1, idProjeto: 10 }} onChange={onChange} {...OPCOES} />);
+
+    screen.getByRole("button", { name: "Limpar filtros" }).click();
+
+    expect(onChange).toHaveBeenCalledWith({});
+  });
 });

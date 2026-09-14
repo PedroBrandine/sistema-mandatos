@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Ajuste de fidelidade visual, 2026-09-14 (Figma 44:29 "filter-bar"). Faltava
@@ -14,6 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // Mandatos com 5), por isso um componente próprio em vez de reusar
 // FiltrosMandatos (que também traz data/etapa/status fora de escopo desta
 // tela e está fora dos arquivos permitidos para edição neste ajuste).
+//
+// "Limpar filtros" (2026-09-14, pedido do Pedro): o Figma 44:29 não desenha
+// esse botão, mas com filtragem real ligada (idGestora/idProjeto), não ter
+// como voltar ao estado sem filtro é uma lacuna de uso, não fidelidade ao
+// pixel. Mesmo rótulo/variant/posição de FiltrosMandatos, para não inventar
+// um terceiro padrão visual de "limpar" no mesmo produto.
 export interface OpcaoFiltroDashboard {
   id: number;
   nome: string;
@@ -69,6 +76,15 @@ export function FiltroDashboard({ filtro, onChange, gestoras, projetos }: Filtro
           ))}
         </SelectContent>
       </Select>
+
+      <Button
+        type="button"
+        variant="ghost"
+        className="font-semibold text-secondary hover:text-secondary sm:w-auto"
+        onClick={() => onChange({})}
+      >
+        Limpar filtros
+      </Button>
     </div>
   );
 }

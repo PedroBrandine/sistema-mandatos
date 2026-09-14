@@ -47,4 +47,21 @@ describe("FiltrosAgenda (ajuste de fidelidade visual 2026-09-14)", () => {
       "Dep. Ana Ribeiro"
     );
   });
+
+  // Pedido do Pedro, 2026-09-14: um botão zera os 3 filtros de uma vez, em
+  // vez de exigir 3 cliques (um por dropdown voltando a "todos").
+  it("Limpar filtros devolve o filtro vazio, mesmo com os 3 aplicados", () => {
+    const onChange = vi.fn();
+    render(
+      <FiltrosAgenda
+        filtro={{ idGestora: 1, idProjeto: 10, idContrato: 42 }}
+        onChange={onChange}
+        {...OPCOES}
+      />
+    );
+
+    screen.getByRole("button", { name: "Limpar filtros" }).click();
+
+    expect(onChange).toHaveBeenCalledWith({});
+  });
 });

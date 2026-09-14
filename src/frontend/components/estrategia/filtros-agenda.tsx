@@ -2,6 +2,7 @@
 
 import type { OpcaoAgenda } from "@backend/queries/agenda";
 
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4 "filter-bar").
@@ -21,6 +22,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // filtro ("Filtrar por gestora") como o próprio texto do dropdown no estado
 // "todos" — por isso o item-sentinela usa esse texto como label, não um
 // "Todas as gestoras" genérico.
+//
+// "Limpar filtros" (2026-09-14, pedido do Pedro, mesma justificativa do
+// Dashboard): cada dropdown já volta ao estado "todos" sozinho, mas um botão
+// único que zera os 3 de uma vez evita 3 cliques quando a intenção é "ver
+// tudo de novo". Mesmo rótulo/variant de FiltrosMandatos/FiltroDashboard.
 const TODOS = "todos";
 
 export interface ValorFiltrosAgenda {
@@ -93,6 +99,15 @@ export function FiltrosAgenda({ filtro, onChange, gestoras, projetos, contratos 
         opcoes={contratos}
         onChange={(idContrato) => atualizar({ idContrato })}
       />
+
+      <Button
+        type="button"
+        variant="ghost"
+        className="font-semibold text-secondary hover:text-secondary sm:w-auto"
+        onClick={() => onChange({})}
+      >
+        Limpar filtros
+      </Button>
     </div>
   );
 }
