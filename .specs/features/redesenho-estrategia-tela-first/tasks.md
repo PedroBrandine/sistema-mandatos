@@ -2007,3 +2007,330 @@ Nenhuma ❌ VIOLATION. Nenhum `Tests: none`.
 | 7 | F8 | T31–T33 | 3 |
 
 Batches rodam em sequência. Depois do último commit, o **Verifier** roda automaticamente.
+
+---
+
+### Ajuste de fidelidade visual — Mandatos (2026-09-14)
+
+Pedro reportou: "está bem feio também. Os filtros estão tortos e não é a
+mesma tela que está no Figma." Escopo: `produtos/[slug]/mandatos` (T19/T20/
+T21/T21b). Seguido o protocolo `figma-design-to-code` (G1: `get_design_context`
+no node 202:554, arquivo `eS5CdQrl6yUdYctZwlDzps`, chamado antes de qualquer
+código).
+
+**O que mudou**
+
+- `filtros-mandatos.tsx`: grid 2×4 com `<Label>` empilhado → barra compacta
+  de 2 linhas dentro de um único container (`border`/`rounded-xl`/`p-3`,
+  Figma "Filtros"). Os `<Label>` viraram `sr-only` (não removidos —
+  `getByLabelText` e leitor de tela continuam funcionando, só o visual
+  muda). Placeholders dos 4 `Select` passaram a reproduzir o texto do
+  Figma 1:1 ("Todas as gestoras", "Todos os projetos", "Todas as etapas",
+  "Todos os status: ativo, finalizado, desligado"). "Limpar filtros" virou
+  `variant="ghost"` (texto puro, sem borda, como no Figma). Contagem
+  ("N mandatos") saiu da faixa cinza pequena e virou a linha "Resumo" do
+  Figma (bold, 16px), com "Mais recentes primeiro" ao lado.
+- `lista-mandatos.tsx`: badge de status ganhou dot colorido por status
+  (Ativo=emerald, Finalizado=muted, Desligado=`variant="destructive"` do
+  Badge — que já usa o token `--destructive`/#EB5454, o mesmo vermelho do
+  Figma). Nome do mandato ganhou o prefixo "Contrato" (vínculo visual mais
+  forte com o card, Figma "Identificação"). Card deixou de ser um `<Link>`
+  inteiro — só "Ver contrato →" no rodapé é link explícito agora (Figma
+  "Rodapé do contrato"). Rodapé mostra texto por status: "Atualizado há X
+  dias"/"Atualizado hoje" (ativo), "Encerrado em DD/MM" (concluído),
+  "Desligado em DD/MM" (desligado).
+- `queries/mandatos-lista.ts`: `ContratoCard` ganhou `atualizadoEm` (lido de
+  `fat_contrato.atualizado_em`, coluna já existente no schema aprovado e no
+  banco provisionado — `database.types.ts` confirma — não é dado novo
+  inventado, só não estava sendo selecionado).
+- `produtos/[slug]/mandatos/page.tsx`: adicionado o bloco "Mandatos" +
+  "Acompanhe vigência, etapa e responsáveis de todos os contratos." (Figma
+  "Introdução"), que faltava desde T21b — `ProdutoShell` só renderiza o
+  título do produto e as abas, nunca o título da aba corrente.
+
+**Gaps declarados (spec-precision)**
+
+1. Os dois campos de data (`filtro-data-de`/`filtro-data-ate`) não
+   reproduzem "Data inicial"/"Data final" como texto visível dentro da
+   caixa: `input[type="date"]` não suporta placeholder customizado em
+   nenhum browser principal (Chrome/Firefox renderizam só o formato nativo,
+   ex. "dd/mm/aaaa"). Limitação de plataforma, não escolha de
+   implementação — os 4 `Select` da mesma barra atingem fidelidade 1:1
+   porque `SelectValue placeholder` não tem essa limitação.
+2. "Mais recentes primeiro ⌄" no Figma sugere um controle de ordenação
+   (chevron de dropdown). Virou rótulo estático descrevendo a ordenação fixa
+   que `buscarMandatosLista` já aplica (`order("dt_inicio", { ascending:
+   false })`) — nenhum AC/design.md pede um seletor de ordenação
+   interativo, e a query não aceita outro campo de `order`. Implementá-lo
+   seria inventar comportamento sem lastro (mesmo raciocínio já registrado
+   no comentário de `dashboard/page.tsx` sobre a barra de filtros de
+   gestora/projeto fora de escopo).
+3. Ativo/Finalizado no badge de status usam a paleta padrão do Tailwind
+   (emerald/muted), não um token do design system: `globals.css` não define
+   token de sucesso/neutro dedicado (só `--primary`/`--secondary`/
+   `--destructive`). Desligado usa `--destructive` (token real, bate 1:1
+   com o Figma). Mesma escolha que o código anterior já fazia para o dot
+   (`bg-emerald-500`).
+
+**Gate**
+
+- `lint:frontend` limpo nos 4 arquivos tocados (`page.tsx`,
+  `filtros-mandatos.tsx`, `lista-mandatos.tsx`, `mandatos-lista.ts` +
+  `.test.ts`/`.test.tsx`).
+- `test:unit`: 24/24 nos arquivos tocados (`mandatos-lista.test.ts`,
+  `filtros-mandatos.test.tsx`, `lista-mandatos.test.tsx`), incluindo 4
+  testes novos (link explícito "Ver contrato", rodapé por status). Suíte
+  completa: 764/765 — a 1 falha é em `kpi-row.test.tsx` (Dashboard, fora de
+  escopo, explicitamente vedado tocar), e o arquivo aparece concorrentemente
+  modificado por outro worker no mesmo `git status` desta sessão — não
+  causada por este ajuste.
+- `npm run build` **não foi rodado** (workers de Dashboard/Agenda em
+  paralelo no mesmo working directory — aguardando OK explícito antes de
+  rodar).
+
+---
+
+### Ajuste de fidelidade visual — Agenda (2026-09-14)
+
+Pedro reportou: "os filtros de gestora, projeto e contrato também não
+aparecem como foi definido no Figma." Escopo: `produtos/[slug]/agenda`
+(T25-T30/T30b). Seguido o protocolo `figma-design-to-code` (G1:
+`get_design_context` no node `163:4`, arquivo `eS5CdQrl6yUdYctZwlDzps`,
+chamado antes de qualquer código — a skill em si não estava disponível nem
+como slash command nem como recurso MCP `skill://figma/figma-design-to-code/
+SKILL.md` neste ambiente; G2-G5 seguidos pelo protocolo descrito na própria
+tarefa, na ausência do texto da skill).
+
+**O que mudou**
+
+- `queries/agenda.ts`: três funções novas — `buscarOpcoesGestora`,
+  `buscarOpcoesProjeto`, `buscarOpcoesContrato` — que alimentam os 3
+  dropdowns do Figma. Nenhuma mudança no encanamento de filtro que já
+  existia: `FiltroAgenda`/`resolverIdsContratoDoFiltro` já aceitavam
+  `idGestora`/`idProjeto`/`idContrato` por interseção (inclusive `idContrato`
+  isolado, linha 120-122 do arquivo) desde T25 — a lacuna reportada pelo
+  Pedro era só a UI nunca ter sido desenhada (comentário explícito em
+  `page.tsx`, removido nesta task, que citava a barra de filtros como "fora
+  de escopo" da Fase 7).
+- `components/estrategia/filtros-agenda.tsx` (novo): barra de 3 `Select`
+  (Gestora/Projeto/Contrato), padrão copiado — não importado — de
+  `filtros-mandatos.tsx` (sentinela `"todos"`, mesmo texto usado em
+  `mandatos/page.tsx` e `contratos/page.tsx`). Diferença deliberada: o
+  item-sentinela usa o PRÓPRIO texto do rótulo ("Filtrar por gestora") como
+  label, porque é esse o texto que o Figma desenha no estado sem filtro —
+  não um genérico "Todas as gestoras".
+- `components/estrategia/agenda-mes.tsx`: botão "+ Novo agendamento" (Figma
+  "btn-add"), agora na mesma linha do título do mês + setas, ao lado das
+  legendas "Agendada"/"Realizada" (Figma "header-right"). Três props novas,
+  todas opcionais (`onNovoAgendamento`, `novoAgendamentoDesabilitado`,
+  `motivoNovoAgendamentoDesabilitado`) — sem handler o botão não desenha,
+  mesma convenção de `onMudarMes`/`onSelecionarEncontro`.
+- `produtos/[slug]/agenda/page.tsx`: estado de filtro (`ValorFiltrosAgenda`)
+  ligado às duas queries existentes (`buscarEncontrosDoMes`,
+  `buscarRegistrosDaAgenda`) por spread — filtro vazio não acrescenta
+  nenhuma chave, então a consulta do mês corrente continua idêntica à de
+  antes desta task. `onNovoAgendamento` navega para
+  `/contratos/{idContrato}/encontros` usando o contrato do FILTRO ativo
+  (mesma rota que "Adicionar registro" do popover já usa, EST-13 AC6).
+  Tabela de "Registros de Agenda": badge de Tipo colorido (paleta fixa de
+  6 cores da marca, `globals.css`, escolhida por hash determinístico do
+  nome do tipo) e avatar circular com a inicial do responsável, ao lado do
+  nome (Figma "cell-tipo"/"cell-responsavel").
+
+**Gaps declarados (spec-precision)**
+
+1. **"+ Novo agendamento" sem tela de criação no nível do produto.** Nem a
+   Fase 7 nem Incidência (INC-15..18) têm uma tela de criar encontro sem
+   contrato já conhecido — `encontroSchema` (`schemas/encontro.ts`) exige
+   `id_contrato`, e a única superfície de criação hoje é o Dialog de
+   `EncontroForm` em `/contratos/[id]/encontros`. O botão reaproveita essa
+   rota com o contrato do filtro ativo e fica **desabilitado** (nunca
+   escondido, AD-005) até a usuária escolher um contrato, com o motivo no
+   `title`. Construir uma tela de criação de encontro a partir do produto
+   (sem contrato pré-selecionado) estava fora do Where desta task.
+2. **Cor do badge de Tipo não vem do banco.** `ref_tipo_registro`
+   (`docs/schema_sistema.sql`) não tem coluna de cor, e os nomes reais do
+   catálogo (`catalogos_referencia_seed.sql`: "Sprint", "Monitoramento
+   mensal", "Diagnóstico de Organograma" etc.) não batem literalmente com
+   os rótulos do mock do Figma ("Sprint", "Monitoramento", "Diagnóstico",
+   "Planejamento", "Organograma"). Em vez de uma tabela nome→cor que
+   quebraria silenciosamente a cada tipo novo do catálogo, a cor sai de
+   hash determinístico do nome sobre uma paleta fixa das 6 cores da marca —
+   mesmo tipo sempre pinta igual, tipo novo nunca fica sem cor.
+3. **Avatar é iniciial, não foto.** `RegistroAgenda.nomeAutor` não carrega
+   URL de foto — `dim_usuario` (`docs/schema_sistema.sql`) não tem essa
+   coluna. O círculo mostra a inicial do nome, nunca uma imagem inventada.
+4. **Opções dos 3 dropdowns não são cascateadas.** Selecionar uma gestora
+   não restringe as opções de Contrato às dela (e vice-versa) — mesma
+   convenção de `filtros-mandatos.tsx`, cujas opções de gestora/projeto/
+   etapa também não se filtram entre si. Nenhum AC ou design.md pede
+   cascateamento; implementá-lo seria inventar comportamento sem lastro.
+5. O chip "Mostrando registros de: {título} [×]" (item 3 do pedido do
+   Pedro) já existia desde T30b (`ListaRegistros`, badge + botão de limpar)
+   e não foi alterado — conferido contra o Figma e já reproduz "Mostrando
+   registros de: X — [x]" com o mesmo comportamento (aparece só com encontro
+   selecionado, remove a seleção ao fechar).
+
+**Gate**
+
+- `lint:frontend` limpo nos arquivos tocados (`agenda/page.tsx`,
+  `agenda-mes.tsx`, `filtros-agenda.tsx`, `queries/agenda.ts` +
+  `.test.ts`/`.test.tsx`) — os 24 problemas que `lint:frontend` reporta no
+  repo inteiro estão todos em arquivos não tocados por esta task
+  (`mandatos/page.tsx`, `usuarios/page.tsx`, `contrato-form.tsx`,
+  `mandato-card.tsx`, `mandato-wizard.tsx`, `encontro-form.tsx`,
+  `iip-card.tsx`).
+- `test:unit`: 78/78 nos arquivos tocados (`agenda.test.ts` 23,
+  `agenda-mes.test.tsx` 24, `filtros-agenda.test.tsx` 3 novo,
+  `page.test.tsx` 28), incluindo testes novos para as 3 queries de opções,
+  o botão Novo agendamento (presente/ausente/desabilitado) e badge+avatar
+  da tabela. Suíte completa: 764/765 — a mesma 1 falha pré-existente de
+  `kpi-row.test.tsx` (Dashboard, fora de escopo, explicitamente vedado
+  tocar) já registrada no fechamento de Mandatos acima; não causada por
+  este ajuste.
+- `npm run build` **não foi rodado** (aguardando OK explícito do Pedro —
+  workers de Dashboard/Mandatos em paralelo no mesmo working directory).
+
+### Ajuste de fidelidade visual — Dashboard (2026-09-14)
+
+Pedro reportou 2026-09-14: "faltando em vários elementos, como filtros,
+cores, tipo de letra, etc." no `/produtos/[slug]/dashboard` (Figma 44:5),
+mais o pedido explícito de `max-height` + scroll interno no Kanban e na
+tabela de Pendências. Protocolo `figma-design-to-code`: G1 (`get_design_context`
+no node `44:5`, arquivo `eS5CdQrl6yUdYctZwlDzps`, chamado antes de qualquer
+código) confirmou a lacuna real de cada item abaixo contra o markup/CSS de
+referência devolvido, não contra a descrição resumida do pedido.
+
+**O que mudou**
+
+- `components/estrategia/filtro-dashboard.tsx` (novo) + `.test.tsx`: barra de
+  filtros Gestora/Projeto (Figma 44:29 "filter-bar") que não existia. Ao
+  contrário do texto do pedido original ("presentational primeiro... se as
+  queries não aceitarem filtro, diga que é trabalho futuro"), `buscarQuadro`
+  (via `FiltroBoard`), `buscarEstrategiaKpi` e `buscarPendenciasDashboard` já
+  aceitavam `idGestora`/`idProjeto` desde a Fase 8 (EST-08 AC3) — então a
+  filtragem foi ligada de verdade em `page.tsx`, não deixada só como UI.
+  Componente novo em vez de reusar `filtros-mandatos.tsx` (fora dos arquivos
+  permitidos para edição nesta task, e tem 5 campos, não 2).
+- `produtos/[slug]/dashboard/page.tsx`: estado `filtro` (`ValorFiltroDashboard`),
+  duas queries novas para popular as Selects (`buscarGestorasAtivas` — nova,
+  duplica `buscarGestoras` de `mandatos/page.tsx` de propósito, arquivo fora
+  do escopo permitido — e `buscarProjetosDoProduto`, que já existia em
+  `queries/kanban.ts` para exatamente este uso), as 3 query keys dos dados
+  do Dashboard passaram a incluir `filtro` para reativar no `onValueChange`,
+  e títulos de seção "Quadro de acompanhamento"/"Pendências" (Figma
+  "section-title-kanban"/"section-title-pendencias") que não existiam.
+- `components/estrategia/kpi-row.tsx` + `.test.tsx`: `font-heading` explícito
+  nos 6 números grandes (não estava em nenhum, apesar do commit `770bb00`
+  minutos antes já ter corrigido a variável) e rótulo em `font-bold` (era
+  `font-medium`) para bater com Commissioner Bold do Figma. "Mandatos em
+  atraso" e "NPS das imersões" deixaram de ser stat tiles genéricos e
+  ganharam o layout próprio do Figma (86:44 e 44:53): quebra por status com
+  3 linhas (dot colorido + rótulo) e barra segmentada + rótulos de
+  percentual + chip de nº de avaliações, respectivamente — ver gap 1 abaixo.
+- `components/estrategia/quadro-acompanhamento.tsx`: badge do card virou chip
+  com fundo na cor do estado a 14% de opacidade (Figma usa
+  `rgba(33,184,89,0.14)`/`rgba(235,178,26,0.14)`/`rgba(224,56,54,0.14)`) —
+  antes era só dot + texto solto, sem fundo. Mapeado para
+  `bg-emerald-500/14`/`bg-amber-500/14`/`bg-destructive/14` (reaproveita as
+  mesmas classes de paleta que `ESTADO_DOT_CLASS` já usava, nenhum hex cru
+  novo). Texto "N dias na etapa" ganhou `text-secondary` (Figma pinta em
+  vinho, estava sem cor). **Max-height + scroll interno do Kanban** (pedido
+  explícito do Pedro): cada coluna (`ColunaEtapa`/`ColunaProspeccao`) ganhou
+  altura fixa (`h-[520px]`, constante `ALTURA_COLUNA`) em vez de esticar com
+  o conteúdo — só a lista de cards dentro dela rola (`overflow-y-auto` +
+  `min-h-0` no `flex-1`), cabeçalho da coluna sempre visível.
+- `components/estrategia/tabela-pendencias.tsx`: wrapper com borda
+  arredondada (Figma "table-container") que não existia, cabeçalho `sticky`
+  com `bg-background`/uppercase/bold (era o estilo default do shadcn table,
+  sem essas 3 diferenças), badge de categoria com `rounded-md`/`font-bold`
+  em vez do pill default do componente `Badge` (só via `className`, o
+  componente compartilhado não foi tocado). **Max-height + scroll interno da
+  tabela** (pedido explícito do Pedro, independente do Kanban): wrapper
+  `max-h-[420px] overflow-y-auto` em volta do `<Table>`, cabeçalho fixo no
+  topo da rolagem.
+- `components/produtos/produto-shell.tsx` e `components/app-shell/route-tabs.tsx`:
+  título "ESTRATÉGIA" e aba ativa estavam em `text-primary` (teal) — Figma
+  44:19/44:20 pinta os dois em `secondary` (vinho). Título também ganhou
+  `uppercase` (não tinha) e foi de `text-3xl` para `text-4xl` (mais perto do
+  44px do Figma). Esses dois arquivos são chrome compartilhado por
+  Agenda/Mandatos (não são "páginas" dessas features, que a task pediu para
+  não tocar) — mudança é só cor/tamanho, não estrutura ou comportamento, e
+  `produto-shell.test.tsx` foi ajustado (asserção de classe, não de
+  comportamento) para a nova cor.
+
+**Gaps declarados (spec-precision)**
+
+1. **Quebra por status de "Mandatos em atraso" e segmentação de "NPS das
+   imersões" não vêm da view.** `vw_estrategia_kpi` (EST-08/T31) expõe só
+   `mandatos_em_atraso` (total) e `nps_medio` (média) — nenhuma contagem por
+   status (atrasado/atenção/normal) nem segmentação promotor/neutro/detrator
+   nem contagem de avaliações. O layout das duas peças existe (3 linhas de
+   status, barra segmentada, rótulos de percentual, chip de avaliações) e
+   não desaparece, mas cada parte sem dado de origem mostra "—" em vez de
+   uma proporção ou contagem inventada (AD-005). Fechar este gap de verdade
+   exige uma coluna/view nova — fora do Where desta task de fidelidade
+   visual.
+2. **Filtro de Gestora/Projeto não tem "Limpar filtros".** O Figma 44:29 só
+   desenha as 2 Selects, sem botão de reset (ao contrário de
+   `filtros-mandatos.tsx`, que tem 5 campos e "Limpar filtros"). Implementado
+   literalmente como o Figma desenha; se Pedro quiser o reset, é um pedido
+   novo, não uma correção de fidelidade.
+3. **Chevron ao lado de "Quadro de acompanhamento"/"Pendências" é
+   decorativo.** O Figma desenha um `chevron-down` nos dois títulos de
+   seção, sugerindo colapsar/expandir, mas nenhum AC ou design.md desta
+   feature pede essa interação (AD-046: tela de leitura). Implementado só
+   como ícone, sem `onClick` nem estado — inventar collapse seria
+   comportamento sem lastro no spec.
+
+**Gate**
+
+- `lint:frontend` limpo nos arquivos tocados. Rodado duas vezes
+  (`lint:frontend` e `lint:all`): os mesmos 24 problemas pré-existentes (10
+  erros, 14 warnings) nas duas rodadas, todos em arquivos não tocados por
+  esta task (`mandatos/page.tsx`, `usuarios/page.tsx`, `contrato-form.tsx`,
+  `mandato-card.tsx`, `mandato-wizard.tsx`, `encontro-form.tsx`,
+  `iip-card.tsx`) — nenhum problema novo introduzido.
+- `test:unit`: suíte completa 73/73 arquivos, 765/765 testes, incluindo os
+  2 testes novos de `filtro-dashboard.test.tsx` e as 2 asserções novas em
+  `kpi-row.test.tsx` cobrindo os dois lados do gap 1 (layout presente com
+  "—" nas partes sem dado). A 1 falha transitória em `kpi-row.test.tsx` que
+  os fechamentos de Mandatos/Agenda registram como "pré-existente, fora de
+  escopo" era este mesmo arquivo sendo editado por este worker enquanto os
+  outros dois rodavam suite no mesmo working directory — artefato de
+  paralelismo, não uma falha real: a suíte está 100% verde ao final deste
+  ajuste.
+- `npm run build` **não foi rodado** — aguardando OK explícito do Pedro,
+  mesma razão dos outros dois workers (working directory compartilhado).
+
+---
+
+### ⏭️ PENDENTE — 5 falhas novas no CI, além das 8 herdadas (2026-09-14)
+
+O push `0a33d3b..50ee834` (fidelidade visual) disparou o CI (run `34864384234`) contra o banco
+efêmero (reconstrói do zero, seed mínimo — diferente do dev, que acumula estado). Resultado: **10
+arquivos falharam, 9 testes individuais**, além dos 8 arquivos historicamente vermelhos
+(`visao-gerencial/*`, `saida/*`, documentados em 2026-09-11 como dívida herdada não-nossa).
+
+**2 são de trabalho de ontem (Fase 7/8), nunca antes rodado contra banco limpo:**
+- `vw-estrategia-kpi.integration.test.ts` — "Independent Test do spec" falhou:
+  `expected cobertura.produtos to be greater than 1`, recebeu `1`. Hipótese: `seed_test.sql` não
+  tem dado suficiente para mais de um produto no banco efêmero do CI — cobertura de seed, não bug
+  na view (a view em si não foi tocada por esta investigação). **Não confirmado.**
+- `fn-marcar-presenca.integration.test.ts` (T29) — falha de idempotência
+  (`EST-13 AC5: segunda chamada é idempotente`). **Não investigado.**
+
+**3 são de código muito mais antigo (Kanban/Régua, agosto), nunca antes vistas falhando em CI:**
+- `fn-mover-etapa-kanban.integration.test.ts` — `expected 2026-09-14T00:00:00.000Z to be
+  '2026-09-14'`. Formato sugere um `Date` serializado via `.toISOString()` em vez de string de
+  data pura — mesma classe de bug já documentada em `supabase/tests/helpers/sql.ts` (Date do JS
+  interpolado onde se espera string). Data coincide com o dia real da execução do CI, o que é
+  suspeito: pode ser um teste que calcula "hoje" incorretamente, só visível quando roda no dia
+  exato em que o teste foi escrito.
+- `kanban-etapas-rls-grants.integration.test.ts` — mentor com vínculo ativo, UPDATE negado.
+- `regua-instanciacao.integration.test.ts` — RGI-02, contagem de linhas por etapa.
+
+**Decisão de Pedro (2026-09-14)**: não bloquear o trabalho em andamento (migration de
+`vw_estrategia_kpi` para expor atrasado/atenção/normal) por causa disso — seguir com a migration,
+tratar este achado como investigação separada. **Ninguém deve considerar isso resolvido até
+alguém rodar os 5 arquivos isolados contra o CI (não só contra dev) e classificar cada um.**
