@@ -28,6 +28,12 @@ export interface ContratoCard {
   nomeProjeto: string | null;
   nomeEtapaAtual: string | null;
   nomeResponsavel: string | null;
+  // Ajuste de fidelidade visual -- Mandatos (2026-09-14, Figma 202:554,
+  // rodapé "Atualizado há X dias"). fat_contrato.atualizado_em já existe no
+  // schema aprovado (docs/schema_sistema.sql) e no banco provisionado
+  // (database.types.ts) -- dado real, não inventado (não confundir com
+  // dt_fim, que é vigência do contrato).
+  atualizadoEm: string;
 }
 
 // Os 5 filtros do Figma 202:554 (EST-09 AC3): data, gestora, projeto, etapa,
@@ -53,6 +59,7 @@ interface RowContratoLista {
   status: "ativo" | "concluido" | "nao_concluido";
   dt_inicio: string;
   dt_fim: string | null;
+  atualizado_em: string;
 }
 
 interface RowNomeado {
@@ -139,7 +146,7 @@ export async function buscarMandatosLista(
 ): Promise<ContratoCard[]> {
   let query = client
     .from("fat_contrato")
-    .select("id_contrato, id_contratante, id_projeto, id_etapa_atual, status, dt_inicio, dt_fim")
+    .select("id_contrato, id_contratante, id_projeto, id_etapa_atual, status, dt_inicio, dt_fim, atualizado_em")
     .eq("id_produto", filtro.idProduto);
 
   if (filtro.idProjeto !== undefined) query = query.eq("id_projeto", filtro.idProjeto);
@@ -194,5 +201,6 @@ export async function buscarMandatosLista(
     nomeProjeto: c.id_projeto !== null ? nomesProjeto.get(c.id_projeto) ?? null : null,
     nomeEtapaAtual: c.id_etapa_atual !== null ? nomesEtapa.get(c.id_etapa_atual) ?? null : null,
     nomeResponsavel: responsaveisPorContrato.get(c.id_contrato) ?? null,
+    atualizadoEm: c.atualizado_em,
   }));
 }

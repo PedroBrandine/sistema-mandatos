@@ -72,7 +72,15 @@ export default function ProdutoMandatosPage({
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-7">
+      {/* Ajuste de fidelidade visual -- Mandatos (2026-09-14, Figma 202:554
+          "Introdução"): título + subtítulo da seção, ausentes desde T21b --
+          ProdutoShell (produto-shell.tsx) só renderiza o título do produto
+          ("ESTRATÉGIA") e as abas, nunca o título de cada aba. */}
+      <div>
+        <h2 className="text-2xl font-bold text-secondary">Mandatos</h2>
+        <p className="text-sm text-muted-foreground">Acompanhe vigência, etapa e responsáveis de todos os contratos.</p>
+      </div>
       <FiltrosMandatos
         filtro={filtro}
         onChange={setFiltro}

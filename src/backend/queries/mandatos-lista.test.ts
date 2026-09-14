@@ -83,6 +83,7 @@ const CONTRATO_1 = {
   status: "ativo" as const,
   dt_inicio: "2026-01-10",
   dt_fim: null,
+  atualizado_em: "2026-09-12T10:00:00Z",
 };
 
 const CONTRATO_2 = {
@@ -93,6 +94,7 @@ const CONTRATO_2 = {
   status: "concluido" as const,
   dt_inicio: "2026-02-15",
   dt_fim: "2026-08-01",
+  atualizado_em: "2026-08-01T15:30:00Z",
 };
 
 function respostasBase() {
@@ -148,6 +150,7 @@ describe("buscarMandatosLista (EST-09)", () => {
       nomeProjeto: "Projeto Alfa",
       nomeEtapaAtual: "Diagnóstico",
       nomeResponsavel: "Mentor Um",
+      atualizadoEm: "2026-09-12T10:00:00Z",
     });
   });
 

@@ -22,13 +22,14 @@ const MANDATO_BASE: ContratoCard = {
   nomeProjeto: "Projeto Alfa",
   nomeEtapaAtual: "Diagnóstico",
   nomeResponsavel: "Mentor Um",
+  atualizadoEm: "2026-09-12T10:00:00Z",
 };
 
 describe("ListaMandatos (EST-09)", () => {
-  it("card exibe contratante, vigência, status, gestora, projeto, etapa e responsável (AC1)", () => {
+  it("card exibe contratante (prefixado com 'Contrato'), vigência, status, gestora, projeto, etapa e responsável (AC1)", () => {
     render(<ListaMandatos mandatos={[MANDATO_BASE]} />);
 
-    expect(screen.getByText("Dep. Ana Ribeiro")).toBeInTheDocument();
+    expect(screen.getByText("Contrato Dep. Ana Ribeiro")).toBeInTheDocument();
     expect(screen.getByText("10/01/2026")).toBeInTheDocument();
     expect(screen.getByText("01/08/2026")).toBeInTheDocument();
     expect(screen.getByText("Ativo")).toBeInTheDocument();
@@ -36,6 +37,33 @@ describe("ListaMandatos (EST-09)", () => {
     expect(screen.getByText("Projeto Alfa")).toBeInTheDocument();
     expect(screen.getByText("Diagnóstico")).toBeInTheDocument();
     expect(screen.getByText("Mentor Um")).toBeInTheDocument();
+  });
+
+  it("rodapé traz 'Ver contrato' como link explícito para o contrato (Figma 202:554)", () => {
+    render(<ListaMandatos mandatos={[MANDATO_BASE]} />);
+
+    const link = screen.getByRole("link", { name: "Ver contrato →" });
+    expect(link).toHaveAttribute("href", "/contratos/42");
+  });
+
+  it("status ativo mostra havidade da última atualização (atualizado_em real, não inventado)", () => {
+    const agora = new Date();
+    const tresDiasAtras = new Date(agora.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    render(<ListaMandatos mandatos={[{ ...MANDATO_BASE, status: "ativo", atualizadoEm: tresDiasAtras }]} />);
+
+    expect(screen.getByText("Atualizado há 3 dias")).toBeInTheDocument();
+  });
+
+  it("status concluido mostra a data de encerramento (dt_fim), não a atualização", () => {
+    render(<ListaMandatos mandatos={[{ ...MANDATO_BASE, status: "concluido", dtFim: "2026-05-31" }]} />);
+
+    expect(screen.getByText("Encerrado em 31/05")).toBeInTheDocument();
+  });
+
+  it("status nao_concluido mostra a data de desligamento (dt_fim)", () => {
+    render(<ListaMandatos mandatos={[{ ...MANDATO_BASE, status: "nao_concluido", dtFim: "2026-07-18" }]} />);
+
+    expect(screen.getByText("Desligado em 18/07")).toBeInTheDocument();
   });
 
   it("dt_fim nula renderiza -- , nunca uma data inventada (AC5/AD-005)", () => {

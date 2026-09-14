@@ -10,6 +10,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // etapa por conta própria (a orquestração fica pra página, T21b). "Data"
 // (EST-09 AC3) é um único filtro conceitual com dois campos (de/até), sobre
 // dt_inicio -- mesmo par que queries/mandatos-lista.ts (T19) espera.
+//
+// Ajuste de fidelidade visual -- Mandatos (2026-09-14). Layout original era
+// um grid 2x4 com <Label> empilhado sobre cada campo -- o Figma 202:554 usa
+// uma barra compacta de 2 linhas, sem rótulo visível (o texto do rótulo vira
+// o placeholder do próprio Select). Os <Label> continuam no DOM como
+// sr-only: getByLabelText (filtros-mandatos.test.tsx) e leitor de tela
+// seguem enxergando "Início — de"/"Início — até", só o visual muda.
+// Gap declarado: input[type=date] não renderiza texto de placeholder
+// customizado em nenhum browser principal (Chrome/Firefox mostram só o
+// formato nativo, ex. "dd/mm/aaaa") -- por isso os dois campos de data não
+// reproduzem literalmente "Data inicial"/"Data final" como texto visível
+// dentro da caixa, diferente dos Selects (que usam SelectValue placeholder
+// e reproduzem o texto do Figma 1:1). É limitação de plataforma, não
+// escolha de implementação.
 export interface OpcaoFiltroMandatos {
   id: number;
   nome: string;
@@ -50,101 +64,125 @@ export function FiltrosMandatos({ filtro, onChange, gestoras, projetos, etapas, 
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="grid gap-1.5">
-          <Label htmlFor="filtro-data-de">Início — de</Label>
-          <Input
-            id="filtro-data-de"
-            type="date"
-            value={filtro.dtInicioDe ?? ""}
-            onChange={(e) => atualizar({ dtInicioDe: e.target.value || undefined })}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="filtro-data-ate">Início — até</Label>
-          <Input
-            id="filtro-data-ate"
-            type="date"
-            value={filtro.dtInicioAte ?? ""}
-            onChange={(e) => atualizar({ dtInicioAte: e.target.value || undefined })}
-          />
+    <div className="grid gap-3">
+      <div className="grid gap-3 rounded-xl border border-border bg-card p-3">
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <div className="lg:w-[210px]">
+            <Label htmlFor="filtro-data-de" className="sr-only">
+              Início — de
+            </Label>
+            <Input
+              id="filtro-data-de"
+              type="date"
+              className="h-[42px] w-full"
+              value={filtro.dtInicioDe ?? ""}
+              onChange={(e) => atualizar({ dtInicioDe: e.target.value || undefined })}
+            />
+          </div>
+          <div className="lg:w-[210px]">
+            <Label htmlFor="filtro-data-ate" className="sr-only">
+              Início — até
+            </Label>
+            <Input
+              id="filtro-data-ate"
+              type="date"
+              className="h-[42px] w-full"
+              value={filtro.dtInicioAte ?? ""}
+              onChange={(e) => atualizar({ dtInicioAte: e.target.value || undefined })}
+            />
+          </div>
+
+          <Select
+            value={filtro.idGestora !== undefined ? String(filtro.idGestora) : ""}
+            onValueChange={(v) => atualizar({ idGestora: v ? Number(v) : undefined })}
+          >
+            <SelectTrigger className="h-[42px] w-full flex-1">
+              <SelectValue placeholder="Todas as gestoras" />
+            </SelectTrigger>
+            <SelectContent>
+              {gestoras.map((g) => (
+                <SelectItem key={g.id} value={String(g.id)}>
+                  {g.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filtro.idProjeto !== undefined ? String(filtro.idProjeto) : ""}
+            onValueChange={(v) => atualizar({ idProjeto: v ? Number(v) : undefined })}
+          >
+            <SelectTrigger className="h-[42px] w-full flex-1">
+              <SelectValue placeholder="Todos os projetos" />
+            </SelectTrigger>
+            <SelectContent>
+              {projetos.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <Select
-          value={filtro.idGestora !== undefined ? String(filtro.idGestora) : ""}
-          onValueChange={(v) => atualizar({ idGestora: v ? Number(v) : undefined })}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Gestora" />
-          </SelectTrigger>
-          <SelectContent>
-            {gestoras.map((g) => (
-              <SelectItem key={g.id} value={String(g.id)}>
-                {g.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <Select
+            value={filtro.idEtapa !== undefined ? String(filtro.idEtapa) : ""}
+            onValueChange={(v) => atualizar({ idEtapa: v ? Number(v) : undefined })}
+          >
+            <SelectTrigger className="h-[42px] w-full flex-1">
+              <SelectValue placeholder="Todas as etapas" />
+            </SelectTrigger>
+            <SelectContent>
+              {etapas.map((e) => (
+                <SelectItem key={e.id} value={String(e.id)}>
+                  {e.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select
-          value={filtro.idProjeto !== undefined ? String(filtro.idProjeto) : ""}
-          onValueChange={(v) => atualizar({ idProjeto: v ? Number(v) : undefined })}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Projeto" />
-          </SelectTrigger>
-          <SelectContent>
-            {projetos.map((p) => (
-              <SelectItem key={p.id} value={String(p.id)}>
-                {p.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select
+            value={filtro.status ?? ""}
+            onValueChange={(v) => atualizar({ status: (v || undefined) as ValorFiltrosMandatos["status"] })}
+          >
+            <SelectTrigger className="h-[42px] w-full flex-1">
+              <SelectValue placeholder="Todos os status: ativo, finalizado, desligado" />
+            </SelectTrigger>
+            <SelectContent>
+              {OPCOES_STATUS.map((o) => (
+                <SelectItem key={o.valor} value={o.valor}>
+                  {o.rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-[42px] font-semibold text-secondary hover:text-secondary lg:w-[150px]"
+            onClick={() => onChange(FILTRO_VAZIO)}
+          >
+            Limpar filtros
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-[1fr_1fr_auto]">
-        <Select
-          value={filtro.idEtapa !== undefined ? String(filtro.idEtapa) : ""}
-          onValueChange={(v) => atualizar({ idEtapa: v ? Number(v) : undefined })}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Etapa" />
-          </SelectTrigger>
-          <SelectContent>
-            {etapas.map((e) => (
-              <SelectItem key={e.id} value={String(e.id)}>
-                {e.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filtro.status ?? ""}
-          onValueChange={(v) => atualizar({ status: (v || undefined) as ValorFiltrosMandatos["status"] })}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            {OPCOES_STATUS.map((o) => (
-              <SelectItem key={o.valor} value={o.valor}>
-                {o.rotulo}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button type="button" variant="outline" onClick={() => onChange(FILTRO_VAZIO)}>
-          Limpar filtros
-        </Button>
+      <div className="flex items-center justify-between">
+        <p className="text-base font-bold">
+          {contagem} {contagem === 1 ? "mandato" : "mandatos"}
+        </p>
+        {/* "Mais recentes primeiro" descreve a ordenação fixa de
+            buscarMandatosLista (.order("dt_inicio", { ascending: false })) --
+            rótulo estático, não um controle de ordenação. Gap declarado: o
+            Figma 202:554 desenha um chevron de dropdown ali, sugerindo um
+            seletor de ordenação, mas nenhuma task/AC pede essa
+            interatividade nem a query aceita outro campo de order -- inventar
+            o controle seria scope creep (mesmo raciocínio do comentário em
+            dashboard/page.tsx sobre a barra de filtros de gestora/projeto). */}
+        <p className="text-sm text-muted-foreground">Mais recentes primeiro</p>
       </div>
-
-      <p className="text-sm text-muted-foreground">
-        {contagem} {contagem === 1 ? "mandato" : "mandatos"}
-      </p>
     </div>
   );
 }
