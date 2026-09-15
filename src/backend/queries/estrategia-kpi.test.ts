@@ -44,11 +44,11 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
   return { client: client as unknown as SupabaseClient<Database>, chamadas };
 }
 
-// Linha completa da view, com os 6 KPIs + a quebra por status preenchidos.
+// Linha completa da view, com os 5 KPIs + a quebra por status preenchidos.
+// A quebra particiona mandatos_ativos (AD-050): 4 + 3 + 18 = 25.
 const LINHA_COMPLETA = {
   mandatos_ativos: 25,
   iip_medio: 3.75,
-  mandatos_em_atraso: 11,
   nps_medio: 62.5,
   pct_atingimento_medio: 55.21,
   nr_fatos_geradores: 8,
@@ -62,7 +62,7 @@ function filtrosEq(chamadas: Chamada[]) {
 }
 
 describe("buscarEstrategiaKpi (EST-08)", () => {
-  it("mapeia os 6 KPIs + a quebra por status da linha da view para o view-model", async () => {
+  it("mapeia os 5 KPIs + a quebra por status da linha da view para o view-model", async () => {
     const { client } = criarClienteMock({
       vw_estrategia_kpi: { data: [LINHA_COMPLETA], error: null },
     });
@@ -72,7 +72,6 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
     expect(resultado).toEqual({
       mandatosAtivos: 25,
       iipMedio: 3.75,
-      mandatosEmAtraso: 11,
       npsMedio: 62.5,
       pctAtingimentoMedio: 55.21,
       nrFatosGeradores: 8,
@@ -90,7 +89,6 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
             // Contagens reais: o produto tem 3 mandatos, nenhum atrasado e
             // nenhum fato gerador. Zero aqui é medição, não ausência.
             mandatos_ativos: 3,
-            mandatos_em_atraso: 0,
             nr_fatos_geradores: 0,
             // Médias sem amostra: indefinidas.
             iip_medio: null,
@@ -116,14 +114,13 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
     expect(resultado.mandatosAtrasoAtrasados).toBeNull();
     // E os zeros/contagens reais não viram null: a distinção entre "medimos e
     // deu zero" (ou N) e "não há dado" precisa chegar intacta à tela.
-    expect(resultado.mandatosEmAtraso).toBe(0);
     expect(resultado.nrFatosGeradores).toBe(0);
     expect(resultado.mandatosAtivos).toBe(3);
     expect(resultado.mandatosAtrasoAtencao).toBe(1);
     expect(resultado.mandatosAtrasoNormal).toBe(2);
   });
 
-  it("EST-08 AC2 / AD-005: recorte sem nenhuma linha devolve os 9 KPIs como null, nunca zeros", async () => {
+  it("EST-08 AC2 / AD-005: recorte sem nenhuma linha devolve os 8 KPIs como null, nunca zeros", async () => {
     const { client } = criarClienteMock({
       vw_estrategia_kpi: { data: [], error: null },
     });
@@ -133,7 +130,6 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
     expect(resultado).toEqual({
       mandatosAtivos: null,
       iipMedio: null,
-      mandatosEmAtraso: null,
       npsMedio: null,
       pctAtingimentoMedio: null,
       nrFatosGeradores: null,

@@ -26,27 +26,31 @@ export interface FiltroEstrategiaKpi {
   idProjeto?: number;
 }
 
-// Os 6 KPIs de EST-08 AC1, mais a quebra por status do KPI "Mandatos em
-// atraso" (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql).
+// Os 5 KPIs da faixa (AD-050), mais a quebra por status do card "Mandatos
+// ativos" (migration 20260915115846_estrategia_kpi_situacao_mandatos.sql).
 // Todos anuláveis, e nenhum recebe fallback: um KPI sem dado suficiente
 // chega como null e a tela renderiza "—" (EST-08 AC2, AD-005). Trocar
 // qualquer um destes por `?? 0` aqui seria exatamente o zero inventado que a
 // AD proíbe -- e o mais perigoso, porque um zero numa faixa de KPI é
 // indistinguível de um número real medido.
 //
-// mandatosAtrasoAtrasados/Atencao/Normal NÃO somam mandatosEmAtraso -- são
-// métricas diferentes por construção (ver comentário da view/migration): a
-// quebra mede a etapa ATUAL pelo tempo real decorrido nela, mandatosEmAtraso
-// mede qualquer etapa (inclusive nunca iniciada) contra o prazo planejado
-// original. mandatosAtrasoAtrasados/Atencao ficam null quando o limiar
-// correspondente de ref_limiar_pendencia está inativo (coluna inteira
-// indefinida, não zero); mandatosAtrasoNormal não tem essa trava (é o
-// resíduo do que não bateu em nenhum limiar ativo, mesmo espírito de
-// classificarLimiar quando um dos dois parâmetros vem null).
+// mandatosAtrasoAtrasados/Atencao/Normal PARTICIONAM mandatosAtivos: somam
+// exatamente o total (AD-050/AD-051), e é isso que o card "Mandatos ativos"
+// exibe -- número grande e as 3 linhas que o decompõem.
+// mandatosAtrasoAtrasados/Atencao ficam null quando o limiar correspondente
+// de ref_limiar_pendencia está inativo (coluna inteira indefinida, não zero);
+// mandatosAtrasoNormal não tem essa trava (é o resíduo do que não bateu em
+// nenhum limiar ativo, mesmo espírito de classificarLimiar quando um dos dois
+// parâmetros vem null).
+//
+// `mandatos_em_atraso` NÃO está aqui de propósito. A view ainda expõe a
+// coluna (removê-la exigiria DROP VIEW, que derrubaria a ACL), mas AD-050
+// removeu o card que a consumia -- e foi a convivência das duas definições de
+// atraso na mesma faixa que produziu o card contraditório. Trazê-la de volta
+// para este tipo é reabrir exatamente esse defeito.
 export interface EstrategiaKpi {
   mandatosAtivos: number | null;
   iipMedio: number | null;
-  mandatosEmAtraso: number | null;
   npsMedio: number | null;
   pctAtingimentoMedio: number | null;
   nrFatosGeradores: number | null;
@@ -58,7 +62,6 @@ export interface EstrategiaKpi {
 interface RowEstrategiaKpi {
   mandatos_ativos: number | null;
   iip_medio: number | null;
-  mandatos_em_atraso: number | null;
   nps_medio: number | null;
   pct_atingimento_medio: number | null;
   nr_fatos_geradores: number | null;
@@ -68,12 +71,11 @@ interface RowEstrategiaKpi {
 }
 
 // Recorte sem nenhum contrato visível não produz linha na view -- e a
-// ausência da linha É a ausência de dado. Os 9 KPIs viram null em bloco, em
+// ausência da linha É a ausência de dado. Os 8 KPIs viram null em bloco, em
 // vez de uma faixa de zeros que diria "medimos e deu zero" (AD-005).
 const KPI_AUSENTE: EstrategiaKpi = {
   mandatosAtivos: null,
   iipMedio: null,
-  mandatosEmAtraso: null,
   npsMedio: null,
   pctAtingimentoMedio: null,
   nrFatosGeradores: null,
@@ -95,7 +97,7 @@ export async function buscarEstrategiaKpi(
   let query = client
     .from("vw_estrategia_kpi")
     .select(
-      "mandatos_ativos, iip_medio, mandatos_em_atraso, nps_medio, pct_atingimento_medio, nr_fatos_geradores, mandatos_atraso_atrasados, mandatos_atraso_atencao, mandatos_atraso_normal"
+      "mandatos_ativos, iip_medio, nps_medio, pct_atingimento_medio, nr_fatos_geradores, mandatos_atraso_atrasados, mandatos_atraso_atencao, mandatos_atraso_normal"
     )
     .eq("id_produto", filtro.idProduto)
     .eq("escopo_projeto", filtro.idProjeto !== undefined)
@@ -117,7 +119,6 @@ export async function buscarEstrategiaKpi(
   return {
     mandatosAtivos: linha.mandatos_ativos,
     iipMedio: linha.iip_medio,
-    mandatosEmAtraso: linha.mandatos_em_atraso,
     npsMedio: linha.nps_medio,
     pctAtingimentoMedio: linha.pct_atingimento_medio,
     nrFatosGeradores: linha.nr_fatos_geradores,

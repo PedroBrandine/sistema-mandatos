@@ -15,19 +15,18 @@ import { cn } from "@/lib/utils";
 // qualquer coisa aqui seria a "agregação inventada pela tela" que a AD
 // proíbe -- e a razão de a view existir.
 //
-// Quatro dos seis KPIs (Mandatos ativos, IIP, Atingimento, Fatos geradores)
-// são stat tiles simples -- número + rótulo, com barra só no Atingimento
-// (única escala 0-100 conhecida). Os outros dois (Mandatos em atraso, NPS)
-// têm layout próprio no Figma 44:5 (nodes 86:44 e 44:53): quebra por status
-// e barra segmentada, respectivamente.
+// AD-050: a faixa tem CINCO cards. O card "Mandatos em atraso" foi removido
+// -- ele exibia um número grande medido pelo prazo planejado original ao lado
+// de 3 linhas medidas pelo tempo real na etapa atual, duas definições de
+// atraso que nunca fechavam, e foi reprovado na validação de 14/09. A
+// situação de prazo passou a ser a quebra do card "Mandatos ativos", onde o
+// número grande é o universo e as 3 linhas o decompõem.
 //
-// Mandatos em atraso: `vw_estrategia_kpi` passou a expor a quebra por status
-// (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql, exceção
-// deliberada -- SQL na view, não contagem de cards no cliente, que violaria
-// o próprio parágrafo abaixo) -- as 3 linhas (atrasado/atenção/normal)
-// renderizam número real, cada uma com seu próprio "—" quando aquele valor
-// específico vem null (limiar correspondente inativo em
-// ref_limiar_pendencia, ou nenhum contrato classificável).
+// Três dos cinco KPIs (IIP, Atingimento, Fatos geradores) são stat tiles
+// simples -- número + rótulo, com barra só no Atingimento (única escala 0-100
+// conhecida). Os outros dois (Mandatos ativos, NPS) têm layout próprio no
+// Figma 44:5 (nodes 86:44 e 44:53): quebra por status e barra segmentada,
+// respectivamente.
 //
 // NPS: `vw_estrategia_kpi` ainda não expõe a segmentação
 // promotor/neutro/detrator nem a contagem de avaliações -- o layout da barra
@@ -126,21 +125,29 @@ const ESTADO_BREAKDOWN: { chave: "atrasado" | "atencao" | "normal"; rotulo: stri
   { chave: "normal", rotulo: "normal", dotClass: "bg-emerald-500" },
 ];
 
-interface KpiMandatosAtrasoProps {
+interface KpiMandatosAtivosProps {
   valor: number | null;
   atrasados: number | null;
   atencao: number | null;
   normal: number | null;
 }
 
-// Figma 86:44 ("kpi-atrasos"): número grande + 3 linhas de status (dot +
-// contagem) ao lado. `mandatos_atraso_atrasados/atencao/normal`
-// (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql) trazem os 3
-// números reais -- cada linha formata o seu próprio valor independentemente
-// (AD-005): "—" só aparece onde aquele valor específico vier null (limiar
-// correspondente desligado em ref_limiar_pendencia, ou nenhum contrato
-// classificável), nunca como travessão fixo para o card inteiro.
-function KpiMandatosAtraso({ valor, atrasados, atencao, normal }: KpiMandatosAtrasoProps) {
+// Layout do Figma 86:44 ("kpi-atrasos"): número grande + 3 linhas de status
+// (dot + contagem) ao lado -- aplicado, desde AD-050, ao card "Mandatos
+// ativos". O número grande é o UNIVERSO (mandatos ativos) e as 3 linhas o
+// DECOMPÕEM: `mandatos_atraso_atrasados/atencao/normal` (migration
+// 20260915115846) somam exatamente o total, e é essa igualdade que o card
+// existe para mostrar.
+//
+// Nada é somado aqui (AD-003): as 3 linhas e o total chegam prontos da view.
+// Calcular o total somando as linhas no cliente mascararia justamente o
+// defeito que esta feature corrigiu -- o card exibiria coerência que os dados
+// não têm.
+//
+// Cada linha formata o seu próprio valor independentemente (AD-005): "—" só
+// aparece onde aquele valor específico vier null (limiar correspondente
+// desligado em ref_limiar_pendencia), nunca como travessão fixo para o card.
+function KpiMandatosAtivos({ valor, atrasados, atencao, normal }: KpiMandatosAtivosProps) {
   const rotuloId = useId();
   const texto = formatar(valor, "inteiro");
   const valoresPorEstado: Record<"atrasado" | "atencao" | "normal", number | null> = {
@@ -153,7 +160,7 @@ function KpiMandatosAtraso({ valor, atrasados, atencao, normal }: KpiMandatosAtr
     <Card size="sm" role="group" aria-labelledby={rotuloId}>
       <CardContent className="flex flex-col gap-3">
         <p id={rotuloId} className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
-          Mandatos em atraso
+          Mandatos ativos
         </p>
         <div className="flex items-center gap-3">
           <p className="font-heading text-3xl text-secondary">
@@ -228,15 +235,14 @@ export interface KpiRowProps {
 
 export function KpiRow({ kpi }: KpiRowProps) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-      <KpiSimples rotulo="Mandatos ativos" formato="inteiro" valor={kpi.mandatosAtivos} />
-      <KpiSimples rotulo="IIP — Índ. de impacto" formato="decimal" valor={kpi.iipMedio} />
-      <KpiMandatosAtraso
-        valor={kpi.mandatosEmAtraso}
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <KpiMandatosAtivos
+        valor={kpi.mandatosAtivos}
         atrasados={kpi.mandatosAtrasoAtrasados}
         atencao={kpi.mandatosAtrasoAtencao}
         normal={kpi.mandatosAtrasoNormal}
       />
+      <KpiSimples rotulo="IIP — Índ. de impacto" formato="decimal" valor={kpi.iipMedio} />
       <KpiNps valor={kpi.npsMedio} />
       <KpiSimples rotulo="Atingimento plan." formato="percentual" valor={kpi.pctAtingimentoMedio} barraProgresso />
       <KpiSimples rotulo="Fatos geradores reg." formato="inteiro" valor={kpi.nrFatosGeradores} />

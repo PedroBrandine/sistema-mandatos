@@ -18,7 +18,6 @@ afterEach(cleanup);
 const KPI_COMPLETO: EstrategiaKpi = {
   mandatosAtivos: 25,
   iipMedio: 3.7,
-  mandatosEmAtraso: 11,
   npsMedio: 62.5,
   pctAtingimentoMedio: 55.2,
   nrFatosGeradores: 1240,
@@ -30,7 +29,6 @@ const KPI_COMPLETO: EstrategiaKpi = {
 const KPI_VAZIO: EstrategiaKpi = {
   mandatosAtivos: null,
   iipMedio: null,
-  mandatosEmAtraso: null,
   npsMedio: null,
   pctAtingimentoMedio: null,
   nrFatosGeradores: null,
@@ -39,27 +37,32 @@ const KPI_VAZIO: EstrategiaKpi = {
   mandatosAtrasoNormal: null,
 };
 
-// Grafia do Figma 44:227 (caixa alta vem do CSS, não do texto). "Mandatos em
-// atraso" não está no Figma mas está em EST-08 AC1 -- o spec manda no
-// conjunto de KPIs, ver desvio 5 do Registro da Fase 8.
+// Grafia do Figma 44:227 (caixa alta vem do CSS, não do texto). São 5 desde
+// AD-050, que removeu o card "Mandatos em atraso" -- o mesmo conjunto que o
+// Figma 44:227 já desenhava.
 const ROTULOS = [
   "Mandatos ativos",
   "IIP — Índ. de impacto",
-  "Mandatos em atraso",
   "NPS das imersões",
   "Atingimento plan.",
   "Fatos geradores reg.",
 ];
 
-describe("KpiRow (EST-08)", () => {
-  it("EST-08 AC1: renderiza os 6 KPIs com os rótulos do spec", () => {
+describe("KpiRow (EST-08 / AD-050)", () => {
+  it("KSM-01: renderiza os 5 KPIs com os rótulos do spec", () => {
     render(<KpiRow kpi={KPI_COMPLETO} />);
 
     for (const rotulo of ROTULOS) {
       expect(screen.getByText(rotulo)).toBeInTheDocument();
     }
-    // Seis tiles, um por KPI -- não cinco nem sete.
-    expect(screen.getAllByRole("group")).toHaveLength(6);
+    // Cinco tiles, um por KPI -- não quatro nem seis.
+    expect(screen.getAllByRole("group")).toHaveLength(5);
+  });
+
+  it("KSM-01: o card 'Mandatos em atraso' não existe mais na faixa", () => {
+    render(<KpiRow kpi={KPI_COMPLETO} />);
+
+    expect(screen.queryByText("Mandatos em atraso")).not.toBeInTheDocument();
   });
 
   it("EST-08 AC2 (lado presente): cada KPI com valor renderiza o número formatado em pt-BR", () => {
@@ -67,20 +70,23 @@ describe("KpiRow (EST-08)", () => {
 
     expect(screen.getByText("25")).toBeInTheDocument();
     expect(screen.getByText("3,7")).toBeInTheDocument();
-    expect(screen.getByText("11")).toBeInTheDocument();
     expect(screen.getByText("62,5")).toBeInTheDocument();
     // Atingimento é percentual e sai com o sinal.
     expect(screen.getByText("55,2%")).toBeInTheDocument();
     // Separador de milhar pt-BR.
     expect(screen.getByText("1.240")).toBeInTheDocument();
-    // Nenhum travessão quando há dado nos seis.
+    // Nenhum travessão quando há dado nos cinco.
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 
   it("EST-08 AC2 (lado ausente): KPI null renderiza '—', nunca zero inventado", () => {
     render(<KpiRow kpi={KPI_VAZIO} />);
 
-    expect(screen.getAllByText("—")).toHaveLength(6);
+    // Os 5 números grandes (Mandatos ativos, IIP, NPS, Atingimento, Fatos).
+    // As 3 linhas da quebra não entram nesta contagem: cada uma é um nó de
+    // texto misto ("— atrasados"), que texto exato não casa -- elas são
+    // cobertas pelo teste de ausência independente por linha, mais abaixo.
+    expect(screen.getAllByText("—")).toHaveLength(5);
     // O zero inventado é o risco que AD-005 nomeia: se algum null virar 0, a
     // faixa mente dizendo que mediu.
     expect(screen.queryByText("0")).not.toBeInTheDocument();
@@ -96,7 +102,7 @@ describe("KpiRow (EST-08)", () => {
         kpi={{
           ...KPI_VAZIO,
           // Contagens reais que deram zero -- informação, não ausência.
-          mandatosEmAtraso: 0,
+          mandatosAtivos: 0,
           nrFatosGeradores: 0,
         }}
       />
@@ -104,16 +110,16 @@ describe("KpiRow (EST-08)", () => {
 
     // Os dois zeros aparecem como número...
     expect(screen.getAllByText("0")).toHaveLength(2);
-    // ...e os quatro KPIs sem dado seguem como travessão, lado a lado com eles.
-    expect(screen.getAllByText("—")).toHaveLength(4);
+    // ...e os três KPIs sem dado seguem como travessão, lado a lado com eles.
+    expect(screen.getAllByText("—")).toHaveLength(3);
   });
 
   it("a ausência é anunciada para leitor de tela, não só pela pontuação", () => {
     render(<KpiRow kpi={KPI_VAZIO} />);
 
-    // 6 valores simples/totais ausentes + 3 linhas da quebra por status de
-    // Mandatos em atraso, cada uma com seu próprio anúncio independente.
-    expect(screen.getAllByText("Sem dado suficiente")).toHaveLength(9);
+    // Os 5 números grandes + as 3 linhas da quebra, cada uma com seu próprio
+    // anúncio independente.
+    expect(screen.getAllByText("Sem dado suficiente")).toHaveLength(8);
   });
 
   it("Figma 44:227: atingimento com valor ganha barra de progresso proporcional", () => {
@@ -132,10 +138,11 @@ describe("KpiRow (EST-08)", () => {
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
-  // Figma 86:44. vw_estrategia_kpi passou a expor a quebra por status
-  // (migration 20260914161230_estrategia_vw_kpi_quebra_atraso.sql) -- as 3
-  // linhas renderizam número real, cada uma independente das outras.
-  it("Figma 86:44 / migration 20260914161230: Mandatos em atraso renderiza os 3 números reais da quebra por status", () => {
+  // Figma 86:44, agora no card "Mandatos ativos" (AD-050). As 3 linhas
+  // renderizam número real, cada uma independente das outras, e somam o
+  // número grande (4 + 3 + 18 = 25) -- o fechamento que a view garante
+  // (KSM-03) e que este card existe para mostrar.
+  it("KSM-02/KSM-03: Mandatos ativos renderiza o total e os 3 números da quebra que o decompõem", () => {
     render(<KpiRow kpi={KPI_COMPLETO} />);
 
     // Cada linha ("— rótulo" ou "N rótulo") é um único nó de texto misto na
@@ -145,9 +152,8 @@ describe("KpiRow (EST-08)", () => {
     expect(screen.getByText(/atrasados/)).toHaveTextContent("4");
     expect(screen.getByText(/atenção/)).toHaveTextContent("3");
     expect(screen.getByText(/normal/)).toHaveTextContent("18");
-    // O total (11) é nó isolado (sem rótulo ao lado) -- continua casável por
-    // texto exato, como antes desta migration.
-    expect(screen.getByText("11")).toBeInTheDocument();
+    // O total é nó isolado (sem rótulo ao lado) -- casável por texto exato.
+    expect(screen.getByText("25")).toBeInTheDocument();
   });
 
   it("AD-005: cada linha da quebra por status declara ausência de forma independente -- um '—' não contamina as outras 2 linhas", () => {
