@@ -32,6 +32,8 @@ DO $$
 DECLARE
   v_id_produto     BIGINT;
   v_id_cargo       BIGINT;
+  v_id_projeto     BIGINT;
+  v_id_gestora     BIGINT;
   v_id_etapa_ref   BIGINT;   -- etapa de menor ordem (a do fallback de AD-051)
   v_dur_ref        INT;
   v_id_etapa_alvo  BIGINT;   -- etapa seguinte, onde os 3 estados são posicionados
@@ -72,6 +74,22 @@ BEGIN
   IF v_pct_atrasado IS NULL OR v_pct_atencao IS NULL THEN
     RAISE EXCEPTION 'Limiares etapa_atrasado/etapa_atencao inativos: os cenários não teriam estado definido';
   END IF;
+
+  -- Projeto e gestora de cenário: sem eles, os recortes do Dashboard não têm
+  -- nada para mostrar e a conferência ao vivo sob filtro (KSM-07/KSM-09) fica
+  -- sem caso observável -- é possível ver o total fechar e não ver recorte
+  -- nenhum fechar.
+  SELECT id_projeto INTO v_id_projeto FROM ref_projeto WHERE nome = 'KPI Cenario Projeto';
+  IF v_id_projeto IS NULL THEN
+    INSERT INTO ref_projeto (nome, ativo) VALUES ('KPI Cenario Projeto', true)
+    RETURNING id_projeto INTO v_id_projeto;
+  END IF;
+
+  INSERT INTO dim_usuario (email, nome, papel_global, ativo)
+  VALUES ('kpi-cenario-gestora@legislabrasil.test', 'KPI Cenario Gestora', 'gestora', true)
+  ON CONFLICT (email) DO UPDATE SET ativo = true, papel_global = 'gestora';
+  SELECT id_usuario INTO v_id_gestora
+    FROM dim_usuario WHERE email = 'kpi-cenario-gestora@legislabrasil.test';
 
   FOR r IN
     SELECT * FROM (VALUES
@@ -160,6 +178,18 @@ BEGIN
          SET status = 'concluido',
              id_etapa_atual = v_id_etapa_alvo
        WHERE id_contrato = v_id_contrato;
+    END IF;
+
+    -- Dois cenários entram no recorte (um atrasado, um em atenção) e os
+    -- outros ficam fora: assim o filtro do Dashboard tem o que mostrar E o
+    -- que esconder. Um recorte que contivesse todos não provaria recorte
+    -- nenhum -- daria o mesmo número do total.
+    IF r.caso IN ('atrasado', 'atencao') THEN
+      UPDATE fat_contrato SET id_projeto = v_id_projeto WHERE id_contrato = v_id_contrato;
+
+      INSERT INTO rel_usuario_contrato (id_contrato, id_usuario, papel_no_contrato, cargo)
+      VALUES (v_id_contrato, v_id_gestora, 'gestora', 'nao_se_aplica')
+      ON CONFLICT (id_contrato, id_usuario, papel_no_contrato) DO NOTHING;
     END IF;
   END LOOP;
 END $$;

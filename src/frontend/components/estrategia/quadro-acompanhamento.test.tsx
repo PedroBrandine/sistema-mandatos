@@ -1,10 +1,28 @@
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ColunaEtapaQuadro, ColunaProspeccaoQuadro, ColunaQuadro } from "@backend/queries/quadro";
-import { QuadroAcompanhamento } from "./quadro-acompanhamento";
+import { ATIVACAO_ARRASTE_PX, QuadroAcompanhamento } from "./quadro-acompanhamento";
+
+// KSM-17. O wiring do PointerSensor é o que permite clique e arraste no mesmo
+// card, e nenhuma asserção sobre o DOM renderizado o enxerga: removê-lo deixa
+// a suíte inteira verde enquanto quebra a navegação (achado do Verifier).
+// Este spy delega ao dnd-kit real -- não substitui comportamento, só registra
+// com que restrição cada sensor foi criado.
+const espiaoSensores = vi.hoisted(() => ({ criados: [] as { nome: string; opcoes: unknown }[] }));
+
+vi.mock("@dnd-kit/core", async () => {
+  const real = await vi.importActual<typeof import("@dnd-kit/core")>("@dnd-kit/core");
+  return {
+    ...real,
+    useSensor: (sensor: Parameters<typeof real.useSensor>[0], opcoes?: unknown) => {
+      espiaoSensores.criados.push({ nome: (sensor as { name?: string }).name ?? "", opcoes });
+      return real.useSensor(sensor, opcoes as never);
+    },
+  };
+});
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T16
 // "Done when" (EST-07 AC2, AC3, AD-040, AD-046 -- tela de leitura, caminho
@@ -157,5 +175,21 @@ describe("QuadroAcompanhamento (EST-07)", () => {
     render(<QuadroAcompanhamento colunas={colunas(COLUNA_PROSPECCAO_BASE)} />);
 
     expect(screen.getByText("Ver. Marcos Duarte").closest("a")).toBeNull();
+  });
+
+  // KSM-17. Sem distância de ativação, o dnd-kit consome o pointerdown e o
+  // <Link> de KSM-16 nunca dispara -- o card volta a não abrir nada. A
+  // asserção é sobre a criação do sensor porque é ali que a regressão mora:
+  // nenhuma consulta ao DOM renderizado distingue um PointerSensor com
+  // restrição de um sem.
+  it("KSM-17: o PointerSensor é criado com distância de ativação, senão o clique nunca chega ao link", () => {
+    espiaoSensores.criados.length = 0;
+
+    render(<QuadroAcompanhamento colunas={colunas(COLUNA_ETAPA_BASE)} />);
+
+    const ponteiro = espiaoSensores.criados.find((s) => s.nome === "PointerSensor");
+    expect(ponteiro).toBeDefined();
+    expect(ponteiro?.opcoes).toEqual({ activationConstraint: { distance: ATIVACAO_ARRASTE_PX } });
+    expect(ATIVACAO_ARRASTE_PX).toBeGreaterThan(0);
   });
 });

@@ -60,9 +60,16 @@ function formatarCargoPartido(cargo: string | null, partido: string | null): str
   return partes.length > 0 ? partes.join(" · ") : null;
 }
 
+// KSM-17. Distância mínima (px) antes de o dnd-kit assumir o ponteiro como
+// arrasto. NÃO é ajuste de ergonomia: é o que faz clique e arraste coexistirem
+// no mesmo card. Com 0, o dnd-kit consome o `pointerdown` e o <Link> do card
+// nunca dispara -- exatamente a regressão que KSM-16 corrigiu. Exportada para
+// que o teste possa provar que o sensor é criado com ela.
+export const ATIVACAO_ARRASTE_PX = 8;
+
 export function QuadroAcompanhamento({ colunas, limiares, onMoverCard }: QuadroAcompanhamentoProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: ATIVACAO_ARRASTE_PX } }),
     useSensor(KeyboardSensor)
   );
 

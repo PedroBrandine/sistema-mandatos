@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { runSql } from "../helpers/sql";
 
@@ -621,6 +622,58 @@ describe("vw_estrategia_kpi -- quebra por status do card 'Mandatos ativos' (AD-0
     }
   }, 60000);
 
+  // As fixtures acima medem 30% / 80% / >100% da duração -- nunca a BORDA.
+  // classificarLimiar e a view usam `>=`, e nenhuma asserção distinguia `>=`
+  // de `>` (mutante sobrevivente apontado pelo Verifier). Os dois testes
+  // abaixo ficam exatamente sobre o limiar, que é o único ponto onde os dois
+  // operadores discordam.
+  it("AD-045: exatamente no limiar de 'atrasado' o contrato JÁ é atrasado (>=, não >)", async () => {
+    // 100% da duração: com `>=` cai em atrasado; com `>` cairia em atenção.
+    const linha = await classificar(idEtapaTeste, duracaoTeste);
+    expect(linha.mandatos_atraso_atrasados).toBe(1);
+    expect(linha.mandatos_atraso_atencao).toBe(0);
+    expect(linha.mandatos_atraso_normal).toBe(0);
+  }, 60000);
+
+  it("AD-045: exatamente no limiar de 'atenção' o contrato JÁ é atenção (>=, não >)", async () => {
+    // O limiar de atenção é percentual: só vira dia inteiro quando a duração
+    // da etapa o comporta. Busca uma etapa em que `duracao * pct / 100` seja
+    // exato -- sem isso, a borda cairia num arredondamento e o teste mediria
+    // outra coisa.
+    const [etapaExata] = await runSql<{ id_etapa: number; dias_borda: number }>(`
+      SELECT e.id_etapa,
+             (e.duracao_prevista_dias * l.pct_duracao_etapa / 100)::int AS dias_borda
+        FROM ref_etapa e
+        CROSS JOIN ref_limiar_pendencia l
+       WHERE e.id_produto = ${idProduto}
+         AND l.codigo = 'etapa_atencao' AND l.ativo
+         AND e.duracao_prevista_dias IS NOT NULL
+         AND (e.duracao_prevista_dias * l.pct_duracao_etapa) % 100 = 0
+       ORDER BY e.ordem
+       LIMIT 1;
+    `);
+    expect(etapaExata, "nenhuma etapa do catálogo tem borda de atenção em dia inteiro").toBeDefined();
+
+    // Esta etapa não é a que o afterAll restaura (fecOriginal é de
+    // idEtapaTeste), então a suíte guarda e devolve o estado dela aqui mesmo.
+    const [antes] = await runSql<{ dt_inicio: string | null }>(`
+      SELECT dt_inicio FROM fat_etapa_contrato
+       WHERE id_contrato = ${idContratoAtivo} AND id_etapa = ${etapaExata.id_etapa};
+    `);
+    try {
+      const linha = await classificar(etapaExata.id_etapa, etapaExata.dias_borda);
+      expect(linha.mandatos_atraso_atencao).toBe(1);
+      expect(linha.mandatos_atraso_atrasados).toBe(0);
+      expect(linha.mandatos_atraso_normal).toBe(0);
+    } finally {
+      await runSql(`
+        UPDATE fat_etapa_contrato
+           SET dt_inicio = ${antes?.dt_inicio ? `'${antes.dt_inicio}'` : "NULL"}
+         WHERE id_contrato = ${idContratoAtivo} AND id_etapa = ${etapaExata.id_etapa};
+      `);
+    }
+  }, 60000);
+
   it("EST-08 AC3 (KSM-08): nenhum valor de uma linha de recorte excede o valor da linha total do mesmo produto", async () => {
     const violacoes = await runSql<{ id_produto: number; coluna: string }>(`
       SELECT r.id_produto, x.coluna
@@ -752,4 +805,100 @@ describe("vw_estrategia_kpi -- quebra por status do card 'Mandatos ativos' (AD-0
     `);
     expect(divergencias).toEqual([]);
   });
+});
+
+// Spec anchor: .specs/features/kpi-status-mandatos-ativos/spec.md, P3
+// (KSM-11) -- "o conjunto resultante contém pelo menos um mandato ativo em
+// cada um dos três estados, pelo menos um sem transição registrada e pelo
+// menos um contrato não ativo".
+//
+// O teste EXECUTA o seed antes de assertar, em vez de supor que alguém o
+// rodou à mão: assim ele vale também no CI, que sobe um banco efêmero onde
+// nenhum seed de cenário passou. O arquivo é idempotente por desenho, então
+// rodá-lo aqui não duplica nada.
+describe("seed_cenarios_estrategia -- os 5 casos de classificação existem (KSM-11)", () => {
+  beforeAll(async () => {
+    const sql = await readFile("supabase/seed_cenarios_estrategia.sql", "utf8");
+    await runSql(sql);
+  }, 120000);
+
+  it("KSM-11: cada um dos 5 cenários existe e está no estado que o seed promete", async () => {
+    const [estados] = await runSql<{
+      atrasado: number;
+      atencao: number;
+      normal: number;
+      sem_etapa_atual: number;
+      nao_ativo: number;
+    }>(`
+      WITH limiar AS (
+        SELECT
+          (SELECT pct_duracao_etapa FROM ref_limiar_pendencia WHERE codigo = 'etapa_atrasado' AND ativo) AS atrasado_pct,
+          (SELECT pct_duracao_etapa FROM ref_limiar_pendencia WHERE codigo = 'etapa_atencao'  AND ativo) AS atencao_pct
+      ),
+      cenario AS (
+        SELECT c.id_contrato, c.status, c.id_etapa_atual,
+               COALESCE(
+                 (SELECT e.duracao_prevista_dias FROM ref_etapa e WHERE e.id_etapa = c.id_etapa_atual),
+                 (SELECT e.duracao_prevista_dias FROM ref_etapa e
+                   WHERE e.id_produto = c.id_produto AND c.id_etapa_atual IS NULL
+                   ORDER BY e.ordem LIMIT 1)
+               ) AS duracao_ref,
+               COALESCE(
+                 (SELECT fec.dt_inicio FROM fat_etapa_contrato fec
+                   WHERE fec.id_contrato = c.id_contrato AND fec.id_etapa = c.id_etapa_atual),
+                 c.dt_inicio
+               ) AS dt_ancora
+          FROM fat_contrato c
+          JOIN dim_contratante ct ON ct.id_contratante = c.id_contratante
+         WHERE ct.nome LIKE 'KPI Cenario %'
+      ),
+      classificado AS (
+        SELECT cen.*,
+               CASE
+                 WHEN l.atrasado_pct IS NOT NULL
+                      AND ((CURRENT_DATE - cen.dt_ancora)::numeric / cen.duracao_ref * 100) >= l.atrasado_pct
+                   THEN 'atrasado'
+                 WHEN l.atencao_pct IS NOT NULL
+                      AND ((CURRENT_DATE - cen.dt_ancora)::numeric / cen.duracao_ref * 100) >= l.atencao_pct
+                   THEN 'atencao'
+                 ELSE 'normal'
+               END AS estado
+          FROM cenario cen CROSS JOIN limiar l
+         WHERE cen.status = 'ativo'
+      )
+      SELECT
+        (SELECT count(*) FROM classificado WHERE estado = 'atrasado')::int AS atrasado,
+        (SELECT count(*) FROM classificado WHERE estado = 'atencao')::int  AS atencao,
+        (SELECT count(*) FROM classificado WHERE estado = 'normal')::int   AS normal,
+        (SELECT count(*) FROM cenario WHERE status = 'ativo' AND id_etapa_atual IS NULL)::int AS sem_etapa_atual,
+        (SELECT count(*) FROM cenario WHERE status <> 'ativo')::int        AS nao_ativo;
+    `);
+
+    // Os 3 estados classificáveis, o caso de AD-051 e o contrato fora da
+    // contagem -- cada um com pelo menos um exemplar, que é o que torna a
+    // validação ao vivo (P4) capaz de distinguir "classifica certo" de "não
+    // havia o que classificar".
+    expect(estados.atencao).toBeGreaterThanOrEqual(1);
+    expect(estados.normal).toBeGreaterThanOrEqual(1);
+    expect(estados.sem_etapa_atual).toBeGreaterThanOrEqual(1);
+    expect(estados.nao_ativo).toBeGreaterThanOrEqual(1);
+    // 2: o cenário "atrasado" e o "sem etapa", que AD-051 classifica pela
+    // etapa de ordem 1 a partir de um início antigo.
+    expect(estados.atrasado).toBeGreaterThanOrEqual(2);
+  }, 60000);
+
+  it("KSM-11: o seed é idempotente -- rodar de novo não duplica cenário", async () => {
+    const sql = await readFile("supabase/seed_cenarios_estrategia.sql", "utf8");
+    await runSql(sql);
+
+    const [contagem] = await runSql<{ contratos: number; contratantes: number }>(`
+      SELECT (SELECT count(*) FROM fat_contrato c
+                JOIN dim_contratante ct ON ct.id_contratante = c.id_contratante
+               WHERE ct.nome LIKE 'KPI Cenario %')::int AS contratos,
+             (SELECT count(*) FROM dim_contratante WHERE nome LIKE 'KPI Cenario %')::int AS contratantes;
+    `);
+
+    expect(contagem.contratos).toBe(5);
+    expect(contagem.contratantes).toBe(5);
+  }, 120000);
 });
