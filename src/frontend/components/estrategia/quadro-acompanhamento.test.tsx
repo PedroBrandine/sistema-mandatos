@@ -113,4 +113,49 @@ describe("QuadroAcompanhamento (EST-07)", () => {
     expect(screen.getByText("Prospecção")).toBeInTheDocument();
     expect(screen.getByText("Nenhuma prospecção aberta.")).toBeInTheDocument();
   });
+
+  // Spec anchor: .specs/features/kpi-status-mandatos-ativos/spec.md, P1-B
+  // (KSM-16, KSM-18, KSM-19).
+  it("KSM-16: card de etapa navega para a ficha do mandato daquele contrato", () => {
+    render(<QuadroAcompanhamento colunas={colunas(COLUNA_ETAPA_BASE)} />);
+
+    const link = screen.getByText("Dep. Ana Ribeiro").closest("a");
+    expect(link).toHaveAttribute("href", "/contratos/10");
+  });
+
+  it("KSM-16: o destino acompanha o contrato do card, não uma rota fixa", () => {
+    const outraColuna: ColunaEtapaQuadro = {
+      ...COLUNA_ETAPA_BASE,
+      cards: [{ ...COLUNA_ETAPA_BASE.cards[0], idContrato: 77, nomeContratante: "Sen. Beatriz Lima" }],
+    };
+
+    render(<QuadroAcompanhamento colunas={colunas(outraColuna)} />);
+
+    expect(screen.getByText("Sen. Beatriz Lima").closest("a")).toHaveAttribute("href", "/contratos/77");
+  });
+
+  it("KSM-19: card de contrato não ativo continua clicável", () => {
+    const colunaEncerrado: ColunaEtapaQuadro = {
+      ...COLUNA_ETAPA_BASE,
+      cards: [{ ...COLUNA_ETAPA_BASE.cards[0], statusContrato: "concluido" }],
+    };
+
+    render(<QuadroAcompanhamento colunas={colunas(colunaEncerrado)} />);
+
+    expect(screen.getByText("Dep. Ana Ribeiro").closest("a")).toHaveAttribute("href", "/contratos/10");
+  });
+
+  it("KSM-18: o card é alcançável por teclado -- link de verdade, não div com onClick", () => {
+    render(<QuadroAcompanhamento colunas={colunas(COLUNA_ETAPA_BASE)} />);
+
+    // getByRole("link") só encontra <a> COM href: um <a> sem href não entra
+    // na ordem de tabulação e não é ativável por Enter.
+    expect(screen.getByRole("link", { name: /Dep\. Ana Ribeiro/ })).toHaveAttribute("href", "/contratos/10");
+  });
+
+  it("KSM-16: card da raia de Prospecção não vira link -- não há mandato para abrir", () => {
+    render(<QuadroAcompanhamento colunas={colunas(COLUNA_PROSPECCAO_BASE)} />);
+
+    expect(screen.getByText("Ver. Marcos Duarte").closest("a")).toBeNull();
+  });
 });

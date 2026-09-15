@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -198,24 +200,35 @@ function CardEtapaArrastavel({
       {...listeners}
       {...attributes}
     >
-      <Card size="sm" className="gap-1.5 p-3">
-        <p className="text-sm font-medium leading-snug">{card.nomeContratante}</p>
-        {subtitulo ? <p className="text-xs text-muted-foreground">{subtitulo}</p> : null}
-        <div className="flex items-center justify-between gap-1.5">
-          <span className="text-[11px] font-medium text-secondary">
-            {card.diasNaEtapaAtual} {card.diasNaEtapaAtual === 1 ? "dia" : "dias"} na etapa
-          </span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[9px] font-medium",
-              ESTADO_BADGE_CLASS[estado]
-            )}
-          >
-            <span className={cn("size-1.5 rounded-full", ESTADO_DOT_CLASS[estado])} />
-            {ESTADO_LABEL[estado]}
-          </span>
-        </div>
-      </Card>
+      {/* KSM-16. O <Link> fica DENTRO do nó arrastável, nunca em volta dele:
+          por fora, o transform do dnd-kit passaria a ser aplicado sobre o
+          elemento de navegação e o arrasto viraria clique. Mesmo padrão de
+          kanban-card.tsx -- de onde este componente herdou o esqueleto de
+          DnD sem herdar o link, que é a regressão que KSM-16 corrige.
+
+          Só funciona por causa do activationConstraint({ distance: 8 }) no
+          PointerSensor (ver `sensors` acima): sem essa distância o dnd-kit
+          consome o pointerdown e o clique nunca chega ao <Link>. */}
+      <Link href={`/contratos/${card.idContrato}`} className="block">
+        <Card size="sm" className="gap-1.5 p-3 transition-colors hover:border-primary/50">
+          <p className="text-sm font-medium leading-snug">{card.nomeContratante}</p>
+          {subtitulo ? <p className="text-xs text-muted-foreground">{subtitulo}</p> : null}
+          <div className="flex items-center justify-between gap-1.5">
+            <span className="text-[11px] font-medium text-secondary">
+              {card.diasNaEtapaAtual} {card.diasNaEtapaAtual === 1 ? "dia" : "dias"} na etapa
+            </span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[9px] font-medium",
+                ESTADO_BADGE_CLASS[estado]
+              )}
+            >
+              <span className={cn("size-1.5 rounded-full", ESTADO_DOT_CLASS[estado])} />
+              {ESTADO_LABEL[estado]}
+            </span>
+          </div>
+        </Card>
+      </Link>
     </div>
   );
 }
