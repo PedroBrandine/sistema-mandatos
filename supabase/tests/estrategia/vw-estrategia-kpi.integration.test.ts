@@ -628,11 +628,41 @@ describe("vw_estrategia_kpi -- quebra por status do card 'Mandatos ativos' (AD-0
   // abaixo ficam exatamente sobre o limiar, que é o único ponto onde os dois
   // operadores discordam.
   it("AD-045: exatamente no limiar de 'atrasado' o contrato JÁ é atrasado (>=, não >)", async () => {
-    // 100% da duração: com `>=` cai em atrasado; com `>` cairia em atenção.
-    const linha = await classificar(idEtapaTeste, duracaoTeste);
-    expect(linha.mandatos_atraso_atrasados).toBe(1);
-    expect(linha.mandatos_atraso_atencao).toBe(0);
-    expect(linha.mandatos_atraso_normal).toBe(0);
+    // Os dias vêm do limiar REAL (AD-004), não de 100% cravado: com o
+    // percentual hardcoded, recalibrar etapa_atrasado para 90 tiraria o
+    // contrato da borda e o mutante `>=`→`>` ressuscitaria em silêncio, com o
+    // teste ainda verde.
+    const [etapaExata] = await runSql<{ id_etapa: number; dias_borda: number }>(`
+      SELECT e.id_etapa,
+             (e.duracao_prevista_dias * l.pct_duracao_etapa / 100)::int AS dias_borda
+        FROM ref_etapa e
+        CROSS JOIN ref_limiar_pendencia l
+       WHERE e.id_produto = ${idProduto}
+         AND l.codigo = 'etapa_atrasado' AND l.ativo
+         AND e.duracao_prevista_dias IS NOT NULL
+         AND (e.duracao_prevista_dias * l.pct_duracao_etapa) % 100 = 0
+       ORDER BY e.ordem
+       LIMIT 1;
+    `);
+    expect(etapaExata, "nenhuma etapa do catálogo tem borda de atraso em dia inteiro").toBeDefined();
+
+    const [antes] = await runSql<{ dt_inicio: string | null }>(`
+      SELECT dt_inicio FROM fat_etapa_contrato
+       WHERE id_contrato = ${idContratoAtivo} AND id_etapa = ${etapaExata.id_etapa};
+    `);
+    try {
+      // Exatamente no limiar: com `>=` cai em atrasado; com `>` cairia em atenção.
+      const linha = await classificar(etapaExata.id_etapa, etapaExata.dias_borda);
+      expect(linha.mandatos_atraso_atrasados).toBe(1);
+      expect(linha.mandatos_atraso_atencao).toBe(0);
+      expect(linha.mandatos_atraso_normal).toBe(0);
+    } finally {
+      await runSql(`
+        UPDATE fat_etapa_contrato
+           SET dt_inicio = ${antes?.dt_inicio ? `'${antes.dt_inicio}'` : "NULL"}
+         WHERE id_contrato = ${idContratoAtivo} AND id_etapa = ${etapaExata.id_etapa};
+      `);
+    }
   }, 60000);
 
   it("AD-045: exatamente no limiar de 'atenção' o contrato JÁ é atenção (>=, não >)", async () => {
