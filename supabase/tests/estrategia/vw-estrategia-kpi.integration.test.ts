@@ -392,11 +392,15 @@ describe("vw_estrategia_kpi -- KPIs do Dashboard na camada Saída (EST-08, AD-00
 // que as duas bases CONCORDAM quando ancoradas no mesmo contrato/mesma
 // data, outro reclassifica o banco inteiro de forma independente e confere
 // contra a view.
-describe("vw_estrategia_kpi -- quebra por status do KPI 'Mandatos em atraso' (AD-045, migration 20260914161230)", () => {
+describe("vw_estrategia_kpi -- quebra por status do card 'Mandatos ativos' (AD-045/AD-050/AD-051, migration 20260915115846)", () => {
   let idEtapaTeste: number;
   let duracaoTeste: number;
   let idEtapaSemDuracao: number;
   let fecOriginal: { dt_inicio: string | null; dt_prevista_conclusao: string; status: string };
+  // AD-051: com id_etapa_atual nulo, a âncora da contagem passa a ser
+  // fat_contrato.dt_inicio -- que por isso vira estado mutável desta suíte e
+  // precisa ser restaurado no afterAll, como fecOriginal.
+  let contratoDtInicioOriginal: string;
 
   beforeAll(async () => {
     // Primeira etapa do produto Estratégia com duração cadastrada -- não é
@@ -417,6 +421,11 @@ describe("vw_estrategia_kpi -- quebra por status do KPI 'Mandatos em atraso' (AD
     `);
     fecOriginal = original;
 
+    const [contrato] = await runSql<{ dt_inicio: string }>(`
+      SELECT dt_inicio FROM fat_contrato WHERE id_contrato = ${idContratoAtivo};
+    `);
+    contratoDtInicioOriginal = contrato.dt_inicio;
+
     // Etapa isolada (codigo/ordem próprios deste arquivo) sem duracao_prevista_dias
     // -- prova o caso "etapa sem duração não é classificável" sem mutar
     // nenhuma etapa real do catálogo compartilhado.
@@ -432,7 +441,10 @@ describe("vw_estrategia_kpi -- quebra por status do KPI 'Mandatos em atraso' (AD
 
   afterAll(async () => {
     await runSql(`
-      UPDATE fat_contrato SET id_etapa_atual = NULL WHERE id_contrato = ${idContratoAtivo};
+      UPDATE fat_contrato
+         SET id_etapa_atual = NULL,
+             dt_inicio = '${contratoDtInicioOriginal}'
+       WHERE id_contrato = ${idContratoAtivo};
       UPDATE fat_etapa_contrato
          SET dt_inicio = ${fecOriginal.dt_inicio ? `'${fecOriginal.dt_inicio}'` : "NULL"},
              dt_prevista_conclusao = '${fecOriginal.dt_prevista_conclusao}',
@@ -488,11 +500,46 @@ describe("vw_estrategia_kpi -- quebra por status do KPI 'Mandatos em atraso' (AD
     expect(linha.mandatos_atraso_atencao).toBe(0);
   }, 60000);
 
-  it("AD-005: contrato sem id_etapa_atual não entra em nenhuma das 3 contagens -- nunca forçado em 'normal'", async () => {
-    const linha = await classificar(null, null);
-    expect(linha.mandatos_atraso_atrasados).toBe(0);
+  // Tira o contrato do Kanban (id_etapa_atual nulo) e ancora o INÍCIO DO
+  // CONTRATO em `diasDesdeInicio` dias atrás -- o caminho de AD-051, em que a
+  // etapa de referência passa a ser a de menor ordem do produto e a âncora
+  // deixa de ser fat_etapa_contrato.
+  async function classificarSemEtapaAtual(
+    diasDesdeInicio: number
+  ): Promise<Pick<LinhaKpi, "mandatos_atraso_atrasados" | "mandatos_atraso_atencao" | "mandatos_atraso_normal">> {
+    await runSql(`
+      UPDATE fat_contrato
+         SET id_etapa_atual = NULL,
+             dt_inicio = CURRENT_DATE - ${diasDesdeInicio}
+       WHERE id_contrato = ${idContratoAtivo};
+    `);
+    const [linha] = await runSql<LinhaKpi>(`
+      SELECT mandatos_atraso_atrasados, mandatos_atraso_atencao, mandatos_atraso_normal
+        FROM vw_estrategia_kpi
+       WHERE id_produto = ${idProduto} AND escopo_projeto = true AND id_projeto = ${idProjeto}
+         AND escopo_gestora = false;
+    `);
+    return linha;
+  }
+
+  // AD-051 substituiu o comportamento anterior ("contrato sem id_etapa_atual
+  // não entra em nenhuma das 3 contagens"), que era a decisão explícita da
+  // migration 20260914161230. Os dois lados abaixo existem porque um único
+  // caso não distingue "classificou pela etapa de ordem 1" de "classificou
+  // tudo como atrasado": é a mesma âncora medida contra o mesmo limiar, e só
+  // muda a data de início do contrato.
+  it("AD-051: contrato sem id_etapa_atual antigo é classificado 'atrasado' pela etapa de ordem 1, ancorado em fat_contrato.dt_inicio", async () => {
+    const linha = await classificarSemEtapaAtual(duracaoTeste + 5);
+    expect(linha.mandatos_atraso_atrasados).toBe(1);
     expect(linha.mandatos_atraso_atencao).toBe(0);
     expect(linha.mandatos_atraso_normal).toBe(0);
+  }, 60000);
+
+  it("AD-051: contrato sem id_etapa_atual recém-iniciado é classificado 'normal', não atrasado", async () => {
+    const linha = await classificarSemEtapaAtual(Math.round(duracaoTeste * 0.3));
+    expect(linha.mandatos_atraso_normal).toBe(1);
+    expect(linha.mandatos_atraso_atrasados).toBe(0);
+    expect(linha.mandatos_atraso_atencao).toBe(0);
   }, 60000);
 
   it("AD-005: etapa atual sem duracao_prevista_dias não entra em nenhuma das 3 contagens", async () => {
@@ -529,6 +576,70 @@ describe("vw_estrategia_kpi -- quebra por status do KPI 'Mandatos em atraso' (AD
     } finally {
       await runSql(`UPDATE ref_limiar_pendencia SET ativo = true WHERE codigo = 'etapa_atrasado';`);
     }
+  }, 60000);
+
+  it("AD-050 (KSM-03): as 3 colunas de quebra particionam mandatos_ativos -- somam o total em TODA linha da view", async () => {
+    // O contrato fixture precisa estar num estado classificável: o teste da
+    // etapa sem duração o deixa deliberadamente fora das 3 contagens, e esse
+    // é o único vazamento admitido do fechamento (spec, Edge Cases).
+    await classificar(idEtapaTeste, Math.round(duracaoTeste * 0.3));
+
+    const violacoes = await runSql<{
+      id_produto: number;
+      mandatos_ativos: number;
+      soma_quebra: number;
+    }>(`
+      SELECT id_produto, mandatos_ativos,
+             COALESCE(mandatos_atraso_atrasados, 0)
+           + COALESCE(mandatos_atraso_atencao, 0)
+           + COALESCE(mandatos_atraso_normal, 0) AS soma_quebra
+        FROM vw_estrategia_kpi
+       WHERE COALESCE(mandatos_atraso_atrasados, 0)
+           + COALESCE(mandatos_atraso_atencao, 0)
+           + COALESCE(mandatos_atraso_normal, 0) <> mandatos_ativos
+       ORDER BY id_produto;
+    `);
+    expect(violacoes).toEqual([]);
+  }, 60000);
+
+  it("AD-050 (KSM-05): com o limiar de 'atrasado' desligado, o fechamento se mantém nas colunas que restam", async () => {
+    await classificar(idEtapaTeste, duracaoTeste + 5);
+    try {
+      await runSql(`UPDATE ref_limiar_pendencia SET ativo = false WHERE codigo = 'etapa_atrasado';`);
+      const violacoes = await runSql<{ id_produto: number }>(`
+        SELECT id_produto
+          FROM vw_estrategia_kpi
+         WHERE COALESCE(mandatos_atraso_atrasados, 0)
+             + COALESCE(mandatos_atraso_atencao, 0)
+             + COALESCE(mandatos_atraso_normal, 0) <> mandatos_ativos;
+      `);
+      // A coluna desligada vira NULL, mas os contratos que ela contaria
+      // descem para 'atencao'/'normal' -- nenhum mandato ativo se perde.
+      expect(violacoes).toEqual([]);
+    } finally {
+      await runSql(`UPDATE ref_limiar_pendencia SET ativo = true WHERE codigo = 'etapa_atrasado';`);
+    }
+  }, 60000);
+
+  it("EST-08 AC3 (KSM-08): nenhum valor de uma linha de recorte excede o valor da linha total do mesmo produto", async () => {
+    const violacoes = await runSql<{ id_produto: number; coluna: string }>(`
+      SELECT r.id_produto, x.coluna
+        FROM vw_estrategia_kpi r
+        JOIN vw_estrategia_kpi t
+          ON t.id_produto = r.id_produto
+         AND t.escopo_projeto = false
+         AND t.escopo_gestora = false
+        CROSS JOIN LATERAL (VALUES
+          ('mandatos_ativos',           r.mandatos_ativos,                        t.mandatos_ativos),
+          ('atrasados',  COALESCE(r.mandatos_atraso_atrasados, 0), COALESCE(t.mandatos_atraso_atrasados, 0)),
+          ('atencao',    COALESCE(r.mandatos_atraso_atencao, 0),   COALESCE(t.mandatos_atraso_atencao, 0)),
+          ('normal',     COALESCE(r.mandatos_atraso_normal, 0),    COALESCE(t.mandatos_atraso_normal, 0))
+        ) AS x(coluna, valor_recorte, valor_total)
+       WHERE (r.escopo_projeto OR r.escopo_gestora)
+         AND x.valor_recorte > x.valor_total
+       ORDER BY r.id_produto, x.coluna;
+    `);
+    expect(violacoes).toEqual([]);
   }, 60000);
 
   it("Verificação cruzada com mandatos_em_atraso: quando o prazo planejado e o tempo real decorrido concordam, os dois métodos apontam o MESMO contrato", async () => {
@@ -582,24 +693,41 @@ describe("vw_estrategia_kpi -- quebra por status do KPI 'Mandatos em atraso' (AD
           (SELECT pct_duracao_etapa FROM ref_limiar_pendencia WHERE codigo = 'etapa_atrasado' AND ativo) AS atrasado_pct,
           (SELECT pct_duracao_etapa FROM ref_limiar_pendencia WHERE codigo = 'etapa_atencao'  AND ativo) AS atencao_pct
       ),
-      classificado AS (
+      -- AD-051: a etapa de referência é a atual, ou a de MENOR ordem do
+      -- produto quando não há transição registrada. Escrito a partir do
+      -- enunciado da decisão, não do corpo da view.
+      referencia AS (
         SELECT
           c.id_produto,
+          COALESCE(
+            (SELECT e.duracao_prevista_dias FROM ref_etapa e WHERE e.id_etapa = c.id_etapa_atual),
+            (SELECT e.duracao_prevista_dias FROM ref_etapa e
+              WHERE e.id_produto = c.id_produto AND c.id_etapa_atual IS NULL
+              ORDER BY e.ordem LIMIT 1)
+          ) AS duracao_ref,
+          COALESCE(
+            (SELECT fec.dt_inicio FROM fat_etapa_contrato fec
+              WHERE fec.id_contrato = c.id_contrato AND fec.id_etapa = c.id_etapa_atual),
+            c.dt_inicio
+          ) AS dt_ancora
+        FROM fat_contrato c
+        WHERE c.status = 'ativo'
+      ),
+      classificado AS (
+        SELECT
+          r.id_produto,
           CASE
             WHEN l.atrasado_pct IS NOT NULL
-                 AND ((CURRENT_DATE - COALESCE(fec.dt_inicio, c.dt_inicio))::numeric / e.duracao_prevista_dias * 100) >= l.atrasado_pct
+                 AND ((CURRENT_DATE - r.dt_ancora)::numeric / r.duracao_ref * 100) >= l.atrasado_pct
               THEN 'atrasado'
             WHEN l.atencao_pct IS NOT NULL
-                 AND ((CURRENT_DATE - COALESCE(fec.dt_inicio, c.dt_inicio))::numeric / e.duracao_prevista_dias * 100) >= l.atencao_pct
+                 AND ((CURRENT_DATE - r.dt_ancora)::numeric / r.duracao_ref * 100) >= l.atencao_pct
               THEN 'atencao'
             ELSE 'normal'
           END AS estado
-        FROM fat_contrato c
-        JOIN ref_etapa e ON e.id_etapa = c.id_etapa_atual
-        LEFT JOIN fat_etapa_contrato fec ON fec.id_contrato = c.id_contrato AND fec.id_etapa = c.id_etapa_atual
+        FROM referencia r
         CROSS JOIN limiar l
-        WHERE c.status = 'ativo' AND c.id_etapa_atual IS NOT NULL
-          AND e.duracao_prevista_dias IS NOT NULL AND e.duracao_prevista_dias > 0
+        WHERE r.duracao_ref IS NOT NULL AND r.duracao_ref > 0
       ),
       esperado AS (
         SELECT id_produto,
