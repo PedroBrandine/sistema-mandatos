@@ -18,13 +18,34 @@ files by filesystem path.
 
 | Task | Status | Commit |
 | --- | --- | --- |
-| T1 | Seed de cenários escrito e executado em dev | pendente |
-| T2 | Apagamento executado em dev (autorizado por Pedro, 15/09) | pendente |
-| T3 | Migration aplicada em dev; aguardando o gate de integração | pendente |
+| T1 | Seed de cenários escrito, executado em dev e testado | `b3c949b` |
+| T2 | Apagamento executado em dev (autorizado por Pedro, 15/09) | `b3c949b` (registro) |
+| T3 | Migration aplicada em dev, 27 testes de integração verdes | `e5f248e` |
 | T4 | Feita (junto com T5) | `79da53b` |
 | T5 | Feita | `79da53b` |
 | T6 | Feita | `05e4e9c` |
-| T7 | Não iniciada | — |
+| T7 | **Pendente — depende de conferência humana na tela** | — |
+| Fix 1 | Gaps da 1ª iteração do Verifier (KSM-17, borda, KSM-11, recorte) | `33c67b4` |
+| Fix 2 | Borda de 'atrasado' derivada do limiar real (2ª iteração) | `03d88f6` |
+
+**Verificação**: 2 iterações do Verifier. 1ª → FAIL (KSM-17 sem asserção e
+mutante vivo; KSM-11 sem teste; limiar só testado pelo meio). 2ª → **PASS
+condicionado à P4**, 7 mutantes mortos, 1 sobrevivente aceito
+(`ATIVACAO_ARRASTE_PX = 1` passa — o contrato é "distância não-nula", não "8").
+
+**Gates finais**: unit 775 ✅ · integração da view 27 ✅ · build ✅ · lint ❌
+com os mesmos 10 erros pré-existentes, nenhum em arquivo desta feature.
+
+**Aberto e conhecido**:
+- `handleDragEnd`/`onMoverCard` sem asserção: a metade "arrastar move a etapa"
+  de KSM-17 só se prova na tela (P4). A metade "clicar não arrasta" está coberta.
+- KSM-05 exercita só um limiar desligado; o edge case "os dois inativos" não
+  tem teste.
+- Helpers de classificação leem sempre `escopo_gestora = false`; o recorte por
+  gestora é coberto por KSM-08 e pelo seed, não por asserção da quebra.
+- `.specs/STATE.md` com AD-050/AD-051 **não commitado** — o arquivo carrega
+  junto AD-047/048/049, de trabalho anterior de outra sessão. Aguarda decisão
+  de Pedro para não misturar autoria.
 
 **Desvio de planejamento (T4+T5 num commit só)**: remover `mandatosEmAtraso`
 do tipo quebra o único componente que o consome. Commitar T4 isolada deixaria
