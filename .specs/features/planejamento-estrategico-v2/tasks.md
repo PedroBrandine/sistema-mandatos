@@ -12,7 +12,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/planejamento-estrategico-v2/design.md`
-**Status**: In Progress — **Fases 1, 2 e 3 completas** (13/24 tarefas)
+**Status**: In Progress — **Fases 1 a 4 completas** (16/24 tarefas)
 **Gate AD-039**: ✅ satisfeito (Pedro, 2026-09-15)
 
 ### Progresso
@@ -22,7 +22,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | 1 — Schema | T1–T5 | ✅ **completa**, 5 commits, 37 testes de integração |
 | 2 — Backend TS | T6–T10 | ✅ **completa**, 5 commits, 845 unitários |
 | 3 — Módulos puros | T11–T13 | ✅ **completa**, 3 commits, 881 unitários |
-| 4 — Permissões/abas | T14–T16 | ⬜ |
+| 4 — Permissões/abas | T14–T16 | ✅ **completa**, 3 commits, 912 unitários |
 | 5 — Modais | T17–T20 | ⬜ |
 | 6 — Tela | T21–T23, T25 | ⬜ |
 
@@ -41,6 +41,9 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | T11 avanço mensal | `45300b5` | 11 unitários |
 | T12 expansão de lote | `3ff7085` | 15 unitários |
 | T13 responsável herdado | `37bbf4b` | 10 unitários |
+| T14 capacidade moveHierarquia | `86ffdce` | 53 no arquivo |
+| T15 abas diagnóstico/estrutura | `0d6221d` | 10 de render |
+| T16 aba Diagnóstico em cartões | `749a568` | 12 de render |
 
 **Todas as 5 migrations aplicadas em dev** (`npnvoolkebhabjkjzqwn`), uma de cada
 vez, com gate escopado entre elas. Produção intocada.
