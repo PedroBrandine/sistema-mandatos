@@ -9,6 +9,7 @@ import {
   buscarInsightsDoContrato,
   buscarNiveisIip,
   buscarPilaresInsight,
+  buscarPreInsightsDoContrato,
   buscarRegistrosDaEtapa,
   buscarTiposRegistroDaEtapa,
   buscarTipologiasAtivas,
@@ -362,10 +363,22 @@ describe("buscarInsightsDoContrato", () => {
 });
 
 describe("buscarFatosGeradoresDoContrato", () => {
-  it("mapeia fat_fato_gerador do contrato com tipologia concatenada e niveis d1/d2/d3", async () => {
+  it("mapeia fat_fato_gerador do contrato com tipologia concatenada, niveis d1/d2/d3 e titulo/situacao/dt_prevista (T11)", async () => {
     const { client } = criarClienteMock({
       fat_fato_gerador: {
-        data: [{ id_fato_gerador: 1, id_tipologia: 3, nivel_d1: "alto", nivel_d2: null, nivel_d3: null, dt_ocorrencia: "2026-08-01" }],
+        data: [
+          {
+            id_fato_gerador: 1,
+            id_tipologia: 3,
+            nivel_d1: "alto",
+            nivel_d2: null,
+            nivel_d3: null,
+            titulo: "Aprovação do projeto de lei",
+            situacao: "realizado",
+            dt_ocorrencia: "2026-08-01",
+            dt_prevista: null,
+          },
+        ],
         error: null,
       },
       ref_tipologia: {
@@ -381,13 +394,84 @@ describe("buscarFatosGeradoresDoContrato", () => {
         idFatoGerador: 1,
         tipologia: "1. Planejamento e Agenda · Pautar Debates · Iniciado",
         niveis: { d1: "alto", d2: null, d3: null },
+        titulo: "Aprovação do projeto de lei",
+        situacao: "realizado",
         dtOcorrencia: "2026-08-01",
+        dtPrevista: null,
       },
     ]);
+  });
+
+  // FGC-06/FGC-08 (T11): fato projetado ainda não tem dt_ocorrencia -- vem
+  // null, situacao reflete "projetado", dtPrevista preenchida.
+  it("mapeia um fato projetado sem dt_ocorrencia, com dt_prevista preenchida", async () => {
+    const { client } = criarClienteMock({
+      fat_fato_gerador: {
+        data: [
+          {
+            id_fato_gerador: 2,
+            id_tipologia: 3,
+            nivel_d1: "alto",
+            nivel_d2: null,
+            nivel_d3: null,
+            titulo: "Sanção esperada do projeto de lei",
+            situacao: "projetado",
+            dt_ocorrencia: null,
+            dt_prevista: "2026-12-01",
+          },
+        ],
+        error: null,
+      },
+      ref_tipologia: {
+        data: [{ id_tipologia: 3, grupo: "1. Planejamento e Agenda", tipologia: "Pautar Debates", estado: "Iniciado" }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarFatosGeradoresDoContrato(client, 100);
+
+    expect(resultado[0]).toMatchObject({ situacao: "projetado", dtOcorrencia: null, dtPrevista: "2026-12-01" });
   });
 
   it("retorna [] quando o contrato não tem nenhum Fato Gerador", async () => {
     const { client } = criarClienteMock({ fat_fato_gerador: { data: [], error: null } });
     expect(await buscarFatosGeradoresDoContrato(client, 100)).toEqual([]);
+  });
+});
+
+describe("buscarPreInsightsDoContrato", () => {
+  // FGC-05 (T11): mesmo molde de buscarInsightsDoContrato, sem join.
+  it("mapeia fat_pre_insight do contrato para PreInsightResumo", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_pre_insight: {
+        data: [{ id_pre_insight: 1, conteudo: "Sinal bruto captado em reunião", ocorrido_em: "2026-09-01" }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarPreInsightsDoContrato(client, 100);
+
+    expect(resultado).toEqual([
+      { idPreInsight: 1, conteudo: "Sinal bruto captado em reunião", ocorridoEm: "2026-09-01" },
+    ]);
+    const eqs = chamadas.filter((c) => c.tabela === "fat_pre_insight" && c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["id_contrato", 100]);
+  });
+
+  it("mapeia ocorridoEm null quando ocorrido_em é null", async () => {
+    const { client } = criarClienteMock({
+      fat_pre_insight: {
+        data: [{ id_pre_insight: 1, conteudo: "Sinal bruto", ocorrido_em: null }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarPreInsightsDoContrato(client, 100);
+    expect(resultado[0].ocorridoEm).toBeNull();
+  });
+
+  it("retorna [] quando o contrato não tem nenhum Pré-Insight", async () => {
+    const { client } = criarClienteMock({ fat_pre_insight: { data: [], error: null } });
+    expect(await buscarPreInsightsDoContrato(client, 100)).toEqual([]);
   });
 });

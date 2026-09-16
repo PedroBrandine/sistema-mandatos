@@ -283,19 +283,24 @@ export interface FatoGeradorResumo {
   idFatoGerador: number;
   tipologia: string; // grupo · tipologia · estado, concatenado
   niveis: { d1: string | null; d2: string | null; d3: string | null };
-  dtOcorrencia: string;
+  titulo: string | null;
+  situacao: "projetado" | "realizado";
+  dtOcorrencia: string | null;
+  dtPrevista: string | null;
 }
 
-// INC-01, INC-02. Fatos Geradores do contrato -- tipologia resolvida
-// client-side (join com ref_tipologia, mesma concatenação de
-// buscarTipologiasAtivas) já que fat_fato_gerador só guarda id_tipologia.
+// INC-01, INC-02, FGC-06/FGC-09/FGC-12 (T11). Fatos Geradores do contrato --
+// tipologia resolvida client-side (join com ref_tipologia, mesma
+// concatenação de buscarTipologiasAtivas) já que fat_fato_gerador só guarda
+// id_tipologia. titulo/situacao/dt_prevista novos (T2); dtOcorrencia passa a
+// ser nullable -- fato projetado ainda não tem data de ocorrência.
 export async function buscarFatosGeradoresDoContrato(
   client: SupabaseClient<Database>,
   idContrato: number
 ): Promise<FatoGeradorResumo[]> {
   const { data, error } = await client
     .from("fat_fato_gerador")
-    .select("id_fato_gerador, id_tipologia, nivel_d1, nivel_d2, nivel_d3, dt_ocorrencia")
+    .select("id_fato_gerador, id_tipologia, nivel_d1, nivel_d2, nivel_d3, titulo, situacao, dt_ocorrencia, dt_prevista")
     .eq("id_contrato", idContrato);
   if (error) throw error;
   if (!data) return [];
@@ -314,6 +319,36 @@ export async function buscarFatosGeradoresDoContrato(
     idFatoGerador: f.id_fato_gerador,
     tipologia: nomesPorTipologia.get(f.id_tipologia) ?? "",
     niveis: { d1: f.nivel_d1, d2: f.nivel_d2, d3: f.nivel_d3 },
+    titulo: f.titulo,
+    situacao: f.situacao as "projetado" | "realizado",
     dtOcorrencia: f.dt_ocorrencia,
+    dtPrevista: f.dt_prevista,
+  }));
+}
+
+export interface PreInsightResumo {
+  idPreInsight: number;
+  conteudo: string;
+  ocorridoEm: string | null;
+}
+
+// FGC-05 (T11). Pré-Insights do contrato -- mesmo molde de
+// buscarInsightsDoContrato, sem join (fat_pre_insight não tem catálogo a
+// resolver).
+export async function buscarPreInsightsDoContrato(
+  client: SupabaseClient<Database>,
+  idContrato: number
+): Promise<PreInsightResumo[]> {
+  const { data, error } = await client
+    .from("fat_pre_insight")
+    .select("id_pre_insight, conteudo, ocorrido_em")
+    .eq("id_contrato", idContrato);
+  if (error) throw error;
+  if (!data) return [];
+
+  return data.map((p) => ({
+    idPreInsight: p.id_pre_insight,
+    conteudo: p.conteudo,
+    ocorridoEm: p.ocorrido_em,
   }));
 }
