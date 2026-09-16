@@ -16,6 +16,7 @@ export interface PermissoesModo {
   modosDisponiveis: ModoPlanejamento[];
   modoPadrao: ModoPlanejamento;
   crudHierarquia: boolean; // criar/editar Objetivo/Meta (modal)
+  moveHierarquia: boolean; // PLV-09 -- reparentar Meta/Sucesso Mensal pelo modal
   editaPctTodasAsMetas: boolean; // Mentor/Gestora/Admin: qualquer Meta da carteira/contrato
   editaPctSóMetasProprias: boolean; // Assessor: só fat_meta.id_usuario_responsavel = auth.uid()
   veIip: boolean; // placeholder enquanto incidencia-encontros não conclui
@@ -29,6 +30,7 @@ export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
     modosDisponiveis: ["construir", "monitorar", "ler"],
     modoPadrao: "monitorar",
     crudHierarquia: true,
+    moveHierarquia: true,
     editaPctTodasAsMetas: true,
     editaPctSóMetasProprias: false,
     veIip: true,
@@ -40,6 +42,7 @@ export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
     modosDisponiveis: ["monitorar", "ler"],
     modoPadrao: "monitorar",
     crudHierarquia: false,
+    moveHierarquia: false,
     editaPctTodasAsMetas: true,
     editaPctSóMetasProprias: false,
     veIip: true,
@@ -51,6 +54,7 @@ export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
     modosDisponiveis: ["monitorar"],
     modoPadrao: "monitorar",
     crudHierarquia: false,
+    moveHierarquia: false,
     editaPctTodasAsMetas: false,
     editaPctSóMetasProprias: true,
     veIip: false,
@@ -62,6 +66,7 @@ export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
     modosDisponiveis: ["construir", "monitorar", "ler"],
     modoPadrao: "monitorar",
     crudHierarquia: true,
+    moveHierarquia: true,
     editaPctTodasAsMetas: true,
     editaPctSóMetasProprias: false,
     veIip: true,
