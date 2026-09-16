@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { buscarReguaDoContrato } from "@backend/queries/etapa-contrato";
 import {
   buscarEncontrosDoContrato,
   buscarTiposRegistroDaEtapa,
@@ -23,41 +24,90 @@ import { Textarea } from "@/components/ui/textarea";
 
 const SEM_VINCULO = "_nenhum";
 
-// INC-09, INC-10, INC-11. INSERT direto (sem RPC -- fat_registro é 1 tabela
-// só, design.md Tech Decisions), inline na aba de etapa (sem Dialog -- a
-// página já é dedicada, mesmo padrão de objetivo-form.tsx). id_usuario_autor
-// (NOT NULL, sem RPC) vem de usePapelGlobal (T17) -- nunca digitado no
-// formulário; RLS (fat_registro.WITH CHECK) rejeitaria qualquer outro valor
-// mesmo que o form tentasse enviar (design.md "2º achado real de Design").
+// INC-09, INC-10, INC-11, FGC-17 (T23, fatos-geradores-ciclo-vida). INSERT/
+// UPDATE direto (sem RPC -- fat_registro é 1 tabela só, design.md Tech
+// Decisions). id_usuario_autor (NOT NULL, sem RPC) vem de usePapelGlobal,
+// nunca digitado no formulário; RLS (fat_registro.WITH CHECK) rejeitaria
+// qualquer outro valor mesmo que o form tentasse enviar.
+//
+// `canal` removido (achado de Execute: FMC-19 já tinha tirado a coluna do
+// `registroSchema` -- `feat(ficha): schemas Zod da ficha; remove canal do
+// produto` -- e este arquivo ficou desatualizado, com erro de tipo. Corrigido
+// aqui, junto da extensão desta task, spec.md P1 Registro AC11).
+//
+// T23: `idEtapa` vira opcional -- fora da tela de etapa (a aba nova,
+// AD-057) não há `codigo` de rota para resolvê-lo. Sem `idEtapa` fixado, o
+// form busca a régua do contrato (buscarReguaDoContrato, já existe --
+// nenhuma query nova) e exige a escolha explícita antes de habilitar
+// Salvar (AC4 do spec: o vínculo com a etapa nunca pode ser perdido na
+// migração do formulário). A etapa em si não é coluna de `fat_registro` --
+// serve só para filtrar quais Tipos de Registro (`ref_tipo_registro`) fazem
+// sentido oferecer.
+export interface RegistroExistente {
+  idRegistro: number;
+  idTipoRegistro: number;
+  ocorridoEm: string;
+  nrSequencia: number | null;
+  idEncontro: number | null;
+  resumo: string | null;
+}
+
 export interface RegistroFormProps {
   idContrato: number;
-  idEtapa: number;
+  idEtapa?: number;
+  registroExistente?: RegistroExistente;
   onConcluido: () => void;
 }
 
-export function RegistroForm({ idContrato, idEtapa, onConcluido }: RegistroFormProps) {
+export function RegistroForm({ idContrato, idEtapa, registroExistente, onConcluido }: RegistroFormProps) {
   const { idUsuario, carregando: carregandoUsuario } = usePapelGlobal();
+  const [etapas, setEtapas] = useState<RefOption[]>([]);
+  const [etapaEscolhida, setEtapaEscolhida] = useState<number | null>(idEtapa ?? null);
   const [tipos, setTipos] = useState<RefOption[]>([]);
   const [encontros, setEncontros] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
+  const precisaEscolherEtapa = idEtapa === undefined;
+  const etapaEfetiva = idEtapa ?? etapaEscolhida;
+
   const form = useForm<RegistroInput>({
     resolver: zodResolver(registroSchema),
     mode: "onChange",
-    defaultValues: {
-      id_contrato: idContrato,
-      ocorrido_em: new Date().toISOString().slice(0, 10),
-    },
+    defaultValues: registroExistente
+      ? {
+          id_contrato: idContrato,
+          id_tipo_registro: registroExistente.idTipoRegistro,
+          ocorrido_em: registroExistente.ocorridoEm,
+          nr_sequencia: registroExistente.nrSequencia,
+          id_encontro: registroExistente.idEncontro,
+          resumo: registroExistente.resumo,
+        }
+      : {
+          id_contrato: idContrato,
+          ocorrido_em: new Date().toISOString().slice(0, 10),
+        },
   });
 
   useEffect(() => {
+    if (!precisaEscolherEtapa) return;
     const supabase = createClient();
-    void buscarTiposRegistroDaEtapa(supabase, idEtapa).then(setTipos);
+    void buscarReguaDoContrato(supabase, idContrato).then((regua) =>
+      setEtapas(regua.map((e) => ({ id: e.idEtapa, nome: e.nome })))
+    );
+  }, [idContrato, precisaEscolherEtapa]);
+
+  useEffect(() => {
+    if (etapaEfetiva == null) {
+      setTipos([]);
+      return;
+    }
+    const supabase = createClient();
+    void buscarTiposRegistroDaEtapa(supabase, etapaEfetiva).then(setTipos);
     void buscarEncontrosDoContrato(supabase, idContrato).then((lista) =>
       setEncontros(lista.map((e) => ({ id: e.idEncontro, nome: e.titulo })))
     );
-  }, [idContrato, idEtapa]);
+  }, [idContrato, etapaEfetiva]);
 
   async function enviar(valores: RegistroInput) {
     if (!idUsuario) {
@@ -69,19 +119,21 @@ export function RegistroForm({ idContrato, idEtapa, onConcluido }: RegistroFormP
     setErro(null);
     const supabase = createClient();
 
-    const { error } = await supabase.from("fat_registro").insert({
+    const payload = {
       id_contrato: valores.id_contrato,
       id_tipo_registro: valores.id_tipo_registro,
       nr_sequencia: valores.nr_sequencia ?? undefined,
       id_encontro: valores.id_encontro ?? undefined,
       ocorrido_em: valores.ocorrido_em,
-      canal: valores.canal ?? undefined,
       resumo: valores.resumo ?? undefined,
       // conteudo: sem campo no formulário (nenhuma menção em spec.md/design.md
       // como campo de UI) -- omitido do payload, DEFAULT '{}'::jsonb da coluna
       // assume (mesmo rationale documentado em schemas/registro.ts).
-      id_usuario_autor: idUsuario,
-    });
+    };
+
+    const { error } = registroExistente
+      ? await supabase.from("fat_registro").update(payload).eq("id_registro", registroExistente.idRegistro)
+      : await supabase.from("fat_registro").insert({ ...payload, id_usuario_autor: idUsuario });
 
     setEnviando(false);
     if (error) {
@@ -89,13 +141,36 @@ export function RegistroForm({ idContrato, idEtapa, onConcluido }: RegistroFormP
       return;
     }
 
-    form.reset({ id_contrato: idContrato, ocorrido_em: new Date().toISOString().slice(0, 10) });
+    if (!registroExistente) {
+      form.reset({ id_contrato: idContrato, ocorrido_em: new Date().toISOString().slice(0, 10) });
+    }
     onConcluido();
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(enviar)} className="grid gap-4 rounded-lg border p-4">
+        {precisaEscolherEtapa && (
+          <div className="grid gap-2">
+            <FormLabel>Etapa</FormLabel>
+            <Select
+              value={etapaEscolhida ? String(etapaEscolhida) : undefined}
+              onValueChange={(v) => setEtapaEscolhida(Number(v))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione a etapa" />
+              </SelectTrigger>
+              <SelectContent>
+                {etapas.map((e) => (
+                  <SelectItem key={e.id} value={String(e.id)}>
+                    {e.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField
             control={form.control}
@@ -136,7 +211,7 @@ export function RegistroForm({ idContrato, idEtapa, onConcluido }: RegistroFormP
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="nr_sequencia"
@@ -152,32 +227,6 @@ export function RegistroForm({ idContrato, idEtapa, onConcluido }: RegistroFormP
                     onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
                   />
                 </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="canal"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Canal (opcional)</FormLabel>
-                <Select
-                  value={field.value ?? SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : v)}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
-                    <SelectItem value="sistema">Sistema</SelectItem>
-                    <SelectItem value="slack">Slack</SelectItem>
-                    <SelectItem value="presencial">Presencial</SelectItem>
-                  </SelectContent>
-                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -228,8 +277,11 @@ export function RegistroForm({ idContrato, idEtapa, onConcluido }: RegistroFormP
 
         {erro && <ErroInline mensagem={erro} />}
         <div>
-          <Button type="submit" disabled={enviando || carregandoUsuario || !form.formState.isValid}>
-            {enviando ? "Salvando..." : "Registrar"}
+          <Button
+            type="submit"
+            disabled={enviando || carregandoUsuario || !form.formState.isValid || (precisaEscolherEtapa && !etapaEscolhida)}
+          >
+            {enviando ? "Salvando..." : registroExistente ? "Salvar" : "Registrar"}
           </Button>
         </div>
       </form>
