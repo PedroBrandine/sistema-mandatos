@@ -12,7 +12,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/planejamento-estrategico-v2/design.md`
-**Status**: In Progress — **Fases 1 a 4 completas** (16/24 tarefas)
+**Status**: In Progress — **Fases 1 a 4 completas + emenda AD-059** (18/26 tarefas)
 **Gate AD-039**: ✅ satisfeito (Pedro, 2026-09-15)
 
 ### Progresso
@@ -23,6 +23,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | 2 — Backend TS | T6–T10 | ✅ **completa**, 5 commits, 845 unitários |
 | 3 — Módulos puros | T11–T13 | ✅ **completa**, 3 commits, 881 unitários |
 | 4 — Permissões/abas | T14–T16 | ✅ **completa**, 3 commits, 912 unitários |
+| 4b — Emenda AD-059 | T26–T27 | ✅ **completa**, 2 commits, 957 unitários |
 | 5 — Modais | T17–T20 | ⬜ |
 | 6 — Tela | T21–T23, T25 | ⬜ |
 
@@ -44,6 +45,8 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | T14 capacidade moveHierarquia | `86ffdce` | 53 no arquivo |
 | T15 abas diagnóstico/estrutura | `0d6221d` | 10 de render |
 | T16 aba Diagnóstico em cartões | `749a568` | 12 de render |
+| T26 remove seletor de modo (AD-059) | `32b7d83` | 957 unitários |
+| T27 cartões fiéis ao `57:671` | `32b7d83` | 11 de render |
 
 **Todas as 5 migrations aplicadas em dev** (`npnvoolkebhabjkjzqwn`), uma de cada
 vez, com gate escopado entre elas. Produção intocada.
