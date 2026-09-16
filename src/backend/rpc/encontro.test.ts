@@ -2,8 +2,8 @@ import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { marcarPresenca } from "./encontro";
-import { ErroBancoNaoMapeadoError, PermissaoNegadaError } from "./errors";
+import { criarEncontro, marcarPresenca } from "./encontro";
+import { ErroBancoNaoMapeadoError, PermissaoNegadaError, ViolacaoChaveEstrangeiraError } from "./errors";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T29
 // "Done when" (EST-13 AC4, AC5) --
@@ -75,5 +75,148 @@ describe("marcarPresenca (EST-13 AC4)", () => {
     await expect(marcarPresenca(client, { idEncontro: 501 })).rejects.toBeInstanceOf(
       ErroBancoNaoMapeadoError
     );
+  });
+});
+
+// Spec anchor: .specs/features/ficha-mandato-contrato/tasks.md, T19 Done-when
+// (FMC-30) --
+//  - Todo parâmetro novo é afirmado por nome e valor no teste de caminho feliz (lição L-004)
+//  - Cada código de erro mapeado tem asserção própria (lição L-010)
+//
+// design.md "RPCs": app.criar_encontro(p_id_contrato, p_titulo, p_id_etapa,
+// p_id_tipo_registro, p_dt_inicio, p_dt_fim, p_modalidade, p_local, p_tema,
+// p_participantes JSONB) -> BIGINT. T18 (a função em si) fica para quando o
+// push for liberado -- este wrapper usa a assinatura já fechada em design.md,
+// contra um cliente Supabase mockado.
+describe("criarEncontro (FMC-30)", () => {
+  it("sucesso: chama app.criar_encontro com o payload completo, incluindo participantes, e retorna idEncontro", async () => {
+    const { client, chamadas } = criarClienteMock({ data: 77, error: null });
+
+    const resultado = await criarEncontro(client, {
+      idContrato: 1,
+      titulo: "Reunião de Monitoramento",
+      idEtapa: 2,
+      idTipoRegistro: 3,
+      dtInicio: "2026-09-20T13:00:00Z",
+      dtFim: "2026-09-20T14:00:00Z",
+      modalidade: "presencial",
+      local: "Sede do mandato",
+      tema: "Educação",
+      participantes: [
+        { idUsuario: 10, origem: "legisla" },
+        { nomeLivre: "Fulano de Tal", origem: "externo" },
+      ],
+    });
+
+    expect(chamadas[0]).toEqual({
+      schema: "app",
+      fn: "criar_encontro",
+      params: {
+        p_id_contrato: 1,
+        p_titulo: "Reunião de Monitoramento",
+        p_id_etapa: 2,
+        p_id_tipo_registro: 3,
+        p_dt_inicio: "2026-09-20T13:00:00Z",
+        p_dt_fim: "2026-09-20T14:00:00Z",
+        p_modalidade: "presencial",
+        p_local: "Sede do mandato",
+        p_tema: "Educação",
+        p_participantes: [
+          { id_usuario: 10, nome_livre: null, origem: "legisla" },
+          { id_usuario: null, nome_livre: "Fulano de Tal", origem: "externo" },
+        ],
+      },
+    });
+    expect(resultado).toEqual({ idEncontro: 77 });
+  });
+
+  it("sucesso: payload mínimo (sem dt_fim/modalidade/local/tema, sem participantes) omite os opcionais como undefined", async () => {
+    const { client, chamadas } = criarClienteMock({ data: 5, error: null });
+
+    const resultado = await criarEncontro(client, {
+      idContrato: 1,
+      titulo: "Diagnóstico de Organograma",
+      idEtapa: 2,
+      idTipoRegistro: 3,
+      dtInicio: "2026-09-20T13:00:00Z",
+      participantes: [],
+    });
+
+    expect(chamadas[0]).toEqual({
+      schema: "app",
+      fn: "criar_encontro",
+      params: {
+        p_id_contrato: 1,
+        p_titulo: "Diagnóstico de Organograma",
+        p_id_etapa: 2,
+        p_id_tipo_registro: 3,
+        p_dt_inicio: "2026-09-20T13:00:00Z",
+        p_dt_fim: undefined,
+        p_modalidade: undefined,
+        p_local: undefined,
+        p_tema: undefined,
+        p_participantes: [],
+      },
+    });
+    expect(resultado).toEqual({ idEncontro: 5 });
+  });
+
+  it("42501: lança PermissaoNegadaError", async () => {
+    const { client } = criarClienteMock({
+      data: null,
+      error: { code: "42501", message: "permission denied" },
+    });
+
+    await expect(
+      criarEncontro(client, {
+        idContrato: 1,
+        titulo: "x",
+        idEtapa: 2,
+        idTipoRegistro: 3,
+        dtInicio: "2026-09-20T13:00:00Z",
+        participantes: [],
+      })
+    ).rejects.toBeInstanceOf(PermissaoNegadaError);
+  });
+
+  it("23503 (id_etapa inexistente): lança ViolacaoChaveEstrangeiraError com mensagem de fallback", async () => {
+    const { client } = criarClienteMock({
+      data: null,
+      error: {
+        code: "23503",
+        message:
+          'insert or update on table "fat_encontro" violates foreign key constraint "fat_encontro_id_etapa_fkey"',
+      },
+    });
+
+    await expect(
+      criarEncontro(client, {
+        idContrato: 1,
+        titulo: "x",
+        idEtapa: 999,
+        idTipoRegistro: 3,
+        dtInicio: "2026-09-20T13:00:00Z",
+        participantes: [],
+      })
+    ).rejects.toBeInstanceOf(ViolacaoChaveEstrangeiraError);
+  });
+
+  it("código não mapeado (validação de RPC ainda não implementada, ex.: P0001) chega como ErroBancoNaoMapeadoError, com código e mensagem preservados", async () => {
+    const erroOriginal = { code: "P0001", message: "Participante com id_usuario e nome_livre ao mesmo tempo" };
+    const { client } = criarClienteMock({ data: null, error: erroOriginal });
+
+    const capturado = await criarEncontro(client, {
+      idContrato: 1,
+      titulo: "x",
+      idEtapa: 2,
+      idTipoRegistro: 3,
+      dtInicio: "2026-09-20T13:00:00Z",
+      participantes: [{ idUsuario: 1, nomeLivre: "Duplo", origem: "legisla" }],
+    }).catch((e: unknown) => e);
+
+    expect(capturado).toBeInstanceOf(ErroBancoNaoMapeadoError);
+    expect((capturado as ErroBancoNaoMapeadoError).codigo).toBe(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.code);
+    expect((capturado as Error).message).toContain(erroOriginal.message);
   });
 });
