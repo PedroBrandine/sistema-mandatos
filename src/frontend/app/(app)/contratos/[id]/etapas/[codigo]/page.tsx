@@ -8,7 +8,6 @@ import { buscarContratoParaFicha, buscarEtapasDoProduto, type EtapaResumo } from
 import { buscarReguaDoContrato, type EtapaRegua } from "@backend/queries/etapa-contrato";
 import { buscarRegistrosDaEtapa, type RegistroResumo } from "@backend/queries/incidencia";
 
-import { RegistroForm } from "@/components/incidencia/registro-form";
 import { Badge } from "@/components/ui/badge";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -148,13 +147,14 @@ export default function EtapaContratoPage({
         </TableBody>
       </Table>
 
-      {/* INC-09/INC-10/INC-11: Registros desta etapa -- form inline (sem
-          Dialog, página já dedicada) + lista abaixo, mesmo padrão de
-          design.md "etapas/[codigo]/page.tsx (edita)". */}
+      {/* INC-09/INC-10/INC-11. Registros desta etapa -- só leitura (AD-057,
+          T27): a escrita saiu para a aba "Fatos Geradores e Registros"
+          (T25), casa única das 4 entidades de Incidência. Esta lista
+          permanece porque a régua ainda é o contexto natural pra ver os
+          registros já feitos numa etapa específica. */}
       {idEtapa != null && (
         <div className="grid gap-3">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Registros</p>
-          <RegistroForm idContrato={idContrato} idEtapa={idEtapa} onConcluido={carregarRegistros} />
 
           {registros.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum registro nesta etapa ainda.</p>

@@ -37,14 +37,6 @@ vi.mock("@backend/queries/incidencia", () => ({
   buscarRegistrosDaEtapa: (...args: unknown[]) => buscarRegistrosDaEtapaMock(...args),
 }));
 
-// RegistroForm é reescrito na T31 (camada dinâmica de registro) -- fora do
-// escopo desta task, que só confirma que a ROTA em si resolve. Stub evita
-// arrastar as dependências dele (react-hook-form, catálogo de tipos) para um
-// teste de roteamento.
-vi.mock("@/components/incidencia/registro-form", () => ({
-  RegistroForm: () => <div data-testid="registro-form-stub" />,
-}));
-
 import EtapaContratoPage from "./page";
 
 const CONTRATO = {
@@ -96,5 +88,24 @@ describe("/contratos/[id]/etapas/[codigo] continua resolvendo (FMC-04 AC5, A-01)
 
     expect(await screen.findByText("Etapa 1")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Etapa" })).toBeInTheDocument();
+  });
+});
+
+// T27 (fatos-geradores-ciclo-vida, AD-057): a escrita de Registro saiu desta
+// tela para a aba "Fatos Geradores e Registros" -- a régua/leitura da etapa
+// continua, só o formulário de criação não mora mais aqui.
+describe("/contratos/[id]/etapas/[codigo] — Registro não se cria mais aqui (AD-057, T27)", () => {
+  it("não renderiza nenhum formulário de Registro; a listagem de leitura continua", async () => {
+    buscarRegistrosDaEtapaMock.mockResolvedValue([
+      { idRegistro: 1, tipoRegistro: "Pontapé", ocorridoEm: "2026-09-01", resumo: "Resumo", nomeAutor: "Ana" },
+    ]);
+
+    render(<EtapaContratoPage params={paramsProntos("1", "diagnostico")} />);
+    await screen.findByText("Etapa 1");
+
+    expect(screen.queryByRole("button", { name: /registrar/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Tipo de Registro")).not.toBeInTheDocument();
+    // Leitura permanece: o registro já existente ainda aparece na listagem.
+    expect(await screen.findByText("Pontapé")).toBeInTheDocument();
   });
 });
