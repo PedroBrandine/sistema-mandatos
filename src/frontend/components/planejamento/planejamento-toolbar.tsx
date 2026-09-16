@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { normalizaEntradaPct } from "@/lib/planejamento-formato";
 
-import type { ModoPlanejamento, PermissoesModo } from "./permissoes";
+import type { PermissoesModo } from "./permissoes";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 // (PlanejamentoGrade aplica os filtros de fato).
 export interface PlanejamentoToolbarProps {
   permissoes: PermissoesModo;
-  modo: ModoPlanejamento;
   busca: string;
   onBuscaChange: (valor: string) => void;
   soPendentes: boolean;
@@ -38,7 +37,6 @@ export interface PlanejamentoToolbarProps {
 
 export function PlanejamentoToolbar({
   permissoes,
-  modo,
   busca,
   onBuscaChange,
   soPendentes,
@@ -127,7 +125,7 @@ export function PlanejamentoToolbar({
       )}
 
       <div className="ml-auto flex items-center gap-2">
-        {permissoes.crudHierarquia && modo === "construir" && (
+        {permissoes.crudHierarquia && (
           <Button type="button" variant="outline" size="sm" onClick={onCriarObjetivo}>
             + Objetivo
           </Button>

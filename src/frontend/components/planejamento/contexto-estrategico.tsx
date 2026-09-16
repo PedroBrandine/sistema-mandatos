@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pencil } from "lucide-react";
 
 import type { LinhaEvolucaoGip, PlanejamentoCompleto, PreditorPrioritarioLinha } from "@backend/queries/planejamento";
 
 import { createClient } from "@backend/supabase/client";
 
-import type { ModoPlanejamento, PermissoesModo } from "./permissoes";
+import type { PermissoesModo } from "./permissoes";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 
 import { DadosPlanejamentoForm } from "./dados-planejamento-form";
@@ -57,10 +58,6 @@ export interface ContextoEstrategicoProps {
   evolucaoGip: LinhaEvolucaoGip[];
   produtoNome: string;
   permissoes: PermissoesModo;
-  // PLV-14 AC4: em modo Ler a ação Editar fica AUSENTE. Distinto de
-  // permissoes.crudHierarquia, que é o papel -- uma Gestora tem a capacidade e
-  // ainda assim não vê Editar enquanto estiver lendo.
-  modo: ModoPlanejamento;
   onDadosAlterados: () => void;
 }
 
@@ -70,13 +67,14 @@ export function ContextoEstrategico({
   evolucaoGip,
   produtoNome,
   permissoes,
-  modo,
   onDadosAlterados,
 }: ContextoEstrategicoProps) {
   const [editando, setEditando] = useState(false);
   const [nomePerfil, setNomePerfil] = useState<string | null>(null);
   const preditoresOrdenados = [...preditoresAtuais].sort((a, b) => a.ordem - b.ordem);
-  const podeEditar = permissoes.crudHierarquia && modo !== "ler";
+  // PLV-14 AC4 foi revogada com os modos (AD-059): não há mais modo Ler para
+  // servir de gatilho, então Editar depende só do papel.
+  const podeEditar = permissoes.crudHierarquia;
   const ePll = produtoNome === "PLL";
 
   // PLV-14 AC2. dim_planejamento guarda só id_perfil_atuacao; o nome vem de
@@ -131,25 +129,26 @@ export function ContextoEstrategico({
           />
         ) : (
           <div className="grid gap-3 text-sm">
-            <div className="grid gap-3 md:grid-cols-3">
+            {/* 57:671: cartões EMPILHADOS em largura cheia, com o Editar no canto
+                superior direito de cada um -- não em grade de 3 colunas. Os três
+                campos são textos longos (Análise de conjuntura ocupa parágrafos
+                no mockup); em coluna estreita eles quebram em tiras ilegíveis. */}
+            <div className="grid gap-3">
               {CAMPOS.map(({ titulo, valor }) => (
                 <Card key={titulo}>
                   <CardHeader>
-                    <CardTitle className="text-xs font-medium text-muted-foreground">{titulo}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-3">
-                    <p className="whitespace-pre-line text-foreground">{valor ?? "—"}</p>
+                    <CardTitle className="text-sm font-semibold text-secondary">{titulo}</CardTitle>
                     {podeEditar && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-fit"
-                        onClick={() => setEditando(true)}
-                      >
-                        Editar
-                      </Button>
+                      <CardAction>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setEditando(true)}>
+                          <Pencil className="size-3.5" />
+                          Editar
+                        </Button>
+                      </CardAction>
                     )}
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-line text-foreground">{valor ?? "—"}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -162,7 +161,7 @@ export function ContextoEstrategico({
             {ePll && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-xs font-medium text-muted-foreground">Perfil de atuação</CardTitle>
+                  <CardTitle className="text-sm font-semibold text-secondary">Perfil de atuação</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-foreground">{perfilExibido ?? "—"}</p>

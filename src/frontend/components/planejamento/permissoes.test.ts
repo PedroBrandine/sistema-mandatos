@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { PERMISSOES, type PapelPlanejamento, type PermissoesModo } from "./permissoes";
 
+// AD-059: modosDisponiveis/modoPadrao saíram da matriz junto com o seletor de
+// modo. A tabela abaixo é o espelho de design.md e compara com toEqual, então
+// capacidade que sobrasse no objeto quebraria este arquivo.
+//
 // Spec anchor: PLR-07 (.specs/features/planejamento-estrategico-redesenho/spec.md) --
 // PERMISSOES é a fonte única de verdade de papel×modo -> capacidades; a tabela abaixo é a
 // mesma reproduzida literalmente em design.md ("PERMISSOES -- fonte única de verdade").
@@ -9,8 +13,6 @@ import { PERMISSOES, type PapelPlanejamento, type PermissoesModo } from "./permi
 
 const ESPERADO: Record<PapelPlanejamento, PermissoesModo> = {
   gestora: {
-    modosDisponiveis: ["construir", "monitorar", "ler"],
-    modoPadrao: "monitorar",
     crudHierarquia: true,
     moveHierarquia: true,
     editaPctTodasAsMetas: true,
@@ -21,8 +23,6 @@ const ESPERADO: Record<PapelPlanejamento, PermissoesModo> = {
     veColunaResponsavel: true,
   },
   mentor: {
-    modosDisponiveis: ["monitorar", "ler"],
-    modoPadrao: "monitorar",
     crudHierarquia: false,
     moveHierarquia: false,
     editaPctTodasAsMetas: true,
@@ -33,8 +33,6 @@ const ESPERADO: Record<PapelPlanejamento, PermissoesModo> = {
     veColunaResponsavel: true,
   },
   assessor: {
-    modosDisponiveis: ["monitorar"],
-    modoPadrao: "monitorar",
     crudHierarquia: false,
     moveHierarquia: false,
     editaPctTodasAsMetas: false,
@@ -45,8 +43,6 @@ const ESPERADO: Record<PapelPlanejamento, PermissoesModo> = {
     veColunaResponsavel: false,
   },
   admin: {
-    modosDisponiveis: ["construir", "monitorar", "ler"],
-    modoPadrao: "monitorar",
     crudHierarquia: true,
     moveHierarquia: true,
     editaPctTodasAsMetas: true,
@@ -83,8 +79,7 @@ describe("PERMISSOES", () => {
     expect(PERMISSOES.admin).toEqual(PERMISSOES.gestora);
   });
 
-  it("assessor: só Monitorar, sem CRUD, sem coluna de responsável, sem IIP/incidência/auditoria", () => {
-    expect(PERMISSOES.assessor.modosDisponiveis).toEqual(["monitorar"]);
+  it("assessor: sem CRUD, sem coluna de responsável, sem IIP/incidência/auditoria", () => {
     expect(PERMISSOES.assessor.crudHierarquia).toBe(false);
     expect(PERMISSOES.assessor.veColunaResponsavel).toBe(false);
     expect(PERMISSOES.assessor.veIip).toBe(false);
@@ -116,8 +111,7 @@ describe("PERMISSOES", () => {
     expect(PERMISSOES.gestora.moveHierarquia).toBe(true);
   });
 
-  it("mentor: Monitorar/Ler, sem CRUD, sem auditoria", () => {
-    expect(PERMISSOES.mentor.modosDisponiveis).toEqual(["monitorar", "ler"]);
+  it("mentor: sem CRUD, sem auditoria", () => {
     expect(PERMISSOES.mentor.crudHierarquia).toBe(false);
     expect(PERMISSOES.mentor.veAuditoria).toBe(false);
   });

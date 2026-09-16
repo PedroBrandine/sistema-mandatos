@@ -109,7 +109,6 @@ function DadosPlanejamentoMembro({
         linhas={linhasGrade ?? []}
         pessoasVinculadas={[]}
         permissoes={PERMISSOES.gestora}
-        modo="ler"
         onEdicaoCelula={async () => {}}
         onColarFaixa={async () => {}}
         onHierarquiaAlterada={() => {}}

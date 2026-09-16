@@ -10,12 +10,14 @@
 // tela (impersonation é gap de plataforma, fora de escopo -- Achado 5).
 
 export type PapelPlanejamento = "gestora" | "mentor" | "assessor" | "admin";
-export type ModoPlanejamento = "construir" | "monitorar" | "ler";
 
+// AD-059 (2026-09-16): os três modos (Construir/Monitorar/Ler) saíram da tela e
+// `ModoPlanejamento`, `modosDisponiveis` e `modoPadrao` saíram junto. PLR-08
+// revogada: não há mais matriz de colunas-por-modo nem modo padrão por papel. O
+// nome `PermissoesModo` fica -- renomear tocaria todos os consumidores sem
+// mudar nada de comportamento.
 export interface PermissoesModo {
-  modosDisponiveis: ModoPlanejamento[];
-  modoPadrao: ModoPlanejamento;
-  crudHierarquia: boolean; // criar/editar Objetivo/Meta (modal)
+  crudHierarquia: boolean; // criar/editar Objetivo/Meta (painel lateral)
   moveHierarquia: boolean; // PLV-09 -- reparentar Meta/Sucesso Mensal pelo modal
   editaPctTodasAsMetas: boolean; // Mentor/Gestora/Admin: qualquer Meta da carteira/contrato
   editaPctSóMetasProprias: boolean; // Assessor: só fat_meta.id_usuario_responsavel = auth.uid()
@@ -27,8 +29,6 @@ export interface PermissoesModo {
 
 export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
   gestora: {
-    modosDisponiveis: ["construir", "monitorar", "ler"],
-    modoPadrao: "monitorar",
     crudHierarquia: true,
     moveHierarquia: true,
     editaPctTodasAsMetas: true,
@@ -39,8 +39,6 @@ export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
     veColunaResponsavel: true,
   },
   mentor: {
-    modosDisponiveis: ["monitorar", "ler"],
-    modoPadrao: "monitorar",
     crudHierarquia: false,
     moveHierarquia: false,
     editaPctTodasAsMetas: true,
@@ -51,8 +49,6 @@ export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
     veColunaResponsavel: true,
   },
   assessor: {
-    modosDisponiveis: ["monitorar"],
-    modoPadrao: "monitorar",
     crudHierarquia: false,
     moveHierarquia: false,
     editaPctTodasAsMetas: false,
@@ -63,8 +59,6 @@ export const PERMISSOES: Record<PapelPlanejamento, PermissoesModo> = {
     veColunaResponsavel: false,
   },
   admin: {
-    modosDisponiveis: ["construir", "monitorar", "ler"],
-    modoPadrao: "monitorar",
     crudHierarquia: true,
     moveHierarquia: true,
     editaPctTodasAsMetas: true,

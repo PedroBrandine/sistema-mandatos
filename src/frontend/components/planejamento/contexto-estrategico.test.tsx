@@ -50,9 +50,9 @@ const PLANO_VAZIO: PlanejamentoCompleto = {
 
 function renderiza(
   planejamento: PlanejamentoCompleto,
-  opcoes: { produtoNome?: string; papel?: "gestora" | "assessor"; modo?: "construir" | "monitorar" | "ler" } = {}
+  opcoes: { produtoNome?: string; papel?: "gestora" | "assessor" } = {}
 ) {
-  const { produtoNome = "Estratégia", papel = "gestora", modo = "construir" } = opcoes;
+  const { produtoNome = "Estratégia", papel = "gestora" } = opcoes;
   return render(
     <ContextoEstrategico
       planejamento={planejamento}
@@ -60,7 +60,6 @@ function renderiza(
       evolucaoGip={[]}
       produtoNome={produtoNome}
       permissoes={PERMISSOES[papel]}
-      modo={modo}
       onDadosAlterados={() => {}}
     />
   );
@@ -128,29 +127,24 @@ describe("ContextoEstrategico — Perfil de atuação (PLV-14 AC2)", () => {
   });
 });
 
-describe("ContextoEstrategico — modo e papel (PLV-14 AC4)", () => {
-  it("modo Ler oculta o Editar, mesmo para Gestora", () => {
-    // O papel continua tendo crudHierarquia; quem esconde é o MODO. São dois
-    // eixos distintos, e confundi-los deixaria a Gestora editando sem querer
-    // numa tela que ela abriu para ler.
-    renderiza(PLANO_PREENCHIDO, { papel: "gestora", modo: "ler" });
-    expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
-    expect(PERMISSOES.gestora.crudHierarquia).toBe(true);
-  });
-
-  it("modo Construir mostra o Editar para Gestora", () => {
-    renderiza(PLANO_PREENCHIDO, { papel: "gestora", modo: "construir" });
+describe("ContextoEstrategico — quem vê o Editar (AD-059)", () => {
+  // PLV-14 AC4 ("modo Ler oculta Editar") foi REVOGADA com os modos em
+  // 2026-09-16: não existe mais modo Ler para servir de gatilho. Sobra um eixo
+  // só, o papel. Estes testes são o que restou da AC, não a AC inteira.
+  it("Gestora vê o Editar em cada cartão", () => {
+    renderiza(PLANO_PREENCHIDO, { papel: "gestora" });
     expect(screen.getAllByRole("button", { name: "Editar" })).toHaveLength(3);
   });
 
-  it("Assessor não vê Editar nem em Monitorar", () => {
-    // O outro eixo: sem crudHierarquia não há Editar em modo nenhum.
-    renderiza(PLANO_PREENCHIDO, { papel: "assessor", modo: "monitorar" });
+  it("Assessor não vê Editar", () => {
+    // O outro lado: sem crudHierarquia não há Editar.
+    renderiza(PLANO_PREENCHIDO, { papel: "assessor" });
     expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
+    expect(PERMISSOES.assessor.crudHierarquia).toBe(false);
   });
 
-  it("o conteúdo dos cartões continua visível em modo Ler — some a ação, não o dado", () => {
-    renderiza(PLANO_PREENCHIDO, { papel: "gestora", modo: "ler" });
+  it("Assessor continua vendo o conteúdo dos cartões — some a ação, não o dado", () => {
+    renderiza(PLANO_PREENCHIDO, { papel: "assessor" });
     expect(screen.getByText("Aprovar a lei de creches")).toBeInTheDocument();
   });
 });

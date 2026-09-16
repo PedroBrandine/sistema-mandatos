@@ -7,7 +7,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useSt
 import type { MetaResumo, ObjetivoComMetas, PessoaVinculada, SucessoMensalGrade } from "@backend/queries/planejamento";
 import { createClient } from "@backend/supabase/client";
 
-import type { ModoPlanejamento, PermissoesModo } from "./permissoes";
+import type { PermissoesModo } from "./permissoes";
 
 import { normalizaEntradaPct } from "@/lib/planejamento-formato";
 
@@ -61,7 +61,6 @@ export interface PlanejamentoGradeProps {
   linhas: SucessoMensalGrade[];
   pessoasVinculadas: PessoaVinculada[];
   permissoes: PermissoesModo;
-  modo: ModoPlanejamento;
   // Success Criteria (spec.md "Limpar uma célula de % grava NULL"): `null`
   // é "apagar o valor", nunca erro de validação -- ver handleCommitCelula.
   // PLR-19: a Promise DEVE rejeitar em erro de escrita (nunca engolir e
@@ -259,7 +258,6 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     linhas,
     pessoasVinculadas,
     permissoes,
-    modo,
     onEdicaoCelula,
     onColarFaixa,
     onHierarquiaAlterada,
@@ -423,14 +421,15 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
 
   const nomePorUsuario = useMemo(() => new Map(pessoasVinculadas.map((p) => [p.idUsuario, p.nome])), [pessoasVinculadas]);
 
-  // PLR-08 (modo Construir): preditor/agenda são exibidos pelo nome, não
-  // pelo id -- catálogos carregados uma vez (mesmo padrão de fetch client-side
-  // já usado por ObjetivoForm/DadosPlanejamentoForm pros próprios Selects).
+  // Preditor/agenda são exibidos pelo nome, não pelo id -- catálogos carregados
+  // uma vez (mesmo padrão de fetch client-side já usado por
+  // ObjetivoForm/DadosPlanejamentoForm pros próprios Selects). Antes só
+  // carregavam no modo Construir; com os modos revogados (AD-059) as colunas
+  // estão sempre visíveis, então o catálogo sempre precisa existir.
   const [nomePorPreditor, setNomePorPreditor] = useState<Map<number, string>>(new Map());
   const [nomePorAgenda, setNomePorAgenda] = useState<Map<number, string>>(new Map());
 
   useEffect(() => {
-    if (modo !== "construir") return;
     const supabase = createClient();
     supabase
       .from("ref_preditor")
@@ -440,7 +439,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       .from("ref_agenda_tematica")
       .select("id_agenda, nome")
       .then(({ data }) => setNomePorAgenda(new Map((data ?? []).map((a) => [a.id_agenda, a.nome]))));
-  }, [modo]);
+  }, []);
 
   const linhasPorMeta = useMemo(() => {
     const mapa = new Map<number, SucessoMensalGrade[]>();
@@ -691,8 +690,8 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
           return <span className="text-sm text-muted-foreground">{nome ?? "—"}</span>;
         },
       }),
-      // PLR-08, modo Construir: preditor 1º/2º, agenda, prioridade, classe --
-      // leitura (edição continua via "Editar", que abre ObjetivoForm/MetaForm
+      // Preditor 1º/2º, agenda, prioridade, classe -- leitura (edição continua
+      // pelo painel lateral do item, que abre ObjetivoForm/MetaForm
       // completos) -- ver tasks.md T12 pra rationale do corte de escopo.
       columnHelper.display({
         id: "preditor1",
@@ -927,32 +926,31 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     ]
   );
 
-  // PLR-08: matriz colunas-por-modo (design.md) -- Construir mostra os
-  // atributos da hierarquia (preditores/agenda/prioridade/classe/mês),
-  // Monitorar mostra o dia a dia da grade (data limite + % editável +
-  // situação), Ler é a versão consolidada só-leitura. `responsavel` some
-  // por completo pra quem não tem `veColunaResponsavel` (Assessor), em
-  // qualquer modo. `preditor2` some no PLL (fat_meta.id_preditor_secundario
-  // só existe pra Estratégia/Coalizão, docs/schema_sistema.sql:953).
-  const colunasVisiveisPorModo: Record<string, boolean> = {
+  // AD-059: a matriz colunas-por-modo da PLR-08 morreu com o seletor. O desenho
+  // (227:194) mostra TODAS as colunas ao mesmo tempo -- não há troca. Sobram as
+  // duas exceções que nunca foram sobre modo:
+  //   `responsavel` some para quem não tem veColunaResponsavel (Assessor);
+  //   `preditor2` some no PLL, onde fat_meta.id_preditor_secundario não existe
+  //   (docs/schema_sistema.sql:953).
+  const colunasVisiveis: Record<string, boolean> = {
     arvore: true,
     responsavel: permissoes.veColunaResponsavel,
-    preditor1: modo === "construir",
-    preditor2: modo === "construir" && produtoNome !== "PLL",
-    agenda: modo === "construir",
-    prioridade: modo === "construir",
-    classe: modo === "construir",
-    mes: modo === "construir" || modo === "ler",
-    dataLimite: modo === "monitorar",
+    preditor1: true,
+    preditor2: produtoNome !== "PLL",
+    agenda: true,
+    prioridade: true,
+    classe: true,
+    mes: true,
+    dataLimite: true,
     peso: true,
-    pct: modo !== "construir",
-    situacao: modo !== "construir",
+    pct: true,
+    situacao: true,
     acoes: true,
   };
   const columns = useMemo(
-    () => todasAsColunas.filter((coluna) => colunasVisiveisPorModo[coluna.id ?? ""] !== false),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveisPorModo é recriado a cada render (objeto literal), mas só os valores primitivos abaixo importam pra decidir o filtro.
-    [todasAsColunas, modo, permissoes.veColunaResponsavel, produtoNome]
+    () => todasAsColunas.filter((coluna) => colunasVisiveis[coluna.id ?? ""] !== false),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveis é recriado a cada render (objeto literal), mas só os valores primitivos abaixo importam pra decidir o filtro.
+    [todasAsColunas, permissoes.veColunaResponsavel, produtoNome]
   );
 
   const table = useTable({ features, columns, data: linhasArvore });

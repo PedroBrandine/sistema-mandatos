@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ContextoEstrategico } from "@/components/planejamento/contexto-estrategico";
 import { PlanejamentoAbas } from "@/components/planejamento/planejamento-abas";
-import { type ModoPlanejamento, PERMISSOES } from "@/components/planejamento/permissoes";
+import { PERMISSOES } from "@/components/planejamento/permissoes";
 import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejamento-agregado-coalizao";
 import { PlanejamentoGrade, type PlanejamentoGradeHandle } from "@/components/planejamento/planejamento-grade";
 import { PlanejamentoHeader } from "@/components/planejamento/planejamento-header";
@@ -51,11 +51,11 @@ import { cn } from "@/lib/utils";
 // direita em nenhum estado" continua valendo, agora trivialmente: não há
 // segunda coluna.
 //
-// PlanejamentoGrade (T11) substitui PlanejamentoArvore -- árvore-grade
-// unificada com modos (T12, PLR-08): 3 botões desabilitados quando fora de
-// `permissoes.modosDisponiveis` (nunca escondidos, regra do pedido
-// original). PlanejamentoToolbar (busca/filtros/aplicar em massa) chega em
-// T14/T15, ainda não existe nesta task.
+// PlanejamentoGrade substitui PlanejamentoArvore -- árvore-grade unificada.
+// O seletor Construir/Monitorar/Ler que vivia aqui foi REMOVIDO em 2026-09-16
+// (AD-059): as telas novas não o desenham, e "Construir" como modo colidia com
+// a aba "Construir a estrutura" logo acima dele. A grade mostra um conjunto
+// único de colunas e a edição acontece pelo painel lateral de cada item.
 //
 // Fetch inline via .then() dentro do próprio efeito (mesmo padrão de
 // etapas/[codigo]/page.tsx) -- não via função extraída chamada de dentro do
@@ -82,7 +82,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   // saber o papel real (mesmo raciocínio já usado em outras telas do
   // projeto para "carregando" != "sem permissão").
   const permissoes = PERMISSOES[papel ?? "assessor"];
-  const [modo, setModo] = useState<ModoPlanejamento>(permissoes.modoPadrao);
   const [busca, setBusca] = useState("");
   const [soPendentes, setSoPendentes] = useState(false);
   const [soMinhasMetas, setSoMinhasMetas] = useState(false);
@@ -317,7 +316,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             evolucaoGip={evolucaoGip}
             produtoNome={contrato.nomeProduto}
             permissoes={permissoes}
-            modo={modo}
             onDadosAlterados={() => {
               void recarregarHierarquia();
               void recarregarPreditores();
@@ -326,31 +324,8 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
         }
         estrutura={
           <div className="grid min-w-0 gap-3">
-            {/* PLR-08: seletor de modo -- 3 botões, desabilitado (não escondido)
-                quando fora de permissoes.modosDisponiveis. */}
-            <div className="flex w-fit items-center gap-1 rounded-lg border p-1">
-              {(["construir", "monitorar", "ler"] as const).map((opcao) => {
-                const disponivel = permissoes.modosDisponiveis.includes(opcao);
-                return (
-                  <Button
-                    key={opcao}
-                    type="button"
-                    variant={modo === opcao ? "default" : "ghost"}
-                    size="sm"
-                    disabled={!disponivel}
-                    title={disponivel ? undefined : "Não disponível para o seu papel"}
-                    onClick={() => setModo(opcao)}
-                    className={cn("capitalize", !disponivel && "opacity-50")}
-                  >
-                    {opcao}
-                  </Button>
-                );
-              })}
-            </div>
-
             <PlanejamentoToolbar
               permissoes={permissoes}
-              modo={modo}
               busca={busca}
               onBuscaChange={setBusca}
               soPendentes={soPendentes}
@@ -372,7 +347,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
               linhas={linhasGrade}
               pessoasVinculadas={pessoasVinculadas}
               permissoes={permissoes}
-              modo={modo}
               busca={busca}
               soPendentes={soPendentes}
               soMinhasMetas={soMinhasMetas}
