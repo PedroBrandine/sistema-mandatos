@@ -760,6 +760,282 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-09-11
 - **Status**: active
 
+### AD-047
+- **Decision**: O vínculo entre pessoa e trabalho passa a ter **dois caminhos
+  complementares**, não um só. (a) **Convite** (AD-033, `convite_contrato`) — a
+  Gestora *empurra* acesso a um e-mail específico; token de uso único, nasce já
+  aprovado, porque ela escolheu a pessoa. (b) **Código de acesso** (novo) — a
+  pessoa *puxa* acesso digitando um código compartilhado; nasce **pendente** e
+  só vira vínculo após aprovação, porque qualquer um poderia ter digitado.
+  Ambos terminam na mesma linha de `rel_usuario_contrato`. Esta decisão
+  **estende** a AD-033, não a substitui — o convite continua ativo e válido.
+
+  Sete pontos fixados junto:
+  1. **O código é do contrato, nunca do mandato** — apesar de o Figma
+     (`57:6`, `41:466`) chamá-lo de "Código do Mandato" e exibi-lo na tela do
+     mandato. Um código consumido = uma linha em `rel_usuario_contrato` = acesso
+     a **um** contrato. A tela pode continuar apresentando "o código do contrato
+     vigente deste gabinete"; a semântica no banco é de contrato.
+  2. **Não existe e não existirá `rel_usuario_mandato`.** A carteira do usuário
+     nunca é derivada de mandato.
+  3. **Multi-contrato não ganha mecanismo novo** — a mesma pessoa vinculada a
+     dois contratos em dois momentos já é suportada por `rel_usuario_contrato`
+     (`uq_vinculo` por contrato+usuário+papel, com `dt_inicio`/`dt_fim`).
+     Contrato novo → código novo → linha nova.
+  4. **Vínculo encerrado perde o acesso** — `app.contratos_do_usuario()` mantém
+     o filtro `dt_fim IS NULL OR dt_fim >= CURRENT_DATE` **inalterado**. Acesso
+     de leitura a histórico de contrato encerrado fica fora de escopo; se vier a
+     ser desejado, entra como função separada usada só em tela de leitura,
+     nunca no predicado de RLS de escrita.
+  5. **Conta sem vínculo é conta inerte** — o estado "pendente" reusa
+     `dim_usuario.ativo = false`, sem valor novo em `papel_global`. Alterar o
+     `ck_usuario_papel` para incluir algo como `'pendente'` está **proibido**:
+     `app.custom_access_token_hook` monta a role como `'legisla_' || papel_global`
+     e geraria `legisla_pendente`, role inexistente, quebrando o login.
+  6. **O campo de código é ação permanente dentro da plataforma**, não apenas o
+     passo 3/3 do wizard de cadastro. Quem entra num segundo contrato anos
+     depois já tem conta e nunca mais passa pelo wizard — sem isso, o cenário do
+     ponto 3 não teria caminho na UI, só SQL manual. O passo 3/3 do Figma
+     permanece como atalho opcional ("tenho um código" / "pular"), nunca como
+     porta única.
+  7. **Aprovação** é de Gestora com acesso ao contrato ou Admin, via o predicado
+     `p_por_contrato` já padrão (`app.papel_atual() IN ('admin','gestora') OR
+     id_contrato = ANY(app.contratos_do_usuario())`) — nenhuma lógica de
+     permissão nova, nenhuma noção nova de "gestora responsável".
+- **Reason**: O desenho novo (Figma, 8 telas de login/cadastro/informações
+  gerais) troca o token 1:1 por um código compartilhado e legível, repassado
+  pelo gabinete. Decisão de Pedro em 2026-09-12, depois de levantada a
+  incoerência entre o rótulo "Código do Mandato" e o requisito explícito de que
+  **o assessor não deve ver todos os contratos do mandato**, só aqueles onde tem
+  vínculo. Fixar o código no contrato faz o requisito multi-contrato deixar de
+  ser caso especial e virar consequência do modelo que já existe — zero mudança
+  na espinha de RLS. A aprovação humana não é cortesia de UX: um código
+  `MND-2025-001` tem entropia baixa e reutilizável por desenho, então **o gate
+  da Gestora é o controle que substitui a entropia do token** da AD-033.
+- **Trade-off**: Passam a existir dois caminhos de vínculo para manter, auditar
+  e explicar — quem for mexer em acesso precisa saber qual dos dois está
+  olhando. Em compensação, o caminho novo **não usa `service_role` em ponto
+  nenhum** (a conta nasce pelo próprio Supabase Auth, via Google OAuth ou
+  e-mail/senha no cliente), enquanto o convite da AD-033 depende de
+  `auth.admin.createUser` — ou seja, a superfície privilegiada do sistema
+  diminui, não aumenta. O preço é que o acesso passa a depender de alguém
+  aprovar: código correto digitado às 18h de sexta não vira acesso até uma
+  Gestora abrir a fila. Não há auto-aprovação nem prazo de escalonamento neste
+  desenho.
+- **Scope**: Plataforma (identidade/acesso); `rel_usuario_contrato`,
+  `dim_usuario`, `app.contratos_do_usuario()`; features de login/cadastro e de
+  código/aprovação a serem especificadas; convive com `convite-contrato`.
+- **Date**: 2026-09-12
+- **Status**: active
+
+### AD-048
+- **Decision**: Com cadastro self-service aberto (qualquer pessoa cria conta com
+  Google ou e-mail; a conta nasce inerte por AD-047, ponto 5), o CRUD amplo
+  concedido a `legisla_app` em `0004_plataforma_roles_grants.sql:55`
+  (`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO
+  legisla_app, legisla_admin, legisla_gestora`) **SHALL ser revogado**, por
+  migration forward-only, antes de o cadastro aberto chegar a produção.
+  `legisla_app` passa a receber só o mínimo que a conta inerte precisa (ler o
+  próprio `dim_usuario`, consumir código, ler os catálogos `ref_*` necessários
+  à tela de cadastro).
+- **Reason**: Hoje `legisla_app` é a role de fallback de
+  `app.custom_access_token_hook` para JWT sem `dim_usuario` ativo — e **ninguém
+  a ocupa**, porque não existe conta sem provisionamento manual. Com cadastro
+  aberto ela passa a significar *qualquer pessoa na internet com uma conta
+  Google*. O sistema continua seguro pela RLS (`app.id_usuario()` NULL →
+  `contratos_do_usuario()` = `{}` → toda política nega), mas isso transforma a
+  AD-001 de higiene em **única linha de defesa**: qualquer tabela futura que
+  nasça sem RLS fica integralmente exposta — leitura *e escrita* — a um
+  desconhecido recém-cadastrado. Defesa em profundidade exige que o GRANT
+  também negue, não só a política.
+- **Trade-off**: Enumerar o mínimo necessário para `legisla_app` é trabalho
+  chato e sujeito a erro — uma tela de cadastro que precise de um catálogo novo
+  vai falhar com erro de permissão em vez de simplesmente funcionar, e o
+  sintoma (`permission denied for table`) não aponta para esta decisão. É o
+  preço de não depender de uma única camada. Enquanto esta AD não for
+  implementada, **o cadastro self-service não pode ir para produção**.
+- **Scope**: `legisla_app`; `0004_plataforma_roles_grants.sql` e as migrations
+  que repetem o mesmo GRANT (`0007`, `0008`, `0009`, ...); pré-requisito de
+  release da feature de cadastro aberto.
+- **Date**: 2026-09-12
+- **Status**: active
+
+### AD-049
+- **Decision**: A análise **SWOT do Objetivo Específico** (`oportunidade` e
+  `ameaca`) sai do produto. Nenhuma tela oferece, lê ou grava os dois campos,
+  e nenhum desenho novo pode reintroduzi-los. A remoção é feita **em camadas**:
+  1. **Feito agora** — UI (`objetivo-form.tsx`), Zod (`objetivoEspecificoSchema`),
+     leitura (`ObjetivoComMetas` e o `.select()` de `buscarPlanejamentoCompleto`)
+     e fixtures de teste.
+  2. **Não feito, deliberadamente** — as colunas `fat_objetivo_especifico.oportunidade`
+     e `.ameaca` continuam no banco, com o dado já preenchido. `DROP COLUMN` é
+     decisão separada, a ser tomada quando houver certeza de que o histórico não
+     é necessário.
+- **Reason**: Decisão de produto (Pedro, 2026-09-13) tomada na revisão de telas.
+  Cortar UI e camada de app é reversível em um commit e não perde nada; derrubar
+  a coluna é irreversível por migration (forward-only: não existe "desfazer" que
+  traga o texto de volta). Separar as duas coisas dá o efeito desejado — o campo
+  some do produto hoje — sem apostar o dado histórico numa decisão de desenho.
+- **Trade-off**: Fica uma divergência consciente entre o schema aprovado
+  (`docs/schema_sistema.sql:995-996`, que ainda descreve o SWOT e cita a base de
+  PLL `f_swot` com 88%/72% de preenchimento) e o que o sistema usa. Quem ler só
+  o SQL vai achar que o campo existe. Mitigado pelo registro aqui, pelo
+  comentário nos três arquivos de código e pela §7 do glossário da skill
+  `figma-dominio-legisla`. Specs anteriores (`planejamento-planilha-monitoramento`,
+  PLM-12) permanecem como registro datado — descrevem o que era verdade quando
+  foram escritas, não o que vale agora.
+- **Scope**: Planejamento & Monitoramento; `fat_objetivo_especifico`;
+  `objetivo-form.tsx`, `schemas/planejamento.ts`, `queries/planejamento.ts`.
+- **Date**: 2026-09-13
+- **Status**: active
+
+### AD-050
+- **Decision**: A faixa de KPIs do Dashboard de Estratégia **não tem card
+  "Mandatos em atraso"**. A situação de prazo passa a ser quebra por status
+  (atrasados / atenção / normal) **dentro do card "Mandatos ativos"**, cujas
+  três linhas **somam o número grande**. A faixa passa de 6 para 5 cards.
+- **Reason**: Decisão do Pedro (2026-09-14), na reprovação ao vivo do KPI. A
+  faixa carregava **duas definições concorrentes de atraso** no mesmo card: o
+  número grande media prazo planejado original (`mandatos_em_atraso`) e as três
+  linhas mediam tempo real na etapa atual — bases diferentes por construção
+  (migration `20260914161230`), que nunca fechariam. Com uma definição só e o
+  número grande virando o universo (mandatos ativos), o card passa a ser
+  conferível a olho pela operação.
+- **Trade-off**: **Supersede o conjunto de 6 KPIs de EST-08 AC1**
+  (`redesenho-estrategia-tela-first`), que nomeava "mandatos em atraso" como
+  card próprio — spec aprovada sendo alterada por decisão posterior, registrada
+  aqui em vez de editada lá (forward-only). A coluna `mandatos_em_atraso` fica
+  **órfã** em `vw_estrategia_kpi`: sem consumidor, e impossível de remover sem
+  `DROP VIEW`, que derrubaria a ACL. Nota: o Figma `44:227` já desenhava 5 KPIs
+  sem esse card — a decisão reaproxima a tela do desenho.
+- **Scope**: Dashboard de Estratégia; `vw_estrategia_kpi`; `kpi-row.tsx`,
+  `queries/estrategia-kpi.ts`.
+- **Date**: 2026-09-14
+- **Status**: active
+
+### AD-051
+- **Decision**: A classificação de prazo de um mandato **sem transição de etapa
+  registrada** (`fat_contrato.id_etapa_atual IS NULL`) usa a **etapa de ordem 1**
+  do produto como referência, medindo os dias decorridos desde
+  `fat_contrato.dt_inicio` contra a `duracao_prevista_dias` dessa etapa.
+- **Reason**: Decisão do Pedro (2026-09-14). Alinha KPI e Kanban sob a mesma
+  regra — `buscarBoardKanban` já usa esse fallback para posicionar o card — e
+  faz um mandato parado na largada aparecer como atrasado, que é o fato real.
+  É também o que torna possível o fechamento exigido por AD-050: sem fallback,
+  10 dos 12 contratos de dev ficavam fora de toda linha de status e a soma
+  nunca batia com o número grande.
+- **Trade-off**: **Reverte** a decisão "NÃO CLASSIFICÁVEL" da migration
+  `20260914161230`, que argumentava (AD-005) que classificar um contrato sem
+  transição seria medir sobre dado inexistente. O contra-argumento aceito: a
+  data de início do contrato **existe** e é fato datado — medir a partir dela
+  não inventa nada; o que se assume é apenas que o mandato deveria estar na
+  primeira etapa, que é a mesma suposição que o Kanban já faz visualmente.
+  Permanece fora de qualquer linha o mandato cuja etapa de referência não tem
+  `duracao_prevista_dias` (nenhum caso nos catálogos reais hoje).
+- **Scope**: `vw_estrategia_kpi`; classificação de limiar de etapa (AD-004/AD-045).
+- **Date**: 2026-09-14
+- **Status**: active
+
+### AD-052
+- **Decision**: `app.recalcula_atingimento` passa a filtrar `status = 'ativo'`
+  também no **nível raiz** (Planejamento = média dos Objetivos), espelhando o
+  que o nível 2 já faz com `mm.status = 'ativa'` nas Metas.
+- **Reason**: O Objetivo Específico ganha coluna `status` (PLV-02, tela de
+  set/2026). Sem esse filtro, pausar ou descartar um Objetivo não teria efeito
+  nenhum sobre o número do plano — o campo existiria como enfeite. A assimetria
+  atual (nível 2 filtra, raiz não) só não doía porque o Objetivo não tinha status.
+- **Trade-off**: **Emenda deliberadamente** a decisão de
+  `planejamento-estrategico-redesenho` de não tocar na função aprovada. É
+  migration forward-only nova, com o motivo escrito no arquivo. Efeito colateral
+  aceito: um plano cujos Objetivos estejam todos não-ativos passa a ter
+  `pct_atingimento` nulo (exibido `—`) em vez de uma média de zeros.
+- **Scope**: Planejamento & Monitoramento; `app.recalcula_atingimento`; toda
+  tela que lê `dim_planejamento.pct_atingimento`.
+- **Date**: 2026-09-15
+- **Status**: active
+
+### AD-053
+- **Decision**: A **cadeia** de incidência (Pré-Insight/Insight/Meta → Fato
+  Gerador) é **derivada por view**, nunca persistida. O rótulo "Cadeia A/B/C" é
+  posicional, produzido pela ordenação da consulta — não é identidade, não é
+  nomeável e não é estável entre carregamentos.
+- **Reason**: AD-003 (número de gestão sai de view) e AD-007. A cadeia é uma
+  leitura sobre `rel_fato_origem`, que já carrega todo o vínculo necessário.
+  Persistir criaria um objeto para manter em sincronia toda vez que uma origem
+  mudasse — e a origem muda.
+- **Trade-off**: Não dá para curar cadeia à mão, nomear, anotar ou fixar ordem.
+  Se a operação pedir isso, é decisão nova que supersede esta.
+- **Scope**: Incidência (Ciclo de Vida); Saída.
+- **Date**: 2026-09-15
+- **Status**: active
+
+### AD-054
+- **Decision**: Fato Gerador **projetado** (`situacao = 'projetado'`) não entra
+  em nenhuma métrica de impacto. `mv_iip_contrato` considera apenas
+  `situacao = 'realizado'`.
+- **Reason**: AD-014 — métrica calculada existe em um só lugar, e impacto é
+  sobre o que aconteceu. Projeção é intenção registrada; contá-la inflaria o
+  IIP com resultado que pode nunca ocorrer, e o número chegaria primeiro à área
+  cliente. A própria tela desenhada já declara "Somente realizados".
+- **Trade-off**: O painel precisa de dois contadores separados (realizados e
+  "N projeções em aberto") em vez de um total único. Nenhuma transição é
+  automática: passar da data prevista não realiza o fato.
+- **Scope**: Incidência (IIP); Saída (números de impacto).
+- **Date**: 2026-09-15
+- **Status**: active
+
+### AD-055
+- **Decision**: **Pré-Insight** é entidade própria (`fat_pre_insight`), escopada
+  por contrato, e **coexiste** com o Insight — promover um Pré-Insight não o
+  apaga nem o converte.
+- **Reason**: Decisão de Pedro (2026-09-15). O sinal bruto captado pela
+  assessoria tem valor de rastro mesmo depois de amadurecer: a Linha do Tempo
+  mostra os dois lado a lado, e apagar o original quebraria a reconstrução da
+  história. Tabela própria (em vez de flag em `fat_insight`) porque os dois têm
+  ciclos e autorias distintas.
+- **Trade-off**: Uma entidade a mais na Incidência, com RLS, auditoria e rota de
+  origem próprias. A relação "este Insight nasceu daquele Pré-Insight" fica em
+  aberto para Design — não é resolvida por esta decisão.
+- **Scope**: Incidência; `rel_fato_origem`.
+- **Date**: 2026-09-15
+- **Status**: active
+
+### AD-056
+- **Decision**: A série histórica de atingimento exibida em tela é **derivada**
+  de `fat_sucesso_mensal.mes_referencia` + `peso` + `pct_atingimento`, não
+  fotografada. A curva "Esperado" é a fração do peso total cujo mês já chegou;
+  a "Atingido" é a mesma fração ponderada pelo % informado. Consequência aceita:
+  editar o % de um mês passado **altera retroativamente** o ponto daquele mês.
+- **Reason**: Decisão de Pedro (2026-09-15), respondendo "quanto eu avancei no
+  mês X?". O peso já é obrigatório e já pondera a cascata — a curva sai sem
+  coluna nova e sem job. Fotografar exigiria provisionar `fat_snapshot_mensal`
+  e um fechamento mensal antes de a tela existir, e o snapshot guarda só o % do
+  plano, o que mataria o filtro por responsável.
+- **Trade-off**: Não há como auditar o que foi reportado num mês passado — o
+  número mostrado numa reunião de setembro pode não bater com o da mesma tela em
+  dezembro. Quando isso doer, a saída é `fat_snapshot_mensal` (AD-015) como
+  feature própria de Saída; esta decisão **não** a cancela, adia.
+- **Scope**: Planejamento & Monitoramento (PLV-13); Saída (série histórica).
+- **Date**: 2026-09-15
+- **Status**: active
+
+### AD-057
+- **Decision**: A aba de Incidência do contrato é o **único** ponto de criação e
+  edição de Registro, Pré-Insight, Insight e Fato Gerador. Os formulários saem
+  de `ficha-contrato-chrome.tsx` e da tela de etapa. A Agenda
+  (`/produtos/[slug]/agenda`) **permanece** como visão de calendário.
+- **Reason**: Decisão de Pedro (2026-09-15). Hoje a Incidência se escreve em três
+  telas e se lê numa quarta; a linha do tempo desenhada já exibe as quatro
+  entidades juntas, e ler num lugar e escrever em outro é a incoerência que o
+  redesenho resolve.
+- **Trade-off**: Duas telas em produção perdem função e precisam ser editadas na
+  mesma feature — risco de deixar ponto de entrada órfão. O Registro criado fora
+  do contexto de etapa passa a exigir a etapa explicitamente no formulário, o
+  que antes vinha da rota.
+- **Scope**: Incidência; `ficha-contrato-chrome.tsx`; `/contratos/[id]/etapas/[codigo]`.
+- **Date**: 2026-09-15
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)
@@ -1730,3 +2006,59 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   acima. Depois disso, a Fase 7 de `redesenho-estrategia-tela-first` pode consumir
   o catálogo real.
 - **Branch**: develop.
+
+---
+
+## Handoff (Planejamento Estratégico v2 + Fatos Geradores — SPECIFY concluído, aguardando aceite)
+
+- **Features**: `.specs/features/planejamento-estrategico-v2/` e
+  `.specs/features/fatos-geradores-ciclo-vida/`. Duas features separadas porque
+  são camadas distintas (Planejamento & Monitoramento vs. Incidência, AD-007).
+- **Phase / Task**: Specify concluído nas duas (spec.md + context.md escritos).
+  Discuss rodou ao vivo — 8 decisões de schema tomadas por Pedro em 2026-09-15,
+  todas registradas em `context.md` e as 4 project-level em AD-052..AD-055.
+  **Próximo passo: aceite de Pedro nas duas specs, depois Design.**
+- **Origem**: 8 telas novas do Figma (arquivo `eS5CdQrl6yUdYctZwlDzps`), nós
+  `227:194`, `271:808`, `271:724`, `271:856` (Planejamento) e `108:4`, `109:4`,
+  `118:6`, `118:96` (Fatos Geradores).
+- **Gate de revisão de mockup** (skill `figma-dominio-legisla`, modo 3) rodado
+  antes de qualquer spec: **36 divergências** — 24 de vocabulário, 3 de campo
+  obrigatório ausente, 9 de capacidade nova. As specs nascem com o vocabulário
+  canônico; o mockup é que precisa ser corrigido. Lista de "Invenções já
+  cometidas" da skill atualizada com as novas, mais 3 itens novos de checklist.
+- **4 reincidências** de erros já catalogados: nomes das dimensões D1/D2/D3
+  (voltaram **diferentes entre duas telas do mesmo arquivo**), régua de 5 níveis
+  onde `ref_nivel_iip` tem 4, `dt_ocorrencia` com hora.
+- **Mudanças de schema decididas** (nenhuma aplicada ainda — não há migration
+  escrita):
+  - `fat_objetivo_especifico.status` + emenda a `app.recalcula_atingimento` (AD-052)
+  - `fat_sucesso_mensal.id_usuario_responsavel` e `.ordem`
+  - `fat_pre_insight` (tabela nova, AD-055)
+  - `fat_fato_gerador.situacao` + `.dt_prevista` + `.titulo`
+  - `rel_fato_origem.id_pre_insight` + `.id_registro`, com `ck_fato_origem` afrouxada
+- **Decidido NÃO mudar**: `mes_referencia` continua um mês por Sucesso Mensal.
+  A grade multi-mês do modal é **atalho de criação** — gera N registros irmãos
+  independentes. A cascata aprovada não é tocada por isso.
+- **Estado do código**: nada implementado. Working tree tem a remoção do SWOT
+  (AD-049) em andamento em `objetivo-form.tsx`, `schemas/planejamento.ts`,
+  `queries/planejamento.ts` — coerente com PLV-07, que já assume SWOT ausente.
+- **Restrição conhecida que afeta as duas features**: L-006/L-007 — sem harness
+  de teste de componente, AC puramente de JSX chega ao Verifier sem evidência
+  automatizada. As duas specs trazem "Nota de verificação" mandando Design
+  extrair regra para funções puras.
+- **Segunda rodada com Pedro, mesma sessão** — 3 itens que eu tinha cortado ou
+  subdimensionado voltaram, e dois deles com razão:
+  - **Evolução mensal entra** (PLV-13, AD-056). Eu tinha cortado por não achar
+    origem para a série "Esperado" — ela sai do **peso**, que já é obrigatório.
+    Responde "quanto avancei no mês X?" por `Atingido(M) − Atingido(M−1)`.
+  - **Diagnóstico do plano não era feature nova** (PLV-14, nó `57:671`): são
+    Legado + Objetivo do ano + Análise de conjuntura de `dim_planejamento`, que
+    já existem e já têm formulário (`contexto-estrategico.tsx`, PLR-05), agora
+    numa aba. Perfil de atuação corretamente ausente — é campo só de PLL.
+  - **Registros: falha minha de escopo.** A spec tratava Registro só como item
+    exibido. A aba se chama "Fatos Geradores **e** Registros" e Pedro esperava
+    a escrita. Corrigido: AD-057, FGC-16/17/18.
+- **Fora de escopo, com dono**: fórmula do IIP (decisão D2 segue com a área de
+  conhecimento), aba "Planejado", KPI "12/15" (denominador sem origem),
+  `fat_snapshot_mensal` + job de fechamento (AD-015/AD-056 — feature de Saída,
+  adiada não cancelada), listagem de Registros da Agenda (permanece como está).
