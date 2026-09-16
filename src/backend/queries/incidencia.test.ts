@@ -12,6 +12,7 @@ import {
   buscarPilaresInsight,
   buscarPreInsightsDoContrato,
   buscarRegistrosDaEtapa,
+  buscarRegistrosDoContrato,
   buscarTimelineIncidencia,
   buscarTiposRegistroDaEtapa,
   buscarTipologiasAtivas,
@@ -310,6 +311,46 @@ describe("buscarRegistrosDaEtapa", () => {
       fat_registro: { data: [], error: null },
     });
     expect(await buscarRegistrosDaEtapa(client, 100, 10)).toEqual([]);
+  });
+});
+
+// FGC-16 (T25). Mesmo shape de buscarRegistrosDaEtapa, sem filtro por etapa
+// -- resolve pelos tipos realmente usados nos registros do contrato inteiro.
+describe("buscarRegistrosDoContrato", () => {
+  it("mapeia todos os fat_registro do contrato, sem filtrar por etapa", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_registro: {
+        data: [
+          { id_registro: 1, id_tipo_registro: 5, ocorrido_em: "2026-08-01", resumo: "Reunião ok", id_usuario_autor: 9 },
+          { id_registro: 2, id_tipo_registro: 6, ocorrido_em: "2026-08-02", resumo: null, id_usuario_autor: 9 },
+        ],
+        error: null,
+      },
+      ref_tipo_registro: {
+        data: [
+          { id_tipo_registro: 5, nome: "Monitoramento mensal" },
+          { id_tipo_registro: 6, nome: "Sprint" },
+        ],
+        error: null,
+      },
+      dim_usuario: { data: [{ id_usuario: 9, nome: "Fulano" }], error: null },
+    });
+
+    const resultado = await buscarRegistrosDoContrato(client, 100);
+
+    expect(resultado).toEqual([
+      { idRegistro: 1, tipoRegistro: "Monitoramento mensal", ocorridoEm: "2026-08-01", resumo: "Reunião ok", nomeAutor: "Fulano" },
+      { idRegistro: 2, tipoRegistro: "Sprint", ocorridoEm: "2026-08-02", resumo: null, nomeAutor: "Fulano" },
+    ]);
+    const eqsRegistro = chamadas.filter((c) => c.tabela === "fat_registro" && c.metodo === "eq").map((c) => c.args);
+    expect(eqsRegistro).toEqual([["id_contrato", 100]]);
+    // Nenhum filtro de etapa -- diferença estrutural de buscarRegistrosDaEtapa.
+    expect(chamadas.some((c) => c.tabela === "ref_tipo_registro" && c.metodo === "eq")).toBe(false);
+  });
+
+  it("retorna [] quando o contrato não tem nenhum registro -- lado oposto", async () => {
+    const { client } = criarClienteMock({ fat_registro: { data: [], error: null } });
+    expect(await buscarRegistrosDoContrato(client, 100)).toEqual([]);
   });
 });
 

@@ -210,6 +210,49 @@ export async function buscarRegistrosDaEtapa(
   }));
 }
 
+// FGC-16 (T25, fatos-geradores-ciclo-vida). Achado de Execute: a aba nova é
+// "casa única" das 4 entidades (AD-057) e a Linha do Tempo (PainelDetalhe)
+// precisa do resumo completo de TODOS os registros do contrato, não só os
+// de 1 etapa (buscarRegistrosDaEtapa, escopada de propósito para o form da
+// tela de etapa). Mesmo shape (RegistroResumo), sem filtro por
+// id_tipo_registro -- resolve o nome do tipo pelos tipos realmente usados
+// nos registros do contrato, não pelos da etapa.
+export async function buscarRegistrosDoContrato(
+  client: SupabaseClient<Database>,
+  idContrato: number
+): Promise<RegistroResumo[]> {
+  const { data: registros, error: erroRegistros } = await client
+    .from("fat_registro")
+    .select("id_registro, id_tipo_registro, ocorrido_em, resumo, id_usuario_autor")
+    .eq("id_contrato", idContrato);
+  if (erroRegistros) throw erroRegistros;
+  if (!registros || registros.length === 0) return [];
+
+  const idsTipoRegistro = Array.from(new Set(registros.map((r) => r.id_tipo_registro)));
+  const { data: tipos, error: erroTipos } = await client
+    .from("ref_tipo_registro")
+    .select("id_tipo_registro, nome")
+    .in("id_tipo_registro", idsTipoRegistro);
+  if (erroTipos) throw erroTipos;
+  const nomesPorTipo = new Map((tipos ?? []).map((t) => [t.id_tipo_registro, t.nome]));
+
+  const idsUsuario = Array.from(new Set(registros.map((r) => r.id_usuario_autor)));
+  const { data: usuarios, error: erroUsuarios } = await client
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .in("id_usuario", idsUsuario);
+  if (erroUsuarios) throw erroUsuarios;
+  const nomesPorUsuario = new Map((usuarios ?? []).map((u) => [u.id_usuario, u.nome]));
+
+  return registros.map((r) => ({
+    idRegistro: r.id_registro,
+    tipoRegistro: nomesPorTipo.get(r.id_tipo_registro) ?? "",
+    ocorridoEm: r.ocorrido_em,
+    resumo: r.resumo,
+    nomeAutor: nomesPorUsuario.get(r.id_usuario_autor) ?? "",
+  }));
+}
+
 export interface EncontroResumo {
   idEncontro: number;
   titulo: string;
