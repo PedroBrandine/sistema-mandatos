@@ -19,17 +19,38 @@ import { Textarea } from "@/components/ui/textarea";
 
 const SEM_VINCULO = "_nenhum";
 
-// INC-12, INC-13, INC-14. Componente "burro" quanto a Dialog (mesmo padrão de
-// FatoGeradorForm/UsuarioForm). Chama app.criar_insight (RPC, AD-024) via
-// criarInsight -- insight + até 2 vínculos opcionais (Meta e/ou Sucesso) na
-// mesma transação; id_usuario_autor resolvido no servidor.
+// INC-12, INC-13, INC-14, FGC-18 (T24, fatos-geradores-ciclo-vida). Componente
+// "burro" quanto a Dialog (mesmo padrão de FatoGeradorForm/UsuarioForm).
+// Criação chama app.criar_insight (RPC, AD-024) via criarInsight -- insight +
+// até 2 vínculos opcionais (Meta e/ou Sucesso) na mesma transação;
+// id_usuario_autor resolvido no servidor.
+//
+// T24: edição é UPDATE direto em fat_insight (sem RPC nova) -- só os campos
+// que mapeiam 1:1 na tabela (conteudo, desdobramentos, comprovacao_dados,
+// ocorrido_em, id_pilar, id_registro). Meta/Sucesso de origem ficam de fora
+// do modo edição: mudar vínculo depois de criado tocaria rel_insight_origem
+// (a mesma tabela que AD-024 já trata atomicamente na criação), e nem
+// spec.md nem design.md pedem editar vínculo -- só campo. Os 2 Selects
+// somem quando `insightExistente` está presente, não ficam desabilitados
+// mostrando um valor que a edição não vai gravar.
+export interface InsightExistente {
+  idInsight: number;
+  conteudo: string;
+  desdobramentos: string | null;
+  comprovacaoDados: string | null;
+  ocorridoEm: string | null;
+  idPilar: number | null;
+  idRegistro: number | null;
+}
+
 export interface InsightFormProps {
   idContrato: number;
+  insightExistente?: InsightExistente;
   onConcluido: (criado?: { idInsight: number }) => void;
   onCancelar: () => void;
 }
 
-export function InsightForm({ idContrato, onConcluido, onCancelar }: InsightFormProps) {
+export function InsightForm({ idContrato, insightExistente, onConcluido, onCancelar }: InsightFormProps) {
   const [pilares, setPilares] = useState<RefOption[]>([]);
   const [registros, setRegistros] = useState<RefOption[]>([]);
   const [metas, setMetas] = useState<RefOption[]>([]);
@@ -40,7 +61,17 @@ export function InsightForm({ idContrato, onConcluido, onCancelar }: InsightForm
   const form = useForm<InsightInput>({
     resolver: zodResolver(insightSchema),
     mode: "onChange",
-    defaultValues: { id_contrato: idContrato, conteudo: "" },
+    defaultValues: insightExistente
+      ? {
+          id_contrato: idContrato,
+          conteudo: insightExistente.conteudo,
+          desdobramentos: insightExistente.desdobramentos,
+          comprovacao_dados: insightExistente.comprovacaoDados,
+          ocorrido_em: insightExistente.ocorridoEm,
+          id_pilar: insightExistente.idPilar,
+          id_registro: insightExistente.idRegistro,
+        }
+      : { id_contrato: idContrato, conteudo: "" },
   });
 
   useEffect(() => {
@@ -82,6 +113,30 @@ export function InsightForm({ idContrato, onConcluido, onCancelar }: InsightForm
   async function enviar(valores: InsightInput) {
     setEnviando(true);
     setErro(null);
+
+    if (insightExistente) {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("fat_insight")
+        .update({
+          conteudo: valores.conteudo,
+          desdobramentos: valores.desdobramentos ?? undefined,
+          comprovacao_dados: valores.comprovacao_dados ?? undefined,
+          ocorrido_em: valores.ocorrido_em ?? undefined,
+          id_pilar: valores.id_pilar ?? undefined,
+          id_registro: valores.id_registro ?? undefined,
+        })
+        .eq("id_insight", insightExistente.idInsight);
+
+      setEnviando(false);
+      if (error) {
+        setErro(error.message);
+        return;
+      }
+      onConcluido();
+      return;
+    }
+
     const supabase = createClient();
     try {
       const { idInsight } = await criarInsight(supabase, {
@@ -221,69 +276,71 @@ export function InsightForm({ idContrato, onConcluido, onCancelar }: InsightForm
           )}
         />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="id_meta_origem"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta de origem (opcional)</FormLabel>
-                <Select
-                  value={field.value ? String(field.value) : SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhuma" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhuma</SelectItem>
-                    {metas.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>
-                        {m.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="id_sucesso_origem"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Sucesso Mensal de origem (opcional)</FormLabel>
-                <Select
-                  value={field.value ? String(field.value) : SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
-                    {sucessos.map((s) => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {s.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        {!insightExistente && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="id_meta_origem"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Meta de origem (opcional)</FormLabel>
+                  <Select
+                    value={field.value ? String(field.value) : SEM_VINCULO}
+                    onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Nenhuma" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={SEM_VINCULO}>Nenhuma</SelectItem>
+                      {metas.map((m) => (
+                        <SelectItem key={m.id} value={String(m.id)}>
+                          {m.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="id_sucesso_origem"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sucesso Mensal de origem (opcional)</FormLabel>
+                  <Select
+                    value={field.value ? String(field.value) : SEM_VINCULO}
+                    onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Nenhum" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
+                      {sucessos.map((s) => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {s.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
 
         {erro && <ErroInline mensagem={erro} />}
         <div className="flex gap-2">
           <Button type="submit" disabled={enviando || !form.formState.isValid}>
-            {enviando ? "Salvando..." : "Criar Insight"}
+            {enviando ? "Salvando..." : insightExistente ? "Salvar" : "Criar Insight"}
           </Button>
           <Button type="button" variant="outline" onClick={onCancelar}>
             Cancelar
