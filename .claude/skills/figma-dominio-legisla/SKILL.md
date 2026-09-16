@@ -179,6 +179,15 @@ desenho e viraram pergunta antes de virar código.
 | **Status no Objetivo Específico** | Coluna nova; obriga emendar `app.recalcula_atingimento` para filtrar objetivo não-ativo no nível raiz | PLV-02 |
 | **Responsável no Sucesso Mensal** | Coluna nova, com fallback visual para o responsável da Meta | PLV-03 |
 
+### Tela de Planejamento Estratégico (`227:194`, `57:671`)
+
+| Veio assim | É assim | Onde |
+| --- | --- | --- |
+| Nenhum seletor de modo desenhado, sem nota dizendo que sumiu | A tela em produção tinha **Construir / Monitorar / Ler** (PLR-08). A ausência era decisão real — confirmada por Pedro e revogada em AD-059 —, mas chegou como silêncio, não como decisão. Descoberto só quando a tela rodou em dev | AD-059 |
+| Aba "Diagnóstico (Análise de Conjuntura)" dentro de uma ficha que já tem aba "Diagnóstico" | Dois "Diagnóstico" na mesma tela, significando coisas diferentes — etapa do contrato × três campos de `dim_planejamento`. Só visível montando a navegação inteira | `ficha-contrato-chrome.tsx` |
+| Modo "Construir" logo abaixo da aba "Construir a estrutura" | Mesma palavra, dois significados, empilhados | AD-059 |
+| `227:194` com a aba "Diagnóstico" sublinhada exibindo KPIs, árvore e gráfico | Conteúdo de "Construir a estrutura" — o próprio mockup se contradiz entre dois nós | `57:671` |
+
 ## Checklist de revisão de mockup
 
 Percorra na ordem. Qualquer "não" para o desenho antes de virar spec.
@@ -194,6 +203,16 @@ Percorra na ordem. Qualquer "não" para o desenho antes de virar spec.
 - [ ] Nenhum campo da §7 do glossário (removidos do produto — hoje: Oportunidade e Ameaça/SWOT no Objetivo Específico) reapareceu?
 - [ ] Cores respeitam a codificação de produto (verde/turquesa/roxo) e o significado de coral/bege?
 - [ ] Data sem hora onde a coluna é `DATE`?
+- [ ] **O que a tela tem hoje e o desenho novo NÃO mostra?** Percorra a tela em
+      produção ao lado do mockup e liste o que sumiu: seletor, botão, coluna,
+      filtro. Ausência é decisão tanto quanto invenção — e não se anuncia. Um
+      controle que o redesenho descartou continua sendo implementado por inércia
+      se ninguém perguntar; um que sumiu por descuido do desenho volta caro
+      depois. As duas saídas são legítimas, nenhuma pode ficar implícita.
+- [ ] O mesmo nome aparece duas vezes na tela montada, significando coisas
+      diferentes? Conte a navegação de fora para dentro — barra do app, barra da
+      ficha, abas internas, seletores. Colisão não se enxerga olhando só o nó
+      desenhado.
 - [ ] **A mesma coisa tem o mesmo nome em todas as telas do arquivo?** Dois
       rótulos diferentes para o mesmo campo em telas distintas é a assinatura
       de campo preenchido por plausibilidade — foi assim que D1/D2/D3 caíram

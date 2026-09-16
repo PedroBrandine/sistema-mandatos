@@ -2025,6 +2025,49 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 
 ---
 
+### AD-059
+- **Decision**: O seletor de modo **Construir / Monitorar / Ler** sai da tela de
+  Planejamento Estratégico. **PLR-08 fica revogada**: acabam os três modos, a
+  matriz de colunas-por-modo e o modo padrão por papel. A grade passa a mostrar
+  um conjunto único de colunas, e a edição acontece pelo painel lateral de cada
+  item (lápis na linha). `PermissoesModo.modosDisponiveis` e `modoPadrao` deixam
+  de existir.
+- **Reason**: Decisão de Pedro (2026-09-16), olhando a tela em dev ao lado do
+  Figma: "esses botões são confusos e não precisamos deles". As telas novas
+  (`227:194`, `57:671`, `271:724`) **não desenham o seletor** — o que só foi
+  percebido agora porque a revisão de mockup de 2026-09-15 procurou termo
+  inventado e campo obrigatório ausente, e nunca perguntou o inverso: *o que o
+  desenho novo deixou de mostrar que hoje existe na tela*. Somava-se a isso uma
+  colisão de nome visível na tela: a aba "Construir a estrutura" logo acima de um
+  modo também chamado "Construir".
+- **Trade-off**: A PLR-08 era requisito inteiro da feature anterior, com teste e
+  design escritos — some sem substituto. Perde-se a capacidade de abrir o plano
+  numa vista consolidada de leitura: **PLV-14 AC4 fica sem gatilho**, e a ação
+  Editar do Diagnóstico passa a depender só de `permissoes.crudHierarquia`. O
+  `somenteLeitura` da Coalizão sem planejamento próprio **não** é afetado — sempre
+  foi prop independente, nunca derivada do modo.
+- **Scope**: `planejamento-grade.tsx`, `planejamento-toolbar.tsx`,
+  `contexto-estrategico.tsx`, `permissoes.ts`, `page.tsx` do Planejamento.
+- **Date**: 2026-09-16
+- **Status**: active
+
+### AD-060
+- **Decision**: O layout das telas do Figma vale; o **vocabulário delas não**.
+  Onde o mockup exibe termo fora do enum canônico, vale o canônico, sem exceção.
+- **Reason**: Pedro (2026-09-16): "a tela do Figma está perfeita, quero ver
+  exatamente aquilo em dev". A intenção é de layout, mas `227:194` exibe "Em
+  planejamento", "Institucional", "Predicado 1º", "Comunicação", "Presencial" e
+  valores de `ref_agenda_tematica` como se aprovados — seis das 17 divergências
+  já catalogadas e decididas contra o mockup em 2026-09-15. `ck_meta_status` não
+  aceita "Em planejamento": implementar "exatamente aquilo" estouraria no INSERT.
+- **Trade-off**: A tela entregue **não** será pixel-idêntica ao mockup, e a
+  diferença é de texto — o tipo mais fácil de ler como erro de implementação. Por
+  isso a decisão fica registrada aqui, e não só no commit.
+- **Scope**: planejamento-estrategico-v2; qualquer feature que nasça deste arquivo
+  do Figma.
+- **Date**: 2026-09-16
+- **Status**: active
+
 ## Handoff (Planejamento Estratégico v2 + Fatos Geradores — SPECIFY concluído, aguardando aceite)
 
 - **Features**: `.specs/features/planejamento-estrategico-v2/` e

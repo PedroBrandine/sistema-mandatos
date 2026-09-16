@@ -39,6 +39,36 @@ corrigido, não o contrário.
 - [ ] Tela em duas abas: **Diagnóstico (Análise de Conjuntura)** e
       **Construir a estrutura**.
 
+## Emenda de 2026-09-16 — os modos saem da tela
+
+Pedro abriu a tela em dev ao lado do Figma e apontou o seletor
+**Construir / Monitorar / Ler**: "esses botões são confusos e não precisamos
+deles". Conferido contra os nós `227:194`, `57:671` e `271:724`: **nenhum desenha
+o seletor**. Registrado em **AD-059**.
+
+O que isso muda:
+
+| Antes (PLR-08) | Agora |
+| --- | --- |
+| 3 modos, modo padrão por papel | nenhum modo |
+| Matriz de colunas por modo | conjunto único de colunas |
+| Edição de atributo por modo Construir | painel lateral por item (lápis na linha) |
+| `modosDisponiveis` / `modoPadrao` em `PermissoesModo` | removidos |
+
+**Por que a revisão de mockup não pegou isso.** As 17 divergências de 2026-09-15
+são todas do tipo *"o desenho mostra algo que o domínio não aceita"*. Nenhuma é
+do tipo *"o desenho deixou de mostrar algo que a tela hoje tem"*. A skill
+`figma-dominio-legisla` ganhou item de checklist para esse inverso.
+
+**Fidelidade é de layout, não de vocabulário** (AD-060). `227:194` exibe "Em
+planejamento", "Institucional", "Predicado 1º" e valores de agenda temática como
+aprovados — já decididos contra o mockup. Vale o canônico.
+
+**Inconsistência do próprio mockup**: em `227:194` a aba sublinhada é
+"Diagnóstico (Análise de Conjuntura)", mas o conteúdo é a estrutura (KPIs, árvore,
+gráfico). Tratado como conteúdo de "Construir a estrutura". O rodapé "Arraste os
+itens para reordenar" não é implementado — é a T24, cortada por Pedro.
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -341,9 +371,14 @@ PLR-05). Esta story **reapresenta**, não constrói do zero.
    nos demais produtos SHALL omiti-lo (comportamento já existente).
 3. WHEN um campo está vazio THEN o cartão SHALL exibir `—` (AD-005) e manter a
    ação Editar disponível — nunca esconder o cartão.
-4. WHEN o usuário está em modo **Ler** THEN a ação Editar SHALL estar ausente.
+4. ~~WHEN o usuário está em modo **Ler** THEN a ação Editar SHALL estar
+   ausente.~~ **Revogada em 2026-09-16 (AD-059)**: os três modos saíram da tela,
+   então não há mais modo Ler para servir de gatilho. A ação Editar passa a
+   depender só de `permissoes.crudHierarquia`.
 5. WHEN a aba **Construir a estrutura** é selecionada THEN SHALL exibir a
    árvore-grade, e a aba ativa SHALL persistir na navegação.
+6. WHEN os três cartões são exibidos THEN SHALL ser empilhados em largura cheia,
+   com a ação Editar no canto superior direito de cada cartão (`57:671`).
 
 **Independent Test**: plano sem `legado` preenchido mostra o cartão com `—` e o
 botão Editar funcionando.
