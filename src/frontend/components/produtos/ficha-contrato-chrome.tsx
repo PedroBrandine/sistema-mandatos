@@ -2,18 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { notFound, usePathname } from "next/navigation";
-import { toast } from "sonner";
 
 import { createClient } from "@backend/supabase/client";
 import { buscarContratoParaFicha, type ContratoParaFicha } from "@backend/queries/contrato";
 
 import { RouteTabs, type RouteTabItem } from "@/components/app-shell/route-tabs";
-import { FatoGeradorForm } from "@/components/incidencia/fato-gerador-form";
 import { IipCard } from "@/components/incidencia/iip-card";
-import { InsightForm } from "@/components/incidencia/insight-form";
-import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 interface FichaContratoChromeProps {
@@ -34,12 +29,6 @@ interface FichaContratoChromeProps {
 export function FichaContratoChrome({ idContrato, children }: FichaContratoChromeProps) {
   const pathname = usePathname();
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
-  const [dialogInsightAberto, setDialogInsightAberto] = useState(false);
-  const [dialogFatoGeradorAberto, setDialogFatoGeradorAberto] = useState(false);
-  // T31: força IipCard a remontar (e refazer o refresh síncrono de
-  // mv_iip_contrato) depois de um Fato Gerador novo -- Insight não afeta o
-  // IIP, não precisa disso.
-  const [iipRefreshKey, setIipRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
@@ -113,50 +102,10 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <IipCard key={iipRefreshKey} idContrato={idContrato} />
-
-            <Dialog open={dialogInsightAberto} onOpenChange={setDialogInsightAberto}>
-              <DialogTrigger asChild>
-                <Button type="button" variant="outline" size="sm">
-                  Registrar Insight
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Registrar Insight</DialogTitle>
-                </DialogHeader>
-                <InsightForm
-                  idContrato={idContrato}
-                  onConcluido={() => {
-                    setDialogInsightAberto(false);
-                    toast.success("Insight registrado com sucesso!");
-                  }}
-                  onCancelar={() => setDialogInsightAberto(false)}
-                />
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={dialogFatoGeradorAberto} onOpenChange={setDialogFatoGeradorAberto}>
-              <DialogTrigger asChild>
-                <Button type="button" variant="outline" size="sm">
-                  Registrar Fato Gerador
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Registrar Fato Gerador</DialogTitle>
-                </DialogHeader>
-                <FatoGeradorForm
-                  idContrato={idContrato}
-                  onConcluido={() => {
-                    setDialogFatoGeradorAberto(false);
-                    setIipRefreshKey((k) => k + 1);
-                    toast.success("Fato Gerador registrado com sucesso!");
-                  }}
-                  onCancelar={() => setDialogFatoGeradorAberto(false)}
-                />
-              </DialogContent>
-            </Dialog>
+            {/* Registrar Insight / Registrar Fato Gerador saíram daqui
+                (AD-057): a aba "Fatos Geradores e Registros" (T25) é agora a
+                casa única de escrita das 4 entidades de Incidência. */}
+            <IipCard idContrato={idContrato} />
           </div>
         </div>
 

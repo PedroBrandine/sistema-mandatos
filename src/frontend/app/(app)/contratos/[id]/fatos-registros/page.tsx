@@ -68,6 +68,12 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
   }, [idContrato]);
 
   useEffect(() => {
+    // set-state-in-effect é falso-positivo aqui (mesmo racional de
+    // encontros-lista.tsx): todo setState de `carregarTudo` roda depois do
+    // `await Promise.all`, nunca síncrono ao efeito. `carregarTudo` não pode
+    // ser declarada dentro do efeito porque os 4 onConcluido do menu Criar
+    // também a chamam para recarregar sem sair da aba (AC8).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void carregarTudo();
   }, [carregarTudo]);
 

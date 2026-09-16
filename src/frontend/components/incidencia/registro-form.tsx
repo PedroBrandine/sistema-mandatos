@@ -98,10 +98,12 @@ export function RegistroForm({ idContrato, idEtapa, registroExistente, onConclui
   }, [idContrato, precisaEscolherEtapa]);
 
   useEffect(() => {
-    if (etapaEfetiva == null) {
-      setTipos([]);
-      return;
-    }
+    // Sem `setTipos([])` aqui de propósito (achado de lint,
+    // react-hooks/set-state-in-effect): `tipos` já nasce `[]` (useState
+    // acima) e `etapaEfetiva` só transiciona null -> valor nesta UI (nunca
+    // volta a null depois de escolhida) -- reafirmar `[]` só custaria um
+    // render extra sem mudar nada visível.
+    if (etapaEfetiva == null) return;
     const supabase = createClient();
     void buscarTiposRegistroDaEtapa(supabase, etapaEfetiva).then(setTipos);
     void buscarEncontrosDoContrato(supabase, idContrato).then((lista) =>

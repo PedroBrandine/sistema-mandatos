@@ -126,6 +126,16 @@ describe("FichaContratoChrome (FMC-01..04)", () => {
     await screen.findByRole("link", { name: "Fatos Geradores e Registros" });
   });
 
+  it("não oferece mais 'Registrar Insight'/'Registrar Fato Gerador' (AD-057, T26) -- a escrita migrou para a aba", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+    await screen.findByRole("link", { name: "Informações Gerais" });
+
+    expect(screen.queryByRole("button", { name: "Registrar Insight" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar Fato Gerador" })).not.toBeInTheDocument();
+  });
+
   it("enquanto o contrato carrega, não renderiza a barra de abas (estado de carregamento)", () => {
     buscarContratoParaFichaMock.mockReturnValue(new Promise(() => {}));
 

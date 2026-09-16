@@ -33,8 +33,6 @@ async function makeFixture(label: string): Promise<Fixture> {
 let fixture: Fixture;
 let idTipologia: number;
 let idUsuario: number;
-let idPreInsight: number;
-let idRegistro: number;
 let idInsightComum: number;
 let idFatoOrigemComumA: number;
 let idFatoOrigemComumB: number;
@@ -55,21 +53,18 @@ describe("fatos-geradores-ciclo-vida T5 -- vw_timeline_incidencia + vw_cadeia_in
       await runSql<{ id_tipo_registro: number }>(`SELECT id_tipo_registro FROM ref_tipo_registro ORDER BY id_tipo_registro LIMIT 1;`)
     )[0].id_tipo_registro;
 
-    idPreInsight = (
-      await runSql<{ id_pre_insight: number }>(`
-        INSERT INTO fat_pre_insight (id_contrato, conteudo, ocorrido_em, id_usuario_autor)
-        VALUES (${fixture.idContrato}, 'FGC T5 pre-insight', '2026-08-01', ${idUsuario})
-        RETURNING id_pre_insight;
-      `)
-    )[0].id_pre_insight;
+    // id_pre_insight/id_registro não são usados depois -- estas 2 linhas só
+    // precisam existir pra vw_timeline_incidencia ter os 4 tipos (asserção é
+    // por Set de "tipo", não por id, linha ~153).
+    await runSql(`
+      INSERT INTO fat_pre_insight (id_contrato, conteudo, ocorrido_em, id_usuario_autor)
+      VALUES (${fixture.idContrato}, 'FGC T5 pre-insight', '2026-08-01', ${idUsuario});
+    `);
 
-    idRegistro = (
-      await runSql<{ id_registro: number }>(`
-        INSERT INTO fat_registro (id_contrato, id_tipo_registro, ocorrido_em, resumo, id_usuario_autor)
-        VALUES (${fixture.idContrato}, ${idTipoRegistro}, '2026-08-05T10:00:00Z', 'FGC T5 registro', ${idUsuario})
-        RETURNING id_registro;
-      `)
-    )[0].id_registro;
+    await runSql(`
+      INSERT INTO fat_registro (id_contrato, id_tipo_registro, ocorrido_em, resumo, id_usuario_autor)
+      VALUES (${fixture.idContrato}, ${idTipoRegistro}, '2026-08-05T10:00:00Z', 'FGC T5 registro', ${idUsuario});
+    `);
 
     idInsightComum = (
       await runSql<{ id_insight: number }>(`
