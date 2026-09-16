@@ -71,6 +71,50 @@ describe("criarFatoGerador", () => {
     expect(resultado).toEqual({ idFatoGerador: 42 });
   });
 
+  // T9 (fatos-geradores-ciclo-vida), FGC-06/FGC-09/FGC-15: os 5 parâmetros
+  // novos de T6 (titulo/situacao/dt_prevista/pre_insight/registro) mapeados
+  // corretamente quando todos presentes.
+  it("sucesso: mapeia os 5 campos novos (titulo/situacao/dtPrevista/idPreInsightOrigem/idRegistroOrigem)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: 43, error: null });
+
+    const resultado = await criarFatoGerador(client, {
+      idContrato: 1,
+      idTipologia: 2,
+      nivelD1: "alto",
+      titulo: "Sanção esperada do projeto de lei",
+      situacao: "projetado",
+      dtPrevista: "2026-12-01",
+      idPreInsightOrigem: 9,
+      idRegistroOrigem: 11,
+    });
+
+    expect(chamadas[0]).toEqual({
+      fn: "criar_fato_gerador",
+      params: {
+        p_id_contrato: 1,
+        p_id_tipologia: 2,
+        p_nivel_d1: "alto",
+        p_nivel_d2: undefined,
+        p_nivel_d3: undefined,
+        p_id_preditor_1: undefined,
+        p_id_preditor_2: undefined,
+        p_contribuicao_legisla: undefined,
+        p_descricao_evidencia: undefined,
+        p_dt_ocorrencia: undefined,
+        p_id_meta_origem: undefined,
+        p_id_insight_origem: undefined,
+        p_titulo: "Sanção esperada do projeto de lei",
+        p_situacao: "projetado",
+        p_dt_prevista: "2026-12-01",
+        p_id_pre_insight_origem: 9,
+        p_id_registro_origem: 11,
+      },
+    });
+    expect(resultado).toEqual({ idFatoGerador: 43 });
+  });
+
+  // Compat retroativa (T9): payload sem nenhum dos 5 campos novos continua
+  // válido -- todos viram `undefined` no RPC (DEFAULT do banco assume, T6).
   it("sucesso: payload mínimo omite os campos opcionais ausentes (undefined, não null)", async () => {
     const { client, chamadas } = criarClienteMock({ data: 7, error: null });
 
@@ -91,6 +135,11 @@ describe("criarFatoGerador", () => {
         p_dt_ocorrencia: undefined,
         p_id_meta_origem: undefined,
         p_id_insight_origem: undefined,
+        p_titulo: undefined,
+        p_situacao: undefined,
+        p_dt_prevista: undefined,
+        p_id_pre_insight_origem: undefined,
+        p_id_registro_origem: undefined,
       },
     });
     expect(resultado).toEqual({ idFatoGerador: 7 });
