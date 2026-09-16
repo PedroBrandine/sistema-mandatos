@@ -1,3 +1,13 @@
+// ficha-mandato-contrato T24: `npm run db:types` foi bloqueado nesta sessão
+// (classificador do harness recusou o comando `supabase` mesmo read-only), e
+// o schema de rel_mandato_agenda_tematica + as colunas novas de dim_mandato/
+// fat_contrato (T4/T6, já aplicadas em dev) não estavam neste arquivo --
+// buscarInformacoesGeraisMandato (queries/ficha-mandato.ts) é o primeiro
+// consumidor. Os trechos foram acrescentados manualmente, verbatim das
+// migrations `20260916115851_ficha_mandato_agenda_tematica.sql` e
+// `20260916120031_ficha_colunas_mandato_contrato.sql` -- a próxima
+// `db:types` real deve reproduzir o mesmo resultado; se divergir, o real
+// vence.
 export type Json =
   | string
   | number
@@ -426,12 +436,14 @@ export type Database = {
           id_mandato: number
           id_mandato_legado: number | null
           id_partido_atual: number | null
+          minibiografia: string | null
           nm_civil: string | null
           nm_social: string | null
           nm_urna: string | null
           nr_titulo_eleitoral: string | null
           origem_partido_cargo: string | null
           potencial_futuro: string | null
+          principais_pautas: string[] | null
           relevancia_politica: string | null
           risco_democratico: string | null
         }
@@ -449,12 +461,14 @@ export type Database = {
           id_mandato?: number
           id_mandato_legado?: number | null
           id_partido_atual?: number | null
+          minibiografia?: string | null
           nm_civil?: string | null
           nm_social?: string | null
           nm_urna?: string | null
           nr_titulo_eleitoral?: string | null
           origem_partido_cargo?: string | null
           potencial_futuro?: string | null
+          principais_pautas?: string[] | null
           relevancia_politica?: string | null
           risco_democratico?: string | null
         }
@@ -472,12 +486,14 @@ export type Database = {
           id_mandato?: number
           id_mandato_legado?: number | null
           id_partido_atual?: number | null
+          minibiografia?: string | null
           nm_civil?: string | null
           nm_social?: string | null
           nm_urna?: string | null
           nr_titulo_eleitoral?: string | null
           origem_partido_cargo?: string | null
           potencial_futuro?: string | null
+          principais_pautas?: string[] | null
           relevancia_politica?: string | null
           risco_democratico?: string | null
         }
@@ -659,6 +675,7 @@ export type Database = {
           id_partido_no_contrato: number | null
           id_produto: number
           id_projeto: number | null
+          id_usuario_ponto_focal: number | null
           localizador_legado: string | null
           motivo_encerramento: string | null
           profundidade_impacto: string | null
@@ -678,6 +695,7 @@ export type Database = {
           id_partido_no_contrato?: number | null
           id_produto: number
           id_projeto?: number | null
+          id_usuario_ponto_focal?: number | null
           localizador_legado?: string | null
           motivo_encerramento?: string | null
           profundidade_impacto?: string | null
@@ -697,6 +715,7 @@ export type Database = {
           id_partido_no_contrato?: number | null
           id_produto?: number
           id_projeto?: number | null
+          id_usuario_ponto_focal?: number | null
           localizador_legado?: string | null
           motivo_encerramento?: string | null
           profundidade_impacto?: string | null
@@ -793,6 +812,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_projeto"
             referencedColumns: ["id_projeto"]
+          },
+          {
+            foreignKeyName: "fat_contrato_id_usuario_ponto_focal_fkey"
+            columns: ["id_usuario_ponto_focal"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
           },
         ]
       }
@@ -3664,6 +3690,36 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vw_sucesso_mensal"
             referencedColumns: ["id_sucesso"]
+          },
+        ]
+      }
+      rel_mandato_agenda_tematica: {
+        Row: {
+          id_agenda: number
+          id_mandato: number
+        }
+        Insert: {
+          id_agenda: number
+          id_mandato: number
+        }
+        Update: {
+          id_agenda?: number
+          id_mandato?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rel_mandato_agenda_tematica_id_agenda_fkey"
+            columns: ["id_agenda"]
+            isOneToOne: false
+            referencedRelation: "ref_agenda_tematica"
+            referencedColumns: ["id_agenda"]
+          },
+          {
+            foreignKeyName: "rel_mandato_agenda_tematica_id_mandato_fkey"
+            columns: ["id_mandato"]
+            isOneToOne: false
+            referencedRelation: "dim_mandato"
+            referencedColumns: ["id_mandato"]
           },
         ]
       }
