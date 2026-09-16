@@ -19,11 +19,25 @@ describe("registroSchema", () => {
       nr_sequencia: 3,
       id_encontro: 4,
       ocorrido_em: "2026-08-14T12:00:00Z",
-      canal: "presencial",
       resumo: "Reunião de monitoramento mensal",
       conteudo: {},
     });
     expect(resultado.success).toBe(true);
+  });
+
+  // FMC-19 (spec.md P1 Registro AC11): o formulário de Registro não oferece o
+  // campo Canal -- o schema não aceita mais a chave, mesmo que o chamador a
+  // envie (Zod descarta chave desconhecida por padrão em .safeParse de objeto
+  // sem .strict()); o valor não afeta o resultado.
+  it("ignora um campo canal enviado pelo chamador -- não é mais parte do schema (FMC-19)", () => {
+    const resultado = registroSchema.safeParse({
+      id_contrato: 1,
+      id_tipo_registro: 2,
+      ocorrido_em: "2026-08-14T12:00:00Z",
+      canal: "presencial",
+    });
+    expect(resultado.success).toBe(true);
+    expect(resultado.success && "canal" in resultado.data).toBe(false);
   });
 
   it("rejeita ausência de id_contrato", () => {
@@ -45,27 +59,6 @@ describe("registroSchema", () => {
   it("rejeita ausência de ocorrido_em", () => {
     const resultado = registroSchema.safeParse({ id_contrato: 1, id_tipo_registro: 2 });
     expect(resultado.success).toBe(false);
-  });
-
-  // espelha ck_registro_canal
-  it("rejeita canal fora do domínio aprovado", () => {
-    const resultado = registroSchema.safeParse({
-      id_contrato: 1,
-      id_tipo_registro: 2,
-      ocorrido_em: "2026-08-14T12:00:00Z",
-      canal: "whatsapp",
-    });
-    expect(resultado.success).toBe(false);
-  });
-
-  it("aceita canal nulo", () => {
-    const resultado = registroSchema.safeParse({
-      id_contrato: 1,
-      id_tipo_registro: 2,
-      ocorrido_em: "2026-08-14T12:00:00Z",
-      canal: null,
-    });
-    expect(resultado.success).toBe(true);
   });
 
   // espelha ck_registro_sequencia
