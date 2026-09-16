@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 39,
+  "next_id": 43,
   "lessons": [
     {
       "id": "L-003",
@@ -652,6 +652,78 @@
       ],
       "created": "2026-08-31T03:44:03Z",
       "last_seen": "2026-08-31T03:44:03Z"
+    },
+    {
+      "id": "L-039",
+      "key": "ac_gap::when tasks splits build edit mode into a form and wire a ui trigger to it across different tasks verify the later task actually connects a real click path to the new prop before marking the capability done a form accepting an edit prop is not the same as a screen ever passing it",
+      "text": "When Tasks splits 'build edit-mode into a form' and 'wire a UI trigger to it' across different tasks, verify the later task actually connects a real click path to the new prop before marking the capability done -- a form accepting an edit prop is not the same as a screen ever passing it.",
+      "signal": "ac_gap",
+      "scope": "frontend/forms",
+      "status": "candidate",
+      "features": [
+        "fatos-geradores-ciclo-vida"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md 'A aba como casa única' AC2 -- validation.md, corrigido no commit f036350 (frontend/forms)"
+      ],
+      "created": "2026-09-16T21:26:18Z",
+      "last_seen": "2026-09-16T21:26:18Z"
+    },
+    {
+      "id": "L-040",
+      "key": "spec_precision_gap::when a concurrent feature removes a field from a shared schema or form update this feature s own spec md to match instead of letting it silently describe a field that no longer exists in the shipped code",
+      "text": "When a concurrent feature removes a field from a shared schema or form, update this feature's own spec.md to match instead of letting it silently describe a field that no longer exists in the shipped code.",
+      "signal": "spec_precision_gap",
+      "scope": "specs",
+      "status": "candidate",
+      "features": [
+        "fatos-geradores-ciclo-vida"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md 'A aba como casa única' AC5 -- validation.md, campo Canal removido por FMC-19 antes de esta feature tocar o arquivo (specs)"
+      ],
+      "created": "2026-09-16T21:26:24Z",
+      "last_seen": "2026-09-16T21:26:24Z"
+    },
+    {
+      "id": "L-041",
+      "key": "ac_gap::for an on delete cascade fk based invariant e g deleting an origin removes only the link not the linked record add an integration test that performs the actual delete and asserts the dependent row survives schema shape alone is not evidence of runtime behavior",
+      "text": "For an ON DELETE CASCADE / FK-based invariant (e.g. deleting an origin removes only the link, not the linked record), add an integration test that performs the actual DELETE and asserts the dependent row survives -- schema shape alone is not evidence of runtime behavior.",
+      "signal": "ac_gap",
+      "scope": "supabase/migrations",
+      "status": "candidate",
+      "features": [
+        "fatos-geradores-ciclo-vida"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md 'Registro e Pré-Insight como origem' AC4 -- validation.md (supabase/migrations)"
+      ],
+      "created": "2026-09-16T21:26:30Z",
+      "last_seen": "2026-09-16T21:26:30Z"
+    },
+    {
+      "id": "L-042",
+      "key": "spec_precision_gap::when a new composite component reuses an existing unmodified child component don t assume the child s literal spec required text is verified by the new component s own tests cite the child s existing test file explicitly or add a direct assertion in the new test",
+      "text": "When a new composite component reuses an existing, unmodified child component, don't assume the child's literal spec-required text is verified by the new component's own tests -- cite the child's existing test file explicitly or add a direct assertion in the new test.",
+      "signal": "spec_precision_gap",
+      "scope": "frontend/components",
+      "status": "candidate",
+      "features": [
+        "fatos-geradores-ciclo-vida"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md 'Ciclo de Vida com cadeias' AC6 -- validation.md, incidencia-kpis.test.tsx não afirma o texto '(provisório)' (frontend/components)"
+      ],
+      "created": "2026-09-16T21:26:35Z",
+      "last_seen": "2026-09-16T21:26:35Z"
     }
   ]
 }

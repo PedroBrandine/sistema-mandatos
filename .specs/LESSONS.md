@@ -230,6 +230,30 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: src/frontend/app/(app)/numeros-impacto/page.tsx:50-51 (validation.md mutant #2) (frontend/app)
 - last seen: 2026-08-31T03:44:03Z
 
+### L-039 — When Tasks splits 'build edit-mode into a form' and 'wire a UI trigger to it' across different tasks, verify the later task actually connects a real click path to the new prop before marking the capability done -- a form accepting an edit prop is not the same as a screen ever passing it.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `frontend/forms` · harmful: 0
+- features: fatos-geradores-ciclo-vida
+- evidence: spec.md 'A aba como casa única' AC2 -- validation.md, corrigido no commit f036350 (frontend/forms)
+- last seen: 2026-09-16T21:26:18Z
+
+### L-040 — When a concurrent feature removes a field from a shared schema or form, update this feature's own spec.md to match instead of letting it silently describe a field that no longer exists in the shipped code.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `specs` · harmful: 0
+- features: fatos-geradores-ciclo-vida
+- evidence: spec.md 'A aba como casa única' AC5 -- validation.md, campo Canal removido por FMC-19 antes de esta feature tocar o arquivo (specs)
+- last seen: 2026-09-16T21:26:24Z
+
+### L-041 — For an ON DELETE CASCADE / FK-based invariant (e.g. deleting an origin removes only the link, not the linked record), add an integration test that performs the actual DELETE and asserts the dependent row survives -- schema shape alone is not evidence of runtime behavior.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `supabase/migrations` · harmful: 0
+- features: fatos-geradores-ciclo-vida
+- evidence: spec.md 'Registro e Pré-Insight como origem' AC4 -- validation.md (supabase/migrations)
+- last seen: 2026-09-16T21:26:30Z
+
+### L-042 — When a new composite component reuses an existing, unmodified child component, don't assume the child's literal spec-required text is verified by the new component's own tests -- cite the child's existing test file explicitly or add a direct assertion in the new test.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `frontend/components` · harmful: 0
+- features: fatos-geradores-ciclo-vida
+- evidence: spec.md 'Ciclo de Vida com cadeias' AC6 -- validation.md, incidencia-kpis.test.tsx não afirma o texto '(provisório)' (frontend/components)
+- last seen: 2026-09-16T21:26:35Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
