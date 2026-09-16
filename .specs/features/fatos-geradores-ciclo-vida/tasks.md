@@ -9,7 +9,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: `.specs/features/fatos-geradores-ciclo-vida/design.md`
-**Status**: Approved (2026-09-16) — execução por sub-agentes em lote, 1 por fase; skill `supabase` para T1-T6
+**Status**: Done (2026-09-16) — 27 tasks (T1-T27) + 1 fix pós-Verifier commitados em `develop`. Ver `validation.md` (PASS) e `.specs/STATE.md` "Handoff (Fatos Geradores... CONCLUÍDA e validada)".
 
 ---
 

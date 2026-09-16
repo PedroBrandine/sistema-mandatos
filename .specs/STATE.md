@@ -2121,3 +2121,54 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   conhecimento), aba "Planejado", KPI "12/15" (denominador sem origem),
   `fat_snapshot_mensal` + job de fechamento (AD-015/AD-056 — feature de Saída,
   adiada não cancelada), listagem de Registros da Agenda (permanece como está).
+
+---
+
+## Handoff (Fatos Geradores — Linha do Tempo e Ciclo de Vida — CONCLUÍDA e validada)
+
+- **Feature**: `.specs/features/fatos-geradores-ciclo-vida/`. Design aprovado
+  (fecha AD-058 nesta sessão), Tasks com 27 tasks em 4 fases (Migrations/
+  Backend/Componentes/Migração final), todas commitadas em `develop`.
+  `planejamento-estrategico-v2` (a outra metade do handoff acima) segue seu
+  próprio curso, não tocado por este.
+- **Verifier independente rodou e escreveu**
+  `.specs/features/fatos-geradores-ciclo-vida/validation.md`: PASS após 1 fix
+  real aplicado na mesma sessão (gap de AC2 — "Editar" da Linha do Tempo nunca
+  estava conectado a nada; T23/T24 tinham construído a capacidade de edição
+  nos formulários, mas nenhuma task ligou um clique real a ela). Sensor de
+  mutação 3/3 morto. Gate: 1193 unit + 6/6 arquivos de integração desta
+  feature.
+- **3 gaps de precisão de spec sinalizados, não bloqueantes** (ver
+  `validation.md` para detalhe e decisão pendente):
+  1. Fato Gerador não tem formulário de edição desenhado (as outras 3
+     entidades têm); editar isso exigiria decisão nova de design, não é
+     correção mecânica.
+  2. `spec.md` desta feature ainda descreve o campo "Canal" no Registro com 3
+     opções — removido por `FMC-19` (`ficha-mandato-contrato`, feature
+     concorrente) depois deste spec ter sido escrito. Código está certo;
+     `spec.md` precisa de uma atualização de manutenção.
+  3. Nenhum teste de integração exercita o `ON DELETE CASCADE` do vínculo de
+     origem (apagar um Pré-Insight/Registro/Insight/Meta usado como origem
+     remove só o vínculo, não o Fato Gerador) — garantido pelo desenho da FK,
+     sem teste que prove na prática.
+- **Achados reais corrigidos ao longo da Execute** (fora do previsto em
+  design.md/tasks.md, registrados nos commits correspondentes): migration
+  faltante para `app.criar_fato_gerador()` aceitar os parâmetros novos (T6);
+  GRANT genérico "ALL TABLES IN SCHEMA" alargando privilégios de escrita em 5
+  views só-leitura (T4/T5); `agrupaPorMes` precisou virar genérico (T20/T25);
+  `registro-form.tsx` estava quebrado por uma mudança concorrente de outra
+  feature (`FMC-19` removeu `canal` do schema, arquivo não tinha sido
+  atualizado) — corrigido junto de T23.
+- **Ambiente compartilhado sob carga pesada durante toda a Execute**: 5
+  sessões Claude Code ativas simultaneamente neste repositório (confirmado via
+  `ListAgents`). Dois sub-agentes de Fase 1 bateram rate limit de sessão e
+  precisaram ser retomados; testes de integração tiveram falhas transitórias
+  (timeout, contagem poluída por fixture concorrente) confirmadas não-causadas
+  por esta feature via re-execução isolada.
+- **4 lições candidatas registradas** (L-039 a L-042,
+  `python <skill>/scripts/lessons.py add`): wiring de edit-mode entre tasks
+  distintas, `spec.md` desatualizado por feature concorrente, cascade delete
+  sem teste de runtime, texto de componente reaproveitado sem asserção direta.
+- **Branch**: `develop`. Nenhum PR aberto ainda — feature não passou por PR
+  nesta sessão, só commits diretos em `develop` (mesmo padrão do restante do
+  histórico recente).
