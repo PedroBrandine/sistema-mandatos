@@ -50,6 +50,10 @@ export type Database = {
         Args: { p_de: string; p_meses?: number }
         Returns: undefined
       }
+      cria_sucessos_mensais_lote: {
+        Args: { p_base: Json; p_id_meta: number; p_meses: string[] }
+        Returns: undefined
+      }
       criar_coalizao: {
         Args: {
           p_coalizao: Json
@@ -126,6 +130,10 @@ export type Database = {
         Returns: undefined
       }
       marcar_presenca: { Args: { p_id_encontro: number }; Returns: undefined }
+      move_item_hierarquia: {
+        Args: { p_id: number; p_novo_pai: number; p_tipo: string }
+        Returns: undefined
+      }
       mover_etapa_kanban: {
         Args: { p_id_contrato: number; p_id_etapa_destino: number }
         Returns: undefined
@@ -1497,6 +1505,7 @@ export type Database = {
           oportunidade: string | null
           ordem: number | null
           pct_atingimento: number | null
+          status: string
         }
         Insert: {
           ameaca?: string | null
@@ -1510,6 +1519,7 @@ export type Database = {
           oportunidade?: string | null
           ordem?: number | null
           pct_atingimento?: number | null
+          status?: string
         }
         Update: {
           ameaca?: string | null
@@ -1523,6 +1533,7 @@ export type Database = {
           oportunidade?: string | null
           ordem?: number | null
           pct_atingimento?: number | null
+          status?: string
         }
         Relationships: [
           {
@@ -1537,6 +1548,13 @@ export type Database = {
             columns: ["id_planejamento"]
             isOneToOne: false
             referencedRelation: "dim_planejamento"
+            referencedColumns: ["id_planejamento"]
+          },
+          {
+            foreignKeyName: "fat_objetivo_especifico_id_planejamento_fkey"
+            columns: ["id_planejamento"]
+            isOneToOne: false
+            referencedRelation: "vw_planejamento_kpi"
             referencedColumns: ["id_planejamento"]
           },
           {
@@ -1963,6 +1981,7 @@ export type Database = {
           dt_limite: string | null
           id_meta: number
           id_sucesso: number
+          id_usuario_responsavel: number | null
           mes_referencia: string
           pct_atingimento: number | null
           peso: number
@@ -1976,6 +1995,7 @@ export type Database = {
           dt_limite?: string | null
           id_meta: number
           id_sucesso?: number
+          id_usuario_responsavel?: number | null
           mes_referencia: string
           pct_atingimento?: number | null
           peso: number
@@ -1989,6 +2009,7 @@ export type Database = {
           dt_limite?: string | null
           id_meta?: number
           id_sucesso?: number
+          id_usuario_responsavel?: number | null
           mes_referencia?: string
           pct_atingimento?: number | null
           peso?: number
@@ -2008,6 +2029,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fat_meta"
             referencedColumns: ["id_meta"]
+          },
+          {
+            foreignKeyName: "fat_sucesso_mensal_id_usuario_responsavel_fkey"
+            columns: ["id_usuario_responsavel"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
           },
         ]
       }
@@ -3724,6 +3752,13 @@ export type Database = {
             referencedColumns: ["id_planejamento"]
           },
           {
+            foreignKeyName: "rel_planejamento_preditor_id_planejamento_fkey"
+            columns: ["id_planejamento"]
+            isOneToOne: false
+            referencedRelation: "vw_planejamento_kpi"
+            referencedColumns: ["id_planejamento"]
+          },
+          {
             foreignKeyName: "rel_planejamento_preditor_id_preditor_fkey"
             columns: ["id_preditor"]
             isOneToOne: false
@@ -4398,6 +4433,93 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_planejamento_evolucao_mensal: {
+        Row: {
+          escopo_responsavel: boolean | null
+          id_planejamento: number | null
+          id_usuario_responsavel: number | null
+          mes: string | null
+          pct_atingido: number | null
+          pct_esperado: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_objetivo_especifico_id_planejamento_fkey"
+            columns: ["id_planejamento"]
+            isOneToOne: false
+            referencedRelation: "dim_planejamento"
+            referencedColumns: ["id_planejamento"]
+          },
+          {
+            foreignKeyName: "fat_objetivo_especifico_id_planejamento_fkey"
+            columns: ["id_planejamento"]
+            isOneToOne: false
+            referencedRelation: "vw_planejamento_kpi"
+            referencedColumns: ["id_planejamento"]
+          },
+        ]
+      }
+      vw_planejamento_kpi: {
+        Row: {
+          id_contrato: number | null
+          id_planejamento: number | null
+          metas_ativas: number | null
+          metas_prioritarias: number | null
+          pct_atingimento: number | null
+          sucessos_mensais: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "vw_cobertura_registro_mensal"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "dim_planejamento_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: true
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contrato"]
+          },
+        ]
+      }
       vw_resposta_formulario: {
         Row: {
           dt_abertura: string | null
@@ -4560,6 +4682,7 @@ export type Database = {
           esta_atrasado: boolean | null
           id_meta: number | null
           id_sucesso: number | null
+          id_usuario_responsavel: number | null
           mes_referencia: string | null
           pct_atingimento: number | null
           peso: number | null
@@ -4575,6 +4698,7 @@ export type Database = {
           esta_atrasado?: never
           id_meta?: number | null
           id_sucesso?: number | null
+          id_usuario_responsavel?: number | null
           mes_referencia?: string | null
           pct_atingimento?: number | null
           peso?: number | null
@@ -4590,6 +4714,7 @@ export type Database = {
           esta_atrasado?: never
           id_meta?: number | null
           id_sucesso?: number | null
+          id_usuario_responsavel?: number | null
           mes_referencia?: string | null
           pct_atingimento?: number | null
           peso?: number | null
@@ -4609,6 +4734,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "fat_meta"
             referencedColumns: ["id_meta"]
+          },
+          {
+            foreignKeyName: "fat_sucesso_mensal_id_usuario_responsavel_fkey"
+            columns: ["id_usuario_responsavel"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
           },
         ]
       }

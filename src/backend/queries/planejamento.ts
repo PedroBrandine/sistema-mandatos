@@ -27,8 +27,11 @@ export interface ObjetivoComMetas {
   idPreditorPrimario: number | null;
   idPreditorSecundario: number | null;
   idAgenda: number | null;
-  oportunidade: string | null;
-  ameaca: string | null;
+  // PLV-02. Masculino: ck_objetivo_status usa ativo/pausado/descartado (Objetivo
+  // e masculino), enquanto a Meta usa o feminino.
+  status: "ativo" | "pausado" | "descartado";
+  // Sem oportunidade/ameaca (SWOT): removidos do produto (AD-049). As colunas
+  // continuam no banco com o dado histórico, mas nenhuma tela as lê.
   pctAtingimento: number | null;
   metas: MetaResumo[];
 }
@@ -80,7 +83,7 @@ export async function buscarPlanejamentoCompleto(
   const { data: objetivosData, error: erroObjetivos } = await client
     .from("fat_objetivo_especifico")
     .select(
-      "id_objetivo, id_planejamento, descricao, id_preditor_primario, id_preditor_secundario, id_agenda, oportunidade, ameaca, pct_atingimento"
+      "id_objetivo, id_planejamento, descricao, id_preditor_primario, id_preditor_secundario, id_agenda, status, pct_atingimento"
     )
     .eq("id_planejamento", planejamento.id_planejamento)
     .order("ordem", { ascending: true });
@@ -135,8 +138,7 @@ export async function buscarPlanejamentoCompleto(
       idPreditorPrimario: o.id_preditor_primario,
       idPreditorSecundario: o.id_preditor_secundario,
       idAgenda: o.id_agenda,
-      oportunidade: o.oportunidade,
-      ameaca: o.ameaca,
+      status: o.status as "ativo" | "pausado" | "descartado",
       pctAtingimento: o.pct_atingimento,
       metas: metasPorObjetivo.get(o.id_objetivo) ?? [],
     })),

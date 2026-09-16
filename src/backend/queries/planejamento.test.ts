@@ -111,8 +111,6 @@ describe("buscarPlanejamentoCompleto", () => {
             id_preditor_primario: 5,
             id_preditor_secundario: null,
             id_agenda: 7,
-            oportunidade: "Janela eleitoral favorável",
-            ameaca: "Oposição articulada",
             pct_atingimento: 50,
           },
         ],
@@ -152,8 +150,6 @@ describe("buscarPlanejamentoCompleto", () => {
       idPreditorPrimario: 5,
       idPreditorSecundario: null,
       idAgenda: 7,
-      oportunidade: "Janela eleitoral favorável",
-      ameaca: "Oposição articulada",
       pctAtingimento: 50,
       metas: [
         {

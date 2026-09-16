@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { dadosPlanejamentoSchema, metaSchema, objetivoEspecificoSchema, sucessoMensalSchema } from "./planejamento";
+import {
+  dadosPlanejamentoSchema,
+  metaSchema,
+  objetivoEspecificoSchema,
+  sucessoMensalLoteSchema,
+  sucessoMensalSchema,
+} from "./planejamento";
 
 describe("dadosPlanejamentoSchema", () => {
   it("aceita todos os campos ausentes (planejamento recém-instanciado, tudo NULL)", () => {
@@ -44,17 +50,18 @@ describe("objetivoEspecificoSchema", () => {
     const resultado = objetivoEspecificoSchema.safeParse({
       id_planejamento: 1,
       descricao: "Aprovar projeto de lei X",
+      status: "ativo",
     });
     expect(resultado.success).toBe(true);
   });
 
   it("rejeita ausência de id_planejamento", () => {
-    const resultado = objetivoEspecificoSchema.safeParse({ descricao: "Aprovar projeto" });
+    const resultado = objetivoEspecificoSchema.safeParse({ descricao: "Aprovar projeto", status: "ativo" });
     expect(resultado.success).toBe(false);
   });
 
   it("rejeita descricao vazia", () => {
-    const resultado = objetivoEspecificoSchema.safeParse({ id_planejamento: 1, descricao: "" });
+    const resultado = objetivoEspecificoSchema.safeParse({ id_planejamento: 1, descricao: "", status: "ativo" });
     expect(resultado.success).toBe(false);
   });
 
@@ -63,6 +70,7 @@ describe("objetivoEspecificoSchema", () => {
     const resultado = objetivoEspecificoSchema.safeParse({
       id_planejamento: 1,
       descricao: "Aprovar projeto",
+      status: "ativo",
       id_preditor_secundario: 2,
     });
     expect(resultado.success).toBe(false);
@@ -73,6 +81,7 @@ describe("objetivoEspecificoSchema", () => {
     const resultado = objetivoEspecificoSchema.safeParse({
       id_planejamento: 1,
       descricao: "Aprovar projeto",
+      status: "ativo",
       id_preditor_primario: 5,
       id_preditor_secundario: 5,
     });
@@ -83,6 +92,7 @@ describe("objetivoEspecificoSchema", () => {
     const resultado = objetivoEspecificoSchema.safeParse({
       id_planejamento: 1,
       descricao: "Aprovar projeto",
+      status: "ativo",
       id_preditor_primario: 5,
       id_preditor_secundario: 6,
     });
@@ -94,6 +104,7 @@ describe("objetivoEspecificoSchema", () => {
     const resultado = objetivoEspecificoSchema.safeParse({
       id_planejamento: 1,
       descricao: "Aprovar projeto",
+      status: "ativo",
       pct_atingimento: 150,
     });
     expect(resultado.success).toBe(false);
@@ -103,6 +114,7 @@ describe("objetivoEspecificoSchema", () => {
     const resultado = objetivoEspecificoSchema.safeParse({
       id_planejamento: 1,
       descricao: "Aprovar projeto",
+      status: "ativo",
       pct_atingimento: -1,
     });
     expect(resultado.success).toBe(false);
@@ -112,6 +124,7 @@ describe("objetivoEspecificoSchema", () => {
     const resultado = objetivoEspecificoSchema.safeParse({
       id_planejamento: 1,
       descricao: "Aprovar projeto",
+      status: "ativo",
       pct_atingimento: null,
     });
     expect(resultado.success).toBe(true);
@@ -350,5 +363,120 @@ describe("sucessoMensalSchema", () => {
       status: "em_andamento",
     });
     expect(resultado.success).toBe(false);
+  });
+});
+
+// PLV-02. O status do Objetivo é masculino de propósito: ck_objetivo_status usa
+// ativo/pausado/descartado, enquanto ck_meta_status usa o feminino.
+describe("objetivoEspecificoSchema.status (PLV-02)", () => {
+  const base = { id_planejamento: 1, descricao: "Aprovar projeto" };
+
+  it("rejeita ausência de status (sem .default() -- mesma convenção de metaSchema)", () => {
+    expect(objetivoEspecificoSchema.safeParse(base).success).toBe(false);
+  });
+
+  it.each(["ativo", "pausado", "descartado"])("aceita status='%s'", (status) => {
+    expect(objetivoEspecificoSchema.safeParse({ ...base, status }).success).toBe(true);
+  });
+
+  it.each(["ativa", "pausada", "descartada"])(
+    "rejeita o feminino da Meta ('%s') -- ck_objetivo_status não o aceita",
+    (status) => {
+      expect(objetivoEspecificoSchema.safeParse({ ...base, status }).success).toBe(false);
+    }
+  );
+
+  it("rejeita status fora do domínio aprovado", () => {
+    expect(objetivoEspecificoSchema.safeParse({ ...base, status: "em_planejamento" }).success).toBe(false);
+  });
+});
+
+// PLV-03. Distinto de atualizado_por, que é auditoria (AD-006).
+describe("sucessoMensalSchema.id_usuario_responsavel (PLV-03)", () => {
+  const base = {
+    id_meta: 1,
+    descricao: "Mapear 10 parlamentares-alvo",
+    mes_referencia: "2026-09-01",
+    peso: 50,
+    status: "pendente" as const,
+  };
+
+  it("aceita ausente -- o responsável é opcional e herda o da Meta na exibição", () => {
+    expect(sucessoMensalSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("aceita null explícito (AD-005: ausência é NULL, nunca sentinela)", () => {
+    expect(sucessoMensalSchema.safeParse({ ...base, id_usuario_responsavel: null }).success).toBe(true);
+  });
+
+  it("aceita um id de usuário", () => {
+    expect(sucessoMensalSchema.safeParse({ ...base, id_usuario_responsavel: 7 }).success).toBe(true);
+  });
+
+  it("rejeita id não positivo", () => {
+    expect(sucessoMensalSchema.safeParse({ ...base, id_usuario_responsavel: 0 }).success).toBe(false);
+  });
+});
+
+// PLV-06. N meses marcados viram N registros irmãos e independentes -- não um
+// Sucesso Mensal multi-mês.
+describe("sucessoMensalLoteSchema (PLV-06)", () => {
+  const base = {
+    id_meta: 1,
+    descricao: "Reunião mensal de monitoramento",
+    peso: 25,
+    status: "pendente" as const,
+  };
+
+  it("aceita um lote de 3 meses", () => {
+    const resultado = sucessoMensalLoteSchema.safeParse({
+      ...base,
+      meses: ["2026-07-01", "2026-08-01", "2026-09-01"],
+    });
+    expect(resultado.success).toBe(true);
+  });
+
+  it("aceita o limite de 12 meses", () => {
+    const meses = Array.from({ length: 12 }, (_, i) => `2026-${String(i + 1).padStart(2, "0")}-01`);
+    expect(sucessoMensalLoteSchema.safeParse({ ...base, meses }).success).toBe(true);
+  });
+
+  it("rejeita 13 meses -- o limite espelha app.cria_sucessos_mensais_lote (PLN02)", () => {
+    const meses = [
+      ...Array.from({ length: 12 }, (_, i) => `2026-${String(i + 1).padStart(2, "0")}-01`),
+      "2027-01-01",
+    ];
+    expect(sucessoMensalLoteSchema.safeParse({ ...base, meses }).success).toBe(false);
+  });
+
+  it("rejeita lista de meses vazia", () => {
+    expect(sucessoMensalLoteSchema.safeParse({ ...base, meses: [] }).success).toBe(false);
+  });
+
+  // ck_sucesso_mes vale para CADA mês do lote, não só para o primeiro.
+  it("rejeita mês que não é o dia 1 -- inclusive quando só o último do lote está errado", () => {
+    const resultado = sucessoMensalLoteSchema.safeParse({
+      ...base,
+      meses: ["2026-07-01", "2026-08-15"],
+    });
+    expect(resultado.success).toBe(false);
+  });
+
+  it("rejeita mês repetido -- dois irmãos idênticos no mesmo mês são ruído, não intenção", () => {
+    const resultado = sucessoMensalLoteSchema.safeParse({
+      ...base,
+      meses: ["2026-07-01", "2026-07-01"],
+    });
+    expect(resultado.success).toBe(false);
+  });
+
+  it("aceita responsável e prazo opcionais no lote inteiro", () => {
+    const resultado = sucessoMensalLoteSchema.safeParse({
+      ...base,
+      id_usuario_responsavel: 7,
+      dt_limite: "2026-09-30",
+      meses: ["2026-09-01"],
+    });
+    expect(resultado.success).toBe(true);
   });
 });

@@ -14,7 +14,6 @@ import { ErroInline } from "@/components/ui/erro-inline";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 
 interface RefOption {
   id: number;
@@ -28,9 +27,10 @@ interface RefOption {
 // precedente de dialog de criação neste repo (só ConfirmDeleteDialog); os
 // formulários existentes (ContratoForm, CoalizaoForm) já seguem esse padrão.
 //
-// oportunidade/ameaca (SWOT): "Usa" nos 3 produtos, sem diferença
-// documentada (spec.md, quadro de campos por produto) -- sempre visíveis,
-// sem condicional de produto.
+// SWOT (oportunidade/ameaca) saiu do produto (AD-049): o formulário não
+// oferece mais os dois campos e o payload não os envia. As colunas seguem em
+// fat_objetivo_especifico com o dado histórico -- remoção de coluna é decisão
+// separada, ver AD-049.
 export type ObjetivoFormModo = { tipo: "criar"; idPlanejamento: number } | { tipo: "editar"; objetivo: ObjetivoComMetas };
 
 export interface ObjetivoFormProps {
@@ -50,7 +50,7 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
     mode: "onChange",
     defaultValues:
       modo.tipo === "criar"
-        ? { id_planejamento: modo.idPlanejamento, descricao: "" }
+        ? { id_planejamento: modo.idPlanejamento, descricao: "", status: "ativo" }
         : {
             id_objetivo: modo.objetivo.idObjetivo,
             id_planejamento: modo.objetivo.idPlanejamento,
@@ -58,8 +58,10 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
             id_preditor_primario: modo.objetivo.idPreditorPrimario,
             id_preditor_secundario: modo.objetivo.idPreditorSecundario,
             id_agenda: modo.objetivo.idAgenda,
-            oportunidade: modo.objetivo.oportunidade,
-            ameaca: modo.objetivo.ameaca,
+            // PLV-02. O controle de Status entra em T17; aqui o valor só precisa
+            // existir porque objetivoEspecificoSchema.status é obrigatório (sem
+            // .default(), mesma convenção de metaSchema).
+            status: modo.objetivo.status ?? "ativo",
           },
   });
 
@@ -87,8 +89,6 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
       id_preditor_primario: valores.id_preditor_primario ?? null,
       id_preditor_secundario: valores.id_preditor_secundario ?? null,
       id_agenda: valores.id_agenda ?? null,
-      oportunidade: valores.oportunidade ?? null,
-      ameaca: valores.ameaca ?? null,
     };
 
     if (modo.tipo === "criar") {
@@ -208,32 +208,6 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
                   ))}
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="oportunidade"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Oportunidade (SWOT, opcional)</FormLabel>
-              <FormControl>
-                <Textarea {...field} value={field.value ?? ""} rows={2} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="ameaca"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Ameaça (SWOT, opcional)</FormLabel>
-              <FormControl>
-                <Textarea {...field} value={field.value ?? ""} rows={2} />
-              </FormControl>
               <FormMessage />
             </FormItem>
           )}
