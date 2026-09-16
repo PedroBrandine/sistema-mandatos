@@ -238,6 +238,10 @@ describe("buscarGradeSucessosMensais", () => {
         status: "realizado",
         diasAtraso: 0,
         estaAtrasado: false,
+        // PLV-03/PLV-12: campos novos da forma. `atrasoDias` é null porque
+        // esta_atrasado é false -- realizado não está atrasado.
+        idUsuarioResponsavel: null,
+        atrasoDias: null,
       },
     ]);
 
@@ -680,5 +684,75 @@ describe("buscarEvolucaoMensal (PLV-13)", () => {
       vw_planejamento_evolucao_mensal: { data: null, error: { message: "permission denied" } },
     });
     await expect(buscarEvolucaoMensal(client, 10)).rejects.toMatchObject({ message: "permission denied" });
+  });
+});
+
+// Spec anchor: PLV-03 / PLV-12 (.specs/features/planejamento-estrategico-v2/spec.md).
+//
+// CONTRATO REAL DA VIEW, confirmado em teste de integração (T4): com dt_limite
+// NULL, `esta_atrasado` vem **null**, não false -- `status = 'pendente' AND NULL`
+// é NULL em SQL. As duas colunas falham de formas diferentes na mesma linha:
+// dias_atraso devolve 0 e esta_atrasado devolve null. As fixturas abaixo usam
+// o formato que a view realmente produz; usar `false` testaria um formato
+// inexistente e passaria mesmo com a derivação errada.
+describe("buscarGradeSucessosMensais -- atraso e responsável (PLV-03/PLV-12)", () => {
+  function linha(extra: Record<string, unknown>) {
+    return {
+      id_sucesso: 1,
+      id_meta: 5,
+      descricao: "Mapear parlamentares",
+      mes_referencia: "2026-09-01",
+      dt_limite: "2026-09-30",
+      peso: 50,
+      pct_atingimento: 20,
+      status: "pendente",
+      dias_atraso: 0,
+      esta_atrasado: false,
+      id_usuario_responsavel: null,
+      ...extra,
+    };
+  }
+
+  async function primeira(extra: Record<string, unknown>) {
+    const { client } = criarClienteMock({ vw_sucesso_mensal: { data: [linha(extra)], error: null } });
+    const linhas = await buscarGradeSucessosMensais(client, [5]);
+    return linhas[0];
+  }
+
+  it("atrasado: devolve os dias corridos", async () => {
+    expect((await primeira({ dias_atraso: 5, esta_atrasado: true })).atrasoDias).toBe(5);
+  });
+
+  it("no prazo: devolve null, não 0", async () => {
+    expect((await primeira({ dias_atraso: 0, esta_atrasado: false })).atrasoDias).toBeNull();
+  });
+
+  // O caso que a coluna dias_atraso sozinha erra: GREATEST ignora NULL e devolve 0.
+  it("sem dt_limite: devolve null mesmo com dias_atraso=0 e esta_atrasado=null", async () => {
+    const sm = await primeira({ dt_limite: null, dias_atraso: 0, esta_atrasado: null });
+    expect(sm.atrasoDias).toBeNull();
+  });
+
+  // O outro caso que dias_atraso sozinha erra: não olha o status.
+  it("realizado e vencido: não está atrasado", async () => {
+    const sm = await primeira({ status: "realizado", dias_atraso: 12, esta_atrasado: false });
+    expect(sm.atrasoDias).toBeNull();
+  });
+
+  it("expõe o responsável próprio do Sucesso Mensal", async () => {
+    expect((await primeira({ id_usuario_responsavel: 7 })).idUsuarioResponsavel).toBe(7);
+  });
+
+  it("sem responsável próprio devolve null -- a herança da Meta é da camada de exibição", async () => {
+    expect((await primeira({ id_usuario_responsavel: null })).idUsuarioResponsavel).toBeNull();
+  });
+
+  it("pede id_usuario_responsavel no select", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_sucesso_mensal: { data: [linha({})], error: null },
+    });
+    await buscarGradeSucessosMensais(client, [5]);
+    const select = chamadas.find((c) => c.metodo === "select");
+    expect(String(select?.args[0])).toContain("id_usuario_responsavel");
   });
 });

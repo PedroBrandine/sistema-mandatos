@@ -59,6 +59,16 @@ export interface SucessoMensalGrade {
   status: "pendente" | "realizado" | "nao_realizado";
   diasAtraso: number;
   estaAtrasado: boolean;
+  // PLV-03. Responsável próprio do Sucesso Mensal. Vazio herda o da Meta na
+  // exibição -- a herança é visual, nunca gravada.
+  idUsuarioResponsavel: number | null;
+  // PLV-12. Dias de atraso, ou null quando não há atraso. Derivado das DUAS
+  // colunas que a view já tem, em vez de uma coluna nova: `dias_atraso` sozinha
+  // devolve 0 (não NULL) quando dt_limite é NULL, porque GREATEST ignora NULL,
+  // e não olha o status -- um Sucesso Mensal já realizado e vencido apareceria
+  // atrasado. `esta_atrasado` é que carrega a regra certa
+  // (status = 'pendente' AND dt_limite < CURRENT_DATE).
+  atrasoDias: number | null;
 }
 
 // PLM-01 (leitura). Busca dim_planejamento + a hierarquia Objetivo->Meta de um
@@ -163,7 +173,9 @@ export async function buscarGradeSucessosMensais(
 
   const { data, error } = await client
     .from("vw_sucesso_mensal")
-    .select("id_sucesso, id_meta, descricao, mes_referencia, dt_limite, peso, pct_atingimento, status, dias_atraso, esta_atrasado")
+    .select(
+      "id_sucesso, id_meta, descricao, mes_referencia, dt_limite, peso, pct_atingimento, status, dias_atraso, esta_atrasado, id_usuario_responsavel"
+    )
     .in("id_meta", idsMeta)
     .order("id_meta", { ascending: true })
     .order("mes_referencia", { ascending: true })
@@ -182,6 +194,13 @@ export async function buscarGradeSucessosMensais(
     status: linha.status as "pendente" | "realizado" | "nao_realizado",
     diasAtraso: linha.dias_atraso ?? 0,
     estaAtrasado: linha.esta_atrasado ?? false,
+    idUsuarioResponsavel: linha.id_usuario_responsavel ?? null,
+    // CUIDADO ao mexer aqui: com dt_limite NULL, `esta_atrasado` vem **null**,
+    // não false -- em SQL, `status = 'pendente' AND NULL` é NULL (lógica de
+    // três valores), e só vira false quando o status não é pendente. As duas
+    // colunas falham de formas diferentes na MESMA linha: dias_atraso devolve
+    // 0 e esta_atrasado devolve null. O truthy check cobre os dois casos.
+    atrasoDias: linha.esta_atrasado ? (linha.dias_atraso ?? null) : null,
   }));
 }
 
