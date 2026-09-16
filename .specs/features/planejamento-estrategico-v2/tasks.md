@@ -12,7 +12,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/planejamento-estrategico-v2/design.md`
-**Status**: In Progress — **Fases 1 e 2 completas** (10/24 tarefas)
+**Status**: In Progress — **Fases 1, 2 e 3 completas** (13/24 tarefas)
 **Gate AD-039**: ✅ satisfeito (Pedro, 2026-09-15)
 
 ### Progresso
@@ -21,7 +21,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | --- | --- | --- |
 | 1 — Schema | T1–T5 | ✅ **completa**, 5 commits, 37 testes de integração |
 | 2 — Backend TS | T6–T10 | ✅ **completa**, 5 commits, 845 unitários |
-| 3 — Módulos puros | T11–T13 | ⬜ |
+| 3 — Módulos puros | T11–T13 | ✅ **completa**, 3 commits, 881 unitários |
 | 4 — Permissões/abas | T14–T16 | ⬜ |
 | 5 — Modais | T17–T20 | ⬜ |
 | 6 — Tela | T21–T23, T25 | ⬜ |
@@ -38,6 +38,9 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | T8 query de evolução | `1a578ef` | 8 unitários |
 | T9 grade: atraso + responsável | `c0acdbb` | 7 unitários |
 | T10 wrappers de RPC | `8fef623` | 7 unitários |
+| T11 avanço mensal | `45300b5` | 11 unitários |
+| T12 expansão de lote | `3ff7085` | 15 unitários |
+| T13 responsável herdado | `37bbf4b` | 10 unitários |
 
 **Todas as 5 migrations aplicadas em dev** (`npnvoolkebhabjkjzqwn`), uma de cada
 vez, com gate escopado entre elas. Produção intocada.
