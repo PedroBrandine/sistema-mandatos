@@ -1,17 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { notFound, usePathname } from "next/navigation";
 import { toast } from "sonner";
 
 import { createClient } from "@backend/supabase/client";
-import {
-  buscarContratoParaFicha,
-  buscarEtapasDoProduto,
-  type ContratoParaFicha,
-  type EtapaResumo,
-} from "@backend/queries/contrato";
+import { buscarContratoParaFicha, type ContratoParaFicha } from "@backend/queries/contrato";
 
 import { RouteTabs, type RouteTabItem } from "@/components/app-shell/route-tabs";
 import { FatoGeradorForm } from "@/components/incidencia/fato-gerador-form";
@@ -27,16 +21,19 @@ interface FichaContratoChromeProps {
   children: React.ReactNode;
 }
 
-// NAV-04/NAV-07: cabeçalho (ramificado por tipo_contratante) + RouteTabs
-// (1 aba por ref_etapa + Assessores + Formulários) + ações Insight/Fato
-// Gerador/Planejamento, compartilhados por toda sub-rota de /contratos/[id].
+// NAV-04/NAV-07/FMC-01..04 (.specs/features/ficha-mandato-contrato):
+// cabeçalho (ramificado por tipo_contratante) + RouteTabs com a barra
+// funcional fixa de 8 abas (mandato) / 7 abas (coalizão, sem "Informações
+// Gerais") + ações Insight/Fato Gerador, compartilhados por toda sub-rota de
+// /contratos/[id]. A barra não deriva mais de `ref_etapa` (AC2) -- as rotas
+// de etapa continuam existindo fora da navegação, mesmo precedente de
+// NAV-14/15 (A-01).
 // contrato: undefined=carregando, null=confirmado ausente -- notFound() só é
 // chamado no corpo do render (nunca dentro do useEffect que popula o
 // estado), ver design.md Tech Decisions.
 export function FichaContratoChrome({ idContrato, children }: FichaContratoChromeProps) {
   const pathname = usePathname();
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
-  const [etapas, setEtapas] = useState<EtapaResumo[]>([]);
   const [dialogInsightAberto, setDialogInsightAberto] = useState(false);
   const [dialogFatoGeradorAberto, setDialogFatoGeradorAberto] = useState(false);
   // T31: força IipCard a remontar (e refazer o refresh síncrono de
@@ -49,13 +46,7 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
     const supabase = createClient();
 
     buscarContratoParaFicha(supabase, idContrato).then((encontrado) => {
-      if (cancelado) return;
-      setContrato(encontrado);
-      if (encontrado) {
-        buscarEtapasDoProduto(supabase, encontrado.idProduto).then((lista) => {
-          if (!cancelado) setEtapas(lista);
-        });
-      }
+      if (!cancelado) setContrato(encontrado);
     });
 
     return () => {
@@ -80,23 +71,29 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
   // de leitura confortável de sempre; só `{children}` foge do limite quando
   // a rota ativa é a de Planejamento.
   const eTelaDePlanejamento = pathname === `${base}/planejamento`;
-  const abasEtapas: RouteTabItem[] =
-    etapas.length > 0
-      ? etapas.map((e) => ({ href: `${base}/etapas/${e.codigo}`, label: e.nome }))
-      : [{ href: base, label: "Nenhuma etapa cadastrada" }];
 
-  // "Informações Gerais" (dados de TSE) só existe pra contrato de mandato --
-  // coalizão não tem candidatura/perfil TSE. Primeira aba, antes das etapas
-  // (pedido de Pedro, 2026-08-11, após o fechamento da feature).
-  const abas: RouteTabItem[] = [
-    ...(contrato.tipoContratante === "mandato"
-      ? [{ href: `${base}/informacoes`, label: "Informações Gerais" }]
-      : []),
-    ...abasEtapas,
-    { href: `${base}/vinculos`, label: "Assessores" },
+  // FMC-01 (AC1): 8 abas funcionais fixas, nesta ordem -- nenhuma derivada de
+  // ref_etapa (AC2). "Gestão da equipe" substitui o rótulo antigo
+  // "Assessores" na mesma rota /vinculos (AC4/FMC-03). "Informações Gerais"
+  // (dados de TSE) só existe pra contrato de mandato -- coalizão não tem
+  // candidatura/perfil TSE, então a barra sai com 7 abas (AC3/A-02).
+  // "Planejamento Estratégico" absorve o botão solto que existia no
+  // cabeçalho (mesma rota /planejamento) -- duas âncoras com o mesmo nome
+  // acessível navegando pro mesmo lugar seria redundância, não duas abas.
+  const todasAbas: RouteTabItem[] = [
+    { href: `${base}/informacoes`, label: "Informações Gerais" },
+    { href: `${base}/agenda`, label: "Agenda" },
+    { href: `${base}/diagnostico`, label: "Diagnóstico" },
+    { href: `${base}/planejamento`, label: "Planejamento Estratégico" },
+    { href: `${base}/gip`, label: "GIP" },
     { href: `${base}/formularios`, label: "Formulários" },
-    { href: `${base}/encontros`, label: "Encontros" },
+    { href: `${base}/vinculos`, label: "Gestão da equipe" },
+    { href: `${base}/fatos-registros`, label: "Fatos Geradores e Registros" },
   ];
+  const abas: RouteTabItem[] =
+    contrato.tipoContratante === "mandato"
+      ? todasAbas
+      : todasAbas.filter((aba) => aba.label !== "Informações Gerais");
 
   return (
     <div className="grid gap-4 p-6">
@@ -160,12 +157,6 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
                 />
               </DialogContent>
             </Dialog>
-
-            <Link href={`${base}/planejamento`}>
-              <Button type="button" variant="outline" size="sm">
-                Planejamento Estratégico
-              </Button>
-            </Link>
           </div>
         </div>
 
