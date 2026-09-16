@@ -317,6 +317,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
             evolucaoGip={evolucaoGip}
             produtoNome={contrato.nomeProduto}
             permissoes={permissoes}
+            modo={modo}
             onDadosAlterados={() => {
               void recarregarHierarquia();
               void recarregarPreditores();

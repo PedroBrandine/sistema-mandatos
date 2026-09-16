@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Compass } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import type { LinhaEvolucaoGip, PlanejamentoCompleto, PreditorPrioritarioLinha } from "@backend/queries/planejamento";
 
-import type { PermissoesModo } from "./permissoes";
+import { createClient } from "@backend/supabase/client";
+
+import type { ModoPlanejamento, PermissoesModo } from "./permissoes";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 
 import { DadosPlanejamentoForm } from "./dados-planejamento-form";
@@ -35,20 +37,30 @@ function agrupaEvolucaoGipPorMomento(evolucaoGip: LinhaEvolucaoGip[]): [string, 
   return ORDEM_MOMENTO.filter((m) => porMomento.has(m)).map((m) => [m, porMomento.get(m)!]);
 }
 
-// PLR-01, PLR-05, PLR-06 (.specs/features/planejamento-estrategico-redesenho). Coluna
-// esquerda ("contexto estratégico") do layout de 2 colunas. Colapsável via <details>
-// nativo em vez de estado controlado pelo pai (design.md sugeria colapsado/onToggle) --
-// simplificação deliberada: <details>/<summary> já resolve "colapsável por botão" (T8)
-// E "vira accordion abaixo de 1024px" (T9) com a mesma marcação, sem JS extra e com
-// semântica/teclado nativos. A grade (irmã, no grid do page.tsx) sempre ocupa o
-// restante da largura via `1fr` -- nunca depende de saber se este componente está
-// aberto ou fechado (regra inegociável: nenhum painel fixo à direita em nenhum estado).
+// PLV-14 (.specs/features/planejamento-estrategico-v2/spec.md:323). Conteúdo da aba
+// "Diagnóstico (Análise de Conjuntura)": os três campos de contexto do plano em
+// cartões, mais Perfil de atuação (só PLL), preditores prioritários e GIP.
+//
+// Era a coluna esquerda do layout de 2 colunas da PLR-01, colapsável via <details>.
+// O <details> saiu com a coluna: numa aba inteira não há o que colapsar, e o
+// "accordion abaixo de 1024px" que ele resolvia deixou de existir junto com a
+// segunda coluna. Os cartões empilham sozinhos no grid responsivo.
+//
+// Os três cartões têm cada um sua ação Editar (AC1), e as três abrem O MESMO
+// DadosPlanejamentoForm: legado, objetivo do ano e análise de conjuntura são três
+// colunas da MESMA linha de dim_planejamento. Três formulários separados seriam três
+// escritas concorrentes na mesma linha, cada uma sobrescrevendo o que a outra acabou
+// de gravar.
 export interface ContextoEstrategicoProps {
   planejamento: PlanejamentoCompleto;
   preditoresAtuais: PreditorPrioritarioLinha[];
   evolucaoGip: LinhaEvolucaoGip[];
   produtoNome: string;
   permissoes: PermissoesModo;
+  // PLV-14 AC4: em modo Ler a ação Editar fica AUSENTE. Distinto de
+  // permissoes.crudHierarquia, que é o papel -- uma Gestora tem a capacidade e
+  // ainda assim não vê Editar enquanto estiver lendo.
+  modo: ModoPlanejamento;
   onDadosAlterados: () => void;
 }
 
@@ -58,20 +70,56 @@ export function ContextoEstrategico({
   evolucaoGip,
   produtoNome,
   permissoes,
+  modo,
   onDadosAlterados,
 }: ContextoEstrategicoProps) {
   const [editando, setEditando] = useState(false);
+  const [nomePerfil, setNomePerfil] = useState<string | null>(null);
   const preditoresOrdenados = [...preditoresAtuais].sort((a, b) => a.ordem - b.ordem);
+  const podeEditar = permissoes.crudHierarquia && modo !== "ler";
+  const ePll = produtoNome === "PLL";
+
+  // PLV-14 AC2. dim_planejamento guarda só id_perfil_atuacao; o nome vem de
+  // ref_perfil_atuacao, mesma leitura que DadosPlanejamentoForm já faz para
+  // montar o Select. Só no PLL -- nos demais produtos a coluna nunca é usada
+  // (PLR-05), e buscar seria uma ida ao banco para um cartão que não aparece.
+  // Sem setState no corpo do efeito (react-hooks/set-state-in-effect): quando não
+  // há perfil a buscar, o efeito simplesmente não faz nada, e quem decide o que
+  // aparece é `perfilExibido` abaixo. Limpar por setState aqui causaria render em
+  // cascata só para chegar ao mesmo "—".
+  useEffect(() => {
+    if (!ePll || planejamento.idPerfilAtuacao === null) return;
+    let cancelado = false;
+    createClient()
+      .from("ref_perfil_atuacao")
+      .select("nome")
+      .eq("id_perfil", planejamento.idPerfilAtuacao)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelado) setNomePerfil(data?.nome ?? null);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [ePll, planejamento.idPerfilAtuacao]);
+
+  // PLV-14 AC1/AC3. Um cartão por campo, SEMPRE presente: campo vazio mostra "—"
+  // (AD-005) e mantém o Editar. Esconder o cartão vazio faria sumir justamente o
+  // que ainda precisa ser preenchido -- o cartão em branco é o convite.
+  const CAMPOS: { titulo: string; valor: string | null }[] = [
+    { titulo: "Legado", valor: planejamento.legado },
+    { titulo: "Objetivo do ano", valor: planejamento.objetivoAno },
+    { titulo: "Análise de conjuntura", valor: planejamento.analiseConjuntura },
+  ];
+
+  // Nome só vale enquanto o plano de fato aponta para um perfil -- sem isto, trocar
+  // o perfil para vazio deixaria o nome antigo na tela até a próxima busca.
+  const perfilExibido = ePll && planejamento.idPerfilAtuacao !== null ? nomePerfil : null;
 
   return (
-    <details open className="w-full lg:w-[240px] lg:shrink-0">
-      <summary className="flex cursor-pointer items-center gap-2 rounded-md py-2 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
-        <Compass className="size-4 shrink-0 text-muted-foreground" />
-        Contexto estratégico
-      </summary>
-
-      <div className="grid gap-4 border-t pt-3">
-        {editando && permissoes.crudHierarquia ? (
+    <div className="w-full">
+      <div className="grid gap-4">
+        {editando && podeEditar ? (
           <DadosPlanejamentoForm
             planejamento={planejamento}
             preditoresAtuais={preditoresAtuais}
@@ -83,14 +131,44 @@ export function ContextoEstrategico({
           />
         ) : (
           <div className="grid gap-3 text-sm">
-            <div className="grid gap-1">
-              <p className="text-xs font-medium text-muted-foreground">Legado</p>
-              <p className="text-foreground">{planejamento.legado ?? "—"}</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              {CAMPOS.map(({ titulo, valor }) => (
+                <Card key={titulo}>
+                  <CardHeader>
+                    <CardTitle className="text-xs font-medium text-muted-foreground">{titulo}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3">
+                    <p className="whitespace-pre-line text-foreground">{valor ?? "—"}</p>
+                    {podeEditar && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-fit"
+                        onClick={() => setEditando(true)}
+                      >
+                        Editar
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-            <div className="grid gap-1">
-              <p className="text-xs font-medium text-muted-foreground">Análise de conjuntura</p>
-              <p className="text-foreground">{planejamento.analiseConjuntura ?? "—"}</p>
-            </div>
+
+            {/* PLV-14 AC2. Perfil de atuação só existe no levantamento de campos do
+                PLL (PLR-05) -- Estratégia e Coalizão nunca usam a coluna, e o cartão
+                não aparece para eles. Dentro do PLL ele segue a regra AC3: vazio é
+                "—", não cartão escondido. */}
+            {ePll && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xs font-medium text-muted-foreground">Perfil de atuação</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-foreground">{perfilExibido ?? "—"}</p>
+                </CardContent>
+              </Card>
+            )}
 
             {preditoresOrdenados.length > 0 && (
               <div className="grid gap-1.5">
@@ -105,11 +183,6 @@ export function ContextoEstrategico({
               </div>
             )}
 
-            {permissoes.crudHierarquia && (
-              <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setEditando(true)}>
-                Editar dados do Planejamento
-              </Button>
-            )}
 
             {/* SAI-08, SAI-09, SAI-10: substitui o placeholder PLR-06 (fechado por
                 formularios-produto, T9 -- vw_gip_evolucao já existe) por leitura real,
@@ -172,6 +245,6 @@ export function ContextoEstrategico({
           </div>
         )}
       </div>
-    </details>
+    </div>
   );
 }
