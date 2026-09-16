@@ -19,9 +19,9 @@ export interface ItemTimeline {
   dataEvento: string | null;
 }
 
-export interface GrupoTimeline {
+export interface GrupoTimeline<T extends ItemTimeline = ItemTimeline> {
   mes: string;
-  itens: ItemTimeline[];
+  itens: T[];
 }
 
 const NOMES_MES = [
@@ -48,12 +48,17 @@ function rotuloMes(dataEvento: string | null): string {
   return `${NOMES_MES[Number(mes) - 1]} de ${ano}`;
 }
 
-export function agrupaPorMes(itens: ItemTimeline[]): GrupoTimeline[] {
+// Genérico (achado de T25/T20: `TimelineItem`, o tipo real que
+// buscarTimelineIncidencia devolve, tem mais campos que `ItemTimeline` --
+// criadoEm/idUsuarioAutor. Sem o genérico, o retorno desta função "esquece"
+// esses campos extras mesmo que o objeto em runtime continue completo,
+// quebrando quem precisa deles depois de agrupar, como TimelineFeed).
+export function agrupaPorMes<T extends ItemTimeline>(itens: T[]): GrupoTimeline<T>[] {
   if (itens.length === 0) return [];
 
   const ordenados = [...itens].sort((a, b) => (b.dataEvento ?? "").localeCompare(a.dataEvento ?? ""));
 
-  const grupos: GrupoTimeline[] = [];
+  const grupos: GrupoTimeline<T>[] = [];
   for (const item of ordenados) {
     const mes = rotuloMes(item.dataEvento);
     const grupoAtual = grupos[grupos.length - 1];
