@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
 import { PermissaoNegadaError, ViolacaoConstraintError } from "./errors";
-import { criarFatoGerador } from "./fato-gerador";
+import { criarFatoGerador, marcarFatoRealizado } from "./fato-gerador";
 import { ErroBancoNaoMapeadoError } from "./errors";
 
 // Spec anchor: incidencia-encontros T23 Done-when (.specs/features/incidencia-encontros/tasks.md) --
@@ -140,5 +140,43 @@ describe("criarFatoGerador", () => {
     expect((capturado as ErroBancoNaoMapeadoError).codigo).toBe(erroOriginal.code);
     expect((capturado as Error).message).toContain(erroOriginal.code);
     expect((capturado as Error).message).toContain(erroOriginal.message);
+  });
+});
+
+// T10 (fatos-geradores-ciclo-vida), FGC-08: UPDATE direto (sem RPC) --
+// situacao='realizado' + dt_ocorrencia informada.
+function criarClienteTabelaMock(resultado: { error: Partial<PostgrestError> | null }) {
+  const chamadas: Chamada[] = [];
+  const builder: Record<string, unknown> = {
+    update: (...args: unknown[]) => {
+      chamadas.push({ fn: "update", params: args });
+      return builder;
+    },
+    eq: (...args: unknown[]) => {
+      chamadas.push({ fn: "eq", params: args });
+      return Promise.resolve(resultado);
+    },
+  };
+  const client = { from: (_tabela: string) => builder };
+  return { client: client as unknown as SupabaseClient<Database>, chamadas };
+}
+
+describe("marcarFatoRealizado", () => {
+  it("sucesso: faz UPDATE de situacao/dt_ocorrencia filtrando por id_fato_gerador", async () => {
+    const { client, chamadas } = criarClienteTabelaMock({ error: null });
+
+    await marcarFatoRealizado(client, 7, "2026-09-16");
+
+    expect(chamadas[0]).toEqual({
+      fn: "update",
+      params: [{ situacao: "realizado", dt_ocorrencia: "2026-09-16" }],
+    });
+    expect(chamadas[1]).toEqual({ fn: "eq", params: ["id_fato_gerador", 7] });
+  });
+
+  it("42501 (RLS fora da carteira): lança PermissaoNegadaError", async () => {
+    const { client } = criarClienteTabelaMock({ error: { code: "42501", message: "permission denied" } });
+
+    await expect(marcarFatoRealizado(client, 7, "2026-09-16")).rejects.toThrow(PermissaoNegadaError);
   });
 });

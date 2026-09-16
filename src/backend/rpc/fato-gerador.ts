@@ -46,3 +46,20 @@ export async function criarFatoGerador(
 
   return { idFatoGerador: data as unknown as number };
 }
+
+// T10 (fatos-geradores-ciclo-vida), FGC-08. Transição projetado -> realizado
+// -- UPDATE direto (sem RPC nova): RLS p_por_contrato de fat_fato_gerador já
+// cobre UPDATE por ser `FOR ALL` (20260813192341_incidencia_encontros_rls.sql:31-38),
+// mesma classe de escrita direta de registro-form.tsx.
+export async function marcarFatoRealizado(
+  client: SupabaseClient<Database>,
+  idFatoGerador: number,
+  dtOcorrencia: string
+): Promise<void> {
+  const { error } = await client
+    .from("fat_fato_gerador")
+    .update({ situacao: "realizado", dt_ocorrencia: dtOcorrencia })
+    .eq("id_fato_gerador", idFatoGerador);
+
+  if (error) throw mapeiaErroRpc(error);
+}
