@@ -352,3 +352,80 @@ export async function buscarPreInsightsDoContrato(
     ocorridoEm: p.ocorrido_em,
   }));
 }
+
+export interface TimelineItem {
+  tipo: "pre_insight" | "registro" | "insight" | "fato_gerador";
+  idOrigem: number;
+  titulo: string | null;
+  dataEvento: string | null;
+  criadoEm: string | null;
+  idUsuarioAutor: number | null;
+}
+
+export interface PeriodoFiltro {
+  inicio?: string;
+  fim?: string;
+}
+
+// FGC-10, FGC-13 (T12). Lê vw_timeline_incidencia (T5) -- união dos 4 tipos
+// já feita na view, escopada por id_contrato aqui + período opcional
+// (inicio/fim, ambos opcionais e independentes). Sem paginação/ordenação
+// embutida: quem ordena/agrupa por mês é agrupaPorMes (T13, módulo puro).
+export async function buscarTimelineIncidencia(
+  client: SupabaseClient<Database>,
+  idContrato: number,
+  periodo?: PeriodoFiltro
+): Promise<TimelineItem[]> {
+  let query = client
+    .from("vw_timeline_incidencia")
+    .select("tipo, id_origem, titulo, data_evento, criado_em, id_usuario_autor")
+    .eq("id_contrato", idContrato);
+
+  if (periodo?.inicio) query = query.gte("data_evento", periodo.inicio);
+  if (periodo?.fim) query = query.lte("data_evento", periodo.fim);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  if (!data) return [];
+
+  return data.map((i) => ({
+    tipo: i.tipo as TimelineItem["tipo"],
+    idOrigem: i.id_origem as number,
+    titulo: i.titulo,
+    dataEvento: i.data_evento,
+    criadoEm: i.criado_em,
+    idUsuarioAutor: i.id_usuario_autor,
+  }));
+}
+
+export interface CadeiaItem {
+  idFatoGerador: number;
+  titulo: string | null;
+  situacao: "projetado" | "realizado";
+  dataEvento: string | null;
+  chaveOrigem: string;
+}
+
+// FGC-13 (T12). Lê vw_cadeia_incidencia (T5) -- 1 linha por Fato Gerador,
+// escopada por id_contrato. Rótulo posicional (Cadeia A/B/C) e separação das
+// cadeias só-projetadas ficam para rotulaCadeias (T14, módulo puro, AD-053)
+// -- esta leitura não agrupa nem ordena.
+export async function buscarCadeiasIncidencia(
+  client: SupabaseClient<Database>,
+  idContrato: number
+): Promise<CadeiaItem[]> {
+  const { data, error } = await client
+    .from("vw_cadeia_incidencia")
+    .select("id_fato_gerador, titulo, situacao, data_evento, chave_origem")
+    .eq("id_contrato", idContrato);
+  if (error) throw error;
+  if (!data) return [];
+
+  return data.map((c) => ({
+    idFatoGerador: c.id_fato_gerador as number,
+    titulo: c.titulo,
+    situacao: c.situacao as "projetado" | "realizado",
+    dataEvento: c.data_evento,
+    chaveOrigem: c.chave_origem as string,
+  }));
+}

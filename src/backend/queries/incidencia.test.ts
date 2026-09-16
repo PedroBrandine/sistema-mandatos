@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
 import {
+  buscarCadeiasIncidencia,
   buscarEncontrosDoContrato,
   buscarFatosGeradoresDoContrato,
   buscarIipContrato,
@@ -11,6 +12,7 @@ import {
   buscarPilaresInsight,
   buscarPreInsightsDoContrato,
   buscarRegistrosDaEtapa,
+  buscarTimelineIncidencia,
   buscarTiposRegistroDaEtapa,
   buscarTipologiasAtivas,
   buscarTipologiasCompletas,
@@ -47,6 +49,14 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
       },
       in: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "in", args });
+        return builder;
+      },
+      gte: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "gte", args });
+        return builder;
+      },
+      lte: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "lte", args });
         return builder;
       },
       order: (...args: unknown[]) => {
@@ -473,5 +483,109 @@ describe("buscarPreInsightsDoContrato", () => {
   it("retorna [] quando o contrato não tem nenhum Pré-Insight", async () => {
     const { client } = criarClienteMock({ fat_pre_insight: { data: [], error: null } });
     expect(await buscarPreInsightsDoContrato(client, 100)).toEqual([]);
+  });
+});
+
+describe("buscarTimelineIncidencia", () => {
+  // FGC-10/FGC-13 (T12): union dos 4 tipos já feita pela view -- a query só filtra por contrato.
+  it("mapeia vw_timeline_incidencia sem filtro de período", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_timeline_incidencia: {
+        data: [
+          {
+            tipo: "fato_gerador",
+            id_origem: 1,
+            titulo: "Aprovação do projeto de lei",
+            data_evento: "2026-08-01",
+            criado_em: "2026-08-01T10:00:00Z",
+            id_usuario_autor: 9,
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarTimelineIncidencia(client, 100);
+
+    expect(resultado).toEqual([
+      {
+        tipo: "fato_gerador",
+        idOrigem: 1,
+        titulo: "Aprovação do projeto de lei",
+        dataEvento: "2026-08-01",
+        criadoEm: "2026-08-01T10:00:00Z",
+        idUsuarioAutor: 9,
+      },
+    ]);
+    expect(chamadas.some((c) => c.tabela === "vw_timeline_incidencia" && c.metodo === "gte")).toBe(false);
+    expect(chamadas.some((c) => c.tabela === "vw_timeline_incidencia" && c.metodo === "lte")).toBe(false);
+    const eqs = chamadas
+      .filter((c) => c.tabela === "vw_timeline_incidencia" && c.metodo === "eq")
+      .map((c) => c.args);
+    expect(eqs).toContainEqual(["id_contrato", 100]);
+  });
+
+  // spec.md P1 (Linha do Tempo) AC3: "o usuário escolhe um período THEN o feed SHALL respeitá-lo".
+  it("aplica gte/lte quando o período (inicio/fim) é informado", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_timeline_incidencia: { data: [], error: null },
+    });
+
+    await buscarTimelineIncidencia(client, 100, { inicio: "2026-08-01", fim: "2026-08-31" });
+
+    const gtes = chamadas
+      .filter((c) => c.tabela === "vw_timeline_incidencia" && c.metodo === "gte")
+      .map((c) => c.args);
+    const ltes = chamadas
+      .filter((c) => c.tabela === "vw_timeline_incidencia" && c.metodo === "lte")
+      .map((c) => c.args);
+    expect(gtes).toContainEqual(["data_evento", "2026-08-01"]);
+    expect(ltes).toContainEqual(["data_evento", "2026-08-31"]);
+  });
+
+  it("retorna [] quando o contrato não tem nenhum item na timeline", async () => {
+    const { client } = criarClienteMock({ vw_timeline_incidencia: { data: [], error: null } });
+    expect(await buscarTimelineIncidencia(client, 100)).toEqual([]);
+  });
+});
+
+describe("buscarCadeiasIncidencia", () => {
+  // FGC-13 (T12): 1 linha por Fato Gerador, chave_origem é responsabilidade da view (T5).
+  it("mapeia vw_cadeia_incidencia do contrato", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_cadeia_incidencia: {
+        data: [
+          {
+            id_fato_gerador: 1,
+            titulo: "Aprovação do projeto de lei",
+            situacao: "realizado",
+            data_evento: "2026-08-01",
+            chave_origem: "insight:8",
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCadeiasIncidencia(client, 100);
+
+    expect(resultado).toEqual([
+      {
+        idFatoGerador: 1,
+        titulo: "Aprovação do projeto de lei",
+        situacao: "realizado",
+        dataEvento: "2026-08-01",
+        chaveOrigem: "insight:8",
+      },
+    ]);
+    const eqs = chamadas
+      .filter((c) => c.tabela === "vw_cadeia_incidencia" && c.metodo === "eq")
+      .map((c) => c.args);
+    expect(eqs).toContainEqual(["id_contrato", 100]);
+  });
+
+  it("retorna [] quando o contrato não tem nenhum Fato Gerador", async () => {
+    const { client } = criarClienteMock({ vw_cadeia_incidencia: { data: [], error: null } });
+    expect(await buscarCadeiasIncidencia(client, 100)).toEqual([]);
   });
 });
