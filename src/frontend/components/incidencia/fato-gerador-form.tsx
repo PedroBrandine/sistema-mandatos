@@ -5,13 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import {
-  buscarInsightsDoContrato,
   buscarNiveisIip,
   buscarTipologiasCompletas,
-  type RefOption,
   type TipologiaCompleta,
 } from "@backend/queries/incidencia";
-import { buscarPlanejamentoCompleto } from "@backend/queries/planejamento";
 import { criarFatoGerador } from "@backend/rpc/fato-gerador";
 import { fatoGeradorSchema, type FatoGeradorInput } from "@backend/schemas/fato-gerador";
 import { createClient } from "@backend/supabase/client";
@@ -23,10 +20,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const SEM_VINCULO = "_nenhum";
+import type { OrigemFato } from "./seletor-origem";
 
-// INC-01, INC-02. Componente "burro" quanto a Dialog -- só recebe callbacks,
-// nunca sabe se está num <Dialog> ou inline (mesmo padrão de UsuarioForm, ver
+// INC-01, INC-02, FGC-01..FGC-12 (T17, fatos-geradores-ciclo-vida).
+// Componente "burro" quanto a Dialog -- só recebe callbacks, nunca sabe se
+// está num <Dialog> ou inline (mesmo padrão de UsuarioForm, ver
 // design.md/context.md "Onde vivem as novas ações de UI"). Chama
 // app.criar_fato_gerador (RPC, AD-024) via criarFatoGerador -- fato +
 // vínculo(s) opcional(is) na mesma transação, id_usuario_autor resolvido no
@@ -41,18 +39,54 @@ const SEM_VINCULO = "_nenhum";
 // id_preditor_1,id_preditor_2} desde o seed (T1). Refeito como cascata
 // Grupo→Tipologia→Estado (cada passo filtra o próximo) que resolve
 // id_tipologia e deriva nível/preditor automaticamente (somente leitura) --
-// a Gestora não escolhe nível nem preditor.
+// a Gestora não escolhe nível nem preditor. NÃO TOCAR nesta cascata (T17
+// só estende o resto do formulário).
+//
+// T17 (FatoGeradorWizard, T16): este form vira o passo 2 -- natureza
+// (situacaoInicial) e origem (origemInicial) já vêm escolhidas do passo 1,
+// então os Selects de "Meta de origem"/"Insight de origem" que existiam
+// aqui saem (duplicariam a escolha) e viram uma exibição somente leitura da
+// origem já escolhida. Data de ocorrência/prevista alternam conforme
+// situacaoInicial (spec.md P1 AC10/AC11); Título passa a ser obrigatório
+// (fatoGeradorSchema, T8).
 export interface FatoGeradorFormProps {
   idContrato: number;
+  situacaoInicial: "projetado" | "realizado";
+  origemInicial: OrigemFato;
   onConcluido: (criado?: { idFatoGerador: number }) => void;
   onCancelar: () => void;
 }
 
-export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGeradorFormProps) {
+function origemParaCampos(origem: OrigemFato) {
+  return {
+    id_meta_origem: origem.tipo === "meta" ? origem.id : null,
+    id_insight_origem: origem.tipo === "insight" ? origem.id : null,
+    id_pre_insight_origem: origem.tipo === "pre_insight" ? origem.id : null,
+    id_registro_origem: origem.tipo === "registro" ? origem.id : null,
+  };
+}
+
+const RÓTULO_ORIGEM: Record<Exclude<OrigemFato["tipo"], "sem_origem">, string> = {
+  pre_insight: "Pré-Insight",
+  registro: "Registro",
+  insight: "Insight",
+  meta: "Meta",
+};
+
+function rotuloOrigem(origem: OrigemFato): string {
+  if (origem.tipo === "sem_origem") return "Sem origem";
+  return `${RÓTULO_ORIGEM[origem.tipo]}: ${origem.rotulo}`;
+}
+
+export function FatoGeradorForm({
+  idContrato,
+  situacaoInicial,
+  origemInicial,
+  onConcluido,
+  onCancelar,
+}: FatoGeradorFormProps) {
   const [tipologias, setTipologias] = useState<TipologiaCompleta[]>([]);
   const [niveis, setNiveis] = useState<{ codigo: string; rotulo: string }[]>([]);
-  const [metas, setMetas] = useState<RefOption[]>([]);
-  const [insights, setInsights] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -68,7 +102,10 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
     mode: "onChange",
     defaultValues: {
       id_contrato: idContrato,
-      dt_ocorrencia: new Date().toISOString().slice(0, 10),
+      situacao: situacaoInicial,
+      dt_ocorrencia: situacaoInicial === "realizado" ? new Date().toISOString().slice(0, 10) : null,
+      dt_prevista: null,
+      ...origemParaCampos(origemInicial),
     },
   });
 
@@ -76,15 +113,7 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
     const supabase = createClient();
     void buscarTipologiasCompletas(supabase).then(setTipologias);
     void buscarNiveisIip(supabase).then(setNiveis);
-    void buscarInsightsDoContrato(supabase, idContrato).then((lista) =>
-      setInsights(lista.map((i) => ({ id: i.idInsight, nome: i.conteudo.slice(0, 60) })))
-    );
-    void buscarPlanejamentoCompleto(supabase, idContrato).then((planejamento) =>
-      setMetas(
-        (planejamento?.objetivos ?? []).flatMap((o) => o.metas.map((m) => ({ id: m.idMeta, nome: m.descricao })))
-      )
-    );
-  }, [idContrato]);
+  }, []);
 
   // Set() preserva ordem de 1ª ocorrência -- tipologias já vem ordenada por
   // id_tipologia (ordem do seed = ordem numérica do Grupo no CSV, 1..11).
@@ -146,6 +175,8 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
       const { idFatoGerador } = await criarFatoGerador(supabase, {
         idContrato: valores.id_contrato,
         idTipologia: valores.id_tipologia,
+        titulo: valores.titulo,
+        situacao: valores.situacao,
         nivelD1: valores.nivel_d1 ?? null,
         nivelD2: valores.nivel_d2 ?? null,
         nivelD3: valores.nivel_d3 ?? null,
@@ -153,9 +184,12 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
         idPreditor2: valores.id_preditor_2 ?? null,
         contribuicaoLegisla: valores.contribuicao_legisla ?? null,
         descricaoEvidencia: valores.descricao_evidencia ?? null,
-        dtOcorrencia: valores.dt_ocorrencia,
+        dtOcorrencia: valores.dt_ocorrencia ?? null,
+        dtPrevista: valores.dt_prevista ?? null,
         idMetaOrigem: valores.id_meta_origem ?? null,
         idInsightOrigem: valores.id_insight_origem ?? null,
+        idPreInsightOrigem: valores.id_pre_insight_origem ?? null,
+        idRegistroOrigem: valores.id_registro_origem ?? null,
       });
       onConcluido({ idFatoGerador });
     } catch (err) {
@@ -168,6 +202,27 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(enviar)} className="grid gap-4">
+        {/* Origem já escolhida no passo 1 do wizard (T16) -- somente
+            leitura aqui, nunca reoferecida como Select (evita duplicar a
+            escolha e divergir do que foi selecionado). */}
+        <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          Origem: {rotuloOrigem(origemInicial)}
+        </div>
+
+        <FormField
+          control={form.control}
+          name="titulo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Título</FormLabel>
+              <FormControl>
+                <Input {...field} value={field.value ?? ""} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="grid gap-1.5">
             <FormLabel>Grupo</FormLabel>
@@ -263,19 +318,35 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="dt_ocorrencia"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Data de ocorrência</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {situacaoInicial === "realizado" ? (
+            <FormField
+              control={form.control}
+              name="dt_ocorrencia"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data de ocorrência</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : (
+            <FormField
+              control={form.control}
+              name="dt_prevista"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data prevista</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <FormField
@@ -291,65 +362,6 @@ export function FatoGeradorForm({ idContrato, onConcluido, onCancelar }: FatoGer
             </FormItem>
           )}
         />
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="id_meta_origem"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta de origem (opcional)</FormLabel>
-                <Select
-                  value={field.value ? String(field.value) : SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhuma" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhuma</SelectItem>
-                    {metas.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>
-                        {m.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="id_insight_origem"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Insight de origem (opcional)</FormLabel>
-                <Select
-                  value={field.value ? String(field.value) : SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
-                    {insights.map((i) => (
-                      <SelectItem key={i.id} value={String(i.id)}>
-                        {i.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
 
         {erro && <ErroInline mensagem={erro} />}
         <div className="flex gap-2">
