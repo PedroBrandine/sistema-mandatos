@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PainelDetalhe } from "./painel-detalhe";
 
@@ -95,6 +95,41 @@ describe("PainelDetalhe — Fato Gerador", () => {
 
     expect(screen.getByText("PROJETADO")).toBeInTheDocument();
     expect(screen.getByText(/Nível D2: —/)).toBeInTheDocument();
+  });
+});
+
+describe("PainelDetalhe — Editar (fix task pós-T25, spec.md 'aba como casa única' AC2)", () => {
+  it("com onEditar, mostra o botão Editar e aciona o callback ao clicar", () => {
+    const onEditar = vi.fn();
+    render(
+      <PainelDetalhe
+        item={{ tipo: "registro", idOrigem: 1, titulo: "Reunião", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9 }}
+        registro={{ idRegistro: 1, tipoRegistro: "Pontapé", ocorridoEm: "2026-09-05", resumo: null, nomeAutor: "Ana" }}
+        onEditar={onEditar}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    expect(onEditar).toHaveBeenCalledTimes(1);
+  });
+
+  it("sem onEditar, o botão não aparece -- lado oposto (ex.: Fato Gerador, sem edição ainda)", () => {
+    render(
+      <PainelDetalhe
+        item={{ tipo: "fato_gerador", idOrigem: 3, titulo: "Fato", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9 }}
+        fatoGerador={{
+          idFatoGerador: 3,
+          tipologia: "x",
+          niveis: { d1: "baixo", d2: null, d3: null },
+          titulo: "Fato",
+          situacao: "realizado",
+          dtOcorrencia: "2026-09-10",
+          dtPrevista: null,
+        }}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
   });
 });
 

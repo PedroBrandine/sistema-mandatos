@@ -72,6 +72,14 @@ describe("AbaIncidencia — cada visão mostra o seu e esconde o outro", () => {
     expect(screen.getByText("conteúdo do ciclo de vida")).toBeInTheDocument();
     expect(screen.queryByText("conteúdo da linha do tempo")).not.toBeInTheDocument();
   });
+
+  it("marca aria-selected só na aba ativa (achado do Verifier)", () => {
+    paramsAtuais = new URLSearchParams("visao=ciclo-de-vida");
+    renderiza();
+
+    expect(screen.getByRole("tab", { name: "Ciclo de Vida" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Linha do Tempo" })).toHaveAttribute("aria-selected", "false");
+  });
 });
 
 describe("AbaIncidencia — menu Criar (spec.md 'aba como casa única' AC1)", () => {

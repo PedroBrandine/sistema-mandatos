@@ -23,8 +23,20 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => paramsAtuais,
 }));
 
+// Achado do Verifier (fix task pós-T25): abrirEdicao busca o registro cru
+// direto por id (não pelo resumo já carregado, que só tem campos de
+// exibição) -- roteado por tabela.
+const maybeSingleMock = vi.fn();
 vi.mock("@backend/supabase/client", () => ({
-  createClient: () => ({}),
+  createClient: () => ({
+    from: (tabela: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => maybeSingleMock(tabela),
+        }),
+      }),
+    }),
+  }),
 }));
 
 const buscarRegistrosDoContratoMock = vi.fn();
@@ -63,10 +75,19 @@ vi.mock("@/components/incidencia/pre-insight-form", () => ({
   ),
 }));
 vi.mock("@/components/incidencia/insight-form", () => ({
-  InsightForm: ({ onConcluido }: { onConcluido: () => void }) => (
-    <button type="button" onClick={onConcluido}>
-      concluir insight
-    </button>
+  InsightForm: ({
+    onConcluido,
+    insightExistente,
+  }: {
+    onConcluido: () => void;
+    insightExistente?: { idInsight: number; conteudo: string };
+  }) => (
+    <div>
+      {insightExistente && <p>editando insight: {insightExistente.conteudo}</p>}
+      <button type="button" onClick={onConcluido}>
+        concluir insight
+      </button>
+    </div>
   ),
 }));
 vi.mock("@/components/incidencia/fato-gerador-wizard", () => ({
@@ -90,6 +111,7 @@ beforeEach(() => {
     { tipo: "insight", idOrigem: 1, titulo: "Insight de teste", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9 },
   ]);
   buscarCadeiasIncidenciaMock.mockReset().mockResolvedValue([]);
+  maybeSingleMock.mockReset().mockResolvedValue({ data: null });
 });
 
 afterEach(cleanup);
@@ -99,7 +121,7 @@ describe("/contratos/[id]/fatos-registros — carregamento e composição (FGC-1
     render(<ContratoFatosRegistrosPage params={paramsProntos("7")} />);
 
     expect(await screen.findByText("Insight de teste")).toBeInTheDocument();
-    expect(buscarTimelineIncidenciaMock).toHaveBeenCalledWith({}, 7);
+    expect(buscarTimelineIncidenciaMock).toHaveBeenCalledWith(expect.anything(), 7);
   });
 
   it("oferece as 4 entidades no menu Criar (spec.md AC1)", async () => {
@@ -130,6 +152,59 @@ describe("/contratos/[id]/fatos-registros — concluir fecha o diálogo e atuali
     // Refaz o fetch (AC8) sem navegação/reload -- mesma instância de página,
     // só a contagem de chamadas sobe.
     await waitFor(() => expect(buscarTimelineIncidenciaMock).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("/contratos/[id]/fatos-registros — editar a partir da Linha do Tempo (fix task pós-T25, spec.md AC2)", () => {
+  it("clicar num item e em Editar abre o formulário populado com o registro verdadeiro, e salvar refaz o fetch", async () => {
+    maybeSingleMock.mockImplementation((tabela: string) => {
+      if (tabela === "fat_insight") {
+        return Promise.resolve({
+          data: {
+            id_insight: 1,
+            conteudo: "Conteúdo real do banco",
+            desdobramentos: null,
+            comprovacao_dados: null,
+            ocorrido_em: "2026-09-05",
+            id_pilar: null,
+            id_registro: null,
+          },
+        });
+      }
+      return Promise.resolve({ data: null });
+    });
+
+    render(<ContratoFatosRegistrosPage params={paramsProntos("7")} />);
+    await screen.findByText("Insight de teste");
+
+    // Seleciona o item na timeline (abre o PainelDetalhe real, não mockado).
+    fireEvent.click(screen.getByRole("button", { name: /Insight de teste/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+
+    // O formulário populado NÃO vem do resumo já carregado (que só tem
+    // campos de exibição) -- vem da busca fresca por id.
+    expect(await screen.findByText("editando insight: Conteúdo real do banco")).toBeInTheDocument();
+    expect(maybeSingleMock).toHaveBeenCalledWith("fat_insight");
+
+    expect(buscarTimelineIncidenciaMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "concluir insight" }));
+
+    // Fecha o diálogo de edição e refaz o fetch, mesma garantia de AC8.
+    expect(screen.queryByText("editando insight: Conteúdo real do banco")).not.toBeInTheDocument();
+    await waitFor(() => expect(buscarTimelineIncidenciaMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("Fato Gerador não oferece Editar na timeline -- lado oposto (wizard é só criação)", async () => {
+    buscarTimelineIncidenciaMock.mockResolvedValue([
+      { tipo: "fato_gerador", idOrigem: 9, titulo: "Fato de teste", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9 },
+    ]);
+
+    render(<ContratoFatosRegistrosPage params={paramsProntos("7")} />);
+    await screen.findByText("Fato de teste");
+
+    fireEvent.click(screen.getByRole("button", { name: /Fato de teste/ }));
+
+    expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
   });
 });
 

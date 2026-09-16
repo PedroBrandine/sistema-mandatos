@@ -41,15 +41,23 @@ vi.mock("@backend/queries/incidencia", () => ({
 const insertMock = vi.fn();
 const updateMock = vi.fn();
 const eqMock = vi.fn();
+const maybeSingleMock = vi.fn();
 
 vi.mock("@backend/supabase/client", () => ({
   createClient: () => ({
-    from: () => ({
+    from: (tabela: string) => ({
       insert: (valores: Record<string, unknown>) => insertMock(valores),
       update: (valores: Record<string, unknown>) => {
         updateMock(valores);
         return { eq: (coluna: string, valor: unknown) => eqMock(coluna, valor) };
       },
+      // ref_tipo_registro: lookup de id_etapa a partir do tipo do registro
+      // existente (fix pós-T25 -- edição deriva a etapa, não pergunta de novo).
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => maybeSingleMock(tabela),
+        }),
+      }),
     }),
   }),
 }));
@@ -71,6 +79,7 @@ beforeEach(() => {
   insertMock.mockReset();
   updateMock.mockReset();
   eqMock.mockReset();
+  maybeSingleMock.mockReset();
   onConcluido.mockReset();
 
   idUsuarioMock.mockReturnValue(42);
@@ -79,6 +88,7 @@ beforeEach(() => {
   buscarEncontrosDoContratoMock.mockResolvedValue([]);
   insertMock.mockResolvedValue({ error: null });
   eqMock.mockResolvedValue({ error: null });
+  maybeSingleMock.mockResolvedValue({ data: { id_etapa: 10 } });
 });
 
 afterEach(cleanup);
@@ -126,6 +136,24 @@ describe("RegistroForm — criação (INSERT)", () => {
     expect(updateMock).not.toHaveBeenCalled();
     expect(onConcluido).toHaveBeenCalledTimes(1);
   });
+
+  it("INSERT negado pela RLS exibe ErroInline e não conclui -- lado oposto (achado do Verifier)", async () => {
+    insertMock.mockResolvedValue({ error: { message: "RLS negou a escrita.", code: "42501" } });
+
+    render(<RegistroForm idContrato={7} idEtapa={10} onConcluido={onConcluido} />);
+
+    await waitFor(() => expect(screen.getAllByRole("combobox")).toHaveLength(2));
+    const [comboTipo] = screen.getAllByRole("combobox");
+    fireEvent.click(comboTipo);
+    fireEvent.click(await screen.findByRole("option", { name: "Pontapé" }));
+    fireEvent.change(screen.getByLabelText("Ocorrido em"), { target: { value: "2026-09-16" } });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Registrar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Registrar" }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(onConcluido).not.toHaveBeenCalled();
+  });
 });
 
 describe("RegistroForm — edição (UPDATE)", () => {
@@ -156,5 +184,31 @@ describe("RegistroForm — edição (UPDATE)", () => {
     expect(eqMock).toHaveBeenCalledWith("id_registro", 99);
     expect(insertMock).not.toHaveBeenCalled();
     expect(onConcluido).toHaveBeenCalledTimes(1);
+  });
+
+  it("editando a partir da Linha do Tempo (sem idEtapa fixado), deriva a etapa e NÃO mostra o Select -- fix pós-T25", async () => {
+    render(
+      <RegistroForm
+        idContrato={7}
+        registroExistente={{
+          idRegistro: 99,
+          idTipoRegistro: 1,
+          ocorridoEm: "2026-09-01",
+          nrSequencia: null,
+          idEncontro: null,
+          resumo: "Resumo antigo",
+        }}
+        onConcluido={onConcluido}
+      />
+    );
+
+    expect(await screen.findByDisplayValue("Resumo antigo")).toBeInTheDocument();
+    expect(screen.queryByText("Selecione a etapa")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(eqMock).toHaveBeenCalledWith("id_registro", 99);
   });
 });

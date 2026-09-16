@@ -28,6 +28,12 @@ export interface TimelineFeedProps {
   insights: InsightResumo[];
   fatosGeradores: FatoGeradorResumo[];
   preInsights: PreInsightResumo[];
+  // Achado do Verifier (fix task pós-T25, spec.md "aba como casa única"
+  // AC2): repassado a PainelDetalhe só quando o item selecionado NÃO é
+  // fato_gerador -- Fato Gerador ainda não tem formulário de edição (o
+  // wizard é só criação), então "Editar" nunca aparece pra esse tipo,
+  // mesmo com onEditar presente.
+  onEditar?: (item: TimelineItem) => void;
 }
 
 const TIPOS: { valor: TimelineItem["tipo"]; rotulo: string }[] = [
@@ -47,7 +53,14 @@ function chave(item: TimelineItem): string {
   return `${item.tipo}-${item.idOrigem}`;
 }
 
-export function TimelineFeed({ itens, registros, insights, fatosGeradores, preInsights }: TimelineFeedProps) {
+export function TimelineFeed({
+  itens,
+  registros,
+  insights,
+  fatosGeradores,
+  preInsights,
+  onEditar,
+}: TimelineFeedProps) {
   const [tiposVisiveis, setTiposVisiveis] = useState<Set<TimelineItem["tipo"]>>(
     () => new Set(TIPOS.map((t) => t.valor))
   );
@@ -154,6 +167,9 @@ export function TimelineFeed({ itens, registros, insights, fatosGeradores, preIn
         insight={insightSelecionado}
         fatoGerador={fatoGeradorSelecionado}
         preInsight={preInsightSelecionado}
+        onEditar={
+          onEditar && selecionado && selecionado.tipo !== "fato_gerador" ? () => onEditar(selecionado) : undefined
+        }
       />
     </div>
   );

@@ -21,12 +21,25 @@ import { Textarea } from "@/components/ui/textarea";
 // nunca digitado no formulário (spec.md P1 "Pré-Insight como entidade" AC2):
 // a RLS (p_por_contrato, WITH CHECK) rejeitaria qualquer id_usuario_autor
 // que o form tentasse enviar diferente do usuário da sessão.
+//
+// Achado do Verifier (fix task pós-T25): a aba "casa única" (spec.md AC2)
+// exige editar as 4 entidades a partir da Linha do Tempo sem sair da aba.
+// Edição aqui é UPDATE direto, mesmo padrão de registro-form.tsx/
+// insight-form.tsx (T23/T24) -- autor não muda em edição (não faz sentido
+// re-atribuir autoria), só conteudo/ocorrido_em.
+export interface PreInsightExistente {
+  idPreInsight: number;
+  conteudo: string;
+  ocorridoEm: string | null;
+}
+
 export interface PreInsightFormProps {
   idContrato: number;
+  preInsightExistente?: PreInsightExistente;
   onConcluido: () => void;
 }
 
-export function PreInsightForm({ idContrato, onConcluido }: PreInsightFormProps) {
+export function PreInsightForm({ idContrato, preInsightExistente, onConcluido }: PreInsightFormProps) {
   const { idUsuario, carregando: carregandoUsuario } = usePapelGlobal();
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -34,18 +47,36 @@ export function PreInsightForm({ idContrato, onConcluido }: PreInsightFormProps)
   const form = useForm<PreInsightInput>({
     resolver: zodResolver(preInsightSchema),
     mode: "onChange",
-    defaultValues: { id_contrato: idContrato, conteudo: "" },
+    defaultValues: preInsightExistente
+      ? { id_contrato: idContrato, conteudo: preInsightExistente.conteudo, ocorrido_em: preInsightExistente.ocorridoEm }
+      : { id_contrato: idContrato, conteudo: "" },
   });
 
   async function enviar(valores: PreInsightInput) {
-    if (!idUsuario) {
-      setErro("Não foi possível identificar o usuário autor. Recarregue a página e tente novamente.");
-      return;
-    }
-
     setEnviando(true);
     setErro(null);
     const supabase = createClient();
+
+    if (preInsightExistente) {
+      const { error } = await supabase
+        .from("fat_pre_insight")
+        .update({ conteudo: valores.conteudo, ocorrido_em: valores.ocorrido_em ?? undefined })
+        .eq("id_pre_insight", preInsightExistente.idPreInsight);
+
+      setEnviando(false);
+      if (error) {
+        setErro(mapeiaErroRpc(error).message);
+        return;
+      }
+      onConcluido();
+      return;
+    }
+
+    if (!idUsuario) {
+      setEnviando(false);
+      setErro("Não foi possível identificar o usuário autor. Recarregue a página e tente novamente.");
+      return;
+    }
 
     const { error } = await supabase.from("fat_pre_insight").insert({
       id_contrato: valores.id_contrato,
@@ -98,7 +129,7 @@ export function PreInsightForm({ idContrato, onConcluido }: PreInsightFormProps)
         {erro && <ErroInline mensagem={erro} />}
         <div>
           <Button type="submit" disabled={enviando || carregandoUsuario || !form.formState.isValid}>
-            {enviando ? "Salvando..." : "Criar Pré-Insight"}
+            {enviando ? "Salvando..." : preInsightExistente ? "Salvar" : "Criar Pré-Insight"}
           </Button>
         </div>
       </form>

@@ -7,6 +7,7 @@ import type {
 } from "@backend/queries/incidencia";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // FGC-11 (T20, fatos-geradores-ciclo-vida). Painel lateral de detalhe da
@@ -28,6 +29,13 @@ export interface PainelDetalheProps {
   insight?: InsightResumo;
   fatoGerador?: FatoGeradorResumo;
   preInsight?: PreInsightResumo;
+  // Achado do Verifier (fix task pós-T25): spec.md "A aba como casa única"
+  // AC2 exige editar a partir da Linha do Tempo sem sair da aba. Opcional de
+  // propósito -- o chamador (página) só passa quando aquele TIPO de item
+  // tem formulário com modo de edição pronto (Registro/Insight/Pré-Insight,
+  // T23/T24/fix); Fato Gerador ainda não tem edição (wizard é só criação),
+  // então o botão simplesmente não aparece para esse tipo.
+  onEditar?: () => void;
 }
 
 function formatarData(data: string | null): string {
@@ -43,7 +51,7 @@ const ROTULO_TIPO: Record<TimelineItem["tipo"], string> = {
   fato_gerador: "Fato Gerador",
 };
 
-export function PainelDetalhe({ item, registro, insight, fatoGerador, preInsight }: PainelDetalheProps) {
+export function PainelDetalhe({ item, registro, insight, fatoGerador, preInsight, onEditar }: PainelDetalheProps) {
   if (!item) {
     return (
       <Card>
@@ -56,9 +64,16 @@ export function PainelDetalhe({ item, registro, insight, fatoGerador, preInsight
 
   return (
     <Card>
-      <CardHeader>
-        <Badge variant="outline">{ROTULO_TIPO[item.tipo]}</Badge>
-        <CardTitle className="mt-2 text-base">{item.titulo ?? "—"}</CardTitle>
+      <CardHeader className="flex flex-row items-start justify-between">
+        <div>
+          <Badge variant="outline">{ROTULO_TIPO[item.tipo]}</Badge>
+          <CardTitle className="mt-2 text-base">{item.titulo ?? "—"}</CardTitle>
+        </div>
+        {onEditar && (
+          <Button type="button" variant="outline" size="sm" onClick={onEditar}>
+            Editar
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="grid gap-3 text-sm">
         <div>

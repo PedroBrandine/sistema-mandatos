@@ -20,11 +20,17 @@ vi.mock("@/hooks/use-papel-global", () => ({
 }));
 
 const insertMock = vi.fn();
+const updateMock = vi.fn();
+const eqMock = vi.fn();
 
 vi.mock("@backend/supabase/client", () => ({
   createClient: () => ({
     from: (tabela: string) => ({
       insert: (valores: Record<string, unknown>) => insertMock(tabela, valores),
+      update: (valores: Record<string, unknown>) => {
+        updateMock(tabela, valores);
+        return { eq: (coluna: string, valor: unknown) => eqMock(coluna, valor) };
+      },
     }),
   }),
 }));
@@ -37,11 +43,14 @@ beforeEach(() => {
   idUsuarioMock.mockReset();
   carregandoUsuarioMock.mockReset();
   insertMock.mockReset();
+  updateMock.mockReset();
+  eqMock.mockReset();
   onConcluido.mockReset();
 
   idUsuarioMock.mockReturnValue(42);
   carregandoUsuarioMock.mockReturnValue(false);
   insertMock.mockResolvedValue({ error: null });
+  eqMock.mockResolvedValue({ error: null });
 });
 
 afterEach(cleanup);
@@ -104,6 +113,65 @@ describe("PreInsightForm — data opcional", () => {
     await waitFor(() => expect(insertMock).toHaveBeenCalledTimes(1));
     const [, payload] = insertMock.mock.calls[0];
     expect(payload.ocorrido_em).toBeUndefined();
+  });
+});
+
+describe("PreInsightForm — edição (fix task pós-T25, spec.md 'aba como casa única' AC2)", () => {
+  it("com preInsightExistente, popula os valores e chama update pelo id, não insert -- lado oposto da criação", async () => {
+    render(
+      <PreInsightForm
+        idContrato={7}
+        preInsightExistente={{ idPreInsight: 12, conteudo: "Sinal antigo", ocorridoEm: "2026-08-01" }}
+        onConcluido={onConcluido}
+      />
+    );
+
+    expect(await screen.findByDisplayValue("Sinal antigo")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2026-08-01")).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(eqMock).toHaveBeenCalledWith("id_pre_insight", 12);
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(onConcluido).toHaveBeenCalledTimes(1);
+  });
+
+  it("edição não exige idUsuario resolvido (autor não muda) -- lado oposto da criação", async () => {
+    idUsuarioMock.mockReturnValue(null);
+
+    render(
+      <PreInsightForm
+        idContrato={7}
+        preInsightExistente={{ idPreInsight: 12, conteudo: "Sinal antigo", ocorridoEm: null }}
+        onConcluido={onConcluido}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(onConcluido).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha do UPDATE mostra ErroInline e não conclui -- lado oposto do sucesso", async () => {
+    eqMock.mockResolvedValue({ error: { message: "RLS negou a escrita.", code: "42501" } });
+
+    render(
+      <PreInsightForm
+        idContrato={7}
+        preInsightExistente={{ idPreInsight: 12, conteudo: "Sinal antigo", ocorridoEm: null }}
+        onConcluido={onConcluido}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(onConcluido).not.toHaveBeenCalled();
   });
 });
 

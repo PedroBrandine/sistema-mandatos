@@ -68,8 +68,26 @@ export function RegistroForm({ idContrato, idEtapa, registroExistente, onConclui
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  const precisaEscolherEtapa = idEtapa === undefined;
+  // Achado do Verifier (fix task pós-T25): em edição, a etapa não precisa
+  // ser perguntada de novo -- é derivada do próprio id_tipo_registro do
+  // registro (ref_tipo_registro.id_etapa), que já sabemos. Perguntar de
+  // novo obrigaria reescolher algo irrelevante pro que está sendo salvo
+  // (etapa não é coluna de fat_registro, só filtra o Select de Tipo).
+  const precisaEscolherEtapa = idEtapa === undefined && !registroExistente;
   const etapaEfetiva = idEtapa ?? etapaEscolhida;
+
+  useEffect(() => {
+    if (!registroExistente) return;
+    const supabase = createClient();
+    supabase
+      .from("ref_tipo_registro")
+      .select("id_etapa")
+      .eq("id_tipo_registro", registroExistente.idTipoRegistro)
+      .maybeSingle()
+      .then(({ data }: { data: { id_etapa: number } | null }) => {
+        if (data) setEtapaEscolhida(data.id_etapa);
+      });
+  }, [registroExistente]);
 
   const form = useForm<RegistroInput>({
     resolver: zodResolver(registroSchema),

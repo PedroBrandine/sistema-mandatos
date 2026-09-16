@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TimelineItem } from "@backend/queries/incidencia";
 
@@ -35,7 +35,7 @@ const FATO_SEM_ORIGEM = {
   dtPrevista: null,
 };
 
-function renderFeed(itens: TimelineItem[] = ITENS) {
+function renderFeed(itens: TimelineItem[] = ITENS, onEditar?: (item: TimelineItem) => void) {
   render(
     <TimelineFeed
       itens={itens}
@@ -43,6 +43,7 @@ function renderFeed(itens: TimelineItem[] = ITENS) {
       insights={[{ idInsight: 2, conteudo: "Conteúdo", pilar: "Incidência política", ocorridoEm: "2026-08-20" }]}
       fatosGeradores={[FATO_SEM_ORIGEM]}
       preInsights={[]}
+      onEditar={onEditar}
     />
   );
 }
@@ -109,5 +110,26 @@ describe("TimelineFeed — seleção mostra detalhe no painel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Insight de agosto/ }));
 
     expect(screen.getByText("Incidência política")).toBeInTheDocument();
+  });
+});
+
+describe("TimelineFeed — Editar repassado ao PainelDetalhe (fix task pós-T25, spec.md AC2)", () => {
+  it("selecionar um Insight e clicar Editar aciona onEditar com o item certo", () => {
+    const onEditar = vi.fn();
+    renderFeed(ITENS, onEditar);
+
+    fireEvent.click(screen.getByRole("button", { name: /Insight de agosto/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+
+    expect(onEditar).toHaveBeenCalledWith(ITENS[1]);
+  });
+
+  it("selecionar um Fato Gerador NÃO mostra Editar -- lado oposto (sem edição pronta ainda)", () => {
+    const onEditar = vi.fn();
+    renderFeed(ITENS, onEditar);
+
+    fireEvent.click(screen.getByRole("button", { name: /10\/09\/2026/ }));
+
+    expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
   });
 });
