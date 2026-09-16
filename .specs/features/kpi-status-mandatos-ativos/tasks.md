@@ -24,7 +24,7 @@ files by filesystem path.
 | T4 | Feita (junto com T5) | `79da53b` |
 | T5 | Feita | `79da53b` |
 | T6 | Feita | `05e4e9c` |
-| T7 | **Pendente — depende de conferência humana na tela** | — |
+| T7 | **Pendente — a tela abre, os números ainda não foram conferidos** | — |
 | Fix 1 | Gaps da 1ª iteração do Verifier (KSM-17, borda, KSM-11, recorte) | `33c67b4` |
 | Fix 2 | Borda de 'atrasado' derivada do limiar real (2ª iteração) | `03d88f6` |
 
@@ -35,6 +35,23 @@ condicionado à P4**, 7 mutantes mortos, 1 sobrevivente aceito
 
 **Gates finais**: unit 775 ✅ · integração da view 27 ✅ · build ✅ · lint ❌
 com os mesmos 10 erros pré-existentes, nenhum em arquivo desta feature.
+
+**Bloqueio de ambiente removido em 2026-09-15/16**: a validação de T7 ficou
+travada porque toda sub-rota dentro de segmento dinâmico devolvia 404 no
+`next dev` (`/produtos/[slug]/dashboard`, mas também `/contratos/[id]/informacoes`
+— nada a ver com esta feature). Era o **genérico do Next**, não o `not-found.tsx`
+do produto: o `layout.tsx` nunca rodava, o roteador não conhecia a rota. Causa:
+`.next/dev` com estado velho — tinha `produtos/[slug]/contratos/page.js`
+compilado, rota que não existe mais no código. Resolvido derrubando o dev
+server, apagando `src/frontend/.next/dev` e subindo de novo; as três rotas
+voltaram a 200. Primo do defeito de `.specs/features/dev-server-rotas-dinamicas-500/`,
+mas não o mesmo: a mitigação `workerThreads` está ativa e previne o 500 por
+console morto, não este cache sujo.
+
+**T7 continua pendente**: Pedro confirmou em 16/09 que a tela abre, mas **não
+conferiu os números, nem o clique, nem o arraste**. A feature NÃO está validada
+— o critério que ela própria criou (P4: pronto passa pela tela) segue sem ser
+cumprido. Não tratar como concluída.
 
 **Aberto e conhecido**:
 - `handleDragEnd`/`onMoverCard` sem asserção: a metade "arrastar move a etapa"
