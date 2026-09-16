@@ -27,6 +27,7 @@ import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ContextoEstrategico } from "@/components/planejamento/contexto-estrategico";
+import { PlanejamentoAbas } from "@/components/planejamento/planejamento-abas";
 import { type ModoPlanejamento, PERMISSOES } from "@/components/planejamento/permissoes";
 import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejamento-agregado-coalizao";
 import { PlanejamentoGrade, type PlanejamentoGradeHandle } from "@/components/planejamento/planejamento-grade";
@@ -41,12 +42,14 @@ import { cn } from "@/lib/utils";
 // tipoContratante/possuiPlanejamentoProprio (design.md "Architecture
 // Overview"): Coalizão sem planejamento próprio mostra a leitura agregada
 // dos membros (PlanejamentoAgregadoCoalizao); todo o resto mostra o cabeçalho
-// + coluna esquerda (contexto estratégico) + árvore-grade do próprio
-// contrato, num layout de 2 colunas -- `flex-col` empilha a coluna esquerda
-// (accordion nativo via <details>, ContextoEstrategico) acima da grade
-// abaixo de `lg` (1024px, T9); `lg:flex-row` os coloca lado a lado. Nenhum
-// painel fixo à direita em nenhum estado -- ContextoEstrategico é a coluna
-// ESQUERDA, e mesmo colapsada (<details> fechado) não reserva espaço fixo.
+// + as duas abas do próprio contrato.
+//
+// PLV-14 (T15) APOSENTOU o layout de 2 colunas da PLR-01. O contexto
+// estratégico era coluna esquerda permanente (<details>, accordion abaixo de
+// 1024px) ao lado da árvore-grade; agora é a aba Diagnóstico, e a grade ocupa a
+// largura inteira na aba Construir a estrutura. A regra "nenhum painel fixo à
+// direita em nenhum estado" continua valendo, agora trivialmente: não há
+// segunda coluna.
 //
 // PlanejamentoGrade (T11) substitui PlanejamentoArvore -- árvore-grade
 // unificada com modos (T12, PLR-08): 3 botões desabilitados quando fora de
@@ -301,83 +304,87 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
         onRecalcular={handleRecalcular}
       />
 
-      {/* PLR-01: layout de 2 colunas -- ContextoEstrategico (esquerda, T8/T9,
-          <details> nativo cuida do colapso E do accordion <1024px sozinho)
-          + árvore-grade (direita, ocupa o resto). Nunca painel fixo à
-          direita em nenhum estado. */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <ContextoEstrategico
-          planejamento={planejamento}
-          preditoresAtuais={preditoresAtuais}
-          evolucaoGip={evolucaoGip}
-          produtoNome={contrato.nomeProduto}
-          permissoes={permissoes}
-          onDadosAlterados={() => {
-            void recarregarHierarquia();
-            void recarregarPreditores();
-          }}
-        />
-
-        <div className="min-w-0 flex-1 grid gap-3">
-          {/* PLR-08: seletor de modo -- 3 botões, desabilitado (não escondido)
-              quando fora de permissoes.modosDisponiveis. */}
-          <div className="flex w-fit items-center gap-1 rounded-lg border p-1">
-            {(["construir", "monitorar", "ler"] as const).map((opcao) => {
-              const disponivel = permissoes.modosDisponiveis.includes(opcao);
-              return (
-                <Button
-                  key={opcao}
-                  type="button"
-                  variant={modo === opcao ? "default" : "ghost"}
-                  size="sm"
-                  disabled={!disponivel}
-                  title={disponivel ? undefined : "Não disponível para o seu papel"}
-                  onClick={() => setModo(opcao)}
-                  className={cn("capitalize", !disponivel && "opacity-50")}
-                >
-                  {opcao}
-                </Button>
-              );
-            })}
-          </div>
-
-          <PlanejamentoToolbar
-            permissoes={permissoes}
-            modo={modo}
-            busca={busca}
-            onBuscaChange={setBusca}
-            soPendentes={soPendentes}
-            onSoPendentesChange={setSoPendentes}
-            soMinhasMetas={soMinhasMetas}
-            onSoMinhasMetasChange={setSoMinhasMetas}
-            onExpandirTudo={() => gradeRef.current?.expandirTudo()}
-            onRecolherTudo={() => gradeRef.current?.recolherTudo()}
-            onCriarObjetivo={() => gradeRef.current?.criarObjetivo()}
-            quantidadeMarcada={quantidadeMarcada}
-            onAplicarEmMassa={(valor) => gradeRef.current?.aplicarEmMassa(valor)}
-          />
-
-          <PlanejamentoGrade
-            ref={gradeRef}
-            idPlanejamento={planejamento.idPlanejamento}
+      {/* PLV-14. As duas abas SUBSTITUEM o layout de 2 colunas da PLR-01: o
+          contexto estratégico deixa de ser coluna esquerda permanente e passa a
+          ser a aba Diagnóstico, e a árvore-grade ganha a largura inteira na aba
+          Construir a estrutura. A regra "nenhum painel fixo à direita" continua
+          valendo -- agora trivialmente, porque não há segunda coluna. */}
+      <PlanejamentoAbas
+        diagnostico={
+          <ContextoEstrategico
+            planejamento={planejamento}
+            preditoresAtuais={preditoresAtuais}
+            evolucaoGip={evolucaoGip}
             produtoNome={contrato.nomeProduto}
-            objetivos={planejamento.objetivos}
-            linhas={linhasGrade}
-            pessoasVinculadas={pessoasVinculadas}
             permissoes={permissoes}
-            modo={modo}
-            busca={busca}
-            soPendentes={soPendentes}
-            soMinhasMetas={soMinhasMetas}
-            idUsuario={idUsuario}
-            onSelecaoMudou={setQuantidadeMarcada}
-            onEdicaoCelula={handleEdicaoCelula}
-            onColarFaixa={handleColarFaixa}
-            onHierarquiaAlterada={recarregarHierarquia}
-            onGradeAlterada={recarregarGrade}
+            onDadosAlterados={() => {
+              void recarregarHierarquia();
+              void recarregarPreditores();
+            }}
           />
-        </div>
-      </div>
+        }
+        estrutura={
+          <div className="grid min-w-0 gap-3">
+            {/* PLR-08: seletor de modo -- 3 botões, desabilitado (não escondido)
+                quando fora de permissoes.modosDisponiveis. */}
+            <div className="flex w-fit items-center gap-1 rounded-lg border p-1">
+              {(["construir", "monitorar", "ler"] as const).map((opcao) => {
+                const disponivel = permissoes.modosDisponiveis.includes(opcao);
+                return (
+                  <Button
+                    key={opcao}
+                    type="button"
+                    variant={modo === opcao ? "default" : "ghost"}
+                    size="sm"
+                    disabled={!disponivel}
+                    title={disponivel ? undefined : "Não disponível para o seu papel"}
+                    onClick={() => setModo(opcao)}
+                    className={cn("capitalize", !disponivel && "opacity-50")}
+                  >
+                    {opcao}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <PlanejamentoToolbar
+              permissoes={permissoes}
+              modo={modo}
+              busca={busca}
+              onBuscaChange={setBusca}
+              soPendentes={soPendentes}
+              onSoPendentesChange={setSoPendentes}
+              soMinhasMetas={soMinhasMetas}
+              onSoMinhasMetasChange={setSoMinhasMetas}
+              onExpandirTudo={() => gradeRef.current?.expandirTudo()}
+              onRecolherTudo={() => gradeRef.current?.recolherTudo()}
+              onCriarObjetivo={() => gradeRef.current?.criarObjetivo()}
+              quantidadeMarcada={quantidadeMarcada}
+              onAplicarEmMassa={(valor) => gradeRef.current?.aplicarEmMassa(valor)}
+            />
+
+            <PlanejamentoGrade
+              ref={gradeRef}
+              idPlanejamento={planejamento.idPlanejamento}
+              produtoNome={contrato.nomeProduto}
+              objetivos={planejamento.objetivos}
+              linhas={linhasGrade}
+              pessoasVinculadas={pessoasVinculadas}
+              permissoes={permissoes}
+              modo={modo}
+              busca={busca}
+              soPendentes={soPendentes}
+              soMinhasMetas={soMinhasMetas}
+              idUsuario={idUsuario}
+              onSelecaoMudou={setQuantidadeMarcada}
+              onEdicaoCelula={handleEdicaoCelula}
+              onColarFaixa={handleColarFaixa}
+              onHierarquiaAlterada={recarregarHierarquia}
+              onGradeAlterada={recarregarGrade}
+            />
+          </div>
+        }
+      />
     </div>
   );
 }
