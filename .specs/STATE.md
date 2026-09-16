@@ -1036,6 +1036,22 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-09-15
 - **Status**: active
 
+### AD-058
+- **Decision**: Promover um Pré-Insight a Insight **não** cria vínculo entre os
+  dois. Nascem e permanecem entidades independentes — nenhuma FK de
+  `fat_insight` para `fat_pre_insight` nem vice-versa.
+- **Reason**: Fecha o ponto que a AD-055 deixou explicitamente em aberto
+  ("a relação... fica em aberto para Design"). Decisão de Pedro (2026-09-16),
+  na revisão do `design.md` de `fatos-geradores-ciclo-vida`: manter o desenho
+  mais simples — a timeline já mostra os dois lado a lado sem precisar de
+  rastro estrutural entre eles.
+- **Trade-off**: Não dá para responder "de qual Pré-Insight este Insight veio"
+  por query — só por memória de quem promoveu. Se a operação pedir
+  rastreabilidade depois, é decisão nova que supersede esta (FK opcional).
+- **Scope**: Incidência (`fat_pre_insight`, `fat_insight`).
+- **Date**: 2026-09-16
+- **Status**: active
+
 ---
 
 ## Handoff (Kanban de Etapas — CONCLUÍDA e validada)
