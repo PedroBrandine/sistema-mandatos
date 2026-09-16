@@ -78,3 +78,11 @@ Este projeto usa a skill `tlc-spec-driven`. Antes de implementar algo não
 trivial, leia `.specs/STATE.md` (decisões arquiteturais ativas, prefixo AD-) e
 `.specs/roadmap.md` (o que já foi feito e o que vem a seguir). Specs de
 features individuais ficam em `.specs/features/<nome>/`.
+
+## Desenhando tela (Figma)
+
+Antes de gerar, editar ou revisar qualquer design — inclusive ao escrever
+prompt para a IA do Figma —, use a skill `figma-dominio-legisla`. Ela carrega
+o vocabulário canônico de campos, enums e rótulos, e lista as invenções de
+termo que já chegaram em mockup. Termo inventado no desenho vira spec errada e
+custa migration em produção.
