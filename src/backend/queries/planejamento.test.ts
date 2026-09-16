@@ -8,6 +8,7 @@ import {
   buscarHistoricoAuditoria,
   buscarPessoasVinculadasAoContrato,
   buscarPlanejamentoCompleto,
+  buscarPlanejamentoKpis,
   buscarPreditoresPlanejamento,
 } from "./planejamento";
 
@@ -532,5 +533,69 @@ describe("buscarEvolucaoGip", () => {
     const resultado = await buscarEvolucaoGip(client, 999);
 
     expect(resultado).toEqual([]);
+  });
+});
+
+// Spec anchor: PLV-11 (.specs/features/planejamento-estrategico-v2/spec.md) --
+// os KPIs saem de vw_planejamento_kpi (AD-003), e `null` é preservado como
+// `null` para a tela exibir `—` (AD-005), nunca convertido para 0.
+describe("buscarPlanejamentoKpis (PLV-11)", () => {
+  const linha = {
+    id_planejamento: 10,
+    id_contrato: 3,
+    pct_atingimento: 62,
+    metas_ativas: 7,
+    metas_prioritarias: 3,
+    sucessos_mensais: 12,
+  };
+
+  it("lê da view vw_planejamento_kpi, não de tabela transacional (AD-003)", async () => {
+    const { client, chamadas } = criarClienteMock({ vw_planejamento_kpi: { data: linha, error: null } });
+    await buscarPlanejamentoKpis(client, 10);
+    expect(chamadas.map((c) => c.tabela)).toContain("vw_planejamento_kpi");
+  });
+
+  it("mapeia snake_case -> camelCase preservando cada valor", async () => {
+    const { client } = criarClienteMock({ vw_planejamento_kpi: { data: linha, error: null } });
+    const kpi = await buscarPlanejamentoKpis(client, 10);
+    expect(kpi).toEqual({
+      idPlanejamento: 10,
+      idContrato: 3,
+      pctAtingimento: 62,
+      metasAtivas: 7,
+      metasPrioritarias: 3,
+      sucessosMensais: 12,
+    });
+  });
+
+  // PLV-11 AC4: plano sem Meta exibe `—`, não `0`. Converter null em 0 aqui
+  // afirmaria desempenho zero onde não há o que medir.
+  it("preserva null como null -- plano sem Meta nenhuma não vira 0", async () => {
+    const vazio = {
+      id_planejamento: 11,
+      id_contrato: 4,
+      pct_atingimento: null,
+      metas_ativas: null,
+      metas_prioritarias: null,
+      sucessos_mensais: null,
+    };
+    const { client } = criarClienteMock({ vw_planejamento_kpi: { data: vazio, error: null } });
+    const kpi = await buscarPlanejamentoKpis(client, 11);
+    expect(kpi?.pctAtingimento).toBeNull();
+    expect(kpi?.metasAtivas).toBeNull();
+    expect(kpi?.metasPrioritarias).toBeNull();
+    expect(kpi?.sucessosMensais).toBeNull();
+  });
+
+  it("retorna null quando o planejamento não existe", async () => {
+    const { client } = criarClienteMock({ vw_planejamento_kpi: { data: null, error: null } });
+    expect(await buscarPlanejamentoKpis(client, 999)).toBeNull();
+  });
+
+  it("propaga erro do banco em vez de devolver dado parcial", async () => {
+    const { client } = criarClienteMock({
+      vw_planejamento_kpi: { data: null, error: { message: "permission denied" } },
+    });
+    await expect(buscarPlanejamentoKpis(client, 10)).rejects.toMatchObject({ message: "permission denied" });
   });
 });

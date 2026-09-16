@@ -432,3 +432,53 @@ export async function buscarEvolucaoGip(
     quadrante: r.quadrante,
   }));
 }
+
+// PLV-11. Os 4 cartões do topo da tela. Os números saem de vw_planejamento_kpi
+// (AD-003: número de gestão vem de view, nunca de agregação no cliente).
+//
+// `null` é preservado como `null` de propósito -- a tela exibe `—` (AD-005).
+// Trocar por 0 aqui afirmaria desempenho zero onde não há o que medir: um plano
+// sem Meta nenhuma não está a 0%, está sem dado.
+//
+// Fatos Geradores não vem daqui: é placeholder na tela até
+// `fatos-geradores-ciclo-vida` concluir.
+export interface PlanejamentoKpi {
+  idPlanejamento: number;
+  idContrato: number;
+  pctAtingimento: number | null;
+  metasAtivas: number | null;
+  metasPrioritarias: number | null;
+  sucessosMensais: number | null;
+}
+
+interface RowPlanejamentoKpi {
+  id_planejamento: number;
+  id_contrato: number;
+  pct_atingimento: number | null;
+  metas_ativas: number | null;
+  metas_prioritarias: number | null;
+  sucessos_mensais: number | null;
+}
+
+export async function buscarPlanejamentoKpis(
+  client: SupabaseClient<Database>,
+  idPlanejamento: number
+): Promise<PlanejamentoKpi | null> {
+  const { data, error } = await client
+    .from("vw_planejamento_kpi")
+    .select("id_planejamento, id_contrato, pct_atingimento, metas_ativas, metas_prioritarias, sucessos_mensais")
+    .eq("id_planejamento", idPlanejamento)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const r = data as unknown as RowPlanejamentoKpi;
+
+  return {
+    idPlanejamento: r.id_planejamento,
+    idContrato: r.id_contrato,
+    pctAtingimento: r.pct_atingimento,
+    metasAtivas: r.metas_ativas,
+    metasPrioritarias: r.metas_prioritarias,
+    sucessosMensais: r.sucessos_mensais,
+  };
+}
