@@ -34,7 +34,12 @@ export function normalizaVisao(valor: string | null | undefined): AbaVisao {
 
 export interface ItemCriar {
   rotulo: string;
-  conteudo: ReactNode;
+  // Render-prop, não `ReactNode` puro (achado de T25): o formulário precisa
+  // fechar O PRÓPRIO diálogo ao concluir (mesmo comportamento hoje em
+  // ficha-contrato-chrome.tsx -- `setDialogXAberto(false)` dentro de
+  // `onConcluido`). Como o estado do diálogo é interno a este componente,
+  // `renderizar` recebe `fechar` para o chamador plugar em `onConcluido`.
+  renderizar: (fechar: () => void) => ReactNode;
 }
 
 export interface AbaIncidenciaProps {
@@ -99,7 +104,7 @@ export function AbaIncidencia({ linhaDoTempo, cicloDeVida, criar }: AbaIncidenci
                 <DialogHeader>
                   <DialogTitle>{item.rotulo}</DialogTitle>
                 </DialogHeader>
-                {item.conteudo}
+                {item.renderizar(() => setItemAberto(null))}
               </DialogContent>
             </Dialog>
           ))}

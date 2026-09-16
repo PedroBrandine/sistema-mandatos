@@ -24,10 +24,10 @@ function renderiza() {
       linhaDoTempo={<p>conteúdo da linha do tempo</p>}
       cicloDeVida={<p>conteúdo do ciclo de vida</p>}
       criar={[
-        { rotulo: "Registrar Registro", conteudo: <p>form de registro</p> },
-        { rotulo: "Registrar Pré-Insight", conteudo: <p>form de pré-insight</p> },
-        { rotulo: "Registrar Insight", conteudo: <p>form de insight</p> },
-        { rotulo: "Registrar Fato Gerador", conteudo: <p>wizard de fato gerador</p> },
+        { rotulo: "Registrar Registro", renderizar: () => <p>form de registro</p> },
+        { rotulo: "Registrar Pré-Insight", renderizar: () => <p>form de pré-insight</p> },
+        { rotulo: "Registrar Insight", renderizar: () => <p>form de insight</p> },
+        { rotulo: "Registrar Fato Gerador", renderizar: () => <p>wizard de fato gerador</p> },
       ]}
     />
   );
@@ -90,5 +90,30 @@ describe("AbaIncidencia — menu Criar (spec.md 'aba como casa única' AC1)", ()
     expect(screen.getByText("form de insight")).toBeInTheDocument();
     expect(screen.queryByText("form de registro")).not.toBeInTheDocument();
     expect(screen.queryByText("wizard de fato gerador")).not.toBeInTheDocument();
+  });
+
+  it("o item recebe `fechar` e consegue fechar o próprio diálogo -- lado oposto de permanecer aberto", () => {
+    render(
+      <AbaIncidencia
+        linhaDoTempo={<p>conteúdo da linha do tempo</p>}
+        cicloDeVida={<p>conteúdo do ciclo de vida</p>}
+        criar={[
+          {
+            rotulo: "Registrar Insight",
+            renderizar: (fechar) => (
+              <button type="button" onClick={fechar}>
+                concluir e fechar
+              </button>
+            ),
+          },
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Registrar Insight" }));
+    expect(screen.getByRole("button", { name: "concluir e fechar" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "concluir e fechar" }));
+    expect(screen.queryByRole("button", { name: "concluir e fechar" })).not.toBeInTheDocument();
   });
 });
