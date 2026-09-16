@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
 import { PermissaoNegadaError, ViolacaoConstraintError } from "./errors";
-import { atualizarSucessosEmLote, recalcularAtingimento, substituirPreditoresPlanejamento } from "./planejamento";
+import {
+  atualizarSucessosEmLote,
+  criarSucessosEmLote,
+  moverItemHierarquia,
+  recalcularAtingimento,
+  substituirPreditoresPlanejamento,
+} from "./planejamento";
 import { ErroBancoNaoMapeadoError } from "./errors";
 
 // Spec anchor: PLM-02, PLM-03, PLM-07, PLM-16 (.specs/features/planejamento-planilha-monitoramento/spec.md) --
@@ -140,5 +146,99 @@ describe("substituirPreditoresPlanejamento", () => {
       fn: "substitui_preditores_planejamento",
       params: { p_id_planejamento: 7, p_preditores: [] },
     });
+  });
+});
+
+// Spec anchor: PLV-06 (.specs/features/planejamento-estrategico-v2/spec.md) --
+// criarSucessosEmLote chama rpc("cria_sucessos_mensais_lote", { p_id_meta,
+// p_base, p_meses }), com p_base serializado em snake_case.
+//
+// L-004: cada parâmetro é asserido explicitamente, não só os pré-existentes --
+// um pass-through novo que se perdesse no caminho passaria despercebido num
+// teste que só olha os antigos.
+describe("criarSucessosEmLote (PLV-06)", () => {
+  const base = {
+    descricao: "Reunião mensal",
+    peso: 25,
+    status: "pendente" as const,
+    dtLimite: "2026-09-30",
+    pctAtingimento: 10,
+    idUsuarioResponsavel: 7,
+  };
+
+  it("sucesso: envia os 3 parâmetros, com p_base em snake_case", async () => {
+    const { client, chamadas } = criarClienteMock({ data: null, error: null });
+
+    await criarSucessosEmLote(client, 5, base, ["2026-07-01", "2026-08-01"]);
+
+    expect(chamadas[0]).toEqual({
+      fn: "cria_sucessos_mensais_lote",
+      params: {
+        p_id_meta: 5,
+        p_base: {
+          descricao: "Reunião mensal",
+          peso: 25,
+          status: "pendente",
+          dt_limite: "2026-09-30",
+          pct_atingimento: 10,
+          id_usuario_responsavel: 7,
+        },
+        p_meses: ["2026-07-01", "2026-08-01"],
+      },
+    });
+  });
+
+  it("opcionais ausentes viram null explícito, nunca undefined (AD-005)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: null, error: null });
+
+    await criarSucessosEmLote(client, 5, { descricao: "X", peso: 10, status: "pendente" }, ["2026-07-01"]);
+
+    const params = chamadas[0].params as { p_base: Record<string, unknown> };
+    expect(params.p_base.dt_limite).toBeNull();
+    expect(params.p_base.pct_atingimento).toBeNull();
+    expect(params.p_base.id_usuario_responsavel).toBeNull();
+  });
+
+  it("preserva a ordem e a quantidade dos meses enviados", async () => {
+    const { client, chamadas } = criarClienteMock({ data: null, error: null });
+    const meses = ["2026-07-01", "2026-08-01", "2026-09-01"];
+
+    await criarSucessosEmLote(client, 5, base, meses);
+
+    expect((chamadas[0].params as { p_meses: string[] }).p_meses).toEqual(meses);
+  });
+
+  it("42501: lança PermissaoNegadaError", async () => {
+    const { client } = criarClienteMock({ data: null, error: { code: "42501", message: "permission denied" } });
+    await expect(criarSucessosEmLote(client, 5, base, ["2026-07-01"])).rejects.toThrow(PermissaoNegadaError);
+  });
+});
+
+// Spec anchor: PLV-09.
+describe("moverItemHierarquia (PLV-09)", () => {
+  it("meta: envia tipo, id e novo pai", async () => {
+    const { client, chamadas } = criarClienteMock({ data: null, error: null });
+
+    await moverItemHierarquia(client, "meta", 11, 22);
+
+    expect(chamadas[0]).toEqual({
+      fn: "move_item_hierarquia",
+      params: { p_tipo: "meta", p_id: 11, p_novo_pai: 22 },
+    });
+  });
+
+  // A RPC atende dois tipos; o wrapper precisa repassar o discriminador certo,
+  // não assumir "meta".
+  it("sucesso mensal: repassa o tipo 'sucesso', não 'meta'", async () => {
+    const { client, chamadas } = criarClienteMock({ data: null, error: null });
+
+    await moverItemHierarquia(client, "sucesso", 33, 44);
+
+    expect((chamadas[0].params as { p_tipo: string }).p_tipo).toBe("sucesso");
+  });
+
+  it("42501: lança PermissaoNegadaError", async () => {
+    const { client } = criarClienteMock({ data: null, error: { code: "42501", message: "permission denied" } });
+    await expect(moverItemHierarquia(client, "meta", 11, 22)).rejects.toThrow(PermissaoNegadaError);
   });
 });
