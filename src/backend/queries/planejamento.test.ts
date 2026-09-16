@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../supabase/database.types";
 import {
   buscarEvolucaoGip,
+  buscarEvolucaoMensal,
   buscarGradeSucessosMensais,
   buscarHistoricoAuditoria,
   buscarPessoasVinculadasAoContrato,
@@ -597,5 +598,87 @@ describe("buscarPlanejamentoKpis (PLV-11)", () => {
       vw_planejamento_kpi: { data: null, error: { message: "permission denied" } },
     });
     await expect(buscarPlanejamentoKpis(client, 10)).rejects.toMatchObject({ message: "permission denied" });
+  });
+});
+
+// Spec anchor: PLV-13 / AD-056 (.specs/features/planejamento-estrategico-v2/spec.md).
+// A view guarda os dois escopos na MESMA tabela, discriminados por
+// `escopo_responsavel` -- filtrar só por id_usuario_responsavel misturaria o
+// total do plano com o recorte da pessoa.
+describe("buscarEvolucaoMensal (PLV-13)", () => {
+  const serie = [
+    { mes: "2026-08-01", pct_esperado: 50, pct_atingido: 50 },
+    { mes: "2026-09-01", pct_esperado: 100, pct_atingido: 50 },
+  ];
+
+  it("lê da view, não de tabela transacional (AD-003)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_planejamento_evolucao_mensal: { data: serie, error: null },
+    });
+    await buscarEvolucaoMensal(client, 10);
+    expect(chamadas.map((c) => c.tabela)).toContain("vw_planejamento_evolucao_mensal");
+  });
+
+  it("sem responsável, fixa escopo_responsavel=false (o plano inteiro)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_planejamento_evolucao_mensal: { data: serie, error: null },
+    });
+    await buscarEvolucaoMensal(client, 10);
+    const eqs = chamadas.filter((c) => c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["escopo_responsavel", false]);
+    expect(eqs.some((a) => a[0] === "id_usuario_responsavel")).toBe(false);
+  });
+
+  it("com responsável, fixa escopo_responsavel=true E o id da pessoa (AC5)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_planejamento_evolucao_mensal: { data: serie, error: null },
+    });
+    await buscarEvolucaoMensal(client, 10, 7);
+    const eqs = chamadas.filter((c) => c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["escopo_responsavel", true]);
+    expect(eqs).toContainEqual(["id_usuario_responsavel", 7]);
+  });
+
+  it("null no responsável equivale a sem filtro -- não vira escopo de pessoa", async () => {
+    const { client, chamadas } = criarClienteMock({
+      vw_planejamento_evolucao_mensal: { data: serie, error: null },
+    });
+    await buscarEvolucaoMensal(client, 10, null);
+    const eqs = chamadas.filter((c) => c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["escopo_responsavel", false]);
+  });
+
+  it("mapeia para camelCase preservando os valores", async () => {
+    const { client } = criarClienteMock({
+      vw_planejamento_evolucao_mensal: { data: serie, error: null },
+    });
+    expect(await buscarEvolucaoMensal(client, 10)).toEqual([
+      { mes: "2026-08-01", pctEsperado: 50, pctAtingido: 50 },
+      { mes: "2026-09-01", pctEsperado: 100, pctAtingido: 50 },
+    ]);
+  });
+
+  // PLV-13 AC8: mês futuro tem Esperado mas não Atingido.
+  it("preserva pct_atingido nulo no mês futuro -- não vira 0", async () => {
+    const comFuturo = [{ mes: "2026-12-01", pct_esperado: 100, pct_atingido: null }];
+    const { client } = criarClienteMock({
+      vw_planejamento_evolucao_mensal: { data: comFuturo, error: null },
+    });
+    const linhas = await buscarEvolucaoMensal(client, 10);
+    expect(linhas[0].pctAtingido).toBeNull();
+    expect(linhas[0].pctEsperado).toBe(100);
+  });
+
+  // PLV-13 AC7: P=0 devolve NULL nas duas séries; sem SM nenhum não há linha.
+  it("série vazia devolve [] em vez de lançar", async () => {
+    const { client } = criarClienteMock({ vw_planejamento_evolucao_mensal: { data: [], error: null } });
+    expect(await buscarEvolucaoMensal(client, 10)).toEqual([]);
+  });
+
+  it("propaga erro do banco", async () => {
+    const { client } = criarClienteMock({
+      vw_planejamento_evolucao_mensal: { data: null, error: { message: "permission denied" } },
+    });
+    await expect(buscarEvolucaoMensal(client, 10)).rejects.toMatchObject({ message: "permission denied" });
   });
 });

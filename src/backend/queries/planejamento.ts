@@ -482,3 +482,57 @@ export async function buscarPlanejamentoKpis(
     sucessosMensais: r.sucessos_mensais,
   };
 }
+
+// PLV-13 / AD-056. A série do gráfico Esperado x Atingido.
+//
+// A view devolve os dois escopos na mesma tabela, discriminados por
+// `escopo_responsavel`: false = o plano inteiro; true = o recorte de uma
+// pessoa, com P recalculado sobre o subconjunto (AC5). Por isso o filtro não é
+// só `id_usuario_responsavel = X` -- sem fixar `escopo_responsavel` as duas
+// famílias de linha se misturariam e o total apareceria somado ao recorte.
+//
+// A série é DERIVADA, não fotografada: editar o % de um mês passado altera
+// retroativamente o ponto daquele mês (AD-056). Série congelada exige
+// fat_snapshot_mensal (AD-015), que é feature de Saída.
+//
+// `pct_atingido` vem NULL nos meses futuros (AC8) -- o gráfico para a linha
+// Atingido no mês corrente enquanto a Esperado segue até o último mês com SM.
+export interface LinhaEvolucaoMensal {
+  mes: string;
+  pctEsperado: number | null;
+  pctAtingido: number | null;
+}
+
+interface RowEvolucaoMensal {
+  mes: string;
+  pct_esperado: number | null;
+  pct_atingido: number | null;
+}
+
+export async function buscarEvolucaoMensal(
+  client: SupabaseClient<Database>,
+  idPlanejamento: number,
+  idUsuarioResponsavel?: number | null
+): Promise<LinhaEvolucaoMensal[]> {
+  const porResponsavel = idUsuarioResponsavel != null;
+
+  let consulta = client
+    .from("vw_planejamento_evolucao_mensal")
+    .select("mes, pct_esperado, pct_atingido")
+    .eq("id_planejamento", idPlanejamento)
+    .eq("escopo_responsavel", porResponsavel);
+
+  if (porResponsavel) {
+    consulta = consulta.eq("id_usuario_responsavel", idUsuarioResponsavel);
+  }
+
+  const { data, error } = await consulta.order("mes", { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as RowEvolucaoMensal[];
+
+  return rows.map((r) => ({
+    mes: r.mes,
+    pctEsperado: r.pct_esperado,
+    pctAtingido: r.pct_atingido,
+  }));
+}
