@@ -57,7 +57,7 @@ describe("expandeMesesEmSucessos — N meses viram N irmãos (PLV-06 AC2)", () =
     // AC3: os N são independentes. O que os distingue é só o mês -- nenhum
     // vínculo de irmandade é gravado (context.md D-3).
     const { sucessos } = expandeMesesEmSucessos(BASE, ["2026-07-01", "2026-08-01"], 42);
-    const semMes = sucessos.map(({ mes_referencia: _mes, ...resto }) => resto);
+    const semMes = sucessos.map((sucesso) => ({ ...sucesso, mes_referencia: "(ignorado)" }));
     expect(semMes[0]).toEqual(semMes[1]);
     expect(sucessos[0].mes_referencia).not.toBe(sucessos[1].mes_referencia);
   });
