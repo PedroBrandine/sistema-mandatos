@@ -2090,6 +2090,35 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Date**: 2026-09-17
 - **Status**: active
 
+### AD-062
+- **Decision**: `git commit` sem pathspec explícito é **proibido** quando há
+  mais de uma sessão Claude Code ativa no mesmo working directory. Toda sessão
+  que fizer `git add` deve commitar com `git commit -F- -- <arquivos exatos>`,
+  nunca `git commit -F-` puro nem `git commit -a`.
+- **Reason**: Concorrência real, não hipotética. Em 2026-09-17, com pelo menos
+  duas sessões ativas neste repositório, esta sessão rodou `git add` em dois
+  arquivos (T17 de `planejamento-estrategico-v2`) e, antes do `git commit`
+  seguinte executar, a outra sessão commitou primeiro — sem pathspec, o
+  `git commit` dela varreu o índice inteiro (compartilhado no mesmo diretório)
+  e engoliu os dois arquivos staged por esta sessão. O resultado: código de
+  T17 correto e testado, mas commitado como `3ce25a9
+  feat(ficha): formulario de registro com camada dinamica e presentes` — uma
+  mensagem que não menciona PLV-02, PLV-07 nem nada do que aquele diff faz.
+  Não é dado perdido, é proveniência perdida: quem ler o histórico depois não
+  vai achar `objetivo-form.tsx` procurando por "planejamento" ou "PLV-02".
+- **Trade-off**: Pathspec explícito exige listar cada arquivo do commit por
+  extenso (sem glob, sem `.`) — mais verboso, quebra o hábito de `git add -A &&
+  git commit`. É o preço de escrever num índice que outra sessão também
+  escreve. Não resolve retroativamente `3ce25a9`: reescrever histórico
+  compartilhado (rebase/amend) é mais arriscado do que conviver com uma
+  mensagem de commit errada — registrado em vez de corrigido, ver
+  `tasks.md` de `planejamento-estrategico-v2`, linha da T17.
+- **Scope**: todas as sessões, todos os commits, enquanto houver mais de uma
+  sessão simultânea neste repositório (o caso comum, não a exceção, nesta
+  fase do projeto).
+- **Date**: 2026-09-17
+- **Status**: active
+
 ## Handoff (Planejamento Estratégico v2 + Fatos Geradores — SPECIFY concluído, aguardando aceite)
 
 - **Features**: `.specs/features/planejamento-estrategico-v2/` e
