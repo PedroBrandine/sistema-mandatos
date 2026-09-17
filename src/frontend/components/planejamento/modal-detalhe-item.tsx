@@ -99,6 +99,7 @@ export function ModalDetalheItem({
         {acao?.tipo === "criar-sucesso" && (
           <SucessoMensalForm
             modo={{ tipo: "criar", idMeta: acao.idMeta }}
+            pessoasVinculadas={pessoasVinculadas}
             onConcluido={() => {
               onFechar();
               onGradeAlterada();
@@ -109,6 +110,7 @@ export function ModalDetalheItem({
         {acao?.tipo === "editar-sucesso" && (
           <SucessoMensalForm
             modo={{ tipo: "editar", sucesso: acao.sucesso }}
+            pessoasVinculadas={pessoasVinculadas}
             onConcluido={() => {
               onFechar();
               onGradeAlterada();
