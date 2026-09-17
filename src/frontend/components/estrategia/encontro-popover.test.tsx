@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // O Popover do Radix é inviável neste harness jsdom: UM render aberto custa
 // ~50s (12s de teste + ~38s de teardown pendurado), contra 2,5s dos 8 testes
@@ -26,6 +26,37 @@ vi.mock("@/components/ui/popover", () => ({
 import type { EncontroAgenda } from "@backend/queries/agenda";
 import type { RegistroAgenda } from "@backend/queries/registros-agenda";
 
+// T32 (FMC-14, AD-061). RegistroEncontroForm já tem sua própria bateria de
+// testes (T31, registro-encontro-form.test.tsx) -- aqui só interessa a
+// FIAÇÃO: que o popover resolve idEtapa/idTipoRegistro/qtdPrevista/
+// schemaCampos e repassa nomeEtapa/nomeTipo/encontroDados/
+// participantesEncontro corretamente, sem redigitar nada. Reexercitar o
+// formulário em si duplicaria cobertura já feita na T31 (Check C).
+const registroFormPropsMock = vi.fn();
+vi.mock("../incidencia/registro-encontro-form", () => ({
+  RegistroEncontroForm: (props: Record<string, unknown>) => {
+    registroFormPropsMock(props);
+    return <div data-testid="registro-encontro-form" />;
+  },
+}));
+
+type LinhaTabela = { data: unknown; error: unknown };
+let respostaFatEncontro: LinhaTabela = { data: null, error: null };
+let respostaRefTipoRegistro: LinhaTabela = { data: null, error: null };
+
+vi.mock("@backend/supabase/client", () => ({
+  createClient: () => ({
+    from: (tabela: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () =>
+            Promise.resolve(tabela === "fat_encontro" ? respostaFatEncontro : respostaRefTipoRegistro),
+        }),
+      }),
+    }),
+  }),
+}));
+
 import {
   ConteudoEncontro,
   EncontroPopover,
@@ -47,6 +78,15 @@ import {
 // telas de leitura), então cada condicional tem caso dos dois lados.
 
 afterEach(cleanup);
+
+beforeEach(() => {
+  registroFormPropsMock.mockReset();
+  respostaFatEncontro = { data: { id_etapa: 9, id_tipo_registro: 6 }, error: null };
+  respostaRefTipoRegistro = {
+    data: { qtd_prevista: 4, schema_campos: { versao: 1, campos: [] } },
+    error: null,
+  };
+});
 
 const ENCONTRO: EncontroAgenda = {
   idEncontro: 501,
@@ -375,6 +415,109 @@ describe("ConteudoEncontro (EST-13 AC6) — adicionar registro", () => {
     );
 
     expect(screen.getByRole("button", { name: "Adicionar registro" })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T32 — tasks.md Done-when (FMC-14) --
+//  - Etapa, tipo e encontro chegam ao formulário sem a usuária digitar
+//  - Encontro já realizado e encontro planejado -- os dois caminhos testados
+//  - Marcar presença segue gravando em rel_encontro_participante (A-21), sem
+//    tocar no registro
+// ---------------------------------------------------------------------------
+
+describe("ConteudoEncontro (T32, FMC-14) — popover abre RegistroEncontroForm já vinculado", () => {
+  it("sem onAdicionarRegistro, resolve idEtapa/idTipoRegistro e abre o formulário com tudo herdado", async () => {
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje={HOJE} />);
+
+    screen.getByRole("button", { name: "Adicionar registro" }).click();
+
+    await waitFor(() => expect(screen.getByTestId("registro-encontro-form")).toBeInTheDocument());
+
+    expect(registroFormPropsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idContrato: 42,
+        idEncontro: 501,
+        idEtapa: 9,
+        idTipoRegistro: 6,
+        nomeEtapa: "Diagnóstico",
+        nomeTipo: "Escuta Diagnóstica",
+        qtdPrevista: 4,
+        encontroDados: { local: "Sala 2" },
+        participantesEncontro: [
+          { nomeLivre: "Ana Gestora", origem: "legisla", nome: "Ana Gestora" },
+          { nomeLivre: "Assessor convidado", origem: "externo", nome: "Assessor convidado" },
+        ],
+      })
+    );
+    // Sem select/input para escolher etapa ou tipo -- chegam prontos.
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("encontro já realizado também abre o formulário -- primeiro dos dois caminhos", async () => {
+    render(
+      <ConteudoEncontro
+        encontro={{ ...ENCONTRO, status: "realizado", dtRealizada: "2026-09-15T14:10:00-03:00" }}
+        registros={[]}
+        hoje={HOJE}
+      />
+    );
+
+    screen.getByRole("button", { name: "Adicionar registro" }).click();
+
+    await waitFor(() => expect(screen.getByTestId("registro-encontro-form")).toBeInTheDocument());
+    expect(registroFormPropsMock).toHaveBeenCalledWith(expect.objectContaining({ idEncontro: 501 }));
+  });
+
+  it("encontro planejado (não vencido) também abre o formulário -- segundo dos dois caminhos", async () => {
+    render(<ConteudoEncontro encontro={{ ...ENCONTRO, status: "planejado" }} registros={[]} hoje="2026-09-10" />);
+
+    screen.getByRole("button", { name: "Adicionar registro" }).click();
+
+    await waitFor(() => expect(screen.getByTestId("registro-encontro-form")).toBeInTheDocument());
+    expect(registroFormPropsMock).toHaveBeenCalledWith(expect.objectContaining({ idEncontro: 501 }));
+  });
+
+  it("com onAdicionarRegistro (uso alheio, EST-13 AC6), o comportamento antigo continua -- não abre o formulário", () => {
+    const onAdicionarRegistro = vi.fn();
+    render(
+      <ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje={HOJE} onAdicionarRegistro={onAdicionarRegistro} />
+    );
+
+    screen.getByRole("button", { name: "Adicionar registro" }).click();
+
+    expect(onAdicionarRegistro).toHaveBeenCalledWith({ idEncontro: 501, idContrato: 42 });
+    expect(screen.queryByTestId("registro-encontro-form")).not.toBeInTheDocument();
+  });
+
+  it("Marcar presença continua chamando onMarcarPresenca, mesmo com o formulário de registro aberto (A-21)", async () => {
+    const onMarcarPresenca = vi.fn();
+    render(
+      <ConteudoEncontro
+        encontro={ENCONTRO}
+        registros={[]}
+        hoje={DEPOIS_DO_ENCONTRO}
+        onMarcarPresenca={onMarcarPresenca}
+      />
+    );
+
+    screen.getByRole("button", { name: "Adicionar registro" }).click();
+    await waitFor(() => expect(screen.getByTestId("registro-encontro-form")).toBeInTheDocument());
+
+    screen.getByRole("button", { name: "Marcar presença" }).click();
+    expect(onMarcarPresenca).toHaveBeenCalledWith({ idEncontro: 501 });
+  });
+
+  it("não encontrando id_etapa/id_tipo_registro, mostra <ErroInline> e não abre o formulário", async () => {
+    respostaFatEncontro = { data: { id_etapa: null, id_tipo_registro: null }, error: null };
+    render(<ConteudoEncontro encontro={ENCONTRO} registros={[]} hoje={HOJE} />);
+
+    screen.getByRole("button", { name: "Adicionar registro" }).click();
+
+    await waitFor(() =>
+      expect(screen.getByText("Não foi possível preparar o formulário de registro.")).toBeInTheDocument()
+    );
+    expect(screen.queryByTestId("registro-encontro-form")).not.toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Calendar,
   CheckSquare,
@@ -15,13 +16,38 @@ import Link from "next/link";
 
 import type { EncontroAgenda } from "@backend/queries/agenda";
 import type { RegistroAgenda } from "@backend/queries/registros-agenda";
+import { createClient } from "@backend/supabase/client";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
+import {
+  RegistroEncontroForm,
+  type ParticipanteRegistroEncontro,
+} from "../incidencia/registro-encontro-form";
 import { diaNoFusoDoProduto, horaNoFusoDoProduto } from "./agenda-mes";
+
+// FMC-14 (design.md, AD-061): exceção documentada à AD-057 -- este popover
+// continua abrindo RegistroEncontroForm inline, com Etapa/Tipo/Encontro
+// herdados, em vez de redirecionar para a aba de Incidência.
+//
+// EncontroAgenda (backend/queries/agenda.ts) só resolve nomeEtapa/nomeTipo
+// (texto), não os ids numéricos que app.criar_registro exige -- a leitura
+// original descarta id_etapa/id_tipo_registro depois de resolver os nomes
+// (mesmo padrão de buscarNomesPorId). Tocar agenda.ts para expor os ids
+// quebraria os testes `toEqual` de EST-13/agenda.test.ts (feature alheia,
+// já validada). Resolução: quando não há `onAdicionarRegistro` (uso novo,
+// aba Agenda da ficha), este componente busca id_etapa/id_tipo_registro de
+// fat_encontro por id_encontro, e qtd_prevista/schema_campos de
+// ref_tipo_registro por id_tipo_registro -- as duas únicas colunas que
+// faltam, com uma consulta pequena e local a este arquivo (T32).
+function origemParticipanteRegistro(origem: string): ParticipanteRegistroEncontro["origem"] {
+  if (origem === "mandato") return "mandato";
+  if (origem === "externo") return "externo";
+  return "legisla";
+}
 
 // EST-13 (T28, design.md "AgendaMes + EncontroPopover"). Tela de ESCRITA --
 // AD-046 mantém aqui a profundidade integral de AD-042: os dois lados de cada
@@ -170,6 +196,65 @@ export function ConteudoEncontro({
   const participantes = encontro.participantes.map((p) => p.nome).filter((n) => n.trim() !== "");
   const vencido = encontroVencido(encontro, hoje);
 
+  // T32 (FMC-14): sem `onAdicionarRegistro` (uso novo, aba Agenda da ficha),
+  // "Adicionar registro" abre RegistroEncontroForm inline, já vinculado ao
+  // encontro -- Etapa/Tipo chegam sem a usuária digitar nada. Com
+  // `onAdicionarRegistro` (uso alheio, Agenda produto-escopo de
+  // redesenho-estrategia-tela-first, EST-13 AC6), o comportamento antigo de
+  // navegação continua intocado.
+  const [carregandoDadosRegistro, setCarregandoDadosRegistro] = useState(false);
+  const [erroDadosRegistro, setErroDadosRegistro] = useState<string | null>(null);
+  const [dadosRegistro, setDadosRegistro] = useState<{
+    idEtapa: number;
+    idTipoRegistro: number;
+    qtdPrevista: number | null;
+    schemaCampos: unknown;
+  } | null>(null);
+  const [mostrarFormularioRegistro, setMostrarFormularioRegistro] = useState(false);
+
+  async function handleAdicionarRegistro() {
+    if (onAdicionarRegistro) {
+      onAdicionarRegistro({ idEncontro: encontro.idEncontro, idContrato: encontro.idContrato });
+      return;
+    }
+
+    setErroDadosRegistro(null);
+    setCarregandoDadosRegistro(true);
+    const supabase = createClient();
+
+    const { data: linhaEncontro, error: erroEncontro } = await supabase
+      .from("fat_encontro")
+      .select("id_etapa, id_tipo_registro")
+      .eq("id_encontro", encontro.idEncontro)
+      .maybeSingle();
+
+    if (erroEncontro || !linhaEncontro || linhaEncontro.id_etapa == null || linhaEncontro.id_tipo_registro == null) {
+      setCarregandoDadosRegistro(false);
+      setErroDadosRegistro("Não foi possível preparar o formulário de registro.");
+      return;
+    }
+
+    const { data: linhaTipo, error: erroTipo } = await supabase
+      .from("ref_tipo_registro")
+      .select("qtd_prevista, schema_campos")
+      .eq("id_tipo_registro", linhaEncontro.id_tipo_registro)
+      .maybeSingle();
+
+    setCarregandoDadosRegistro(false);
+    if (erroTipo || !linhaTipo) {
+      setErroDadosRegistro("Não foi possível preparar o formulário de registro.");
+      return;
+    }
+
+    setDadosRegistro({
+      idEtapa: linhaEncontro.id_etapa,
+      idTipoRegistro: linhaEncontro.id_tipo_registro,
+      qtdPrevista: linhaTipo.qtd_prevista,
+      schemaCampos: linhaTipo.schema_campos,
+    });
+    setMostrarFormularioRegistro(true);
+  }
+
   return (
     <div className="grid gap-3">
       {/* Figma 90:206: badge de status ACIMA do título, cada um na sua linha,
@@ -267,21 +352,45 @@ export function ConteudoEncontro({
           nunca por um elemento ad-hoc. */}
       {erroPresenca && <ErroInline titulo="Não foi possível marcar presença" mensagem={erroPresenca} />}
 
-      {/* EST-13 AC6: a criação já nasce vinculada ao encontro E ao contrato --
-          os dois identificadores vão no payload, não só o encontro.
-          Figma 90:206: botão primário de largura total no rodapé. */}
-      <Button
-        type="button"
-        className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
-        onClick={() =>
-          onAdicionarRegistro?.({
-            idEncontro: encontro.idEncontro,
-            idContrato: encontro.idContrato,
-          })
-        }
-      >
-        Adicionar registro
-      </Button>
+      {erroDadosRegistro && (
+        <ErroInline titulo="Não foi possível abrir o formulário" mensagem={erroDadosRegistro} />
+      )}
+
+      {/* T32 (FMC-14, AD-061): com onAdicionarRegistro (uso alheio,
+          EST-13 AC6), o botão preserva o comportamento antigo -- os dois
+          identificadores vão no callback, sem abrir nada aqui. Sem
+          onAdicionarRegistro (uso novo, aba Agenda da ficha), o botão abre
+          RegistroEncontroForm inline, já vinculado ao encontro e ao
+          contrato, com Etapa/Tipo herdados (T31). */}
+      {mostrarFormularioRegistro && dadosRegistro ? (
+        <RegistroEncontroForm
+          idContrato={encontro.idContrato}
+          idEncontro={encontro.idEncontro}
+          idEtapa={dadosRegistro.idEtapa}
+          idTipoRegistro={dadosRegistro.idTipoRegistro}
+          nomeEtapa={textoOuAusente(encontro.nomeEtapa)}
+          nomeTipo={textoOuAusente(encontro.nomeTipo)}
+          qtdPrevista={dadosRegistro.qtdPrevista}
+          schemaCampos={dadosRegistro.schemaCampos}
+          encontroDados={{ local: encontro.local }}
+          participantesEncontro={encontro.participantes.map((p) => ({
+            nomeLivre: p.nome,
+            origem: origemParticipanteRegistro(p.origem),
+            nome: p.nome,
+          }))}
+          onConcluido={() => setMostrarFormularioRegistro(false)}
+          onCancelar={() => setMostrarFormularioRegistro(false)}
+        />
+      ) : (
+        <Button
+          type="button"
+          className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
+          disabled={carregandoDadosRegistro}
+          onClick={() => void handleAdicionarRegistro()}
+        >
+          {carregandoDadosRegistro ? "Preparando…" : "Adicionar registro"}
+        </Button>
+      )}
     </div>
   );
 }
