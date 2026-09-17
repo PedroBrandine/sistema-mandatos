@@ -4,10 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import type { MetaResumo, PessoaVinculada } from "@backend/queries/planejamento";
+import type { ObjetivoComMetas, MetaResumo, PessoaVinculada } from "@backend/queries/planejamento";
 import { mapeiaErroRpc } from "@backend/rpc/errors";
+import { moverItemHierarquia } from "@backend/rpc/planejamento";
 import { metaSchema, type MetaInput } from "@backend/schemas/planejamento";
 import { createClient } from "@backend/supabase/client";
+
+import type { PermissoesModo } from "./permissoes";
 
 import { Button } from "@/components/ui/button";
 import { ErroInline } from "@/components/ui/erro-inline";
@@ -36,17 +39,25 @@ interface RefOption {
 // Status/Prioridade com os valores exatos das constraints. O que faltava era
 // só o % de atingimento: a spec pede a célula travada (PLR-10) e este
 // arquivo não mostrava o campo nenhum.
+//
+// PLV-09 (T20): Vinculação (select de Objetivo) só existe no modo "editar" --
+// mover é operação de item que já existe; uma Meta em criação já nasce presa
+// ao Objetivo de onde o "+ Nova Meta" foi clicado, não há o que mover ainda.
+// Gate por permissoes.moveHierarquia (T14): sem a capacidade, o campo nem
+// aparece -- mesma regra de crudHierarquia/Editar em ContextoEstrategico.
 export type MetaFormModo = { tipo: "criar"; idObjetivo: number } | { tipo: "editar"; meta: MetaResumo };
 
 export interface MetaFormProps {
   modo: MetaFormModo;
   produtoNome: string;
   pessoasVinculadas: PessoaVinculada[];
+  objetivos: ObjetivoComMetas[];
+  permissoes: PermissoesModo;
   onConcluido: (criado?: { idMeta: number }) => void;
   onCancelar: () => void;
 }
 
-export function MetaForm({ modo, produtoNome, pessoasVinculadas, onConcluido, onCancelar }: MetaFormProps) {
+export function MetaForm({ modo, produtoNome, pessoasVinculadas, objetivos, permissoes, onConcluido, onCancelar }: MetaFormProps) {
   const [preditores, setPreditores] = useState<RefOption[]>([]);
   const [agendas, setAgendas] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
@@ -119,6 +130,21 @@ export function MetaForm({ modo, produtoNome, pessoasVinculadas, onConcluido, on
       return;
     }
 
+    // PLV-09 AC1. Vinculação muda ANTES dos demais campos: move_item_hierarquia
+    // é quem cruza as tabelas (troca a FK e marca origem E destino como
+    // desatualizados, AD-024) -- o UPDATE comum abaixo nunca toca id_objetivo.
+    // Se a RPC falhar (destino de outro contrato, PLN03), para aqui: os
+    // outros campos não são salvos com a estrutura pela metade.
+    if (valores.id_objetivo !== modo.meta.idObjetivo) {
+      try {
+        await moverItemHierarquia(supabase, "meta", modo.meta.idMeta, valores.id_objetivo);
+      } catch (erroCapturado) {
+        setEnviando(false);
+        setErro(erroCapturado instanceof Error ? erroCapturado.message : "Erro ao mover a Meta de Objetivo.");
+        return;
+      }
+    }
+
     const { error } = await supabase.from("fat_meta").update(payload).eq("id_meta", modo.meta.idMeta);
     setEnviando(false);
     if (error) {
@@ -144,6 +170,32 @@ export function MetaForm({ modo, produtoNome, pessoasVinculadas, onConcluido, on
             </FormItem>
           )}
         />
+        {modo.tipo === "editar" && permissoes.moveHierarquia && (
+          <FormField
+            control={form.control}
+            name="id_objetivo"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Vinculação</FormLabel>
+                <Select value={String(field.value)} onValueChange={(v) => field.onChange(Number(v))}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {objetivos.map((o) => (
+                      <SelectItem key={o.idObjetivo} value={String(o.idObjetivo)}>
+                        {o.descricao}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="classe"

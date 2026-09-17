@@ -1,12 +1,13 @@
 "use client";
 
-import type { PessoaVinculada } from "@backend/queries/planejamento";
+import type { ObjetivoComMetas, PessoaVinculada } from "@backend/queries/planejamento";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import type { AcaoAtiva } from "./planejamento-grade";
 import { MetaForm } from "./meta-form";
 import { ObjetivoForm } from "./objetivo-form";
+import type { PermissoesModo } from "./permissoes";
 import { SucessoMensalForm } from "./sucesso-mensal-form";
 
 // PLR-12, PLR-14 (.specs/features/planejamento-estrategico-redesenho, T17/T19).
@@ -22,6 +23,11 @@ export interface ModalDetalheItemProps {
   idPlanejamento: number;
   produtoNome: string;
   pessoasVinculadas: PessoaVinculada[];
+  // PLV-09 (T20). Só usados por MetaForm/SucessoMensalForm em modo "editar",
+  // para a Vinculação -- ObjetivoForm nunca move nada (não há nível acima
+  // dele na hierarquia).
+  objetivos: ObjetivoComMetas[];
+  permissoes: PermissoesModo;
   onFechar: () => void;
   onHierarquiaAlterada: () => void;
   onGradeAlterada: () => void;
@@ -41,6 +47,8 @@ export function ModalDetalheItem({
   idPlanejamento,
   produtoNome,
   pessoasVinculadas,
+  objetivos,
+  permissoes,
   onFechar,
   onHierarquiaAlterada,
   onGradeAlterada,
@@ -77,6 +85,8 @@ export function ModalDetalheItem({
             modo={{ tipo: "criar", idObjetivo: acao.idObjetivo }}
             produtoNome={produtoNome}
             pessoasVinculadas={pessoasVinculadas}
+            objetivos={objetivos}
+            permissoes={permissoes}
             onConcluido={() => {
               onFechar();
               onHierarquiaAlterada();
@@ -89,6 +99,8 @@ export function ModalDetalheItem({
             modo={{ tipo: "editar", meta: acao.meta }}
             produtoNome={produtoNome}
             pessoasVinculadas={pessoasVinculadas}
+            objetivos={objetivos}
+            permissoes={permissoes}
             onConcluido={() => {
               onFechar();
               onHierarquiaAlterada();
@@ -100,6 +112,8 @@ export function ModalDetalheItem({
           <SucessoMensalForm
             modo={{ tipo: "criar", idMeta: acao.idMeta }}
             pessoasVinculadas={pessoasVinculadas}
+            objetivos={objetivos}
+            permissoes={permissoes}
             onConcluido={() => {
               onFechar();
               onGradeAlterada();
@@ -111,6 +125,8 @@ export function ModalDetalheItem({
           <SucessoMensalForm
             modo={{ tipo: "editar", sucesso: acao.sucesso }}
             pessoasVinculadas={pessoasVinculadas}
+            objetivos={objetivos}
+            permissoes={permissoes}
             onConcluido={() => {
               onFechar();
               onGradeAlterada();

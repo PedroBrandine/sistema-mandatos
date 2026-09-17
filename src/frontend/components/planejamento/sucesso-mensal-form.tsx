@@ -4,9 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-import type { PessoaVinculada, SucessoMensalGrade } from "@backend/queries/planejamento";
+import type { ObjetivoComMetas, PessoaVinculada, SucessoMensalGrade } from "@backend/queries/planejamento";
 import { mapeiaErroRpc } from "@backend/rpc/errors";
-import { criarSucessosEmLote } from "@backend/rpc/planejamento";
+import { criarSucessosEmLote, moverItemHierarquia } from "@backend/rpc/planejamento";
 import {
   sucessoMensalLoteSchema,
   sucessoMensalSchema,
@@ -16,6 +16,7 @@ import {
 import { createClient } from "@backend/supabase/client";
 
 import { expandeMesesEmSucessos } from "./planejamento-lote";
+import type { PermissoesModo } from "./permissoes";
 
 import { Button } from "@/components/ui/button";
 import { ErroInline } from "@/components/ui/erro-inline";
@@ -55,8 +56,21 @@ export type SucessoMensalFormModo = { tipo: "criar"; idMeta: number } | { tipo: 
 export interface SucessoMensalFormProps {
   modo: SucessoMensalFormModo;
   pessoasVinculadas: PessoaVinculada[];
+  // PLV-09 (T20). Só usados na edição: a Vinculação (select de Meta) e a
+  // leitura do Objetivo derivado dela. Criação não move nada -- um SM novo já
+  // nasce preso à Meta de onde "+ Novo Sucesso Mensal" foi clicado.
+  objetivos: ObjetivoComMetas[];
+  permissoes: PermissoesModo;
   onConcluido: () => void;
   onCancelar: () => void;
+}
+
+// PLV-09 AC3 (regra inegociável): o Objetivo do SM é SEMPRE leitura, derivado
+// da Meta -- nunca um select próprio. O select de Objetivo do SM sugeriria
+// que dá para pendurar um Sucesso Mensal direto no Objetivo, o que a FK não
+// permite (fat_sucesso_mensal só referencia fat_meta).
+function nomeObjetivoDaMeta(objetivos: ObjetivoComMetas[], idMeta: number): string | null {
+  return objetivos.find((o) => o.metas.some((m) => m.idMeta === idMeta))?.descricao ?? null;
 }
 
 /** "YYYY-MM-DD"/"YYYY-MM-01" -> "YYYY-MM" pro <input type="month">. */
@@ -278,11 +292,13 @@ function SucessoMensalFormCriar({ idMeta, pessoasVinculadas, onConcluido, onCanc
 interface CamposEditarProps {
   sucesso: SucessoMensalGrade;
   pessoasVinculadas: PessoaVinculada[];
+  objetivos: ObjetivoComMetas[];
+  permissoes: PermissoesModo;
   onConcluido: () => void;
   onCancelar: () => void;
 }
 
-function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, onConcluido, onCancelar }: CamposEditarProps) {
+function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, objetivos, permissoes, onConcluido, onCancelar }: CamposEditarProps) {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -302,6 +318,15 @@ function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, onConcluido, onCa
     },
   });
 
+  // Metas de todo o Planejamento, achatadas -- candidatas a destino da
+  // vinculação. O Objetivo (leitura) é derivado do id_meta SELECIONADO no
+  // formulário agora, não do banco: é assim que "leitura, nunca editável
+  // diretamente" fica óbvio na tela -- escolher outra Meta muda o Objetivo
+  // mostrado, sem que o usuário tenha tocado num select de Objetivo.
+  const metas = objetivos.flatMap((o) => o.metas);
+  const idMetaAtual = form.watch("id_meta");
+  const nomeObjetivo = nomeObjetivoDaMeta(objetivos, idMetaAtual);
+
   async function enviar(valores: SucessoMensalInput) {
     setEnviando(true);
     setErro(null);
@@ -316,6 +341,19 @@ function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, onConcluido, onCa
       status: valores.status,
       id_usuario_responsavel: valores.id_usuario_responsavel ?? null,
     };
+
+    // PLV-09 AC2. Mesma ordem de MetaForm: a RPC que cruza tabelas primeiro
+    // (troca a FK, marca as DUAS Metas envolvidas como desatualizadas,
+    // AD-024), o UPDATE comum depois. Payload nunca inclui id_meta.
+    if (valores.id_meta !== sucesso.idMeta) {
+      try {
+        await moverItemHierarquia(supabase, "sucesso", sucesso.idSucesso, valores.id_meta);
+      } catch (erroCapturado) {
+        setEnviando(false);
+        setErro(erroCapturado instanceof Error ? erroCapturado.message : "Erro ao mover o Sucesso Mensal de Meta.");
+        return;
+      }
+    }
 
     const { error } = await supabase.from("fat_sucesso_mensal").update(payload).eq("id_sucesso", sucesso.idSucesso);
     setEnviando(false);
@@ -390,6 +428,45 @@ function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, onConcluido, onCa
             </FormItem>
           )}
         />
+        {/* PLV-09 AC2/AC3. Vinculação inteira gated por moveHierarquia -- sem a
+            capacidade, nem o select de Meta nem a leitura de Objetivo aparecem
+            (mesmo raciocínio de crudHierarquia/Editar em outros forms: sem a
+            capacidade, a seção some por completo, não vira texto morto). */}
+        {permissoes.moveHierarquia && (
+          <div className="grid gap-4 rounded-md border p-3">
+            <FormField
+              control={form.control}
+              name="id_meta"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Vinculação — Meta</FormLabel>
+                  <Select value={String(field.value)} onValueChange={(v) => field.onChange(Number(v))}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {metas.map((m) => (
+                        <SelectItem key={m.idMeta} value={String(m.idMeta)}>
+                          {m.descricao}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* AC3, regra inegociável: Objetivo é SEMPRE leitura aqui -- nunca
+                um <Select>. Um select sugeriria pendurar o SM direto no
+                Objetivo, o que fat_sucesso_mensal.id_meta não permite. */}
+            <div className="grid gap-1.5">
+              <span className="text-sm font-medium">Objetivo</span>
+              <p className="text-sm text-muted-foreground">{nomeObjetivo ?? "—"}</p>
+            </div>
+          </div>
+        )}
         <FormField
           control={form.control}
           name="peso"
@@ -484,7 +561,7 @@ function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, onConcluido, onCa
   );
 }
 
-export function SucessoMensalForm({ modo, pessoasVinculadas, onConcluido, onCancelar }: SucessoMensalFormProps) {
+export function SucessoMensalForm({ modo, pessoasVinculadas, objetivos, permissoes, onConcluido, onCancelar }: SucessoMensalFormProps) {
   if (modo.tipo === "criar") {
     return (
       <SucessoMensalFormCriar
@@ -499,6 +576,8 @@ export function SucessoMensalForm({ modo, pessoasVinculadas, onConcluido, onCanc
     <SucessoMensalFormEditar
       sucesso={modo.sucesso}
       pessoasVinculadas={pessoasVinculadas}
+      objetivos={objetivos}
+      permissoes={permissoes}
       onConcluido={onConcluido}
       onCancelar={onCancelar}
     />
