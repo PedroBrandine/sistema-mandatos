@@ -1,280 +1,402 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
 
-import { mapeiaErroRpc } from "@backend/rpc/errors";
-import { encontroSchema, type EncontroInput } from "@backend/schemas/encontro";
+import { buscarEtapasDoProduto, buscarContratoParaFicha, type EtapaResumo } from "@backend/queries/contrato";
+import { criarEncontro, type ParticipanteEncontroInput } from "@backend/rpc/encontro";
 import { createClient } from "@backend/supabase/client";
 
 import { Button } from "@/components/ui/button";
 import { ErroInline } from "@/components/ui/erro-inline";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const SEM_VINCULO = "_nenhum";
+// Spec anchor: .specs/features/ficha-mandato-contrato/spec.md, "P2: Agenda na
+// ficha e Novo Agendamento" AC2/AC4/AC5/AC6 (FMC-30, FMC-31, FMC-32).
+// design.md, Components "EncontroForm" -- reescrita completa: a versão
+// anterior fazia INSERT direto em fat_encontro (INC-15/17); esta chama
+// app.criar_encontro (T18/T19, SECURITY INVOKER, AD-024) e grava encontro +
+// participantes numa transação única.
+//
+// idProduto é OPCIONAL (SPEC_DEVIATION do design.md, que lista `idProduto`
+// como prop obrigatória): quando ausente, o componente resolve sozinho via
+// buscarContratoParaFicha(idContrato) -- o mesmo dado que a T37 já buscava
+// para montar a Agenda da ficha. Razão: o único outro chamador hoje,
+// /contratos/[id]/encontros/page.tsx (INC-15..18, rota preservada por A-01/
+// A-22), não conhece idProduto e está fora do Where desta task -- exigir a
+// prop quebraria aquele caller sem necessidade. Quem já tem idProduto à mão
+// (T37) pode passá-lo e poupar a consulta extra.
+export interface EncontroFormProps {
+  idContrato: number;
+  idProduto?: number;
+  onConcluido: (criado?: { idEncontro: number }) => void;
+  onCancelar: () => void;
+}
 
 interface TipoRegistroOption {
   id: number;
   nome: string;
 }
 
-// INC-15, INC-17. INSERT direto (sem RPC -- fat_encontro é 1 tabela só,
-// design.md Tech Decisions), componente burro quanto a Dialog (mesmo padrão
-// de FatoGeradorForm/InsightForm). status/datas condicionais espelham
-// ck_encontro_planejado/ck_encontro_realizado (encontroSchema.refine).
-export interface EncontroFormProps {
-  idContrato: number;
-  onConcluido: (criado?: { idEncontro: number }) => void;
-  onCancelar: () => void;
+interface UsuarioOption {
+  id: number;
+  nome: string;
 }
 
-export function EncontroForm({ idContrato, onConcluido, onCancelar }: EncontroFormProps) {
+interface ParticipanteState {
+  idUsuario: number | null;
+  nomeLivre: string | null;
+  origem: "legisla" | "mandato" | "externo";
+  nomeExibido: string;
+}
+
+const SEM_VINCULO = "_nenhum";
+
+export function EncontroForm({ idContrato, idProduto, onConcluido, onCancelar }: EncontroFormProps) {
+  const [idProdutoResolvido, setIdProdutoResolvido] = useState<number | null>(idProduto ?? null);
+  const [etapas, setEtapas] = useState<EtapaResumo[]>([]);
   const [tipos, setTipos] = useState<TipoRegistroOption[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioOption[]>([]);
+
+  const [titulo, setTitulo] = useState("");
+  const [idEtapa, setIdEtapa] = useState<number | null>(null);
+  const [idTipoRegistro, setIdTipoRegistro] = useState<number | null>(null);
+  const [dtInicio, setDtInicio] = useState("");
+  const [dtFim, setDtFim] = useState("");
+  const [modalidade, setModalidade] = useState<"presencial" | "online" | "">("");
+  const [local, setLocal] = useState("");
+  const [tema, setTema] = useState("");
+
+  const [participantes, setParticipantes] = useState<ParticipanteState[]>([]);
+  const [tipoIdentificacao, setTipoIdentificacao] = useState<"usuario" | "externo">("usuario");
+  const [idUsuarioNovo, setIdUsuarioNovo] = useState("");
+  const [origemNovo, setOrigemNovo] = useState<"legisla" | "mandato">("legisla");
+  const [nomeLivreNovo, setNomeLivreNovo] = useState("");
+
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  const form = useForm<EncontroInput>({
-    resolver: zodResolver(encontroSchema),
-    mode: "onChange",
-    defaultValues: { id_contrato: idContrato, titulo: "", status: "planejado" },
-  });
-
-  const status = form.watch("status");
+  // FMC-31 (AC4): Etapa lista só ref_etapa DO PRODUTO do contrato -- quando
+  // idProduto não chega por prop, resolve pelo mesmo caminho de
+  // buscarContratoParaFicha (contrato.ts) que a ficha já usa.
+  useEffect(() => {
+    if (idProduto !== undefined) {
+      setIdProdutoResolvido(idProduto);
+      return;
+    }
+    let cancelado = false;
+    buscarContratoParaFicha(createClient(), idContrato).then((contrato) => {
+      if (!cancelado) setIdProdutoResolvido(contrato?.idProduto ?? null);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [idContrato, idProduto]);
 
   useEffect(() => {
-    // id_tipo_registro do Encontro não é escopado a 1 etapa (ao contrário do
-    // Registro) -- Encontro pode ocorrer em qualquer momento do ciclo, lista
-    // todos os tipos ativos (fetch inline, mesmo padrão de ref_preditor em
-    // objetivo-form.tsx).
-    const supabase = createClient();
-    supabase
+    if (idProdutoResolvido === null) return;
+    let cancelado = false;
+    buscarEtapasDoProduto(createClient(), idProdutoResolvido).then((lista) => {
+      if (!cancelado) setEtapas(lista);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [idProdutoResolvido]);
+
+  // FMC-31 (AC4): escolher Etapa filtra os Tipos daquela etapa. Trocar de
+  // etapa limpa o Tipo escolhido -- um Tipo da etapa anterior não é uma opção
+  // válida na nova.
+  useEffect(() => {
+    setIdTipoRegistro(null);
+    if (idEtapa === null) {
+      setTipos([]);
+      return;
+    }
+    let cancelado = false;
+    createClient()
       .from("ref_tipo_registro")
       .select("id_tipo_registro, nome")
+      .eq("id_etapa", idEtapa)
       .eq("ativo", true)
-      .then(({ data }) => setTipos((data ?? []).map((t) => ({ id: t.id_tipo_registro, nome: t.nome }))));
+      .then(({ data }: { data: { id_tipo_registro: number; nome: string }[] | null }) => {
+        if (!cancelado) {
+          setTipos((data ?? []).map((t) => ({ id: t.id_tipo_registro, nome: t.nome })));
+        }
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [idEtapa]);
+
+  useEffect(() => {
+    let cancelado = false;
+    createClient()
+      .from("dim_usuario")
+      .select("id_usuario, nome")
+      .order("nome")
+      .then(({ data }: { data: { id_usuario: number; nome: string }[] | null }) => {
+        if (!cancelado) setUsuarios((data ?? []).map((u) => ({ id: u.id_usuario, nome: u.nome })));
+      });
+    return () => {
+      cancelado = true;
+    };
   }, []);
 
-  async function enviar(valores: EncontroInput) {
-    setEnviando(true);
+  // FMC-32 (AC6): participante externo grava nome_livre + origem='externo';
+  // usuário grava id_usuario -- nunca os dois (ck_participante_identificacao).
+  function adicionarParticipante() {
+    if (tipoIdentificacao === "usuario") {
+      if (!idUsuarioNovo) return;
+      const usuario = usuarios.find((u) => String(u.id) === idUsuarioNovo);
+      setParticipantes((atual) => [
+        ...atual,
+        {
+          idUsuario: Number(idUsuarioNovo),
+          nomeLivre: null,
+          origem: origemNovo,
+          nomeExibido: usuario?.nome ?? "",
+        },
+      ]);
+      setIdUsuarioNovo("");
+    } else {
+      const nome = nomeLivreNovo.trim();
+      if (nome === "") return;
+      setParticipantes((atual) => [
+        ...atual,
+        { idUsuario: null, nomeLivre: nome, origem: "externo", nomeExibido: nome },
+      ]);
+      setNomeLivreNovo("");
+    }
+  }
+
+  function removerParticipante(indice: number) {
+    setParticipantes((atual) => atual.filter((_, i) => i !== indice));
+  }
+
+  async function enviar(evento: React.FormEvent) {
+    evento.preventDefault();
     setErro(null);
-    const supabase = createClient();
 
-    const { data, error } = await supabase
-      .from("fat_encontro")
-      .insert({
-        id_contrato: valores.id_contrato,
-        id_tipo_registro: valores.id_tipo_registro ?? undefined,
-        nr_sequencia: valores.nr_sequencia ?? undefined,
-        titulo: valores.titulo,
-        status: valores.status,
-        dt_prevista_inicio: valores.dt_prevista_inicio ?? undefined,
-        dt_prevista_fim: valores.dt_prevista_fim ?? undefined,
-        dt_realizada: valores.dt_realizada ?? undefined,
-        modalidade: valores.modalidade ?? undefined,
-        local: valores.local ?? undefined,
-      })
-      .select("id_encontro")
-      .single();
-
-    setEnviando(false);
-    if (error) {
-      setErro(mapeiaErroRpc(error).message);
+    if (titulo.trim() === "" || idEtapa === null || idTipoRegistro === null || dtInicio === "") {
+      setErro("Preencha Título, Etapa, Tipo de Registro e o início antes de salvar.");
       return;
     }
 
-    onConcluido(data ? { idEncontro: data.id_encontro } : undefined);
+    setEnviando(true);
+    const entrada: ParticipanteEncontroInput[] = participantes.map((p) => ({
+      idUsuario: p.idUsuario,
+      nomeLivre: p.nomeLivre,
+      origem: p.origem,
+    }));
+
+    try {
+      const { idEncontro } = await criarEncontro(createClient(), {
+        idContrato,
+        titulo: titulo.trim(),
+        idEtapa,
+        idTipoRegistro,
+        dtInicio,
+        dtFim: dtFim || null,
+        modalidade: modalidade || null,
+        local: modalidade === "presencial" ? local || null : null,
+        tema: tema || null,
+        participantes: entrada,
+      });
+      setEnviando(false);
+      onConcluido({ idEncontro });
+    } catch (e) {
+      setEnviando(false);
+      setErro(e instanceof Error ? e.message : "Não foi possível criar o encontro.");
+    }
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(enviar)} className="grid gap-4">
-        <FormField
-          control={form.control}
-          name="titulo"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Título</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+    <form onSubmit={(e) => void enviar(e)} className="grid gap-4">
+      <div className="grid gap-1.5">
+        <Label htmlFor="encontro-titulo">Título</Label>
+        <Input id="encontro-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+      </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Status</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="planejado">Planejado</SelectItem>
-                    <SelectItem value="realizado">Realizado</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                    <SelectItem value="remarcado">Remarcado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="modalidade"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Modalidade (opcional)</FormLabel>
-                <Select
-                  value={field.value ?? SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : v)}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhuma" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhuma</SelectItem>
-                    <SelectItem value="presencial">Presencial</SelectItem>
-                    <SelectItem value="online">Online</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="encontro-etapa">Etapa do Produto</Label>
+          <Select
+            value={idEtapa !== null ? String(idEtapa) : SEM_VINCULO}
+            onValueChange={(v) => setIdEtapa(v === SEM_VINCULO ? null : Number(v))}
+          >
+            <SelectTrigger id="encontro-etapa" className="w-full">
+              <SelectValue placeholder="Selecione a etapa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEM_VINCULO}>Selecione a etapa</SelectItem>
+              {etapas.map((etapa) => (
+                <SelectItem key={etapa.idEtapa} value={String(etapa.idEtapa)}>
+                  {etapa.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="dt_prevista_inicio"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Data prevista de início{status === "planejado" ? "" : " (opcional)"}
-                </FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="dt_prevista_fim"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Data prevista de fim (opcional)</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+        <div className="grid gap-1.5">
+          <Label htmlFor="encontro-tipo">Tipo de Registro</Label>
+          <Select
+            value={idTipoRegistro !== null ? String(idTipoRegistro) : SEM_VINCULO}
+            onValueChange={(v) => setIdTipoRegistro(v === SEM_VINCULO ? null : Number(v))}
+            disabled={idEtapa === null}
+          >
+            <SelectTrigger id="encontro-tipo" className="w-full">
+              <SelectValue placeholder="Selecione o tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEM_VINCULO}>Selecione o tipo</SelectItem>
+              {tipos.map((tipo) => (
+                <SelectItem key={tipo.id} value={String(tipo.id)}>
+                  {tipo.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="encontro-dt-inicio">Início</Label>
+          <Input
+            id="encontro-dt-inicio"
+            type="datetime-local"
+            value={dtInicio}
+            onChange={(e) => setDtInicio(e.target.value)}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="dt_realizada"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Data de realização{status === "realizado" ? "" : " (opcional)"}</FormLabel>
-              <FormControl>
-                <Input type="date" {...field} value={field.value ?? ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="local"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Local (opcional)</FormLabel>
-              <FormControl>
-                <Input {...field} value={field.value ?? ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="id_tipo_registro"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tipo (opcional)</FormLabel>
-                <Select
-                  value={field.value ? String(field.value) : SEM_VINCULO}
-                  onValueChange={(v) => field.onChange(v === SEM_VINCULO ? null : Number(v))}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value={SEM_VINCULO}>Nenhum</SelectItem>
-                    {tipos.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="nr_sequencia"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nº sequência (opcional)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={1}
-                    {...field}
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+        <div className="grid gap-1.5">
+          <Label htmlFor="encontro-dt-fim">Fim (opcional)</Label>
+          <Input
+            id="encontro-dt-fim"
+            type="datetime-local"
+            value={dtFim}
+            onChange={(e) => setDtFim(e.target.value)}
           />
         </div>
+      </div>
 
-        {erro && <ErroInline mensagem={erro} />}
-        <div className="flex gap-2">
-          <Button type="submit" disabled={enviando || !form.formState.isValid}>
-            {enviando ? "Salvando..." : "Criar Encontro"}
-          </Button>
-          <Button type="button" variant="outline" onClick={onCancelar}>
-            Cancelar
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="encontro-modalidade">Modalidade (opcional)</Label>
+          <Select
+            value={modalidade || SEM_VINCULO}
+            onValueChange={(v) => setModalidade(v === SEM_VINCULO ? "" : (v as "presencial" | "online"))}
+          >
+            <SelectTrigger id="encontro-modalidade" className="w-full">
+              <SelectValue placeholder="Nenhuma" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEM_VINCULO}>Nenhuma</SelectItem>
+              <SelectItem value="presencial">Presencial</SelectItem>
+              <SelectItem value="online">Online</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* FMC-31 (AC5): Presencial mostra Local; Online (ou nenhuma) esconde. */}
+        {modalidade === "presencial" && (
+          <div className="grid gap-1.5">
+            <Label htmlFor="encontro-local">Local</Label>
+            <Input id="encontro-local" value={local} onChange={(e) => setLocal(e.target.value)} />
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="encontro-tema">Tema Prioritário (opcional)</Label>
+        <Input id="encontro-tema" value={tema} onChange={(e) => setTema(e.target.value)} />
+      </div>
+
+      <div className="grid gap-2">
+        <p className="text-sm font-medium">Participantes</p>
+        {participantes.length === 0 && (
+          <p className="text-sm text-muted-foreground">Nenhum participante adicionado ainda.</p>
+        )}
+        <ul className="grid gap-1.5">
+          {participantes.map((p, indice) => (
+            <li key={`${p.nomeExibido}-${indice}`} className="flex items-center gap-2">
+              <span className="flex-1 text-sm">{p.nomeExibido}</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => removerParticipante(indice)}>
+                Remover
+              </Button>
+            </li>
+          ))}
+        </ul>
+
+        <div className="grid gap-2 rounded-md border border-dashed p-3">
+          <div className="flex gap-2">
+            <Select
+              value={tipoIdentificacao}
+              onValueChange={(v) => setTipoIdentificacao(v as "usuario" | "externo")}
+            >
+              <SelectTrigger className="w-48" aria-label="Tipo de participante">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="usuario">Usuário do sistema</SelectItem>
+                <SelectItem value="externo">Participante externo</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {tipoIdentificacao === "usuario" && (
+              <Select value={origemNovo} onValueChange={(v) => setOrigemNovo(v as "legisla" | "mandato")}>
+                <SelectTrigger className="w-40" aria-label="Origem do participante">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="legisla">Legisla</SelectItem>
+                  <SelectItem value="mandato">Mandato</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {tipoIdentificacao === "usuario" ? (
+            <Select value={idUsuarioNovo} onValueChange={setIdUsuarioNovo}>
+              <SelectTrigger className="w-full" aria-label="Selecione o usuário">
+                <SelectValue placeholder="Selecione o usuário" />
+              </SelectTrigger>
+              <SelectContent>
+                {usuarios.map((u) => (
+                  <SelectItem key={u.id} value={String(u.id)}>
+                    {u.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              aria-label="Nome do participante externo"
+              placeholder="Nome do participante externo"
+              value={nomeLivreNovo}
+              onChange={(e) => setNomeLivreNovo(e.target.value)}
+            />
+          )}
+
+          <Button type="button" variant="outline" className="w-fit" onClick={adicionarParticipante}>
+            Adicionar participante
           </Button>
         </div>
-      </form>
-    </Form>
+      </div>
+
+      {erro && <ErroInline titulo="Não foi possível criar o encontro" mensagem={erro} />}
+
+      <div className="flex gap-2">
+        <Button type="submit" disabled={enviando}>
+          {enviando ? "Salvando..." : "Criar Encontro"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancelar}>
+          Cancelar
+        </Button>
+      </div>
+    </form>
   );
 }
