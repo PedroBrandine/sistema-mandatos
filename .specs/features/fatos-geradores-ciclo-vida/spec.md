@@ -254,8 +254,13 @@ este redesenho existe para resolver.
 4. WHEN o Registro é criado fora do contexto de uma etapa THEN o sistema SHALL
    pedir a etapa explicitamente — o vínculo com `fat_etapa_contrato` não pode
    ser perdido na migração do formulário.
-5. WHEN um Registro é criado THEN o campo de texto SHALL se chamar **Resumo**, e
-   o **Canal** SHALL oferecer Sistema · Slack · Presencial.
+5. WHEN um Registro é criado THEN o campo de texto SHALL se chamar **Resumo**.
+   ~~O **Canal** SHALL oferecer Sistema · Slack · Presencial.~~ **Superado**
+   (validation.md, 2026-09-16): `FMC-19` (`ficha-mandato-contrato`, feature
+   concorrente) removeu `canal` de `registroSchema` e do formulário antes
+   desta task tocar o arquivo — decisão de outra feature, não desta. O código
+   está correto (sem Canal); esta linha ficou desatualizada e é corrigida
+   aqui para não reabrir o campo por engano numa leitura futura do spec.
 6. WHEN um **Insight** é criado THEN SHALL oferecer Pilar (os 4 de
    `ref_pilar_insight`), Registro de origem, Meta de origem e Sucesso Mensal de
    origem — estes dois últimos **independentes** entre si.
