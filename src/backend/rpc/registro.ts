@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Database } from "../supabase/database.types";
+import type { Database, Json } from "../supabase/database.types";
 import { mapeiaErroRpc } from "./errors";
 
 // Espelha rel_registro_participante -- ck_reg_part_origem/ck_reg_part_identificacao
@@ -54,7 +54,13 @@ export async function criarRegistro(
     p_id_tipo_registro: input.idTipoRegistro,
     p_ocorrido_em: input.ocorridoEm,
     p_resumo: input.resumo ?? undefined,
-    p_conteudo: input.conteudo,
+    // `conteudo` chega tipado como Record<string, unknown> (T21) -- unknown
+    // não é estruturalmente Json (a union exige um dos casos concretos), mas
+    // o valor É JSON-serializável em runtime (build achado nesta task: T31 é
+    // o primeiro consumidor de frontend deste wrapper, e só então o
+    // typecheck do build passou a alcançar este arquivo -- CLAUDE.md,
+    // "src/backend/** só é type-checado quando tem consumidor").
+    p_conteudo: input.conteudo as Json,
     p_artefatos: input.artefatos.map((artefato) => ({
       tipo: artefato.tipo,
       url: artefato.url,
