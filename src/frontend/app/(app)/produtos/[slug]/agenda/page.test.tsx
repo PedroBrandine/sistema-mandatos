@@ -564,3 +564,26 @@ describe("Ajuste de fidelidade visual — Agenda (2026-09-14)", () => {
     expect(screen.getByText("A", { selector: "span[aria-hidden='true']" })).toBeInTheDocument();
   });
 });
+
+// FMC-33 (spec.md P2 Agenda AC7, T39): "Descrição" e "Responsável" nunca
+// existiram no domínio de Registro -- fat_registro.resumo é Resumo,
+// fat_registro.id_usuario_autor é Autor. Origem da correção: EST-12.
+describe("Agenda — rótulos da lista de Registros (FMC-33)", () => {
+  it("os cabeçalhos são Resumo e Autor", async () => {
+    mocks.buscarRegistrosDaAgenda.mockResolvedValue([REGISTRO]);
+    renderizarAgenda();
+    await aguardarGrade();
+
+    expect(await screen.findByRole("columnheader", { name: "Resumo" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Autor" })).toBeInTheDocument();
+  });
+
+  it("nenhuma ocorrência de 'Descrição' ou 'Responsável' na tabela", async () => {
+    mocks.buscarRegistrosDaAgenda.mockResolvedValue([REGISTRO]);
+    renderizarAgenda();
+    await aguardarGrade();
+
+    expect(screen.queryByText("Descrição")).not.toBeInTheDocument();
+    expect(screen.queryByText("Responsável")).not.toBeInTheDocument();
+  });
+});

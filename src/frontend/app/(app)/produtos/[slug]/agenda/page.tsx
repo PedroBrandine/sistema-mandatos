@@ -344,7 +344,13 @@ function AvatarResponsavel({ nome }: { nome: string }) {
 // Lista "Registros de Agenda" do Figma `163:4`: fica abaixo do calendário,
 // com a contagem do recorte e — quando um encontro está selecionado — o chip
 // de filtro ativo removível que EST-12 AC5 exige. Colunas na ordem do design:
-// Tipo, Data, Descrição, Responsável.
+// Tipo, Data, Resumo, Autor.
+//
+// FMC-33 (spec.md P2 Agenda AC7, EST-12 é a origem da correção): os rótulos
+// "Descrição" e "Responsável" não existem no domínio de Registro --
+// `fat_registro.resumo` é **Resumo** e `fat_registro.id_usuario_autor` é
+// **Autor** (quem lançou; "Responsável" é campo de Meta). Corrigido nesta
+// tela e na lista equivalente da ficha (/contratos/[id]/agenda).
 function ListaRegistros({
   registros,
   encontroSelecionado,
@@ -405,8 +411,8 @@ function ListaRegistros({
             <TableRow>
               <TableHead>Tipo</TableHead>
               <TableHead>Data</TableHead>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Responsável</TableHead>
+              <TableHead>Resumo</TableHead>
+              <TableHead>Autor</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

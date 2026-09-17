@@ -219,9 +219,12 @@ export default function ContratoAgendaPage({ params }: { params: Promise<{ id: s
 }
 
 // Lista "Registros de Agenda" recortada pelo contrato da ficha. Colunas na
-// MESMA ordem de /produtos/[slug]/agenda hoje (Tipo, Data, Descrição,
-// Responsável) -- a correção de rótulo (FMC-33) é escopo da T39, que toca as
-// duas telas juntas.
+// MESMA ordem de /produtos/[slug]/agenda (Tipo, Data, Resumo, Autor).
+//
+// FMC-33 (spec.md P2 Agenda AC7, EST-12 é a origem da correção): os rótulos
+// "Descrição" e "Responsável" não existem no domínio de Registro --
+// `fat_registro.resumo` é **Resumo** e `fat_registro.id_usuario_autor` é
+// **Autor** (quem lançou; "Responsável" é campo de Meta).
 function ListaRegistrosDaFicha({
   registros,
   mesSemEncontro,
@@ -256,8 +259,8 @@ function ListaRegistrosDaFicha({
             <TableRow>
               <TableHead>Tipo</TableHead>
               <TableHead>Data</TableHead>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Responsável</TableHead>
+              <TableHead>Resumo</TableHead>
+              <TableHead>Autor</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
