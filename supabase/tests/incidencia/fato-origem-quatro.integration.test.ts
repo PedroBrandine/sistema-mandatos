@@ -9,8 +9,10 @@ import { runSql } from "../helpers/sql";
 //  - linha com só id_registro preenchido é aceita
 //  - linha com as 4 NULL é rejeitada
 //  - linha inexistente (fato sem vínculo) continua válido
+//  - apagar a origem remove o vínculo, não o Fato Gerador (AC4, achado do
+//    Verifier -- gap 3 de validation.md, 2026-09-16)
 //
-// spec.md P2 "Registro e Pré-Insight como origem" AC1/AC2/AC3.
+// spec.md P2 "Registro e Pré-Insight como origem" AC1/AC2/AC3/AC4.
 
 async function expectSqlError(sql: string, errcode: string): Promise<void> {
   try {
@@ -142,4 +144,53 @@ describe("fatos-geradores-ciclo-vida T3 -- rel_fato_origem com 4 origens", () =>
     expect(rows).toHaveLength(1);
     expect(rows[0].id_fato_gerador).toBe(idFatoB);
   });
+
+  // Gap 3 do Verifier (validation.md 2026-09-16): ON DELETE CASCADE nas 2
+  // colunas novas (spec.md P2 "Registro e Pré-Insight como origem" AC4)
+  // estava garantido só pelo desenho da migration, sem teste que exercitasse
+  // o DELETE de fato. Cria um par isolado (registro + vínculo) só para este
+  // teste -- não reaproveita idRegistro/idFatoA para não interferir na
+  // ordem de limpeza dos outros testes deste arquivo.
+  it("apagar a origem (Registro) remove só a linha de vínculo, não o Fato Gerador (AC4)", async () => {
+    const idTipoRegistro = (
+      await runSql<{ id_tipo_registro: number }>(`SELECT id_tipo_registro FROM ref_tipo_registro ORDER BY id_tipo_registro LIMIT 1;`)
+    )[0].id_tipo_registro;
+
+    const [{ id_registro: idRegistroDescartavel }] = await runSql<{ id_registro: number }>(`
+      INSERT INTO fat_registro (id_contrato, id_tipo_registro, ocorrido_em, resumo, id_usuario_autor)
+      VALUES (${fixture.idContrato}, ${idTipoRegistro}, now(),
+              'FGC T3 registro descartável (cascade)', (SELECT id_usuario FROM dim_usuario ORDER BY id_usuario LIMIT 1))
+      RETURNING id_registro;
+    `);
+
+    const [{ id_fato_gerador: idFatoCascade }] = await runSql<{ id_fato_gerador: number }>(`
+      INSERT INTO fat_fato_gerador (id_contrato, id_tipologia, nivel_d1, dt_ocorrencia)
+      VALUES (${fixture.idContrato}, ${idTipologia}, 'baixo', '2026-09-12')
+      RETURNING id_fato_gerador;
+    `);
+
+    const [{ id_vinculo: idVinculoCascade }] = await runSql<{ id_vinculo: number }>(`
+      INSERT INTO rel_fato_origem (id_fato_gerador, id_registro)
+      VALUES (${idFatoCascade}, ${idRegistroDescartavel})
+      RETURNING id_vinculo;
+    `);
+
+    await runSql(`DELETE FROM fat_registro WHERE id_registro = ${idRegistroDescartavel};`);
+
+    const vinculoRestante = await runSql<{ id_vinculo: number }>(
+      `SELECT id_vinculo FROM rel_fato_origem WHERE id_vinculo = ${idVinculoCascade};`
+    );
+    expect(vinculoRestante).toHaveLength(0);
+
+    const fatoRestante = await runSql<{ id_fato_gerador: number }>(
+      `SELECT id_fato_gerador FROM fat_fato_gerador WHERE id_fato_gerador = ${idFatoCascade};`
+    );
+    expect(fatoRestante).toHaveLength(1);
+
+    await runSql(`DELETE FROM fat_fato_gerador WHERE id_fato_gerador = ${idFatoCascade};`);
+    // 8 chamadas sequenciais de runSql (mais que os testes irmãos deste
+    // arquivo) -- sob a carga concorrente observada no dev compartilhado
+    // durante esta feature, o default de 30s às vezes não alcança. Mesmo
+    // padrão de timeout estendido já usado nos hooks deste arquivo.
+  }, 60000);
 });
