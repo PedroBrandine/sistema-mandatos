@@ -60,8 +60,18 @@ vi.mock("@backend/queries/incidencia", () => ({
   buscarNiveisIip: (...args: unknown[]) => buscarNiveisIipMock(...args),
 }));
 
+const updateMock = vi.fn();
+const eqMock = vi.fn();
+
 vi.mock("@backend/supabase/client", () => ({
-  createClient: () => ({}),
+  createClient: () => ({
+    from: () => ({
+      update: (valores: Record<string, unknown>) => {
+        updateMock(valores);
+        return { eq: (coluna: string, valor: unknown) => eqMock(coluna, valor) };
+      },
+    }),
+  }),
 }));
 
 import { FatoGeradorForm } from "./fato-gerador-form";
@@ -70,9 +80,12 @@ beforeEach(() => {
   criarFatoGeradorMock.mockReset();
   buscarTipologiasCompletasMock.mockReset();
   buscarNiveisIipMock.mockReset();
+  updateMock.mockReset();
+  eqMock.mockReset();
   buscarTipologiasCompletasMock.mockResolvedValue(TIPOLOGIAS);
   buscarNiveisIipMock.mockResolvedValue(NIVEIS);
   criarFatoGeradorMock.mockResolvedValue({ idFatoGerador: 99 });
+  eqMock.mockResolvedValue({ error: null });
 });
 
 afterEach(cleanup);
@@ -323,6 +336,80 @@ describe("FatoGeradorForm — submissão envia os campos novos ao RPC", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Criar Fato Gerador" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Criar Fato Gerador" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("RLS negou a escrita.");
+    expect(onConcluido).not.toHaveBeenCalled();
+  });
+});
+
+describe("FatoGeradorForm — edição (fix pós-Verifier, spec.md 'aba como casa única' AC2)", () => {
+  const FATO_EXISTENTE = {
+    idFatoGerador: 42,
+    idTipologia: 5,
+    titulo: "Aprovação antiga",
+    contribuicaoLegisla: 3,
+    descricaoEvidencia: "Evidência antiga",
+    dtOcorrencia: "2026-08-01",
+    dtPrevista: null,
+  };
+
+  it("popula título, tripla derivada e data a partir do fato existente, sem bloco de Origem", async () => {
+    render(
+      <FatoGeradorForm
+        idContrato={7}
+        situacaoInicial="realizado"
+        fatoGeradorExistente={FATO_EXISTENTE}
+        onConcluido={onConcluido}
+        onCancelar={onCancelar}
+      />
+    );
+
+    expect(await screen.findByDisplayValue("Aprovação antiga")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2026-08-01")).toBeInTheDocument();
+    // Tripla derivada da tipologia existente (id 5 = "2. Produção
+    // Legislativa"), mesma régua sem legenda descritiva.
+    const bloco = (await screen.findByText("Nível D1:", {}, { timeout: 3000 })).closest("div");
+    expect(bloco).toHaveTextContent("Nível D1: Baixo");
+    // Sem origem no wizard -- edição não reabre origem.
+    expect(screen.queryByText(/^Origem:/)).not.toBeInTheDocument();
+  });
+
+  it("salvar chama UPDATE pelo id, não o RPC de criação -- lado oposto", async () => {
+    render(
+      <FatoGeradorForm
+        idContrato={7}
+        situacaoInicial="realizado"
+        fatoGeradorExistente={FATO_EXISTENTE}
+        onConcluido={onConcluido}
+        onCancelar={onCancelar}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(eqMock).toHaveBeenCalledWith("id_fato_gerador", 42);
+    expect(updateMock.mock.calls[0][0]).toMatchObject({ titulo: "Aprovação antiga", id_tipologia: 5 });
+    expect(criarFatoGeradorMock).not.toHaveBeenCalled();
+    expect(onConcluido).toHaveBeenCalledWith();
+  });
+
+  it("falha do UPDATE mostra ErroInline e não conclui -- lado oposto do sucesso", async () => {
+    eqMock.mockResolvedValue({ error: { message: "RLS negou a escrita." } });
+
+    render(
+      <FatoGeradorForm
+        idContrato={7}
+        situacaoInicial="realizado"
+        fatoGeradorExistente={FATO_EXISTENTE}
+        onConcluido={onConcluido}
+        onCancelar={onCancelar}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("RLS negou a escrita.");
     expect(onConcluido).not.toHaveBeenCalled();

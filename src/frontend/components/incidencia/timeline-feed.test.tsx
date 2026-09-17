@@ -124,12 +124,13 @@ describe("TimelineFeed — Editar repassado ao PainelDetalhe (fix task pós-T25,
     expect(onEditar).toHaveBeenCalledWith(ITENS[1]);
   });
 
-  it("selecionar um Fato Gerador NÃO mostra Editar -- lado oposto (sem edição pronta ainda)", () => {
+  it("selecionar um Fato Gerador também mostra Editar -- FatoGeradorForm ganhou edição (fix pós-Verifier)", () => {
     const onEditar = vi.fn();
     renderFeed(ITENS, onEditar);
 
     fireEvent.click(screen.getByRole("button", { name: /10\/09\/2026/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
 
-    expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
+    expect(onEditar).toHaveBeenCalledWith(ITENS[2]);
   });
 });

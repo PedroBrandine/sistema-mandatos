@@ -97,6 +97,22 @@ vi.mock("@/components/incidencia/fato-gerador-wizard", () => ({
     </button>
   ),
 }));
+vi.mock("@/components/incidencia/fato-gerador-form", () => ({
+  FatoGeradorForm: ({
+    onConcluido,
+    fatoGeradorExistente,
+  }: {
+    onConcluido: () => void;
+    fatoGeradorExistente?: { idFatoGerador: number; titulo: string | null };
+  }) => (
+    <div>
+      {fatoGeradorExistente && <p>editando fato gerador: {fatoGeradorExistente.titulo}</p>}
+      <button type="button" onClick={onConcluido}>
+        concluir edição de fato gerador
+      </button>
+    </div>
+  ),
+}));
 
 import ContratoFatosRegistrosPage from "./page";
 
@@ -194,17 +210,40 @@ describe("/contratos/[id]/fatos-registros — editar a partir da Linha do Tempo 
     await waitFor(() => expect(buscarTimelineIncidenciaMock).toHaveBeenCalledTimes(2));
   });
 
-  it("Fato Gerador não oferece Editar na timeline -- lado oposto (wizard é só criação)", async () => {
+  it("Fato Gerador também edita a partir da timeline (fix pós-Verifier, FatoGeradorForm ganhou edição)", async () => {
     buscarTimelineIncidenciaMock.mockResolvedValue([
       { tipo: "fato_gerador", idOrigem: 9, titulo: "Fato de teste", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9 },
     ]);
+    maybeSingleMock.mockImplementation((tabela: string) => {
+      if (tabela === "fat_fato_gerador") {
+        return Promise.resolve({
+          data: {
+            id_fato_gerador: 9,
+            id_tipologia: 5,
+            titulo: "Fato de teste (real)",
+            situacao: "realizado",
+            contribuicao_legisla: null,
+            descricao_evidencia: null,
+            dt_ocorrencia: "2026-09-10",
+            dt_prevista: null,
+          },
+        });
+      }
+      return Promise.resolve({ data: null });
+    });
 
     render(<ContratoFatosRegistrosPage params={paramsProntos("7")} />);
     await screen.findByText("Fato de teste");
 
     fireEvent.click(screen.getByRole("button", { name: /Fato de teste/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
 
-    expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
+    expect(await screen.findByText("editando fato gerador: Fato de teste (real)")).toBeInTheDocument();
+    expect(maybeSingleMock).toHaveBeenCalledWith("fat_fato_gerador");
+
+    fireEvent.click(screen.getByRole("button", { name: "concluir edição de fato gerador" }));
+    expect(screen.queryByText("editando fato gerador: Fato de teste (real)")).not.toBeInTheDocument();
+    await waitFor(() => expect(buscarTimelineIncidenciaMock).toHaveBeenCalledTimes(2));
   });
 });
 

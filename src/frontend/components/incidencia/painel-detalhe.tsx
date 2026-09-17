@@ -30,11 +30,11 @@ export interface PainelDetalheProps {
   fatoGerador?: FatoGeradorResumo;
   preInsight?: PreInsightResumo;
   // Achado do Verifier (fix task pós-T25): spec.md "A aba como casa única"
-  // AC2 exige editar a partir da Linha do Tempo sem sair da aba. Opcional de
-  // propósito -- o chamador (página) só passa quando aquele TIPO de item
-  // tem formulário com modo de edição pronto (Registro/Insight/Pré-Insight,
-  // T23/T24/fix); Fato Gerador ainda não tem edição (wizard é só criação),
-  // então o botão simplesmente não aparece para esse tipo.
+  // AC2 exige editar a partir da Linha do Tempo sem sair da aba. Opcional --
+  // o chamador (página) só passa quando tem um handler de edição pronto
+  // para aquele item (as 4 entidades têm, desde o fix de Fato Gerador em
+  // fato-gerador-form.tsx); sem `onEditar`, o botão simplesmente não
+  // aparece.
   onEditar?: () => void;
 }
 

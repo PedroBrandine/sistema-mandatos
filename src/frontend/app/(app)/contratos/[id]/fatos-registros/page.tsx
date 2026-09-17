@@ -20,6 +20,7 @@ import { createClient } from "@backend/supabase/client";
 
 import { AbaIncidencia } from "@/components/incidencia/aba-incidencia";
 import { CadeiaLista } from "@/components/incidencia/cadeia-lista";
+import { FatoGeradorForm, type FatoGeradorExistente } from "@/components/incidencia/fato-gerador-form";
 import { FatoGeradorWizard } from "@/components/incidencia/fato-gerador-wizard";
 import { IncidenciaKpis } from "@/components/incidencia/incidencia-kpis";
 import { InsightForm, type InsightExistente } from "@/components/incidencia/insight-form";
@@ -31,19 +32,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 // Achado do Verifier (fix task pós-T25, spec.md "A aba como casa única" AC2:
 // "item da timeline acionado para edição abre o formulário da própria
-// entidade, sem sair da aba"). T23/T24 (e o fix de Pré-Insight) já deixaram
-// RegistroForm/InsightForm/PreInsightForm prontos para editar -- faltava
-// esta página conectar o clique em "Editar" (TimelineFeed→PainelDetalhe) a
-// um diálogo que abre o formulário certo, populado com o registro
-// verdadeiro (busca direta por id no clique, não a partir do resumo já
-// carregado -- o resumo tem só campos de exibição, não os brutos que o
-// formulário precisa editar). Fato Gerador fica de fora (TimelineFeed já
-// nunca oferece "Editar" para esse tipo): o wizard é só de criação, editar
-// a tripla/níveis/situação de um fato já classificado não foi desenhado.
+// entidade, sem sair da aba"). T23/T24 (e os fixes de Pré-Insight/Fato
+// Gerador) já deixaram RegistroForm/InsightForm/PreInsightForm/
+// FatoGeradorForm prontos para editar -- faltava esta página conectar o
+// clique em "Editar" (TimelineFeed→PainelDetalhe) a um diálogo que abre o
+// formulário certo, populado com o registro verdadeiro (busca direta por id
+// no clique, não a partir do resumo já carregado -- o resumo tem só campos
+// de exibição, não os brutos que o formulário precisa editar). Fato Gerador
+// edita a tripla/níveis/título/data via FatoGeradorForm direto (sem passar
+// pelo wizard -- natureza/origem não são reabertas na edição; mudar
+// `situacao` continua sendo só o RealizarFatoDialog/T19).
 type ItemEditando =
   | { tipo: "registro"; dados: RegistroExistente }
   | { tipo: "insight"; dados: InsightExistente }
-  | { tipo: "pre_insight"; dados: PreInsightExistente };
+  | { tipo: "pre_insight"; dados: PreInsightExistente }
+  | { tipo: "fato_gerador"; dados: FatoGeradorExistente; situacao: "projetado" | "realizado" };
 
 // FGC-16 (T25, fatos-geradores-ciclo-vida). Página da aba "Fatos Geradores e
 // Registros" -- casa única de leitura E escrita das 4 entidades (AD-057).
@@ -142,6 +145,29 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
         tipo: "pre_insight",
         dados: { idPreInsight: data.id_pre_insight, conteudo: data.conteudo, ocorridoEm: data.ocorrido_em },
       });
+      return;
+    }
+
+    if (item.tipo === "fato_gerador") {
+      const { data } = await supabase
+        .from("fat_fato_gerador")
+        .select("id_fato_gerador, id_tipologia, titulo, situacao, contribuicao_legisla, descricao_evidencia, dt_ocorrencia, dt_prevista")
+        .eq("id_fato_gerador", item.idOrigem)
+        .maybeSingle();
+      if (!data) return;
+      setItemEditando({
+        tipo: "fato_gerador",
+        situacao: data.situacao as "projetado" | "realizado",
+        dados: {
+          idFatoGerador: data.id_fato_gerador,
+          idTipologia: data.id_tipologia,
+          titulo: data.titulo,
+          contribuicaoLegisla: data.contribuicao_legisla,
+          descricaoEvidencia: data.descricao_evidencia,
+          dtOcorrencia: data.dt_ocorrencia,
+          dtPrevista: data.dt_prevista,
+        },
+      });
     }
   }
 
@@ -181,6 +207,7 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
     registro: "Editar Registro",
     insight: "Editar Insight",
     pre_insight: "Editar Pré-Insight",
+    fato_gerador: "Editar Fato Gerador",
   };
 
   function fecharEdicao() {
@@ -212,6 +239,15 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
           )}
           {itemEditando?.tipo === "pre_insight" && (
             <PreInsightForm idContrato={idContrato} preInsightExistente={itemEditando.dados} onConcluido={aoConcluirEdicao} />
+          )}
+          {itemEditando?.tipo === "fato_gerador" && (
+            <FatoGeradorForm
+              idContrato={idContrato}
+              situacaoInicial={itemEditando.situacao}
+              fatoGeradorExistente={itemEditando.dados}
+              onConcluido={aoConcluirEdicao}
+              onCancelar={fecharEdicao}
+            />
           )}
         </DialogContent>
       </Dialog>

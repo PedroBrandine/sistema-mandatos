@@ -29,10 +29,9 @@ export interface TimelineFeedProps {
   fatosGeradores: FatoGeradorResumo[];
   preInsights: PreInsightResumo[];
   // Achado do Verifier (fix task pós-T25, spec.md "aba como casa única"
-  // AC2): repassado a PainelDetalhe só quando o item selecionado NÃO é
-  // fato_gerador -- Fato Gerador ainda não tem formulário de edição (o
-  // wizard é só criação), então "Editar" nunca aparece pra esse tipo,
-  // mesmo com onEditar presente.
+  // AC2): repassado a PainelDetalhe para qualquer tipo selecionado -- as 4
+  // entidades têm formulário de edição (Fato Gerador ganhou em
+  // fato-gerador-form.tsx logo após o Verifier apontar o gap).
   onEditar?: (item: TimelineItem) => void;
 }
 
@@ -167,9 +166,7 @@ export function TimelineFeed({
         insight={insightSelecionado}
         fatoGerador={fatoGeradorSelecionado}
         preInsight={preInsightSelecionado}
-        onEditar={
-          onEditar && selecionado && selecionado.tipo !== "fato_gerador" ? () => onEditar(selecionado) : undefined
-        }
+        onEditar={onEditar && selecionado ? () => onEditar(selecionado) : undefined}
       />
     </div>
   );

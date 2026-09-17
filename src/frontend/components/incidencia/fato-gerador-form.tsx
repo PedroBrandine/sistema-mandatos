@@ -49,10 +49,32 @@ import type { OrigemFato } from "./seletor-origem";
 // origem já escolhida. Data de ocorrência/prevista alternam conforme
 // situacaoInicial (spec.md P1 AC10/AC11); Título passa a ser obrigatório
 // (fatoGeradorSchema, T8).
+//
+// Fix pós-Verifier (validation.md gap 1, 2026-09-17): edição via
+// `fatoGeradorExistente` -- UPDATE direto em fat_fato_gerador (RLS
+// p_por_contrato já cobre, é FOR ALL, mesma classe de marcarFatoRealizado/
+// T10), sem passar pelo wizard (a natureza/origem não são reabertas na
+// edição -- mudar `situacao` é responsabilidade só de RealizarFatoDialog/T19,
+// e origem não tem UI de edição desenhada). `origemInicial` vira opcional:
+// ausente em edição, o bloco "Origem: ..." simplesmente não aparece (sem
+// nova busca só pra exibir contexto). Grupo/Tipologia/Estado continuam
+// editáveis -- reaproveita a cascata inteira, só populada a partir da
+// tipologia existente assim que o catálogo carrega.
+export interface FatoGeradorExistente {
+  idFatoGerador: number;
+  idTipologia: number;
+  titulo: string | null;
+  contribuicaoLegisla: number | null;
+  descricaoEvidencia: string | null;
+  dtOcorrencia: string | null;
+  dtPrevista: string | null;
+}
+
 export interface FatoGeradorFormProps {
   idContrato: number;
   situacaoInicial: "projetado" | "realizado";
-  origemInicial: OrigemFato;
+  origemInicial?: OrigemFato;
+  fatoGeradorExistente?: FatoGeradorExistente;
   onConcluido: (criado?: { idFatoGerador: number }) => void;
   onCancelar: () => void;
 }
@@ -82,6 +104,7 @@ export function FatoGeradorForm({
   idContrato,
   situacaoInicial,
   origemInicial,
+  fatoGeradorExistente,
   onConcluido,
   onCancelar,
 }: FatoGeradorFormProps) {
@@ -100,13 +123,23 @@ export function FatoGeradorForm({
   const form = useForm<FatoGeradorInput>({
     resolver: zodResolver(fatoGeradorSchema),
     mode: "onChange",
-    defaultValues: {
-      id_contrato: idContrato,
-      situacao: situacaoInicial,
-      dt_ocorrencia: situacaoInicial === "realizado" ? new Date().toISOString().slice(0, 10) : null,
-      dt_prevista: null,
-      ...origemParaCampos(origemInicial),
-    },
+    defaultValues: fatoGeradorExistente
+      ? {
+          id_contrato: idContrato,
+          situacao: situacaoInicial,
+          titulo: fatoGeradorExistente.titulo ?? "",
+          contribuicao_legisla: fatoGeradorExistente.contribuicaoLegisla,
+          descricao_evidencia: fatoGeradorExistente.descricaoEvidencia,
+          dt_ocorrencia: fatoGeradorExistente.dtOcorrencia,
+          dt_prevista: fatoGeradorExistente.dtPrevista,
+        }
+      : {
+          id_contrato: idContrato,
+          situacao: situacaoInicial,
+          dt_ocorrencia: situacaoInicial === "realizado" ? new Date().toISOString().slice(0, 10) : null,
+          dt_prevista: null,
+          ...(origemInicial ? origemParaCampos(origemInicial) : {}),
+        },
   });
 
   useEffect(() => {
@@ -114,6 +147,41 @@ export function FatoGeradorForm({
     void buscarTipologiasCompletas(supabase).then(setTipologias);
     void buscarNiveisIip(supabase).then(setNiveis);
   }, []);
+
+  // Popula a cascata (Grupo/Tipologia/Estado) a partir da tipologia existente
+  // assim que o catálogo carrega -- só roda em edição. Escalonado em 3
+  // efeitos (achado real de teste: setar grupo/tipologiaNome/estado juntos
+  // na MESMA render faz o <Select> de Tipologia/Estado transicionar de
+  // disabled+uncontrolled para enabled+controlled na mesma tick -- o Radix
+  // não reflete o valor nesse caso, "Select is changing from uncontrolled
+  // to controlled" no console. Um passo por render, cada Select já enabled
+  // quando ganha valor, resolve.
+  useEffect(() => {
+    if (!fatoGeradorExistente || tipologias.length === 0 || grupo !== null) return;
+    const linha = tipologias.find((t) => t.idTipologia === fatoGeradorExistente.idTipologia);
+    if (linha) setGrupo(linha.grupo);
+  }, [fatoGeradorExistente, tipologias, grupo]);
+
+  useEffect(() => {
+    if (!fatoGeradorExistente || !grupo || tipologiaNome !== null) return;
+    const linha = tipologias.find((t) => t.idTipologia === fatoGeradorExistente.idTipologia);
+    if (linha) setTipologiaNome(linha.tipologia);
+  }, [fatoGeradorExistente, grupo, tipologias, tipologiaNome]);
+
+  useEffect(() => {
+    if (!fatoGeradorExistente || !tipologiaNome || estado !== null) return;
+    const linha = tipologias.find((t) => t.idTipologia === fatoGeradorExistente.idTipologia);
+    if (!linha) return;
+    setEstado(linha.estado);
+    form.setValue("id_tipologia", linha.idTipologia, { shouldValidate: true });
+    form.setValue("nivel_d1", linha.nivelD1Padrao, { shouldValidate: true });
+    form.setValue("nivel_d2", linha.nivelD2Padrao, { shouldValidate: true });
+    form.setValue("nivel_d3", linha.nivelD3Padrao, { shouldValidate: true });
+    form.setValue("id_preditor_1", linha.idPreditor1, { shouldValidate: true });
+    form.setValue("id_preditor_2", linha.idPreditor2, { shouldValidate: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `form` (useForm) é
+    // estável entre renders, mesmo padrão de selecionarEstado não incluí-lo.
+  }, [fatoGeradorExistente, tipologiaNome, tipologias, estado]);
 
   // Set() preserva ordem de 1ª ocorrência -- tipologias já vem ordenada por
   // id_tipologia (ordem do seed = ordem numérica do Grupo no CSV, 1..11).
@@ -171,6 +239,37 @@ export function FatoGeradorForm({
     setEnviando(true);
     setErro(null);
     const supabase = createClient();
+
+    if (fatoGeradorExistente) {
+      // UPDATE direto -- sem RPC (nenhuma invariante multi-tabela na
+      // edição: origem/rel_fato_origem não é tocada aqui). RLS
+      // p_por_contrato já cobre UPDATE (FOR ALL, mesma classe de T10).
+      const { error } = await supabase
+        .from("fat_fato_gerador")
+        .update({
+          id_tipologia: valores.id_tipologia,
+          nivel_d1: valores.nivel_d1 ?? null,
+          nivel_d2: valores.nivel_d2 ?? null,
+          nivel_d3: valores.nivel_d3 ?? null,
+          id_preditor_1: valores.id_preditor_1 ?? null,
+          id_preditor_2: valores.id_preditor_2 ?? null,
+          titulo: valores.titulo,
+          contribuicao_legisla: valores.contribuicao_legisla ?? null,
+          descricao_evidencia: valores.descricao_evidencia ?? null,
+          dt_ocorrencia: valores.dt_ocorrencia ?? null,
+          dt_prevista: valores.dt_prevista ?? null,
+        })
+        .eq("id_fato_gerador", fatoGeradorExistente.idFatoGerador);
+
+      setEnviando(false);
+      if (error) {
+        setErro(error.message);
+        return;
+      }
+      onConcluido();
+      return;
+    }
+
     try {
       const { idFatoGerador } = await criarFatoGerador(supabase, {
         idContrato: valores.id_contrato,
@@ -204,10 +303,13 @@ export function FatoGeradorForm({
       <form onSubmit={form.handleSubmit(enviar)} className="grid gap-4">
         {/* Origem já escolhida no passo 1 do wizard (T16) -- somente
             leitura aqui, nunca reoferecida como Select (evita duplicar a
-            escolha e divergir do que foi selecionado). */}
-        <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          Origem: {rotuloOrigem(origemInicial)}
-        </div>
+            escolha e divergir do que foi selecionado). Ausente em edição
+            (fatoGeradorExistente): editar não reabre a origem. */}
+        {origemInicial && (
+          <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            Origem: {rotuloOrigem(origemInicial)}
+          </div>
+        )}
 
         <FormField
           control={form.control}
@@ -366,7 +468,7 @@ export function FatoGeradorForm({
         {erro && <ErroInline mensagem={erro} />}
         <div className="flex gap-2">
           <Button type="submit" disabled={enviando || !form.formState.isValid}>
-            {enviando ? "Salvando..." : "Criar Fato Gerador"}
+            {enviando ? "Salvando..." : fatoGeradorExistente ? "Salvar" : "Criar Fato Gerador"}
           </Button>
           <Button type="button" variant="outline" onClick={onCancelar}>
             Cancelar
