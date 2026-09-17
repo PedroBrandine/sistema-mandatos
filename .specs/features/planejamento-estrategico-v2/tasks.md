@@ -47,23 +47,20 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | T16 aba Diagnóstico em cartões | `749a568` | 12 de render |
 | T26 remove seletor de modo (AD-059) | `32b7d83` | 957 unitários |
 | T27 cartões fiéis ao `57:671` | `32b7d83` | 11 de render |
-| T17 status e preditores no ObjetivoForm | `3ce25a9`* | 11 de render |
+| T17 status e preditores no ObjetivoForm | `58c5670` | 11 de render |
 | Fix: remove GIP duplicado do Diagnóstico | `5483f97` | — (remoção) |
 
-\* **Atribuição incorreta, registrada aqui para quem ler o histórico depois.**
-`3ce25a9` tem mensagem `feat(ficha): formulario de registro com camada
-dinamica e presentes` e é de outra sessão/feature. Concorrência entre sessões
-Claude Code ativas simultaneamente no mesmo working directory: T17 foi
-staged (`git add`) e, antes do `git commit` desta sessão rodar, a outra
-sessão commitou primeiro — um `git commit` sem pathspec inclui todo o índice
-compartilhado, não só os arquivos que aquela sessão pretendia. O código está
-correto e testado (11/11 passando, ver diff do commit); só a mensagem e a
-autoria do commit não correspondem ao conteúdo de `objetivo-form.tsx`/
-`.test.tsx`. Não revertido nem re-commitado: o branch já avançou por cima
-desse commit, e reescrever histórico compartilhado é mais arriscado que
-conviver com a mensagem errada. Commits seguintes desta sessão passam a usar
-`git commit -F- -- <arquivos>` (pathspec explícito) para que isto não se
-repita.
+**Nota sobre a colisão de commit da T17, para quem ler o histórico.** T17 foi
+staged (`git add`) e, antes do `git commit` desta sessão rodar, outra sessão
+ativa no mesmo working directory commitou primeiro em `3ce25a9`
+(`feat(ficha): formulario de registro...`) — sem pathspec, aquele `git commit`
+varreu o índice inteiro, compartilhado entre as duas sessões, e engoliu os
+dois arquivos da T17 junto. A outra sessão corrigiu do próprio lado, em
+`5fb772d` (`git rm --cached`, sem tocar o conteúdo em disco), e esta sessão
+recommitou em `58c5670` com mensagem e atribuição corretas. Resolvido, não só
+documentado — ver AD-062 em `STATE.md` para a regra que evita repetição
+(`git commit -F- -- <arquivos>`, nunca sem pathspec, com mais de uma sessão
+ativa).
 
 **Todas as 5 migrations aplicadas em dev** (`npnvoolkebhabjkjzqwn`), uma de cada
 vez, com gate escopado entre elas. Produção intocada.

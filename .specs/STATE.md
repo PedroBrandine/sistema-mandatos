@@ -2109,10 +2109,14 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Trade-off**: Pathspec explícito exige listar cada arquivo do commit por
   extenso (sem glob, sem `.`) — mais verboso, quebra o hábito de `git add -A &&
   git commit`. É o preço de escrever num índice que outra sessão também
-  escreve. Não resolve retroativamente `3ce25a9`: reescrever histórico
-  compartilhado (rebase/amend) é mais arriscado do que conviver com uma
-  mensagem de commit errada — registrado em vez de corrigido, ver
-  `tasks.md` de `planejamento-estrategico-v2`, linha da T17.
+  escreve.
+- **Atualização 2026-09-17, mesmo dia**: resolvido sem rebase. A outra sessão
+  (dona de `3ce25a9`) rodou `git rm --cached` só nos dois arquivos da T17 em
+  `5fb772d` (índice, sem tocar o conteúdo em disco), e esta sessão recommitou
+  em `58c5670` com mensagem e atribuição corretas. Nenhum rewrite de histórico
+  compartilhado foi necessário — `3ce25a9` continua existindo, apenas sem
+  esses dois arquivos no diff a partir de `5fb772d` em diante. Ver `tasks.md`
+  de `planejamento-estrategico-v2`, linha da T17.
 - **Scope**: todas as sessões, todos os commits, enquanto houver mais de uma
   sessão simultânea neste repositório (o caso comum, não a exceção, nesta
   fase do projeto).
