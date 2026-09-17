@@ -2154,25 +2154,24 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   `planejamento-estrategico-v2` (a outra metade do handoff acima) segue seu
   próprio curso, não tocado por este.
 - **Verifier independente rodou e escreveu**
-  `.specs/features/fatos-geradores-ciclo-vida/validation.md`: PASS após 1 fix
-  real aplicado na mesma sessão (gap de AC2 — "Editar" da Linha do Tempo nunca
-  estava conectado a nada; T23/T24 tinham construído a capacidade de edição
-  nos formulários, mas nenhuma task ligou um clique real a ela). Sensor de
-  mutação 3/3 morto. Gate: 1193 unit + 6/6 arquivos de integração desta
-  feature.
-- **3 gaps de precisão de spec sinalizados, não bloqueantes** (ver
-  `validation.md` para detalhe e decisão pendente):
-  1. Fato Gerador não tem formulário de edição desenhado (as outras 3
-     entidades têm); editar isso exigiria decisão nova de design, não é
-     correção mecânica.
-  2. `spec.md` desta feature ainda descreve o campo "Canal" no Registro com 3
-     opções — removido por `FMC-19` (`ficha-mandato-contrato`, feature
-     concorrente) depois deste spec ter sido escrito. Código está certo;
-     `spec.md` precisa de uma atualização de manutenção.
-  3. Nenhum teste de integração exercita o `ON DELETE CASCADE` do vínculo de
-     origem (apagar um Pré-Insight/Registro/Insight/Meta usado como origem
-     remove só o vínculo, não o Fato Gerador) — garantido pelo desenho da FK,
-     sem teste que prove na prática.
+  `.specs/features/fatos-geradores-ciclo-vida/validation.md`: PASS. 1ª passada
+  achou um gap real de AC2 ("Editar" da Linha do Tempo nunca estava conectado
+  a nada — T23/T24 tinham construído a capacidade de edição nos formulários,
+  mas nenhuma task ligou um clique real a ela) + 3 gaps de precisão de spec,
+  todos não-bloqueantes. **Atualização 2026-09-17**: os 3 gaps foram
+  resolvidos a pedido do usuário ("pode decidir, continue gerando"):
+  1. `spec.md` corrigido quanto ao campo Canal (commit `464d93c`).
+  2. Teste de integração novo cobrindo `ON DELETE CASCADE` do vínculo de
+     origem (commit `80da08a`).
+  3. Fato Gerador ganhou edição a partir da Linha do Tempo (commit `2d438fe`)
+     — `FatoGeradorForm` aceita `fatoGeradorExistente` (UPDATE direto;
+     situação e origem ficam de fora de propósito). Achado real de UI no
+     caminho: bug do Radix Select ao popular a cascata Grupo→Tipologia→Estado
+     inteira na mesma render (disabled→enabled + uncontrolled→controlled na
+     mesma tick não reflete valor) — corrigido escalonando em 3 efeitos.
+  Sensor de mutação: 3/3 morto + este bug real de UI achado no caminho. Gate
+  final: 1206/1207 unit (1 flake pré-existente não-relacionado) + 6/6
+  arquivos de integração desta feature.
 - **Achados reais corrigidos ao longo da Execute** (fora do previsto em
   design.md/tasks.md, registrados nos commits correspondentes): migration
   faltante para `app.criar_fato_gerador()` aceitar os parâmetros novos (T6);
@@ -2180,17 +2179,24 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   views só-leitura (T4/T5); `agrupaPorMes` precisou virar genérico (T20/T25);
   `registro-form.tsx` estava quebrado por uma mudança concorrente de outra
   feature (`FMC-19` removeu `canal` do schema, arquivo não tinha sido
-  atualizado) — corrigido junto de T23.
+  atualizado) — corrigido junto de T23; bug real de Radix Select na edição de
+  Fato Gerador (ver acima).
 - **Ambiente compartilhado sob carga pesada durante toda a Execute**: 5
   sessões Claude Code ativas simultaneamente neste repositório (confirmado via
   `ListAgents`). Dois sub-agentes de Fase 1 bateram rate limit de sessão e
   precisaram ser retomados; testes de integração tiveram falhas transitórias
-  (timeout, contagem poluída por fixture concorrente) confirmadas não-causadas
-  por esta feature via re-execução isolada.
-- **4 lições candidatas registradas** (L-039 a L-042,
+  repetidas (timeout, contagem poluída por fixture concorrente, hook de 60s
+  estourado) confirmadas não-causadas por esta feature via re-execução
+  isolada, em pelo menos 4 ocasiões distintas ao longo da sessão.
+- **5 lições candidatas registradas** (L-039 a L-043,
   `python <skill>/scripts/lessons.py add`): wiring de edit-mode entre tasks
   distintas, `spec.md` desatualizado por feature concorrente, cascade delete
-  sem teste de runtime, texto de componente reaproveitado sem asserção direta.
+  sem teste de runtime, texto de componente reaproveitado sem asserção
+  direta, bug de Radix Select em cascata populada de uma vez.
+- **Nenhum gap remanescente que bloqueie a feature.** Resta 1 gap de
+  precisão de spec não-bloqueante e não pedido para fechar nesta sessão:
+  `RealizarFatoDialog` (transição projetado→realizado) sem teste de
+  integração de UI acoplado a um consumidor real.
 - **Branch**: `develop`. Nenhum PR aberto ainda — feature não passou por PR
   nesta sessão, só commits diretos em `develop` (mesmo padrão do restante do
   histórico recente).
