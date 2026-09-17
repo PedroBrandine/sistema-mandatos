@@ -254,6 +254,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: spec.md 'Ciclo de Vida com cadeias' AC6 -- validation.md, incidencia-kpis.test.tsx não afirma o texto '(provisório)' (frontend/components)
 - last seen: 2026-09-16T21:26:35Z
 
+### L-043 — When pre-populating a multi-step cascading Select (Grupo->Tipologia->Estado style) from existing data, stagger each state update across its own render instead of setting all of them in the same effect tick -- Radix Select can fail to reflect a value when a Select transitions disabled+uncontrolled to enabled+controlled in the same render.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `frontend/components` · harmful: 0
+- features: fatos-geradores-ciclo-vida
+- evidence: fato-gerador-form.tsx (achado real ao construir edição, commit 2d438fe) -- não é mutante do sensor, é bug real de UI encontrado em teste (frontend/components)
+- last seen: 2026-09-17T11:37:59Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 43,
+  "next_id": 44,
   "lessons": [
     {
       "id": "L-003",
@@ -724,6 +724,24 @@
       ],
       "created": "2026-09-16T21:26:35Z",
       "last_seen": "2026-09-16T21:26:35Z"
+    },
+    {
+      "id": "L-043",
+      "key": "surviving_mutant::when pre populating a multi step cascading select grupo tipologia estado style from existing data stagger each state update across its own render instead of setting all of them in the same effect tick radix select can fail to reflect a value when a select transitions disabled uncontrolled to enabled controlled in the same render",
+      "text": "When pre-populating a multi-step cascading Select (Grupo->Tipologia->Estado style) from existing data, stagger each state update across its own render instead of setting all of them in the same effect tick -- Radix Select can fail to reflect a value when a Select transitions disabled+uncontrolled to enabled+controlled in the same render.",
+      "signal": "surviving_mutant",
+      "scope": "frontend/components",
+      "status": "candidate",
+      "features": [
+        "fatos-geradores-ciclo-vida"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "fato-gerador-form.tsx (achado real ao construir edição, commit 2d438fe) -- não é mutante do sensor, é bug real de UI encontrado em teste (frontend/components)"
+      ],
+      "created": "2026-09-17T11:37:59Z",
+      "last_seen": "2026-09-17T11:37:59Z"
     }
   ]
 }

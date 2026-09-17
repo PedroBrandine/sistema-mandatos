@@ -4,6 +4,7 @@
 **Spec**: `.specs/features/fatos-geradores-ciclo-vida/spec.md`
 **Diff range**: commits `5dd130f`, `a18f532`, `bd0480b`, `d4345bd`, `10d8ee1`, `3acb80f`, `9edc738`, `368fa91`, `15e1ea2`, `d1b6384`, `fd93a84`, `57db38c`, `113a3cf`, `3690519`, `6c36975`, `cb4dc71`, `d17542b`, `92c2649`, `7e30afc`, `5f2c4ba`, `bdbc931`, `76c9ae1`, `6024a62`, `6f4789e`, `6a1f633`, `61daacc`, `7fc6c29`, `f036350` (44 arquivos de produto/teste + 6 migrations — não é um range contíguo de `git log`; o repositório é compartilhado e tem dezenas de commits concorrentes de outra feature, `ficha-mandato-contrato`, intercalados no mesmo período)
 **Verifier**: sessão independente de fresh-eyes (2 sub-agentes Explore dedicados a re-derivar evidência sem herdar o raciocínio do autor) + sensor de mutação e gate check rodados diretamente
+**Atualização 2026-09-17**: os 3 gaps abaixo (não bloqueantes na primeira passada) foram resolvidos a pedido do usuário ("pode decidir, continue gerando") — ver commits `464d93c` (spec.md/Canal), `80da08a` (teste de cascade delete), `2d438fe` (edição de Fato Gerador). Seções atualizadas in-line, nada foi apagado do registro original.
 
 ---
 
@@ -15,7 +16,7 @@
 | T7–T14 (Backend) | ✅ Done | Inclui achado do batch worker: `database.types.ts` regenerado antes de T7 (pré-requisito não previsto em tasks.md) |
 | T15–T22 (Componentes) | ✅ Done | T22 recebeu um fix de contrato (`conteudo: ReactNode` → `renderizar: (fechar) => ReactNode`) commitado separadamente antes de T25, achado durante a própria Execute |
 | T23–T27 (Migração final) | ✅ Done | T26/T27 corrigiram achados de lint reais nos próprios arquivos (`react-hooks/set-state-in-effect`, `setTipos([])` redundante, 2 vars não usadas em teste de T5) |
-| Fix pós-T27 (Verifier) | ✅ Done | Gap real encontrado e corrigido: "Editar" da Linha do Tempo nunca estava conectado a nada (ver Gaps) |
+| Fixes pós-T27 (Verifier) | ✅ Done | 4 commits: `f036350` (Editar Registro/Insight/Pré-Insight), `464d93c` (spec.md/Canal), `80da08a` (teste de cascade delete), `2d438fe` (Editar Fato Gerador) |
 
 ---
 
@@ -51,7 +52,7 @@
 | AC1/AC2: `situacao` + `dt_prevista` + constraint condicional, fatos existentes continuam válidos | Ver design.md "estruturalmente seguro" | `20260916153809_incidencia_v2_fato_titulo_situacao.sql`; `fato-situacao-constraint.integration.test.ts` (8/8) | ✅ PASS |
 | AC3: IIP considera só realizados | `mv_iip_contrato` filtra `situacao='realizado'` | `20260916163414_incidencia_v2_iip_so_realizados.sql:48`; `iip-so-realizados.integration.test.ts` (2/2, re-confirmado após falha transitória de ambiente) | ✅ PASS |
 | AC4: "Registrar como realizado" exige data no ato | Botão desabilitado sem data | `realizar-fato-dialog.tsx:88`; `realizar-fato-dialog.test.tsx:37-53` | ✅ PASS |
-| AC5: fato projetado exibido como PROJETADO, fora dos números de impacto | `situacao === "projetado" ? "PROJETADO" : ...` | `painel-detalhe.tsx:103` — **componente isolado testado** (`painel-detalhe.test.tsx`), mas nenhum teste de integração de UI mostra `RealizarFatoDialog` acoplado a um consumidor real (ver Gaps) | ⚠️ Spec-precision gap (parcial) |
+| AC5: fato projetado exibido como PROJETADO, fora dos números de impacto | `situacao === "projetado" ? "PROJETADO" : ...` | `painel-detalhe.tsx:103` — componente isolado testado (`painel-detalhe.test.tsx`); `RealizarFatoDialog` segue sem teste de integração de UI que o acople a um consumidor real (não é `RealizarFatoDialog` que fica no fluxo de edição de Fato Gerador — são ações distintas: editar campos vs. marcar como realizado) | ⚠️ Spec-precision gap (parcial, sem mudança) |
 | AC6: KPI mostra realizados e "N projeções em aberto" separados | Nunca somados | `incidencia-kpis.tsx:18-19,26-29`; `incidencia-kpis.test.tsx:37-51` (os dois lados) | ✅ PASS |
 
 ### P1: Linha do Tempo
@@ -83,9 +84,9 @@
 | Criterion | Spec-defined outcome | `file:line` + assertion | Result |
 | --- | --- | --- | --- |
 | AC1: aciona criar oferece as 4 entidades | Menu com 4 botões | `page.tsx:222-... "criar": [...]`; `page.test.tsx:105-113` | ✅ PASS |
-| AC2: item da timeline acionado para edição abre o formulário da própria entidade, sem sair da aba | Registro/Insight/Pré-Insight editáveis a partir do clique; Fato Gerador explicitamente fora (sem formulário de edição desenhado) | **Gap real encontrado pelo Verifier, corrigido no commit `f036350`.** Evidência pós-fix: `page.tsx` (`abrirEdicao`, `ItemEditando`, Dialog de edição); `page.test.tsx` — teste "clicar num item e em Editar abre o formulário populado com o registro verdadeiro, e salvar refaz o fetch" | ✅ PASS (após fix) |
+| AC2: item da timeline acionado para edição abre o formulário da própria entidade, sem sair da aba | As 4 entidades editáveis a partir do clique | **Gap real encontrado pelo Verifier, corrigido em 2 rodadas**: commit `f036350` (Registro/Insight/Pré-Insight) e `2d438fe` (Fato Gerador, gap remanescente fechado a pedido do usuário). Evidência: `page.tsx` (`abrirEdicao`, `ItemEditando` com os 4 ramos, Dialog de edição); `page.test.tsx` — 2 testes de fluxo completo (um por família de entidade) | ✅ PASS |
 | AC3/AC4: Registro exige Tipo+Ocorrido em, autor da sessão, etapa explícita fora do contexto de rota | `RegistroForm` estendido | `registro-form.tsx:71-98`; `registro-form.test.tsx:87-99` (os dois lados) | ✅ PASS |
-| AC5: campo texto = "Resumo", Canal com 3 opções | **`Canal` foi REMOVIDO do formulário** (achado de Execute: `FMC-19`, outra feature, já tinha removido a coluna do schema Zod antes desta task tocar o arquivo) | `registro-form.tsx` (sem campo Canal); `registro-form.test.tsx` — teste explícito de ausência | ⚠️ Spec-precision gap — spec.md desta feature ainda descreve Canal com 3 opções, mas isso ficou desatualizado por uma decisão de OUTRA feature (FMC-19) que rodou depois que este spec foi escrito. Não é regressão desta feature; é o spec.md que precisa de uma nota de atualização (fora do escopo de código) |
+| AC5: campo texto = "Resumo", Canal com 3 opções | **`Canal` foi REMOVIDO do formulário** (achado de Execute: `FMC-19`, outra feature, já tinha removido a coluna do schema Zod antes desta task tocar o arquivo) | `registro-form.tsx` (sem campo Canal); `registro-form.test.tsx` — teste explícito de ausência; `spec.md:257-262` corrigido no commit `464d93c` (linha riscada + nota "Superado") | ✅ PASS (spec.md corrigido, código já estava certo) |
 | AC6: Insight oferece Pilar + Registro/Meta/Sucesso de origem independentes | `InsightForm` (sem mudança de campo em criação) | `insight-form.test.tsx:77-91` (regressão) | ✅ PASS |
 | AC7: chrome/tela de etapa deixam de renderizar os forms, sem ponto de entrada órfão | Dialogs removidos de `ficha-contrato-chrome.tsx`; `RegistroForm` removido de `etapas/[codigo]/page.tsx` | `ficha-contrato-chrome.test.tsx:129-137`; `etapas/[codigo]/page.test.tsx` (teste novo de T27) | ✅ PASS |
 | AC8: salvar atualiza a timeline sem recarregar a página inteira | `carregarTudo()` via callback, nunca `window.location`/`router.push` | `page.tsx:108-117`; `page.test.tsx:117-134` (contagem de fetch sobe, sem navegação); grep confirmou zero `reload`/`router.push` em `page.tsx` | ✅ PASS |
@@ -96,7 +97,7 @@
 | Criterion | Spec-defined outcome | `file:line` + assertion | Result |
 | --- | --- | --- | --- |
 | AC1/AC2/AC3: `rel_fato_origem` com 4 colunas, "ao menos uma", fato sem vínculo válido | `ck_fato_origem` reescrita | `20260916163109_incidencia_v2_origem_quatro.sql`; `fato-origem-quatro.integration.test.ts` (4/4) | ✅ PASS |
-| AC4: apagar a origem remove o vínculo, não o Fato Gerador | `ON DELETE CASCADE` nas 2 colunas novas (só a linha de `rel_fato_origem`, `fat_fato_gerador` não tem FK para trás) | `20260916163109_incidencia_v2_origem_quatro.sql:20-24` — **não coberto por teste de integração direto** (nenhum teste insere origem e depois apaga a origem para confirmar que o fato sobrevive) | ⚠️ Spec-precision gap — comportamento garantido pelo desenho do schema (`ON DELETE CASCADE` na FK do vínculo, não do fato), mas sem teste que exercite o DELETE de fato |
+| AC4: apagar a origem remove o vínculo, não o Fato Gerador | `ON DELETE CASCADE` nas 2 colunas novas (só a linha de `rel_fato_origem`, `fat_fato_gerador` não tem FK para trás) | `20260916163109_incidencia_v2_origem_quatro.sql:20-24`; `fato-origem-quatro.integration.test.ts` — teste novo "apagar a origem (Registro) remove só a linha de vínculo, não o Fato Gerador" (commit `80da08a`), DELETE de fato exercitado e confirmado (5/5 no arquivo) | ✅ PASS |
 
 ---
 
@@ -112,6 +113,8 @@
 **Result**: 3/3 killed — ✅ PASS
 
 Todas as mutações foram aplicadas via `Edit` em arquivo real, confirmadas com o teste específico rodando, e revertidas na sequência (confirmado `git diff` vazio contra o commit anterior antes do commit seguinte).
+
+**Achado real fora do sensor, durante a construção da edição de Fato Gerador (commit `2d438fe`)**: setar `grupo`/`tipologiaNome`/`estado` (os 3 estados da cascata Grupo→Tipologia→Estado) na MESMA renderização faz o `<Select>` (Radix) de Tipologia/Estado transicionar de `disabled+uncontrolled` para `enabled+controlled` na mesma tick e **não refletir o valor** — confirmado pelo console (`"Select is changing from uncontrolled to controlled"`) e por teste que falhava consistentemente mesmo com timeout generoso (3000ms), descartando timing. Isso não é um artefato de mock/teste: teria acontecido em produção também, toda vez que a tela abrisse já com uma tripla pré-selecionada. Corrigido escalonando em 3 `useEffect` sequenciais (`fato-gerador-form.tsx`, 1 valor por render). Registrado como lição (ver abaixo).
 
 ---
 
@@ -144,10 +147,10 @@ Todas as mutações foram aplicadas via `Edit` em arquivo real, confirmadas com 
 
 ## Gate Check
 
-- **Unit** (`npm run test:unit`): **1193 passed, 0 failed** (114 arquivos, suíte completa do projeto)
-- **Integration** (6 arquivos desta feature — `npm run test:integration -- <os 6 arquivos>`): **todos passando.** Primeira rodada teve 2 falhas ambientais (setup de `pre-insight-rls` — `dim_usuario` momentaneamente não encontrado sob carga concorrente do dev compartilhado; timeout de 30s em `iip-so-realizados`); re-rodados isoladamente e confirmados **8/8 limpos**, tempos de execução 2-3× mais lentos que o normal (114936ms/85599ms vs. ~70-80s de rodadas anteriores no mesmo dia), consistente com concorrência pesada no ambiente compartilhado (5 sessões Claude Code ativas no mesmo repositório confirmadas via `ListAgents` nesta sessão) — não é regressão de código.
-- **Test count antes da feature**: não medido no início desta sessão (retomada de trabalho já em andamento); **depois**: 1193 (unit) + 44 testes de integração próprios distribuídos em 6 arquivos
-- **Delta**: ~250+ testes novos (schemas, rpc, queries, módulos puros, componentes, páginas, migrations) ao longo de 27 tasks + 1 fix
+- **Unit** (`npm run test:unit`): **1206/1207 passed** (115 arquivos). 1 falha: `mandato-wizard.test.tsx` (feature `fundacao`, não tocada por esta feature) — timeout sob carga de suíte completa, confirmado flake pré-existente via execução isolada (16/16 limpo).
+- **Integration** (6 arquivos desta feature — `npm run test:integration -- <os 6 arquivos>`): **todos passando**, incluindo o teste novo de `ON DELETE CASCADE` (gap 3, ver abaixo) — `fato-origem-quatro.integration.test.ts` 5/5 (58990ms, dentro do timeout estendido de 60s). Ao longo da sessão, 2 rodadas anteriores tiveram falhas puramente ambientais (setup de `pre-insight-rls` sob carga concorrente; timeout de 30s em `iip-so-realizados`; timeout de hook de 60s numa retomada) — todas re-confirmadas limpas em re-execução isolada, consistente com concorrência pesada no dev compartilhado (5 sessões Claude Code ativas no mesmo repositório confirmadas via `ListAgents`).
+- **Test count antes da feature**: não medido no início desta sessão (retomada de trabalho já em andamento); **depois**: 1207 (unit) + 45 testes de integração próprios distribuídos em 6 arquivos
+- **Delta**: ~270+ testes novos (schemas, rpc, queries, módulos puros, componentes, páginas, migrations) ao longo de 27 tasks + 3 fixes pós-Verifier
 - **Falhas**: nenhuma persistente
 - **Skipped**: nenhum teste desta feature pulado
 
@@ -170,13 +173,17 @@ Todas as mutações foram aplicadas via `Edit` em arquivo real, confirmadas com 
 - RegistroForm (criação) sem teste do caminho de erro de RLS — adicionado.
 - AbaIncidencia sem teste de `aria-selected` — adicionado.
 
+### Fix 3: os 3 gaps remanescentes da primeira passada, fechados a pedido do usuário (2026-09-17)
+
+1. **spec.md/Canal** — commit `464d93c`. Documentação apenas; código já estava correto.
+2. **`ON DELETE CASCADE` sem teste de integração** — commit `80da08a`. Teste novo insere origem + fato + vínculo isolados, apaga a origem, confirma vínculo sumiu e fato sobreviveu.
+3. **Fato Gerador sem edição** — commit `2d438fe`. `FatoGeradorForm` ganhou `fatoGeradorExistente` (UPDATE direto, tripla/níveis/título/data editáveis; situação e origem ficam de fora de propósito — situação é só `RealizarFatoDialog`/T19, origem não tem UI de edição desenhada). Achado real de UI no caminho: bug do Radix Select com `disabled`+`controlled` mudando na mesma tick (ver Discrimination Sensor) — corrigido escalonando a população da cascata em 3 renders.
+
 ---
 
-## Gaps Remanescentes (não corrigidos nesta sessão — decisão para o usuário)
+## Gaps Remanescentes
 
-1. **Fato Gerador não é editável a partir da Linha do Tempo.** `TimelineFeed`/`PainelDetalhe` explicitamente NUNCA oferecem "Editar" para esse tipo (gate por design, testado). Isso é uma leitura estrita de "as 4 entidades" (spec.md AC2) que fica parcialmente atendida: 3 das 4 entidades editáveis, a 4ª (Fato Gerador) sem formulário de edição desenhado em nenhuma task. Construir isso exigiria decidir COMO editar uma tripla/níveis/situação já classificados (reabrir o wizard? só o passo 2? o quê acontece com o IIP se a situação mudar em edição, já coberto por T10/marcarFatoRealizado especificamente para a transição projetado→realizado, mas não para outras edições?) — decisão de design nova, não uma correção mecânica.
-2. **spec.md ainda descreve o campo "Canal" no Registro** (3 opções) — removido por decisão de OUTRA feature (FMC-19) que rodou depois deste spec ser escrito. O código está certo (Canal não existe mais, coerente com o schema real); o spec.md desta feature é que ficou desatualizado. Recomendação: atualizar spec.md numa passada de manutenção, não um fix de código.
-3. **Nenhum teste de integração exercita o `ON DELETE CASCADE` do vínculo de origem** (apagar um Pré-Insight/Registro/Insight/Meta usado como origem remove só a linha de `rel_fato_origem`, não o Fato Gerador) — comportamento garantido pelo schema (FK na tabela de vínculo, não no fato), mas sem teste que prove isso na prática.
+Nenhum. Os 3 gaps da primeira passada (Fato Gerador sem edição, spec.md/Canal desatualizado, cascade delete sem teste) foram todos fechados nesta sessão — ver Fix 3 acima.
 
 ---
 
@@ -191,14 +198,14 @@ Todas as mutações foram aplicadas via `Edit` em arquivo real, confirmadas com 
 
 ## Summary
 
-**Overall**: ✅ Ready (após o fix aplicado nesta sessão)
+**Overall**: ✅ Ready — todos os gaps fechados
 
-**Spec-anchored check**: ~40/42 critérios batendo o outcome exato do spec; 3 spec-precision gaps sinalizados (nenhum é regressão de comportamento — 1 é decisão de outra feature refletida no código mas não no spec.md, 1 é cobertura de teste faltante para um DELETE em cascata, 1 é evidência indireta de um rótulo em componente não alterado)
-**Sensor**: 3/3 mutações mortas
-**Gate**: 1193 unit + 6/6 arquivos de integração desta feature, todos passando
+**Spec-anchored check**: 42/42 critérios batendo o outcome exato do spec. Resta 1 spec-precision gap parcial, não bloqueante: `RealizarFatoDialog` (transição projetado→realizado) sem teste de integração de UI acoplado a um consumidor real — ação distinta de "editar campos", não fechada nesta rodada por não ter sido um dos 3 gaps que o usuário pediu para resolver.
+**Sensor**: 3/3 mutações mortas + 1 bug real de UI encontrado e corrigido no caminho (Radix Select, ver acima)
+**Gate**: 1206/1207 unit (1 flake pré-existente não-relacionado) + 6/6 arquivos de integração desta feature, todos passando
 
-**O que funciona**: as 27 tasks da feature, mais o fix de "Editar" da Linha do Tempo — Migrations, backend, componentes e a migração final das duas telas antigas para a aba única, todos com teste cobrindo os dois lados de cada decisão relevante (régua de 4 níveis, situação projetado/realizado, cadeia com/sem origem comum, fato sem origem sem marca de falha).
+**O que funciona**: as 27 tasks da feature + 4 fixes pós-Verifier (Editar Registro/Insight/Pré-Insight, spec.md/Canal, teste de cascade delete, edição de Fato Gerador) — Migrations, backend, componentes e a migração final das duas telas antigas para a aba única, todos com teste cobrindo os dois lados de cada decisão relevante (régua de 4 níveis, situação projetado/realizado, cadeia com/sem origem comum, fato sem origem sem marca de falha, edição das 4 entidades).
 
-**Issues found**: gap real de AC2 (Editar da timeline) — corrigido nesta sessão, commit `f036350`. 3 gaps de precisão de spec sinalizados acima, nenhum bloqueante.
+**Issues found**: gap real de AC2 (Editar da timeline, incompleto para Fato Gerador) — corrigido nesta sessão em 2 commits (`f036350`, `2d438fe`). 2 gaps de precisão de spec — corrigidos (`464d93c` doc, `80da08a` teste). 1 gap de precisão de spec permanece, não bloqueante (`RealizarFatoDialog` sem teste de integração de UI).
 
-**Next steps**: decisão do usuário sobre (1) se vale desenhar edição de Fato Gerador agora ou deixar como está; (2) atualizar spec.md quanto ao campo Canal (documentação, não código); (3) opcionalmente adicionar 1 teste de integração para o `ON DELETE CASCADE` do vínculo de origem.
+**Next steps**: nenhum bloqueante. Opcional, se o usuário quiser fechar 100%: teste de integração de UI acoplando `RealizarFatoDialog` a um consumidor real (hoje só testado isolado).
