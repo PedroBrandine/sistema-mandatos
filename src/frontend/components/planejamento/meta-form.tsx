@@ -15,6 +15,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { CelulaCalculada } from "./celula-calculada";
+
 interface RefOption {
   id: number;
   nome: string;
@@ -24,10 +26,16 @@ interface RefOption {
 // mesma razão de ObjetivoForm). PLM-11: campo de preditor secundário some
 // do formulário quando o produto do contrato é PLL -- confirmado por Pedro
 // (spec.md, classe='governanca' e preditor secundário no PLL são restrição
-// só de UI, nunca de schema, AD-008). PLM-13: responsável e status só
-// aparecem no modo "editar" -- uma Meta nova sempre nasce sem responsável
-// definido e status='ativa' (default do schema), não faz sentido pedir
-// isso na criação.
+// só de UI, nunca de schema, AD-008). PLM-13: responsável, status e % de
+// atingimento só aparecem no modo "editar" -- uma Meta nova sempre nasce sem
+// responsável definido, status='ativa' (default do schema) e sem % (não há
+// Sucesso Mensal ainda para a cascata calcular).
+//
+// PLV-01/PLV-08 (T18): vocabulário já nasceu canônico neste arquivo --
+// "Classe" (não "Tipo"), "Preditor primário/secundário" (não "Predicado"),
+// Status/Prioridade com os valores exatos das constraints. O que faltava era
+// só o % de atingimento: a spec pede a célula travada (PLR-10) e este
+// arquivo não mostrava o campo nenhum.
 export type MetaFormModo = { tipo: "criar"; idObjetivo: number } | { tipo: "editar"; meta: MetaResumo };
 
 export interface MetaFormProps {
@@ -315,6 +323,15 @@ export function MetaForm({ modo, produtoNome, pessoasVinculadas, onConcluido, on
                 </FormItem>
               )}
             />
+            {/* PLV-08 + PLR-10 (regra inegociável): % de atingimento é CALCULADO
+                pela cascata dos Sucessos Mensais (AD-003) -- nunca digitado aqui.
+                Mesma célula hachurada + "fx" da grade (celula-calculada.tsx),
+                não um <FormField> -- não há campo de formulário nenhum por trás
+                dela, só leitura de modo.meta.pctAtingimento. */}
+            <div className="grid gap-2">
+              <span className="text-sm font-medium">% de atingimento</span>
+              <CelulaCalculada valor={modo.meta.pctAtingimento} />
+            </div>
           </>
         )}
         {erro && <ErroInline mensagem={erro} />}

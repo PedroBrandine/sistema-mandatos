@@ -17,6 +17,7 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+import { CelulaCalculada } from "./celula-calculada";
 import { ModalDetalheItem } from "./modal-detalhe-item";
 import { ModalHistorico } from "./modal-historico";
 import { useUndoPlanejamento } from "./use-undo-planejamento";
@@ -104,10 +105,6 @@ export interface PlanejamentoGradeHandle {
   aplicarEmMassa: (valor: number) => void;
 }
 
-function formatarPct(valor: number | null): string {
-  return valor == null ? "—" : `${valor}%`;
-}
-
 const STATUS_LABEL: Record<string, string> = {
   pendente: "Pendente",
   realizado: "Realizado",
@@ -119,28 +116,6 @@ const STATUS_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
   realizado: "default",
   nao_realizado: "outline",
 };
-
-/**
- * PLR-10 (regra inegociável nº1 do pedido original): célula de % de Meta/
- * Objetivo é CALCULADA -- nunca pode parecer editável. Fundo hachurado real
- * (repeating-linear-gradient, não só cor sólida), marcador "fx" antes do
- * valor, tabIndex=-1 real (Tab nunca para aqui), sem handler de clique/foco.
- */
-function CelulaCalculada({ valor }: { valor: number | null }) {
-  return (
-    <span
-      tabIndex={-1}
-      aria-readonly="true"
-      className={cn(
-        "inline-flex w-fit items-center gap-1 rounded-md border border-dashed border-muted-foreground/30 px-2 py-1 text-sm tabular-nums text-muted-foreground",
-        "bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,var(--muted)_4px,var(--muted)_8px)]"
-      )}
-    >
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">fx</span>
-      {formatarPct(valor)}
-    </span>
-  );
-}
 
 interface CelulaPctProps {
   linha: SucessoMensalGrade;
