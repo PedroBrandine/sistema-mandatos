@@ -12,7 +12,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/planejamento-estrategico-v2/design.md`
-**Status**: In Progress — **Fases 1 a 4 completas + emenda AD-059, Fase 5 iniciada** (19/26 tarefas)
+**Status**: In Progress — **Fases 1 a 5 completas + emenda AD-059** (22/26 tarefas)
 **Gate AD-039**: ✅ satisfeito (Pedro, 2026-09-15)
 
 ### Progresso
@@ -24,7 +24,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | 3 — Módulos puros | T11–T13 | ✅ **completa**, 3 commits, 881 unitários |
 | 4 — Permissões/abas | T14–T16 | ✅ **completa**, 3 commits, 912 unitários |
 | 4b — Emenda AD-059 | T26–T27 | ✅ **completa**, 2 commits, 957 unitários |
-| 5 — Modais | T17–T20 | 🔶 em andamento, T17 completa |
+| 5 — Modais | T17–T20 | ✅ **completa**, 4 commits, 1291 unitários |
 | 6 — Tela | T21–T23, T25 | ⬜ |
 
 | Task | Commit | Testes |
@@ -49,6 +49,9 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | T27 cartões fiéis ao `57:671` | `32b7d83` | 11 de render |
 | T17 status e preditores no ObjetivoForm | `58c5670` | 11 de render |
 | Fix: remove GIP duplicado do Diagnóstico | `5483f97` | — (remoção) |
+| T18 vocabulário canônico no MetaForm | `a419daa` | 13 de render |
+| T19 peso/mês/lote no SucessoMensalForm | `0c3e293` | 14 de render |
+| T20 vinculação hierárquica nos modais | `d0ba815` | 18 + 20 de render |
 
 **Nota sobre a colisão de commit da T17, para quem ler o histórico.** T17 foi
 staged (`git add`) e, antes do `git commit` desta sessão rodar, outra sessão
