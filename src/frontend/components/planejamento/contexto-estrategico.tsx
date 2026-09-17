@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 
-import type { LinhaEvolucaoGip, PlanejamentoCompleto, PreditorPrioritarioLinha } from "@backend/queries/planejamento";
+import type { PlanejamentoCompleto, PreditorPrioritarioLinha } from "@backend/queries/planejamento";
 
 import { createClient } from "@backend/supabase/client";
 
@@ -12,35 +12,12 @@ import type { PermissoesModo } from "./permissoes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EstadoVazio } from "@/components/ui/estado-vazio";
 
 import { DadosPlanejamentoForm } from "./dados-planejamento-form";
 
-// SAI-08, SAI-09, SAI-10. Ordem cronológica de exibição -- vw_gip_evolucao
-// ordena por momento alfabeticamente (fim, inicio, meio), não cronológico;
-// a UI reagrupa aqui na ordem certa antes de renderizar.
-const ORDEM_MOMENTO = ["inicio", "meio", "fim"] as const;
-const ROTULO_MOMENTO: Record<string, string> = { inicio: "Início", meio: "Meio", fim: "Fim" };
-const ROTULO_SITUACAO: Record<string, string> = { atingiu: "Atingiu", proximo: "Próximo", distante: "Distante" };
-const VARIANTE_SITUACAO: Record<string, "secondary" | "outline" | "destructive"> = {
-  atingiu: "secondary",
-  proximo: "outline",
-  distante: "destructive",
-};
-
-function agrupaEvolucaoGipPorMomento(evolucaoGip: LinhaEvolucaoGip[]): [string, LinhaEvolucaoGip[]][] {
-  const porMomento = new Map<string, LinhaEvolucaoGip[]>();
-  for (const linha of evolucaoGip) {
-    const lista = porMomento.get(linha.momento) ?? [];
-    lista.push(linha);
-    porMomento.set(linha.momento, lista);
-  }
-  return ORDEM_MOMENTO.filter((m) => porMomento.has(m)).map((m) => [m, porMomento.get(m)!]);
-}
-
 // PLV-14 (.specs/features/planejamento-estrategico-v2/spec.md:323). Conteúdo da aba
 // "Diagnóstico (Análise de Conjuntura)": os três campos de contexto do plano em
-// cartões, mais Perfil de atuação (só PLL), preditores prioritários e GIP.
+// cartões, mais Perfil de atuação (só PLL) e preditores prioritários.
 //
 // Era a coluna esquerda do layout de 2 colunas da PLR-01, colapsável via <details>.
 // O <details> saiu com a coluna: numa aba inteira não há o que colapsar, e o
@@ -52,10 +29,19 @@ function agrupaEvolucaoGipPorMomento(evolucaoGip: LinhaEvolucaoGip[]): [string, 
 // colunas da MESMA linha de dim_planejamento. Três formulários separados seriam três
 // escritas concorrentes na mesma linha, cada uma sobrescrevendo o que a outra acabou
 // de gravar.
+//
+// GIP SAIU daqui em 2026-09-17 (Pedro, olhando a tela em dev): era placeholder
+// da feature anterior (PLR-06, "em desenvolvimento") e depois virou leitura real
+// (SAI-08/09/10), mas a ficha do contrato ganhou aba GIP própria desde então
+// (ficha-mandato-contrato) -- o card aqui duplicava exatamente o que a aba GIP
+// já mostra. Nenhum nó do Figma da v2 (57:671, 227:194) desenha GIP dentro do
+// Planejamento. `buscarEvolucaoGip`/`LinhaEvolucaoGip` em
+// backend/queries/planejamento.ts ficam órfãos por este corte -- são de
+// saida-numeros-impacto (SAI-08/09/10), não desta feature, então a decisão de
+// apagá-los é de quem é dono daquela spec.
 export interface ContextoEstrategicoProps {
   planejamento: PlanejamentoCompleto;
   preditoresAtuais: PreditorPrioritarioLinha[];
-  evolucaoGip: LinhaEvolucaoGip[];
   produtoNome: string;
   permissoes: PermissoesModo;
   onDadosAlterados: () => void;
@@ -64,7 +50,6 @@ export interface ContextoEstrategicoProps {
 export function ContextoEstrategico({
   planejamento,
   preditoresAtuais,
-  evolucaoGip,
   produtoNome,
   permissoes,
   onDadosAlterados,
@@ -181,66 +166,6 @@ export function ContextoEstrategico({
                 </div>
               </div>
             )}
-
-
-            {/* SAI-08, SAI-09, SAI-10: substitui o placeholder PLR-06 (fechado por
-                formularios-produto, T9 -- vw_gip_evolucao já existe) por leitura real,
-                agrupada por momento (inicio/meio/fim). Contrato sem nenhuma aplicação
-                de GIP mostra <EstadoVazio> (spec.md P3.AC3); momento só com
-                reguaSonhos preenchido (onde_chegamos/gap/situacao null) mostra a
-                explicação de "aspiração pactuada" em vez de "0"/traço genérico
-                (spec.md P3.AC2, AD-005). */}
-            <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-xs font-medium text-muted-foreground">GIP</p>
-              {evolucaoGip.length === 0 ? (
-                <EstadoVazio
-                  titulo="Nenhuma aplicação de GIP ainda"
-                  mensagem="A régua × onde chegamos aparece aqui assim que o contrato tiver ao menos uma aplicação."
-                />
-              ) : (
-                <div className="grid gap-3">
-                  {agrupaEvolucaoGipPorMomento(evolucaoGip).map(([momento, linhasDoMomento]) => {
-                    const quadrante = linhasDoMomento.find((l) => l.quadrante !== null)?.quadrante ?? null;
-                    return (
-                      <div key={momento} className="grid gap-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold text-foreground">{ROTULO_MOMENTO[momento] ?? momento}</p>
-                          {quadrante && (
-                            <Badge variant="outline" className="text-[10px]">
-                              {quadrante}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="grid gap-1.5">
-                          {linhasDoMomento.map((linha) => (
-                            <div key={linha.dimensao} className="grid gap-0.5 text-xs">
-                              <p className="font-medium text-foreground">{linha.nomeDimensao}</p>
-                              <p className="text-muted-foreground">Régua dos Sonhos: {linha.reguaSonhos ?? "—"}</p>
-                              {linha.ondeChegamos !== null ? (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="text-muted-foreground">
-                                    Onde chegamos: {linha.ondeChegamos} (gap {linha.gap})
-                                  </span>
-                                  {linha.situacao && (
-                                    <Badge variant={VARIANTE_SITUACAO[linha.situacao]} className="text-[10px]">
-                                      {ROTULO_SITUACAO[linha.situacao]}
-                                    </Badge>
-                                  )}
-                                </div>
-                              ) : (
-                                <p className="text-[11px] italic text-muted-foreground">
-                                  Aspiração pactuada — ainda sem leitura de &quot;onde chegamos&quot;.
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>

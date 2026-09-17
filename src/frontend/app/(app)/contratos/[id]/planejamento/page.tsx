@@ -10,12 +10,10 @@ import { buscarContratoParaFicha, type ContratoParaFicha } from "@backend/querie
 import { buscarReguaDoContrato, type EtapaRegua } from "@backend/queries/etapa-contrato";
 import {
   buscarCoalizaoInfo,
-  buscarEvolucaoGip,
   buscarGradeSucessosMensais,
   buscarPessoasVinculadasAoContrato,
   buscarPlanejamentoCompleto,
   buscarPreditoresPlanejamento,
-  type LinhaEvolucaoGip,
   type PessoaVinculada,
   type PlanejamentoCompleto,
   type PreditorPrioritarioLinha,
@@ -24,7 +22,6 @@ import {
 import { createClient } from "@backend/supabase/client";
 
 import { usePapelGlobal } from "@/hooks/use-papel-global";
-import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ContextoEstrategico } from "@/components/planejamento/contexto-estrategico";
 import { PlanejamentoAbas } from "@/components/planejamento/planejamento-abas";
@@ -33,7 +30,6 @@ import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejam
 import { PlanejamentoGrade, type PlanejamentoGradeHandle } from "@/components/planejamento/planejamento-grade";
 import { PlanejamentoHeader } from "@/components/planejamento/planejamento-header";
 import { PlanejamentoToolbar } from "@/components/planejamento/planejamento-toolbar";
-import { cn } from "@/lib/utils";
 
 // PLM-01, PLM-07, PLM-15/16 (planejamento-planilha-monitoramento) + PLR-01,
 // PLR-02, PLR-04, PLR-07 (.specs/features/planejamento-estrategico-redesenho,
@@ -114,7 +110,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const [linhasGrade, setLinhasGrade] = useState<SucessoMensalGrade[]>([]);
   const [pessoasVinculadas, setPessoasVinculadas] = useState<PessoaVinculada[]>([]);
   const [preditoresAtuais, setPreditoresAtuais] = useState<PreditorPrioritarioLinha[]>([]);
-  const [evolucaoGip, setEvolucaoGip] = useState<LinhaEvolucaoGip[]>([]);
 
   // Carrega contrato -> decide o ramo (Coalizão sem planejamento próprio ou
   // não), as pessoas vinculadas (Select de "responsável" da Meta, PLM-13) e a
@@ -173,12 +168,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
       if (dados) {
         const preditores = await buscarPreditoresPlanejamento(supabase, dados.idPlanejamento);
         if (!cancelado) setPreditoresAtuais(preditores);
-
-        // SAI-08, SAI-09, SAI-10: mesmo useEffect que já busca preditoresAtuais
-        // (tasks.md T13) -- evolucaoGip é escopada por id_contrato, não por
-        // id_planejamento, mas nasce junto por conveniência (mesmo gatilho).
-        const gip = await buscarEvolucaoGip(supabase, idContrato);
-        if (!cancelado) setEvolucaoGip(gip);
       }
     });
 
@@ -313,7 +302,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
           <ContextoEstrategico
             planejamento={planejamento}
             preditoresAtuais={preditoresAtuais}
-            evolucaoGip={evolucaoGip}
             produtoNome={contrato.nomeProduto}
             permissoes={permissoes}
             onDadosAlterados={() => {

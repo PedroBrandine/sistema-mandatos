@@ -57,7 +57,6 @@ function renderiza(
     <ContextoEstrategico
       planejamento={planejamento}
       preditoresAtuais={[]}
-      evolucaoGip={[]}
       produtoNome={produtoNome}
       permissoes={PERMISSOES[papel]}
       onDadosAlterados={() => {}}
