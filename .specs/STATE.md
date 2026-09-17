@@ -1034,7 +1034,7 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   que antes vinha da rota.
 - **Scope**: Incidência; `ficha-contrato-chrome.tsx`; `/contratos/[id]/etapas/[codigo]`.
 - **Date**: 2026-09-15
-- **Status**: active
+- **Status**: active (exceção documentada em AD-061 para o popover de encontro da Agenda)
 
 ### AD-058
 - **Decision**: Promover um Pré-Insight a Insight **não** cria vínculo entre os
@@ -2066,6 +2066,28 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Scope**: planejamento-estrategico-v2; qualquer feature que nasça deste arquivo
   do Figma.
 - **Date**: 2026-09-16
+- **Status**: active
+
+### AD-061
+- **Decision**: O popover de encontro da Agenda (`EncontroPopover`, mockups
+  `90:206`/`90:469`) é **exceção documentada à AD-057**. Ele continua abrindo o
+  formulário de registro inline (`RegistroEncontroForm`), sem redirecionar para
+  a aba de Incidência.
+- **Reason**: Pedro (2026-09-17), diante da colisão real entre AD-057 ("a aba de
+  Incidência é o único ponto de criação de Registro") e o fluxo desta feature,
+  já validado em mockup antes da AD-057 existir. Diferença de natureza: AD-057
+  fala de criar Registro **do zero, sem contexto** — o problema que resolve é
+  "hoje se escreve em três telas e se lê numa quarta". O popover já parte de um
+  Encontro resolvido, com Etapa/Tipo herdados e imutáveis: é *completar* um
+  registro que a Agenda já sabe que precisa existir, não um ponto de entrada
+  livre concorrente com a aba nova.
+- **Trade-off**: A regra "único ponto de criação" deixa de ser absoluta — quem
+  ler só o texto original da AD-057 vai achar que o popover é bug. Mitigado por
+  este registro cruzado (AD-057 aponta para esta) e pelo comentário em
+  `registro-encontro-form.tsx`/`encontro-popover.tsx`.
+- **Scope**: `ficha-mandato-contrato` (`RegistroEncontroForm`, `EncontroPopover`,
+  aba Agenda da ficha); não estende a nenhuma outra exceção não nomeada aqui.
+- **Date**: 2026-09-17
 - **Status**: active
 
 ## Handoff (Planejamento Estratégico v2 + Fatos Geradores — SPECIFY concluído, aguardando aceite)
