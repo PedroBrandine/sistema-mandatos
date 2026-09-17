@@ -31,6 +31,11 @@ interface RefOption {
 // oferece mais os dois campos e o payload não os envia. As colunas seguem em
 // fat_objetivo_especifico com o dado histórico -- remoção de coluna é decisão
 // separada, ver AD-049.
+//
+// PLV-07 + decisão de Pedro (2026-09-16): Preditor 1º/2º e Agenda temática
+// FICAM, embora o modal do Figma (271:808) não os desenhe. O sistema grava os
+// três campos no Objetivo e a grade os exibe na linha do Objetivo -- tirá-los
+// daqui deixaria valor em tela sem nenhum caminho de edição.
 export type ObjetivoFormModo = { tipo: "criar"; idPlanejamento: number } | { tipo: "editar"; objetivo: ObjetivoComMetas };
 
 export interface ObjetivoFormProps {
@@ -44,6 +49,14 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
   const [agendas, setAgendas] = useState<RefOption[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+
+  const STATUS_OBJETIVO = [
+    // PLV-02. Masculino de propósito: ck_objetivo_status usa ativo/pausado/
+    // descartado porque Objetivo é masculino; a Meta usa o feminino.
+    { valor: "ativo", rotulo: "Ativo" },
+    { valor: "pausado", rotulo: "Pausado" },
+    { valor: "descartado", rotulo: "Descartado" },
+  ] as const;
 
   const form = useForm<ObjetivoEspecificoInput>({
     resolver: zodResolver(objetivoEspecificoSchema),
@@ -84,8 +97,14 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
     setErro(null);
     const supabase = createClient();
 
+    // PLV-02. `status` FALTAVA aqui: o schema já o exigia e o formulário já o
+    // tinha em defaultValues, mas ele nunca entrava no payload -- editar um
+    // Objetivo pausado o devolvia a 'ativo' em silêncio, porque o UPDATE não
+    // mandava a coluna e o DEFAULT não é reaplicado em UPDATE... pior: o valor
+    // antigo ficava, e a escolha do usuário era descartada sem aviso.
     const payload = {
       descricao: valores.descricao,
+      status: valores.status,
       id_preditor_primario: valores.id_preditor_primario ?? null,
       id_preditor_secundario: valores.id_preditor_secundario ?? null,
       id_agenda: valores.id_agenda ?? null,
@@ -133,13 +152,47 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
         />
         <FormField
           control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Status</FormLabel>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {STATUS_OBJETIVO.map((s) => (
+                    <SelectItem key={s.valor} value={s.valor}>
+                      {s.rotulo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
           name="id_preditor_primario"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Preditor primário (opcional)</FormLabel>
               <Select
                 value={field.value ? String(field.value) : undefined}
-                onValueChange={(v) => field.onChange(Number(v))}
+                onValueChange={(v) => {
+                  const novoPrimario = Number(v);
+                  field.onChange(novoPrimario);
+                  // ck_objetivo_preditores: secundário não pode repetir o
+                  // primário. Trocar o primário para o valor que o secundário já
+                  // tinha violaria a constraint em silêncio até o submit --
+                  // limpa aqui, no mesmo instante da troca.
+                  if (form.getValues("id_preditor_secundario") === novoPrimario) {
+                    form.setValue("id_preditor_secundario", null);
+                  }
+                }}
               >
                 <FormControl>
                   <SelectTrigger className="w-full">
@@ -161,36 +214,49 @@ export function ObjetivoForm({ modo, onConcluido, onCancelar }: ObjetivoFormProp
         <FormField
           control={form.control}
           name="id_preditor_secundario"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Preditor secundário (opcional)</FormLabel>
-              <Select
-                value={field.value ? String(field.value) : undefined}
-                onValueChange={(v) => field.onChange(Number(v))}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Nenhum" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {preditores.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            // ck_objetivo_preditores: secundário exige primário e não pode
+            // repeti-lo. Desabilitar em vez de deixar o Select aberto e falhar
+            // só no submit -- o gate aparece no exato controle que causaria a
+            // violação, no momento em que ela seria possível.
+            const primario = form.watch("id_preditor_primario");
+            return (
+              <FormItem>
+                <FormLabel>Preditor secundário (opcional)</FormLabel>
+                <Select
+                  disabled={primario == null}
+                  value={field.value ? String(field.value) : undefined}
+                  onValueChange={(v) => field.onChange(Number(v))}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={primario == null ? "Escolha o primário primeiro" : "Nenhum"} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {preditores
+                      .filter((p) => p.id !== primario)
+                      .map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.nome}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
         <FormField
           control={form.control}
           name="id_agenda"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Agenda temática (opcional)</FormLabel>
+              {/* CAT-16: ref_agenda_tematica está vazio de propósito (levantamento
+                  humano pendente) -- placeholder marcado em vez de rótulo limpo,
+                  pra não sugerir catálogo aprovado (checklist figma-dominio-legisla). */}
+              <FormLabel>Agenda temática {agendas.length === 0 && "(catálogo pendente)"} (opcional)</FormLabel>
               <Select
                 value={field.value ? String(field.value) : undefined}
                 onValueChange={(v) => field.onChange(Number(v))}
