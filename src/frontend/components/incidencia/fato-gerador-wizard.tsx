@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { FatoGeradorForm } from "./fato-gerador-form";
 import { SeletorOrigem, type OrigemFato } from "./seletor-origem";
@@ -28,6 +29,24 @@ export interface FatoGeradorWizardProps {
   onCancelar: () => void;
 }
 
+// Indicador de passo (Figma 118-6/118-96, T13 pente-fino 2026-09): as duas
+// telas trazem "1 Origem do Fato ─── Dados do Fato 2" fixo no topo, o passo
+// corrente em destaque. Puramente visual -- não introduz estado novo, só lê
+// `passo`.
+function IndicadorDePasso({ passo }: { passo: 1 | 2 }) {
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className={cn("font-medium", passo === 1 ? "text-foreground" : "text-muted-foreground")}>
+        1 Origem do Fato
+      </span>
+      <span className="h-px flex-1 bg-border" />
+      <span className={cn("font-medium", passo === 2 ? "text-foreground" : "text-muted-foreground")}>
+        Dados do Fato 2
+      </span>
+    </div>
+  );
+}
+
 export function FatoGeradorWizard({ idContrato, onConcluido, onCancelar }: FatoGeradorWizardProps) {
   const [passo, setPasso] = useState<1 | 2>(1);
   const [situacao, setSituacao] = useState<NaturezaFato | null>(null);
@@ -38,6 +57,7 @@ export function FatoGeradorWizard({ idContrato, onConcluido, onCancelar }: FatoG
   if (passo === 2 && situacao !== null && origem !== null) {
     return (
       <div className="grid gap-3">
+        <IndicadorDePasso passo={2} />
         <Button type="button" variant="ghost" size="sm" onClick={() => setPasso(1)} className="w-fit">
           ← Voltar
         </Button>
@@ -54,6 +74,7 @@ export function FatoGeradorWizard({ idContrato, onConcluido, onCancelar }: FatoG
 
   return (
     <div className="grid gap-6">
+      <IndicadorDePasso passo={1} />
       <div className="grid gap-2">
         <p className="text-sm font-medium">O que aconteceu?</p>
         <div className="flex gap-2">

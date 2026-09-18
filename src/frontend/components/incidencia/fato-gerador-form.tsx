@@ -325,7 +325,13 @@ export function FatoGeradorForm({
           )}
         />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* Figma node-id 118-96 mostra Grupo/Tipologia/Estado como 3 linhas
+            empilhadas, não 3 colunas -- ajuste de fidelidade (T13, pente-fino
+            2026-09): o Dialog que hospeda este form (aba-incidencia.tsx) é
+            estreito o bastante para 3 colunas espremerem o texto das opções
+            (nomes de tipologia/estado são longos), causando a sobreposição
+            relatada. Empilhar remove o risco em qualquer resolução. */}
+        <div className="grid grid-cols-1 gap-3">
           <div className="grid gap-1.5">
             <FormLabel>Grupo</FormLabel>
             <Select value={grupo ?? undefined} onValueChange={selecionarGrupo}>
@@ -380,17 +386,24 @@ export function FatoGeradorForm({
             Grupo+Tipologia+Estado (ref_tipologia.*_padrao) -- não são
             escolha da Gestora (achado de UAT, 2026-08-14). Só leitura. */}
         {tipologiaResolvida && (
-          <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-md border border-border/60 bg-muted/30 p-3 text-sm sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+            {/* D1/D2/D3 continuam lado a lado (3 valores curtos, mesmo
+                arranjo do frame 118-96) -- só Preditor 1/2 saem da grade
+                (T13): são frases longas (ver figma-dominio-legisla,
+                "Predicado" x "Preditor") que espremidas em coluna
+                colidiam com o texto vizinho no Dialog estreito. */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+              <p>
+                <span className="text-muted-foreground">Nível D1:</span> {rotuloNivel(tipologiaResolvida.nivelD1Padrao)}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Nível D2:</span> {rotuloNivel(tipologiaResolvida.nivelD2Padrao)}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Nível D3:</span> {rotuloNivel(tipologiaResolvida.nivelD3Padrao)}
+              </p>
+            </div>
             <p>
-              <span className="text-muted-foreground">Nível D1:</span> {rotuloNivel(tipologiaResolvida.nivelD1Padrao)}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Nível D2:</span> {rotuloNivel(tipologiaResolvida.nivelD2Padrao)}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Nível D3:</span> {rotuloNivel(tipologiaResolvida.nivelD3Padrao)}
-            </p>
-            <p className="sm:col-span-2">
               <span className="text-muted-foreground">Preditor 1:</span> {tipologiaResolvida.nomePreditor1 ?? "—"}
             </p>
             <p>
@@ -399,57 +412,57 @@ export function FatoGeradorForm({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* Contribuição/Data também empilhadas (Figma 118-96): cada uma é
+            uma linha própria no frame, não duas colunas. */}
+        <FormField
+          control={form.control}
+          name="contribuicao_legisla"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Contribuição Legisla (0-5, opcional)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  max={5}
+                  {...field}
+                  value={field.value ?? ""}
+                  onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {situacaoInicial === "realizado" ? (
           <FormField
             control={form.control}
-            name="contribuicao_legisla"
+            name="dt_ocorrencia"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Contribuição Legisla (0-5, opcional)</FormLabel>
+                <FormLabel>Data de ocorrência</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={5}
-                    {...field}
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
-                  />
+                  <Input type="date" {...field} value={field.value ?? ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          {situacaoInicial === "realizado" ? (
-            <FormField
-              control={form.control}
-              name="dt_ocorrencia"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Data de ocorrência</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} value={field.value ?? ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ) : (
-            <FormField
-              control={form.control}
-              name="dt_prevista"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Data prevista</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} value={field.value ?? ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-        </div>
+        ) : (
+          <FormField
+            control={form.control}
+            name="dt_prevista"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Data prevista</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={form.control}
