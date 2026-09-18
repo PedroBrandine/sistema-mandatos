@@ -3,6 +3,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../supabase/database.types";
 import { mapeiaErroRpc } from "./errors";
 
+// PF-02 (T7, .specs/features/pente-fino-2026-09/tasks.md): design.md previa
+// uma RPC nova `app.atualiza_sucesso_mensal` para editar mês/data-limite/peso
+// de um Sucesso Mensal já lançado, por analogia com as outras RPCs deste
+// arquivo (AD-024: atomicidade de escrita que cruza mais de uma linha).
+// Investigação nesta task achou que esse caminho já existe e já está em
+// produção dev: `SucessoMensalFormEditar`
+// (src/frontend/components/planejamento/sucesso-mensal-form.tsx) já faz
+// `supabase.from("fat_sucesso_mensal").update(...)` direto, cobrindo
+// descrição/mês/prazo/peso/%/responsável numa única linha. AD-024 exige RPC
+// só para escrita que cruza VÁRIAS linhas (como `atualiza_sucessos_mensais_lote`
+// e `cria_sucessos_mensais_lote` abaixo) -- edição de UMA linha já é atômica
+// por natureza do UPDATE, sem precisar de PL/pgSQL por cima. Criar uma RPC
+// paralela faria o mesmo trabalho que o update direto já faz, abrindo dois
+// caminhos de escrita para a mesma tabela (o problema que
+// `app.move_item_hierarquia` evita explicitamente de propósito, ver comentário
+// na migration 20260916055846). Por isso T7 não adiciona `atualiza_sucesso_mensal`
+// nem `atualizarSucessoMensal`: o gap real de PF-02 (Situação não derivada do
+// %) é resolvido em T8, sem RPC nova.
+
 // PLM-07: chama a cascata já aprovada (app.recalcula_atingimento, verbatim
 // docs/schema_sistema.sql:1476-1512) síncrono, ao abrir a tela do
 // planejamento (design.md "Tech Decisions" -- não pg_cron, sem infra no
