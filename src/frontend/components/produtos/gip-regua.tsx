@@ -32,6 +32,10 @@ export function GipRegua({ idContrato, momento }: GipReguaProps) {
   const [respostas, setRespostas] = useState<Record<string, number>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // PF-01: momento já aplicado nasce em leitura; "Editar" troca pra edição
+  // sem recarregar a página, reaproveitando o mesmo formulário de
+  // preenchimento (design.md PF-01, AD-063).
+  const [editando, setEditando] = useState(false);
 
   async function carregar() {
     setErro(null);
@@ -57,9 +61,11 @@ export function GipRegua({ idContrato, momento }: GipReguaProps) {
     return erro ? <ErroInline mensagem={erro} onRetry={carregar} /> : <CarregandoSkeleton variante="list" />;
   }
 
-  // FMC-27 AC7: momento já aplicado não oferece novo envio -- estado de
-  // leitura com o nível + descritor já gravado por dimensão.
-  if (dados.aplicado) {
+  // FMC-27 AC7, revertido parcialmente por AD-063 (PF-01): momento já
+  // aplicado não oferece novo ENVIO (insert), mas ganha uma ação de EDIÇÃO
+  // -- troca o estado somente-leitura por este mesmo formulário, agora
+  // fazendo UPDATE na submissão existente em vez de INSERT.
+  if (dados.aplicado && !editando) {
     return (
       <div className="grid gap-4">
         <p className="text-sm text-muted-foreground">
@@ -79,6 +85,11 @@ export function GipRegua({ idContrato, momento }: GipReguaProps) {
           })}
         </div>
         {erro && <ErroInline mensagem={erro} />}
+        <div>
+          <Button type="button" variant="outline" onClick={() => setEditando(true)}>
+            Editar
+          </Button>
+        </div>
       </div>
     );
   }
@@ -91,6 +102,20 @@ export function GipRegua({ idContrato, momento }: GipReguaProps) {
     try {
       if (!idUsuario) {
         throw new Error("Não foi possível identificar o usuário respondente. Recarregue a página.");
+      }
+
+      // PF-01/AD-063: momento já aplicado faz UPDATE na submissão existente
+      // (nunca um 2º INSERT, uq_gip_contrato_momento continua intocada).
+      if (dados.aplicado && dados.idSubmissao !== null) {
+        const { error: erroUpdate } = await supabase
+          .from("fat_submissao")
+          .update({ respostas: { dimensoes: respostas } })
+          .eq("id_submissao", dados.idSubmissao);
+        if (erroUpdate) throw erroUpdate;
+
+        setEditando(false);
+        await carregar();
+        return;
       }
 
       const { data: formulario, error: erroFormulario } = await supabase
@@ -144,10 +169,23 @@ export function GipRegua({ idContrato, momento }: GipReguaProps) {
 
       {erro && <ErroInline mensagem={erro} />}
 
-      <div>
+      <div className="flex gap-2">
         <Button type="button" onClick={enviar} disabled={enviando || carregandoUsuario}>
           {enviando ? "Salvando..." : "Salvar"}
         </Button>
+        {editando && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setRespostas(Object.fromEntries(dados.dimensoes.map((d) => [d.codigo, d.valorAtual ?? d.valorMin])));
+              setEditando(false);
+            }}
+            disabled={enviando}
+          >
+            Cancelar
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -85,6 +85,7 @@ describe("buscarGipDoContrato (FMC-25, FMC-27)", () => {
 
     expect(resultado.aplicado).toBe(false);
     expect(resultado.aplicadoEm).toBeNull();
+    expect(resultado.idSubmissao).toBeNull();
     expect(resultado.dimensoes).toHaveLength(4);
     expect(resultado.dimensoes.every((d) => d.valorAtual === null)).toBe(true);
   });
@@ -124,7 +125,7 @@ describe("buscarGipDoContrato (FMC-25, FMC-27)", () => {
     const { client } = criarClienteMock({
       ref_dimensao_gip: { data: DIMENSOES, error: null },
       ref_nivel_dimensao_gip: { data: NIVEIS, error: null },
-      fat_gip: { data: { id_gip: 501, aplicado_em: "2026-09-16" }, error: null },
+      fat_gip: { data: { id_gip: 501, aplicado_em: "2026-09-16", id_submissao: 9001 }, error: null },
       fat_gip_dimensao: {
         data: [
           { id_dimensao: 1, valor: 2 },
@@ -138,6 +139,7 @@ describe("buscarGipDoContrato (FMC-25, FMC-27)", () => {
 
     expect(resultado.aplicado).toBe(true);
     expect(resultado.aplicadoEm).toBe("2026-09-16");
+    expect(resultado.idSubmissao).toBe(9001);
     expect(resultado.dimensoes.find((d) => d.idDimensao === 1)?.valorAtual).toBe(2);
     expect(resultado.dimensoes.find((d) => d.idDimensao === 3)?.valorAtual).toBe(1);
     expect(resultado.dimensoes.find((d) => d.idDimensao === 2)?.valorAtual).toBeNull();

@@ -33,6 +33,10 @@ export interface GipDoContrato {
   /** `true` quando já existe fat_gip para (id_contrato, momento) -- FMC-27 AC7. */
   aplicado: boolean;
   aplicadoEm: string | null;
+  /** PF-01 (T6): id_submissao de fat_gip -- alvo do UPDATE ao editar um
+   * momento já aplicado (nunca um 2º INSERT, ver AD-063). `null` quando
+   * `aplicado` é `false`. */
+  idSubmissao: number | null;
   dimensoes: DimensaoGipCatalogo[];
 }
 
@@ -78,7 +82,7 @@ export async function buscarGipDoContrato(
 
   const { data: gip, error: erroGip } = await client
     .from("fat_gip")
-    .select("id_gip, aplicado_em")
+    .select("id_gip, aplicado_em, id_submissao")
     .eq("id_contrato", idContrato)
     .eq("momento", momento)
     .maybeSingle();
@@ -117,6 +121,7 @@ export async function buscarGipDoContrato(
     momento,
     aplicado: gip !== null,
     aplicadoEm: gip?.aplicado_em ?? null,
+    idSubmissao: gip?.id_submissao ?? null,
     dimensoes,
   };
 }

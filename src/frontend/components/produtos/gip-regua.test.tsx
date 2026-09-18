@@ -24,6 +24,7 @@ vi.mock("@/hooks/use-papel-global", () => ({
 }));
 
 const insertMock = vi.fn();
+const updateMock = vi.fn();
 const singleFormularioMock = vi.fn();
 
 vi.mock("@backend/supabase/client", () => ({
@@ -39,7 +40,14 @@ vi.mock("@backend/supabase/client", () => ({
         };
       }
       if (tabela === "fat_submissao") {
-        return { insert: (valores: Record<string, unknown>) => insertMock(valores) };
+        return {
+          insert: (valores: Record<string, unknown>) => insertMock(valores),
+          // PF-01 (T6): update(...).eq("id_submissao", ...) -- edição de um
+          // momento já aplicado.
+          update: (valores: Record<string, unknown>) => ({
+            eq: (coluna: string, valor: unknown) => updateMock(valores, coluna, valor),
+          }),
+        };
       }
       throw new Error(`tabela inesperada: ${tabela}`);
     },
@@ -83,11 +91,13 @@ beforeEach(() => {
   buscarGipDoContratoMock.mockReset();
   idUsuarioMock.mockReset();
   insertMock.mockReset();
+  updateMock.mockReset();
   singleFormularioMock.mockReset();
 
   idUsuarioMock.mockReturnValue(42);
   singleFormularioMock.mockResolvedValue({ data: { id_formulario: 9, versao: 1 }, error: null });
   insertMock.mockResolvedValue({ error: null });
+  updateMock.mockResolvedValue({ error: null });
 });
 
 afterEach(cleanup);
@@ -142,6 +152,7 @@ describe("GipRegua — momento já aplicado (FMC-27 AC7) — os dois lados", () 
       momento: "inicio",
       aplicado: true,
       aplicadoEm: "2026-09-16",
+      idSubmissao: 501,
       dimensoes: [{ ...DIMENSAO_0A2, valorAtual: 1 }],
     });
 
@@ -238,5 +249,91 @@ describe("GipRegua — erro (design.md Error Handling Strategy)", () => {
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getAllByRole("radio")).toHaveLength(3);
+  });
+});
+
+// PF-01 (T6, .specs/features/pente-fino-2026-09/spec.md, "P1: Editar GIP
+// após submissão"). AD-063: supersede parcial de FMC-27 AC7 -- momento
+// aplicado ganha ação de edição, mas o envio é sempre UPDATE, nunca um novo
+// INSERT (uq_gip_contrato_momento intocada).
+describe("GipRegua — editar momento já aplicado (PF-01)", () => {
+  const DADOS_APLICADO = {
+    momento: "inicio" as const,
+    aplicado: true,
+    aplicadoEm: "2026-09-16",
+    idSubmissao: 501,
+    dimensoes: [{ ...DIMENSAO_0A2, valorAtual: 1 }],
+  };
+
+  it("AC1: momento aplicado exibe uma ação de edição, no lugar do texto somente-leitura", async () => {
+    buscarGipDoContratoMock.mockResolvedValue(DADOS_APLICADO);
+
+    render(<GipRegua idContrato={7} momento="inicio" />);
+
+    expect(await screen.findByRole("button", { name: "Editar" })).toBeInTheDocument();
+  });
+
+  it("clicar Editar troca pro formulário, pré-preenchido com o valor já gravado", async () => {
+    buscarGipDoContratoMock.mockResolvedValue(DADOS_APLICADO);
+
+    render(<GipRegua idContrato={7} momento="inicio" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+
+    const radios = screen.getAllByRole("radio") as HTMLInputElement[];
+    expect(radios).toHaveLength(3);
+    expect(radios.find((r) => r.checked)?.value).toBe("1");
+  });
+
+  it("AC2: salvar edição faz UPDATE na submissão existente (nunca um 2º INSERT), mantendo tipo/status do momento", async () => {
+    buscarGipDoContratoMock.mockResolvedValue(DADOS_APLICADO);
+
+    render(<GipRegua idContrato={7} momento="inicio" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+
+    const [, , radioNivel2] = screen.getAllByRole("radio");
+    fireEvent.click(radioNivel2);
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock).toHaveBeenCalledWith(
+      { respostas: { dimensoes: { capacidade_gestao: 2 } } },
+      "id_submissao",
+      501
+    );
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it("após salvar com sucesso, recarrega e volta pra visão de leitura (mesma fonte de dados)", async () => {
+    buscarGipDoContratoMock.mockResolvedValue(DADOS_APLICADO);
+
+    render(<GipRegua idContrato={7} momento="inicio" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+
+    await waitFor(() => expect(buscarGipDoContratoMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "Editar" })).toBeInTheDocument();
+  });
+
+  it("Cancelar sai da edição sem gravar nada", async () => {
+    buscarGipDoContratoMock.mockResolvedValue(DADOS_APLICADO);
+
+    render(<GipRegua idContrato={7} momento="inicio" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(await screen.findByRole("button", { name: "Editar" })).toBeInTheDocument();
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it("AC3: erro ao editar (ex.: RLS negou) renderiza <ErroInline>, mesmo caminho de erro já usado na criação", async () => {
+    buscarGipDoContratoMock.mockResolvedValue(DADOS_APLICADO);
+    updateMock.mockResolvedValue({ error: { code: "42501", message: "permission denied" } });
+
+    render(<GipRegua idContrato={7} momento="inicio" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 });
