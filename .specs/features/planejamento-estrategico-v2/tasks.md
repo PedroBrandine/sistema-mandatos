@@ -12,7 +12,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 ---
 
 **Design**: `.specs/features/planejamento-estrategico-v2/design.md`
-**Status**: In Progress — **Fases 1 a 5 completas + emenda AD-059** (22/26 tarefas)
+**Status**: ✅ **Concluído — Fases 1 a 6 completas + emenda AD-059** (26/26 tarefas)
 **Gate AD-039**: ✅ satisfeito (Pedro, 2026-09-15)
 
 ### Progresso
@@ -25,7 +25,7 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | 4 — Permissões/abas | T14–T16 | ✅ **completa**, 3 commits, 912 unitários |
 | 4b — Emenda AD-059 | T26–T27 | ✅ **completa**, 2 commits, 957 unitários |
 | 5 — Modais | T17–T20 | ✅ **completa**, 4 commits, 1291 unitários |
-| 6 — Tela | T21–T23, T25 | ⬜ |
+| 6 — Tela | T21–T23, T25 | ✅ **completa**, 6 commits, 1328 unitários |
 
 | Task | Commit | Testes |
 | --- | --- | --- |
@@ -52,6 +52,12 @@ cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
 | T18 vocabulário canônico no MetaForm | `a419daa` | 13 de render |
 | T19 peso/mês/lote no SucessoMensalForm | `0c3e293` | 14 de render |
 | T20 vinculação hierárquica nos modais | `d0ba815` | 18 + 20 de render |
+| T21 faixa de KPIs do plano | `ec3cd3b` | 9 de render |
+| T22 filtro por Objetivo | `67d36b4` | 8 de render |
+| Fix: remove faixa duplicada de KPIs do cabeçalho | `39e3c67` | — (remoção) |
+| T23 chips, responsável e atraso na grade | `efc63fe` | 10 de render |
+| T25 gráfico de evolução mensal | `dedebb6` | 10 de render |
+| Wiring: KPIs + filtro de Objetivo + evolução mensal na tela | `aaa5adf` | — (integração) |
 
 **Nota sobre a colisão de commit da T17, para quem ler o histórico.** T17 foi
 staged (`git add`) e, antes do `git commit` desta sessão rodar, outra sessão
@@ -67,6 +73,17 @@ ativa).
 
 **Todas as 5 migrations aplicadas em dev** (`npnvoolkebhabjkjzqwn`), uma de cada
 vez, com gate escopado entre elas. Produção intocada.
+
+**Feature concluída em 2026-09-18.** 26/26 tarefas, 1328 testes unitários (123
+arquivos), `npm run build` verde, `lint:all` sem nenhum erro nos arquivos desta
+feature (os erros/avisos restantes pertencem a `gip-*`/`incidencia/`, trabalho
+concorrente de outra sessão, não tocado por este diff). Duas emendas de spec
+nasceram durante a Execute (AD-059 revogou os 3 modos da tela; AD-060 separou
+layout de vocabulário do Figma) e uma sobreposição real foi cortada fora do
+escopo literal das tasks (GIP duplicado no Diagnóstico, depois a faixa de KPIs
+duplicada no cabeçalho) -- as duas vieram de Pedro olhando a tela em dev ao
+lado do Figma, não de revisão de spec. Nenhuma migration nova nesta fase 6:
+T21/T22/T23/T25 são só leitura de views/queries já existentes.
 
 **Gate Build de fim de Fase 1** (2026-09-16): `npm run build` ✅ · suíte completa
 de integração **551 testes, 548 passaram**. As 3 falhas
