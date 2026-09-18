@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { CelulaCalculada } from "./celula-calculada";
 import { ModalDetalheItem } from "./modal-detalhe-item";
 import { ModalHistorico } from "./modal-historico";
+import { resolveResponsavel } from "./planejamento-responsavel";
 import { useUndoPlanejamento } from "./use-undo-planejamento";
 
 // PLR-09, PLR-10 (.specs/features/planejamento-estrategico-redesenho, T11).
@@ -115,6 +116,32 @@ const STATUS_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
   pendente: "secondary",
   realizado: "default",
   nao_realizado: "outline",
+};
+
+// T23: rótulos/variantes dos chips de classificação da Meta (coluna
+// "classificacoes"). ck_meta_status/ck_meta_classe/ck_meta_prioridade são a
+// fonte de verdade dos valores -- os rótulos aqui só traduzem para exibição.
+const ROTULO_STATUS_META: Record<string, string> = {
+  ativa: "Ativa",
+  pausada: "Pausada",
+  descartada: "Descartada",
+};
+
+const VARIANTE_STATUS_META: Record<string, "secondary" | "outline" | "destructive"> = {
+  ativa: "secondary",
+  pausada: "outline",
+  descartada: "destructive",
+};
+
+const ROTULO_CLASSE: Record<string, string> = {
+  programatica: "Programática",
+  governanca: "Governança",
+};
+
+const ROTULO_PRIORIDADE: Record<string, string> = {
+  alta: "Alta",
+  media: "Média",
+  baixa: "Baixa",
 };
 
 interface CelulaPctProps {
@@ -426,6 +453,14 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     return mapa;
   }, [linhas]);
 
+  // PLV-03/T23. Coluna RESP. do Sucesso Mensal herda da Meta quando ele não
+  // tem responsável próprio -- precisa de um id_meta -> MetaResumo pra achar
+  // o responsável da Meta a partir da linha do SM, que só carrega idMeta.
+  const metaPorId = useMemo(
+    () => new Map(objetivos.flatMap((o) => o.metas).map((m) => [m.idMeta, m])),
+    [objetivos]
+  );
+
   // Alerta de soma de peso != 100 (regra §5 nº5 do pedido original: validado
   // inline na linha da Meta, a cada digitação -- reativo sobre `linhas`, que
   // já reflete edição otimista). Só flagra Metas com >=1 Sucesso Mensal.
@@ -660,60 +695,93 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         header: "Responsável",
         cell: ({ row }) => {
           const item = row.original;
-          if (item.tipo !== "meta") return null;
-          const nome = item.meta.idUsuarioResponsavel != null ? nomePorUsuario.get(item.meta.idUsuarioResponsavel) : null;
-          return <span className="text-sm text-muted-foreground">{nome ?? "—"}</span>;
+          if (item.tipo === "meta") {
+            // Meta não herda de ninguém -- é a raiz da herança do SM.
+            const nome = item.meta.idUsuarioResponsavel != null ? nomePorUsuario.get(item.meta.idUsuarioResponsavel) : null;
+            return <span className="text-sm text-muted-foreground">{nome ?? "—"}</span>;
+          }
+          if (item.tipo === "sm") {
+            // PLV-03 AC2-AC4: próprio vence; sem ele, herda o da Meta,
+            // marcado; sem nenhum, "—" (AD-005). resolveResponsavel (T13) já
+            // cobre os 4 casos -- esta coluna só chama e formata.
+            const idMeta = metaPorId.get(item.linha.idMeta)?.idUsuarioResponsavel ?? null;
+            const { pessoa, herdado } = resolveResponsavel(item.linha.idUsuarioResponsavel, idMeta, pessoasVinculadas);
+            if (!pessoa) return <span className="text-sm text-muted-foreground">—</span>;
+            return (
+              <span className="text-sm text-muted-foreground">
+                {pessoa.nome ?? "—"}
+                {herdado && (
+                  <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">herdado</span>
+                )}
+              </span>
+            );
+          }
+          return null;
         },
       }),
-      // Preditor 1º/2º, agenda, prioridade, classe -- leitura (edição continua
-      // pelo painel lateral do item, que abre ObjetivoForm/MetaForm
-      // completos) -- ver tasks.md T12 pra rationale do corte de escopo.
+      // PLV-01/PLV-08 (T23): chips de classificação na linha da Meta, não
+      // colunas separadas -- Status/Prioridade/Classe/Preditor 1º/2º/Agenda
+      // reunidos numa célula só (227:194). Objetivo NÃO tem chips aqui: o
+      // mockup não os desenha na linha do Objetivo, e Preditor/Agenda do
+      // Objetivo seguem editáveis via ObjetivoForm (T17) -- ficam sem
+      // superfície de leitura na grade, por decisão do layout aprovado.
       columnHelper.display({
-        id: "preditor1",
-        header: "Preditor 1º",
-        cell: ({ row }) => {
-          const item = row.original;
-          const idPreditor = item.tipo === "obj" ? item.objetivo.idPreditorPrimario : item.tipo === "meta" ? item.meta.idPreditorPrimario : null;
-          if (item.tipo === "sm") return null;
-          return <span className="text-sm">{idPreditor != null ? (nomePorPreditor.get(idPreditor) ?? "—") : "—"}</span>;
-        },
-      }),
-      columnHelper.display({
-        id: "preditor2",
-        header: "Preditor 2º",
-        cell: ({ row }) => {
-          const item = row.original;
-          const idPreditor = item.tipo === "obj" ? item.objetivo.idPreditorSecundario : item.tipo === "meta" ? item.meta.idPreditorSecundario : null;
-          if (item.tipo === "sm") return null;
-          return <span className="text-sm">{idPreditor != null ? (nomePorPreditor.get(idPreditor) ?? "—") : "—"}</span>;
-        },
-      }),
-      columnHelper.display({
-        id: "agenda",
-        header: "Agenda temática",
-        cell: ({ row }) => {
-          const item = row.original;
-          const idAgenda = item.tipo === "obj" ? item.objetivo.idAgenda : item.tipo === "meta" ? item.meta.idAgenda : null;
-          if (item.tipo === "sm") return null;
-          return <span className="text-sm">{idAgenda != null ? (nomePorAgenda.get(idAgenda) ?? "—") : "—"}</span>;
-        },
-      }),
-      columnHelper.display({
-        id: "prioridade",
-        header: "Prioridade",
+        id: "classificacoes",
+        header: "Classificações",
         cell: ({ row }) => {
           const item = row.original;
           if (item.tipo !== "meta") return null;
-          return <span className="text-sm capitalize">{item.meta.prioridade ?? "—"}</span>;
+          const { meta } = item;
+          const chips: { chave: string; rotulo: string; variante: "secondary" | "outline" | "destructive" }[] = [
+            // Status é NOT NULL no schema -- sempre presente, nunca "ausente".
+            { chave: "status", rotulo: ROTULO_STATUS_META[meta.status] ?? meta.status, variante: VARIANTE_STATUS_META[meta.status] ?? "outline" },
+          ];
+          // Os 4 a seguir são nullable -- chip ausente quando o campo é nulo,
+          // nunca um chip mostrando "—" (T23 done-when, literal).
+          if (meta.prioridade) chips.push({ chave: "prioridade", rotulo: ROTULO_PRIORIDADE[meta.prioridade] ?? meta.prioridade, variante: "outline" });
+          if (meta.classe) chips.push({ chave: "classe", rotulo: ROTULO_CLASSE[meta.classe] ?? meta.classe, variante: "outline" });
+          if (meta.idPreditorPrimario != null) {
+            const nome = nomePorPreditor.get(meta.idPreditorPrimario);
+            if (nome) chips.push({ chave: "pred1", rotulo: `Pred. 1º: ${nome}`, variante: "outline" });
+          }
+          // PLL não tem preditor secundário na Meta (docs/schema_sistema.sql:953,
+          // fat_meta.id_preditor_secundario nunca é usado nesse produto) -- a
+          // exceção era coluna inteira antes (colunasVisiveis.preditor2),
+          // agora é só este chip a menos.
+          if (produtoNome !== "PLL" && meta.idPreditorSecundario != null) {
+            const nome = nomePorPreditor.get(meta.idPreditorSecundario);
+            if (nome) chips.push({ chave: "pred2", rotulo: `Pred. 2º: ${nome}`, variante: "outline" });
+          }
+          if (meta.idAgenda != null) {
+            const nome = nomePorAgenda.get(meta.idAgenda);
+            if (nome) chips.push({ chave: "agenda", rotulo: `Agenda: ${nome}`, variante: "outline" });
+          }
+          return (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {chips.map((c) => (
+                <Badge key={c.chave} variant={c.variante} className="text-[11px]">
+                  {c.rotulo}
+                </Badge>
+              ))}
+            </div>
+          );
         },
       }),
+      // PLV-12 (T23): atraso do Sucesso Mensal em coluna própria, coral
+      // (--destructive: #EB5454, docs/Identidade Visual Legisla.md), separada
+      // do Status -- antes vinha junto na coluna Situação. `atrasoDias`
+      // (T9), não `diasAtraso`: o primeiro respeita `esta_atrasado`
+      // (status='pendente' AND dt_limite < hoje); o segundo é 0 sempre que
+      // dt_limite é NULL, sem olhar status, e marcaria SM já Realizado e
+      // vencido como atrasado.
       columnHelper.display({
-        id: "classe",
-        header: "Classe",
+        id: "atraso",
+        header: "Atraso",
         cell: ({ row }) => {
           const item = row.original;
-          if (item.tipo !== "meta") return null;
-          return <span className="text-sm capitalize">{item.meta.classe ?? "—"}</span>;
+          if (item.tipo !== "sm") return null;
+          if (item.linha.atrasoDias == null) return <span className="text-sm text-muted-foreground">—</span>;
+          return <span className="text-sm font-medium text-destructive">{item.linha.atrasoDias}d</span>;
         },
       }),
       columnHelper.display({
@@ -787,17 +855,15 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
               </Badge>
             );
           }
-          if (item.tipo === "meta" && item.meta.status !== "ativa") {
-            return <Badge variant="secondary">{item.meta.status}</Badge>;
-          }
+          // Status da Meta saiu daqui: virou chip na coluna "classificacoes"
+          // (T23) -- mostrá-lo nas duas colunas seria a mesma informação
+          // duplicada na mesma linha. Atraso do SM também saiu, para a
+          // coluna "atraso" própria; esta coluna mantém só o Status do SM.
           if (item.tipo === "sm") {
             return (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant={STATUS_VARIANT[item.linha.status] ?? "secondary"}>
-                  {STATUS_LABEL[item.linha.status] ?? item.linha.status}
-                </Badge>
-                {item.linha.estaAtrasado && <Badge variant="destructive">{item.linha.diasAtraso}d atraso</Badge>}
-              </div>
+              <Badge variant={STATUS_VARIANT[item.linha.status] ?? "secondary"}>
+                {STATUS_LABEL[item.linha.status] ?? item.linha.status}
+              </Badge>
             );
           }
           return null;
@@ -886,6 +952,9 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
       nomePorUsuario,
       nomePorPreditor,
       nomePorAgenda,
+      metaPorId,
+      pessoasVinculadas,
+      produtoNome,
       erros,
       somenteLeitura,
       podeCriarSucesso,
@@ -910,22 +979,19 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
   const colunasVisiveis: Record<string, boolean> = {
     arvore: true,
     responsavel: permissoes.veColunaResponsavel,
-    preditor1: true,
-    preditor2: produtoNome !== "PLL",
-    agenda: true,
-    prioridade: true,
-    classe: true,
+    classificacoes: true,
     mes: true,
     dataLimite: true,
     peso: true,
     pct: true,
+    atraso: true,
     situacao: true,
     acoes: true,
   };
   const columns = useMemo(
     () => todasAsColunas.filter((coluna) => colunasVisiveis[coluna.id ?? ""] !== false),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveis é recriado a cada render (objeto literal), mas só os valores primitivos abaixo importam pra decidir o filtro.
-    [todasAsColunas, permissoes.veColunaResponsavel, produtoNome]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveis é recriado a cada render (objeto literal), mas só o valor primitivo abaixo importa pra decidir o filtro (produtoNome já refaz `todasAsColunas` sozinho, ver seus deps).
+    [todasAsColunas, permissoes.veColunaResponsavel]
   );
 
   const table = useTable({ features, columns, data: linhasArvore });
