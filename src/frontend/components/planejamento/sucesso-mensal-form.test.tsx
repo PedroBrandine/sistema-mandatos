@@ -249,15 +249,56 @@ describe("SucessoMensalForm — Responsável (PLV-03)", () => {
   });
 });
 
-describe("SucessoMensalForm — Status (PLV-06)", () => {
-  it("oferece Pendente/Realizado/Não realizado na edição", async () => {
+// PLV-06 dava Status como <Select> manual na edição -- PF-02 (T8) supersede
+// esse comportamento: a spec relata isso como bug ("situação não altera
+// independente da % de atingimento") e exige derivação automática, nunca
+// input manual (.specs/features/pente-fino-2026-09/spec.md, "P1: Editar
+// Sucesso Mensal já lançado" AC2 + Edge Cases).
+describe("SucessoMensalForm — Situação derivada do % de atingimento (PF-02 AC2)", () => {
+  it("não oferece mais um Select de Status manual na edição", () => {
     render(
       <SucessoMensalForm modo={{ tipo: "editar", sucesso: SUCESSO_BASE }} pessoasVinculadas={PESSOAS} objetivos={OBJETIVOS} permissoes={PERMISSOES.gestora} onConcluido={onConcluido} onCancelar={onCancelar} />
     );
-    fireEvent.click(screen.getByRole("combobox", { name: "Status" }));
-    expect(await screen.findByRole("option", { name: "Pendente" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Realizado" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Não realizado" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Status" })).not.toBeInTheDocument();
+  });
+
+  it("mostra Situação Pendente quando o % atual é 60 (SUCESSO_BASE)", () => {
+    render(
+      <SucessoMensalForm modo={{ tipo: "editar", sucesso: SUCESSO_BASE }} pessoasVinculadas={PESSOAS} objetivos={OBJETIVOS} permissoes={PERMISSOES.gestora} onConcluido={onConcluido} onCancelar={onCancelar} />
+    );
+    expect(screen.getByText("Situação")).toBeInTheDocument();
+    expect(screen.getByText("Pendente")).toBeInTheDocument();
+    expect(screen.queryByText("Realizado")).not.toBeInTheDocument();
+  });
+
+  it("mudar o % para 100 muda a Situação exibida para Realizado, sem input manual", () => {
+    render(
+      <SucessoMensalForm modo={{ tipo: "editar", sucesso: SUCESSO_BASE }} pessoasVinculadas={PESSOAS} objetivos={OBJETIVOS} permissoes={PERMISSOES.gestora} onConcluido={onConcluido} onCancelar={onCancelar} />
+    );
+    fireEvent.change(screen.getByLabelText("% de atingimento"), { target: { value: "100" } });
+    expect(screen.getByText("Realizado")).toBeInTheDocument();
+    expect(screen.queryByText("Pendente")).not.toBeInTheDocument();
+  });
+
+  it("Edge Case da spec: salvar sem mudar o % mantém a Situação salva igual (pendente)", async () => {
+    render(
+      <SucessoMensalForm modo={{ tipo: "editar", sucesso: SUCESSO_BASE }} pessoasVinculadas={PESSOAS} objetivos={OBJETIVOS} permissoes={PERMISSOES.gestora} onConcluido={onConcluido} onCancelar={onCancelar} />
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar alterações" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    expect(updateMock.mock.calls[0][0]).toMatchObject({ status: "pendente" });
+  });
+
+  it("salvar com % editado para 100 grava status realizado, derivado do % enviado", async () => {
+    render(
+      <SucessoMensalForm modo={{ tipo: "editar", sucesso: SUCESSO_BASE }} pessoasVinculadas={PESSOAS} objetivos={OBJETIVOS} permissoes={PERMISSOES.gestora} onConcluido={onConcluido} onCancelar={onCancelar} />
+    );
+    fireEvent.change(screen.getByLabelText("% de atingimento"), { target: { value: "100" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar alterações" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    expect(updateMock.mock.calls[0][0]).toMatchObject({ status: "realizado", pct_atingimento: 100 });
   });
 });
 
@@ -276,7 +317,9 @@ describe("SucessoMensalForm — Vinculação (PLV-09, T20)", () => {
     render(
       <SucessoMensalForm modo={{ tipo: "editar", sucesso: SUCESSO_BASE }} pessoasVinculadas={PESSOAS} objetivos={OBJETIVOS} permissoes={PERMISSOES.gestora} onConcluido={onConcluido} onCancelar={onCancelar} />
     );
-    expect(screen.getAllByRole("combobox")).toHaveLength(3); // Vinculação, Responsável, Status
+    // Status deixou de ser combobox (PF-02 T8, Situação agora é derivada, não
+    // selecionável) -- sobram Vinculação e Responsável.
+    expect(screen.getAllByRole("combobox")).toHaveLength(2); // Vinculação, Responsável
     expect(screen.queryByRole("combobox", { name: /Objetivo/ })).not.toBeInTheDocument();
   });
 

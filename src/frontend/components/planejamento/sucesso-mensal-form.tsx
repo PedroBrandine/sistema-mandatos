@@ -18,12 +18,45 @@ import { createClient } from "@backend/supabase/client";
 import { expandeMesesEmSucessos } from "./planejamento-lote";
 import type { PermissoesModo } from "./permissoes";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+// PF-02 (T8, .specs/features/pente-fino-2026-09/tasks.md), AC2: "situação não
+// altera independente da % de atingimento" era o bug relatado -- a edição
+// tinha um <Select> de Status totalmente manual, dessincronizado do %. A
+// Situação agora é sempre DERIVADA do % de atingimento corrente, nunca
+// digitada: >=100 é "realizado", qualquer outro valor (inclusive null, sem
+// medição ainda) é "pendente". Mesmos rótulos/badge de
+// planejamento-grade.tsx (STATUS_LABEL/STATUS_VARIANT), duplicados aqui em
+// vez de exportados de lá -- T8 está escopado só a este arquivo.
+//
+// Spec-precision gap: a AC fala só em "% de atingimento" como entrada da
+// derivação -- não em prazo. Por isso "nao_realizado" não é alcançável por
+// esta função (só pelo status inicial da criação em lote, fora do escopo de
+// T8); confirmar com o usuário se um SM vencido com % < 100 deveria virar
+// "nao_realizado" automaticamente é uma decisão de produto não coberta pela
+// spec, não assumida aqui.
+const SITUACAO_LABEL: Record<string, string> = {
+  pendente: "Pendente",
+  realizado: "Realizado",
+  nao_realizado: "Não realizado",
+};
+
+const SITUACAO_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
+  pendente: "secondary",
+  realizado: "default",
+  nao_realizado: "outline",
+};
+
+function derivaSituacao(pctAtingimento: number | null | undefined): "pendente" | "realizado" | "nao_realizado" {
+  if (pctAtingimento != null && pctAtingimento >= 100) return "realizado";
+  return "pendente";
+}
 
 // PLM-17/18 + PLV-04/05/06 (T19, .specs/features/planejamento-estrategico-v2).
 // INSERT/UPDATE direto em fat_sucesso_mensal na EDIÇÃO (AD-024, 1 linha só);
@@ -338,7 +371,9 @@ function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, objetivos, permis
       dt_limite: valores.dt_limite ?? null,
       peso: valores.peso,
       pct_atingimento: valores.pct_atingimento ?? null,
-      status: valores.status,
+      // AC2: Situação é sempre derivada do % corrente no momento do submit,
+      // nunca o valor que viesse de um <Select> manual -- ver derivaSituacao.
+      status: derivaSituacao(valores.pct_atingimento),
       id_usuario_responsavel: valores.id_usuario_responsavel ?? null,
     };
 
@@ -525,28 +560,18 @@ function SucessoMensalFormEditar({ sucesso, pessoasVinculadas, objetivos, permis
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="realizado">Realizado</SelectItem>
-                  <SelectItem value="nao_realizado">Não realizado</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* AC2: Situação nunca é um <Select> aqui -- é a mesma leitura que o
+            Objetivo já usa (texto/derivado), recalculada a cada tecla no %
+            (form.watch), nunca setada manualmente pela usuária. */}
+        <div className="grid gap-1.5">
+          <span className="text-sm font-medium">Situação</span>
+          <div>
+            {(() => {
+              const situacao = derivaSituacao(form.watch("pct_atingimento"));
+              return <Badge variant={SITUACAO_VARIANT[situacao]}>{SITUACAO_LABEL[situacao]}</Badge>;
+            })()}
+          </div>
+        </div>
         {erro && <ErroInline mensagem={erro} />}
         <div className="flex gap-2">
           <Button type="submit" disabled={enviando || !form.formState.isValid}>
