@@ -21,6 +21,7 @@ import { createClient } from "@backend/supabase/client";
 import type { CandidaturaSugerida, ContratanteSimilar, MandatoCriado } from "@backend/types/fundacao";
 import { buscarMandatoExistentePorTitulo, type MandatoExistenteResumo } from "@backend/queries/mandato";
 import { buscarPerfilCandidatura } from "@backend/queries/tse";
+import type { UsuarioResumo } from "@backend/queries/ficha-mandato";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -137,6 +138,12 @@ export function MandatoWizard({
   const [duplicataTitulo, setDuplicataTitulo] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [checandoExistente, setChecandoExistente] = useState(false);
+  // PF-05: gestoras selecionáveis já no cadastro de contrato -- só carregada
+  // quando o wizard roda dentro da aba "Cadastro de novo Contrato"
+  // (produtoTravado presente), mesmo recorte que já isola essa tela de
+  // /mandatos/novo neste arquivo (ver campo Produto abaixo).
+  const [usuariosDisponiveis, setUsuariosDisponiveis] = useState<UsuarioResumo[]>([]);
+  const [gestorasSelecionadas, setGestorasSelecionadas] = useState<number[]>([]);
 
   const form = useForm<WizardFormValues>({
     resolver: zodResolver(wizardSchema),
@@ -162,6 +169,10 @@ export function MandatoWizard({
       .then(({ data }) => setProdutos((data ?? []).map((p) => ({ id: p.id_produto, nome: p.nome }))));
     supabase.from("ref_projeto").select("id_projeto, nome").eq("ativo", true)
       .then(({ data }) => setProjetos((data ?? []).map((p) => ({ id: p.id_projeto, nome: p.nome }))));
+    if (produtoTravado) {
+      supabase.from("dim_usuario").select("id_usuario, nome").eq("ativo", true).order("nome")
+        .then(({ data }) => setUsuariosDisponiveis((data ?? []).map((u) => ({ idUsuario: u.id_usuario, nome: u.nome }))));
+    }
     // O valor deste <Select> vai para `coalizao.id_coalizao`, que a RPC grava
     // em rel_coalizao_membro.id_coalizao -- coluna com FK para
     // dim_coalizao(id_coalizao). Portanto a opção TEM de ser a PK de
@@ -323,6 +334,20 @@ export function MandatoWizard({
         } : null,
         idContratanteExistente,
       });
+
+      // PF-05 AC2: cada gestora selecionada vira uma linha em
+      // rel_usuario_contrato, mesmo formato que VinculoForm já grava.
+      if (gestorasSelecionadas.length > 0 && resultado.idContrato) {
+        const { error: erroGestoras } = await supabase.from("rel_usuario_contrato").insert(
+          gestorasSelecionadas.map((idUsuario) => ({
+            id_contrato: resultado.idContrato as number,
+            id_usuario: idUsuario,
+            papel_no_contrato: "gestora" as const,
+          }))
+        );
+        if (erroGestoras) throw erroGestoras;
+      }
+
       setSimilares(null);
       onCriado(resultado);
       router.push(destino(resultado));
@@ -921,6 +946,34 @@ export function MandatoWizard({
                     ) : <div />}
                   </div>
                 </div>
+
+                {produtoTravado && (
+                  <div className="pt-4 border-t border-border/50">
+                    <p className="mb-4 text-sm font-medium text-foreground">Gestoras (opcional)</p>
+                    {usuariosDisponiveis.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhuma pessoa disponível para vincular.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {usuariosDisponiveis.map((u) => {
+                          const marcada = gestorasSelecionadas.includes(u.idUsuario);
+                          return (
+                            <button
+                              key={u.idUsuario}
+                              type="button"
+                              onClick={() =>
+                                setGestorasSelecionadas((atual) =>
+                                  marcada ? atual.filter((id) => id !== u.idUsuario) : [...atual, u.idUsuario]
+                                )
+                              }
+                            >
+                              <Badge variant={marcada ? "default" : "outline"}>{u.nome}</Badge>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
 
               {/* AÇÃO: salvar mandato e contrato */}

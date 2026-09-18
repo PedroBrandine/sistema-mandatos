@@ -56,10 +56,19 @@ const TABELAS: Record<string, unknown[]> = {
   // A coalizão tem id_contratante 447 e id_coalizao 104 -- propositalmente
   // diferentes, que é a distinção no centro do bug corrigido em T24.
   dim_coalizao: [{ id_coalizao: 104, dim_contratante: { nome: "bancada do clima" } }],
+  // PF-05: opções de gestora que o wizard carrega quando produtoTravado está
+  // presente (mesma tabela que CardPontoFocal já usa para Ponto Focal).
+  dim_usuario: [
+    { id_usuario: 21, nome: "Ana Gestora" },
+    { id_usuario: 22, nome: "Bia Gestora" },
+  ],
 };
 
+const insertRelUsuarioContratoMock = vi.fn().mockResolvedValue({ error: null });
+
 // Builder encadeável e "thenable": o wizard usa
-// supabase.from(x).select(y).eq(...).then(...), sem await.
+// supabase.from(x).select(y).eq(...).then(...), sem await; PF-05 também
+// insere via supabase.from("rel_usuario_contrato").insert([...]) com await.
 function criarClienteFake() {
   return {
     from(tabela: string) {
@@ -70,6 +79,9 @@ function criarClienteFake() {
       };
       for (const metodo of ["select", "eq", "order", "in", "is"]) {
         builder[metodo] = () => builder;
+      }
+      if (tabela === "rel_usuario_contrato") {
+        builder.insert = (linhas: unknown[]) => insertRelUsuarioContratoMock(linhas);
       }
       return builder;
     },
@@ -126,6 +138,8 @@ beforeEach(() => {
   buscarMandatoExistentePorTituloMock.mockReset();
   buscarPerfilCandidaturaMock.mockReset();
   pushMock.mockReset();
+  insertRelUsuarioContratoMock.mockReset();
+  insertRelUsuarioContratoMock.mockResolvedValue({ error: null });
   buscarMandatoExistentePorTituloMock.mockResolvedValue(null);
   buscarPerfilCandidaturaMock.mockResolvedValue(null);
   criarMandatoMock.mockResolvedValue({
@@ -292,6 +306,45 @@ describe("MandatoWizard — submissão transacional (EST-11 AC6 / AD-024)", () =
 
     await waitFor(() => expect(criarMandatoMock).toHaveBeenCalledTimes(1));
     expect(criarMandatoMock.mock.calls[0][1].coalizao).toBeNull();
+  });
+});
+
+describe("MandatoWizard — gestoras no cadastro (PF-05)", () => {
+  it("mostra o campo de gestoras, opcional (AC1/AC3)", async () => {
+    renderizar();
+    await irParaRevisar();
+
+    expect(screen.getByText("Gestoras (opcional)")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Ana Gestora" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bia Gestora" })).toBeInTheDocument();
+  });
+
+  it("sem gestora selecionada, salva o contrato normalmente sem inserir vínculo (AC3)", async () => {
+    renderizar();
+    await irParaRevisar();
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    await waitFor(() => expect(criarMandatoMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(pushMock).toHaveBeenCalled());
+    expect(insertRelUsuarioContratoMock).not.toHaveBeenCalled();
+  });
+
+  it("com gestoras selecionadas, cada uma vira uma linha em rel_usuario_contrato (AC2)", async () => {
+    renderizar();
+    await irParaRevisar();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ana Gestora" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bia Gestora" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar mandato/i }));
+
+    await waitFor(() => expect(insertRelUsuarioContratoMock).toHaveBeenCalledTimes(1));
+    expect(insertRelUsuarioContratoMock.mock.calls[0][0]).toEqual([
+      { id_contrato: 902, id_usuario: 21, papel_no_contrato: "gestora" },
+      { id_contrato: 902, id_usuario: 22, papel_no_contrato: "gestora" },
+    ]);
+    await waitFor(() => expect(pushMock).toHaveBeenCalled());
   });
 });
 
