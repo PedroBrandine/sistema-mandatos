@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   buscarCadeiasIncidencia,
@@ -18,7 +19,7 @@ import {
 } from "@backend/queries/incidencia";
 import { createClient } from "@backend/supabase/client";
 
-import { AbaIncidencia } from "@/components/incidencia/aba-incidencia";
+import { AbaIncidencia, PARAM_VISAO } from "@/components/incidencia/aba-incidencia";
 import { CadeiaLista } from "@/components/incidencia/cadeia-lista";
 import { FatoGeradorForm, type FatoGeradorExistente } from "@/components/incidencia/fato-gerador-form";
 import { FatoGeradorWizard } from "@/components/incidencia/fato-gerador-wizard";
@@ -59,6 +60,9 @@ type ItemEditando =
 export default function ContratoFatosRegistrosPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const idContrato = Number(id);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [carregando, setCarregando] = useState(true);
   const [registros, setRegistros] = useState<RegistroResumo[]>([]);
@@ -185,6 +189,16 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
     return <CarregandoSkeleton />;
   }
 
+  function verNoCicloDeVida() {
+    // Navegação cruzada "Ver no Ciclo de Vida" (mockup 108:4, acerto de
+    // fidelidade visual pós-Verifier) -- mesma troca de querystring que
+    // AbaIncidencia usa internamente (router.replace, sem entrada no
+    // histórico), só que disparada de dentro da Linha do Tempo.
+    const params = new URLSearchParams(searchParams.toString());
+    params.set(PARAM_VISAO, "ciclo-de-vida");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   const linhaDoTempo = (
     <TimelineFeed
       itens={timelineItens}
@@ -193,6 +207,7 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
       fatosGeradores={fatosGeradores}
       preInsights={preInsights}
       onEditar={(item) => void abrirEdicao(item)}
+      onVerNoCicloDeVida={verNoCicloDeVida}
     />
   );
 

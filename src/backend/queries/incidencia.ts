@@ -330,6 +330,11 @@ export interface FatoGeradorResumo {
   situacao: "projetado" | "realizado";
   dtOcorrencia: string | null;
   dtPrevista: string | null;
+  // Opcional (acerto de fidelidade visual pós-Verifier): card da Linha do
+  // Tempo (mockup 108:4) mostra a descrição/evidência, não só o título.
+  // Opcional em vez de obrigatório para não quebrar os fixtures de teste já
+  // escritos sem este campo.
+  descricaoEvidencia?: string | null;
 }
 
 // INC-01, INC-02, FGC-06/FGC-09/FGC-12 (T11). Fatos Geradores do contrato --
@@ -343,7 +348,9 @@ export async function buscarFatosGeradoresDoContrato(
 ): Promise<FatoGeradorResumo[]> {
   const { data, error } = await client
     .from("fat_fato_gerador")
-    .select("id_fato_gerador, id_tipologia, nivel_d1, nivel_d2, nivel_d3, titulo, situacao, dt_ocorrencia, dt_prevista")
+    .select(
+      "id_fato_gerador, id_tipologia, nivel_d1, nivel_d2, nivel_d3, titulo, situacao, dt_ocorrencia, dt_prevista, descricao_evidencia"
+    )
     .eq("id_contrato", idContrato);
   if (error) throw error;
   if (!data) return [];
@@ -366,6 +373,7 @@ export async function buscarFatosGeradoresDoContrato(
     situacao: f.situacao as "projetado" | "realizado",
     dtOcorrencia: f.dt_ocorrencia,
     dtPrevista: f.dt_prevista,
+    descricaoEvidencia: f.descricao_evidencia,
   }));
 }
 
@@ -403,6 +411,7 @@ export interface TimelineItem {
   dataEvento: string | null;
   criadoEm: string | null;
   idUsuarioAutor: number | null;
+  nomeAutor: string | null;
 }
 
 export interface PeriodoFiltro {
@@ -414,6 +423,12 @@ export interface PeriodoFiltro {
 // já feita na view, escopada por id_contrato aqui + período opcional
 // (inicio/fim, ambos opcionais e independentes). Sem paginação/ordenação
 // embutida: quem ordena/agrupa por mês é agrupaPorMes (T13, módulo puro).
+//
+// Achado do acerto de fidelidade visual (pós-Verifier): o card da Linha do
+// Tempo e o rodapé do PainelDetalhe mostram "Por: <nome>" (mockup 108:4) --
+// a view já trazia id_usuario_autor, só faltava resolver o nome. Mesmo
+// padrão client-side de buscarRegistrosDoContrato (join com dim_usuario,
+// nenhum embed do PostgREST).
 export async function buscarTimelineIncidencia(
   client: SupabaseClient<Database>,
   idContrato: number,
@@ -431,6 +446,17 @@ export async function buscarTimelineIncidencia(
   if (error) throw error;
   if (!data) return [];
 
+  const idsUsuario = Array.from(new Set(data.map((i) => i.id_usuario_autor).filter((id): id is number => id != null)));
+  let nomesPorUsuario = new Map<number, string>();
+  if (idsUsuario.length > 0) {
+    const { data: usuarios, error: erroUsuarios } = await client
+      .from("dim_usuario")
+      .select("id_usuario, nome")
+      .in("id_usuario", idsUsuario);
+    if (erroUsuarios) throw erroUsuarios;
+    nomesPorUsuario = new Map((usuarios ?? []).map((u) => [u.id_usuario, u.nome]));
+  }
+
   return data.map((i) => ({
     tipo: i.tipo as TimelineItem["tipo"],
     idOrigem: i.id_origem as number,
@@ -438,7 +464,14 @@ export async function buscarTimelineIncidencia(
     dataEvento: i.data_evento,
     criadoEm: i.criado_em,
     idUsuarioAutor: i.id_usuario_autor,
+    nomeAutor: i.id_usuario_autor != null ? (nomesPorUsuario.get(i.id_usuario_autor) ?? null) : null,
   }));
+}
+
+export interface CadeiaOrigem {
+  tipo: "pre_insight" | "registro" | "insight" | "meta";
+  titulo: string;
+  dataEvento: string | null;
 }
 
 export interface CadeiaItem {
@@ -447,12 +480,27 @@ export interface CadeiaItem {
   situacao: "projetado" | "realizado";
   dataEvento: string | null;
   chaveOrigem: string;
+  // Opcional (acerto de fidelidade visual pós-Verifier, mockup 109:4): o
+  // card da cadeia no Ciclo de Vida mostra o passo de origem (Pré-Insight/
+  // Registro/Insight/Meta) antes da seta pro Fato Gerador. `null` quando
+  // chaveOrigem é "fato:<id>" (cadeia direta, sem origem -- caso válido,
+  // AC4). Opcional em vez de obrigatório para não quebrar fixtures de teste
+  // já escritos sem este campo.
+  origem?: CadeiaOrigem | null;
 }
 
 // FGC-13 (T12). Lê vw_cadeia_incidencia (T5) -- 1 linha por Fato Gerador,
 // escopada por id_contrato. Rótulo posicional (Cadeia A/B/C) e separação das
 // cadeias só-projetadas ficam para rotulaCadeias (T14, módulo puro, AD-053)
 // -- esta leitura não agrupa nem ordena.
+//
+// Acerto de fidelidade visual (pós-Verifier, mockup 109:4): chave_origem já
+// codifica "<tipo>:<id>" (view T5) -- só faltava resolver o conteúdo de cada
+// tipo de origem para o card horizontal. 4 buscas em lote (uma por tipo,
+// só quando há id daquele tipo), mesmo padrão client-side das demais
+// funções deste arquivo -- nenhum embed do PostgREST. Meta vem de
+// `planejamento-estrategico` (fat_meta, fora deste domínio) -- só lê
+// descricao/criado_em, sem acoplar a mais nada daquela feature.
 export async function buscarCadeiasIncidencia(
   client: SupabaseClient<Database>,
   idContrato: number
@@ -464,11 +512,78 @@ export async function buscarCadeiasIncidencia(
   if (error) throw error;
   if (!data) return [];
 
+  const idsPreInsight = new Set<number>();
+  const idsRegistro = new Set<number>();
+  const idsInsight = new Set<number>();
+  const idsMeta = new Set<number>();
+  for (const row of data) {
+    if (!row.chave_origem) continue;
+    const [tipo, idStr] = row.chave_origem.split(":");
+    const id = Number(idStr);
+    if (tipo === "pre_insight") idsPreInsight.add(id);
+    else if (tipo === "registro") idsRegistro.add(id);
+    else if (tipo === "insight") idsInsight.add(id);
+    else if (tipo === "meta") idsMeta.add(id);
+  }
+
+  const [preInsights, registros, insights, metas] = await Promise.all([
+    idsPreInsight.size > 0
+      ? client.from("fat_pre_insight").select("id_pre_insight, conteudo, ocorrido_em").in("id_pre_insight", Array.from(idsPreInsight))
+      : Promise.resolve({ data: [] as { id_pre_insight: number; conteudo: string; ocorrido_em: string | null }[], error: null }),
+    idsRegistro.size > 0
+      ? client.from("fat_registro").select("id_registro, resumo, ocorrido_em").in("id_registro", Array.from(idsRegistro))
+      : Promise.resolve({ data: [] as { id_registro: number; resumo: string | null; ocorrido_em: string }[], error: null }),
+    idsInsight.size > 0
+      ? client.from("fat_insight").select("id_insight, conteudo, ocorrido_em").in("id_insight", Array.from(idsInsight))
+      : Promise.resolve({ data: [] as { id_insight: number; conteudo: string; ocorrido_em: string | null }[], error: null }),
+    idsMeta.size > 0
+      ? client.from("fat_meta").select("id_meta, descricao, criado_em").in("id_meta", Array.from(idsMeta))
+      : Promise.resolve({ data: [] as { id_meta: number; descricao: string; criado_em: string }[], error: null }),
+  ]);
+  if (preInsights.error) throw preInsights.error;
+  if (registros.error) throw registros.error;
+  if (insights.error) throw insights.error;
+  if (metas.error) throw metas.error;
+
+  const porPreInsight = new Map(
+    (preInsights.data ?? []).map((p) => [p.id_pre_insight, { titulo: p.conteudo, dataEvento: p.ocorrido_em }])
+  );
+  const porRegistro = new Map(
+    (registros.data ?? []).map((r) => [r.id_registro, { titulo: r.resumo ?? "—", dataEvento: r.ocorrido_em }])
+  );
+  const porInsight = new Map((insights.data ?? []).map((i) => [i.id_insight, { titulo: i.conteudo, dataEvento: i.ocorrido_em }]));
+  const porMeta = new Map(
+    (metas.data ?? []).map((m) => [m.id_meta, { titulo: m.descricao, dataEvento: m.criado_em.slice(0, 10) }])
+  );
+
+  function resolveOrigem(chaveOrigem: string): CadeiaOrigem | null {
+    const [tipo, idStr] = chaveOrigem.split(":");
+    const id = Number(idStr);
+    if (tipo === "pre_insight") {
+      const o = porPreInsight.get(id);
+      return o ? { tipo: "pre_insight", ...o } : null;
+    }
+    if (tipo === "registro") {
+      const o = porRegistro.get(id);
+      return o ? { tipo: "registro", ...o } : null;
+    }
+    if (tipo === "insight") {
+      const o = porInsight.get(id);
+      return o ? { tipo: "insight", ...o } : null;
+    }
+    if (tipo === "meta") {
+      const o = porMeta.get(id);
+      return o ? { tipo: "meta", ...o } : null;
+    }
+    return null;
+  }
+
   return data.map((c) => ({
     idFatoGerador: c.id_fato_gerador as number,
     titulo: c.titulo,
     situacao: c.situacao as "projetado" | "realizado",
     dataEvento: c.data_evento,
     chaveOrigem: c.chave_origem as string,
+    origem: resolveOrigem(c.chave_origem as string),
   }));
 }

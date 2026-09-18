@@ -7,12 +7,22 @@
 //
 // Tipo local (não importado de backend/queries): mesmo padrão de
 // ItemTimeline em lib/incidencia-timeline.ts / LinhaEvolucaoGip em lib/gip.ts.
+export interface OrigemCadeia {
+  tipo: "pre_insight" | "registro" | "insight" | "meta";
+  titulo: string;
+  dataEvento: string | null;
+}
+
 export interface ItemCadeia {
   idFatoGerador: number;
   titulo: string | null;
   situacao: "projetado" | "realizado";
   dataEvento: string | null;
   chaveOrigem: string;
+  // Opcional (acerto de fidelidade visual pós-Verifier, mockup 109:4): passo
+  // de origem do card horizontal. rotulaCadeias só agrupa/rotula -- não
+  // interpreta este campo, só repassa.
+  origem?: OrigemCadeia | null;
 }
 
 export interface CadeiaRotulada {

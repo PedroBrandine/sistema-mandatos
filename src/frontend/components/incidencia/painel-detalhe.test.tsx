@@ -24,7 +24,7 @@ describe("PainelDetalhe — Registro", () => {
   it("mostra tipo de registro (ref_tipo_registro), autor e resumo", () => {
     render(
       <PainelDetalhe
-        item={{ tipo: "registro", idOrigem: 1, titulo: "Reunião com liderança", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9 }}
+        item={{ tipo: "registro", idOrigem: 1, titulo: "Reunião com liderança", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9, nomeAutor: null }}
         registro={{ idRegistro: 1, tipoRegistro: "Pontapé", ocorridoEm: "2026-09-05", resumo: "Alinhamento inicial", nomeAutor: "Ana" }}
       />
     );
@@ -41,7 +41,7 @@ describe("PainelDetalhe — Insight", () => {
   it("mostra Pilar (um dos 4 de ref_pilar_insight), nunca 'Financeiro'", () => {
     render(
       <PainelDetalhe
-        item={{ tipo: "insight", idOrigem: 2, titulo: "Insight sobre pauta", dataEvento: "2026-09-06", criadoEm: null, idUsuarioAutor: 9 }}
+        item={{ tipo: "insight", idOrigem: 2, titulo: "Insight sobre pauta", dataEvento: "2026-09-06", criadoEm: null, idUsuarioAutor: 9, nomeAutor: null }}
         insight={{ idInsight: 2, conteudo: "Conteúdo do insight", pilar: "Incidência política", ocorridoEm: "2026-09-06" }}
       />
     );
@@ -55,7 +55,7 @@ describe("PainelDetalhe — Fato Gerador", () => {
   it("mostra tipologia, situação e a régua de 4 níveis SEM legenda descritiva", () => {
     render(
       <PainelDetalhe
-        item={{ tipo: "fato_gerador", idOrigem: 3, titulo: "Aprovação do PL", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9 }}
+        item={{ tipo: "fato_gerador", idOrigem: 3, titulo: "Aprovação do PL", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9, nomeAutor: null }}
         fatoGerador={{
           idFatoGerador: 3,
           tipologia: "2. Produção Legislativa · Projeto de lei / proposição · Em tramitação ativa",
@@ -80,7 +80,7 @@ describe("PainelDetalhe — Fato Gerador", () => {
   it("fato projetado mostra PROJETADO -- lado oposto", () => {
     render(
       <PainelDetalhe
-        item={{ tipo: "fato_gerador", idOrigem: 4, titulo: "Votação futura", dataEvento: "2026-11-01", criadoEm: null, idUsuarioAutor: 9 }}
+        item={{ tipo: "fato_gerador", idOrigem: 4, titulo: "Votação futura", dataEvento: "2026-11-01", criadoEm: null, idUsuarioAutor: 9, nomeAutor: null }}
         fatoGerador={{
           idFatoGerador: 4,
           tipologia: "2. Produção Legislativa · Projeto de lei / proposição · Em tramitação ativa",
@@ -103,7 +103,7 @@ describe("PainelDetalhe — Editar (fix task pós-T25, spec.md 'aba como casa ú
     const onEditar = vi.fn();
     render(
       <PainelDetalhe
-        item={{ tipo: "registro", idOrigem: 1, titulo: "Reunião", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9 }}
+        item={{ tipo: "registro", idOrigem: 1, titulo: "Reunião", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9, nomeAutor: null }}
         registro={{ idRegistro: 1, tipoRegistro: "Pontapé", ocorridoEm: "2026-09-05", resumo: null, nomeAutor: "Ana" }}
         onEditar={onEditar}
       />
@@ -116,7 +116,7 @@ describe("PainelDetalhe — Editar (fix task pós-T25, spec.md 'aba como casa ú
   it("sem onEditar, o botão não aparece -- lado oposto (ex.: Fato Gerador, sem edição ainda)", () => {
     render(
       <PainelDetalhe
-        item={{ tipo: "fato_gerador", idOrigem: 3, titulo: "Fato", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9 }}
+        item={{ tipo: "fato_gerador", idOrigem: 3, titulo: "Fato", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9, nomeAutor: null }}
         fatoGerador={{
           idFatoGerador: 3,
           tipologia: "x",
@@ -137,7 +137,7 @@ describe("PainelDetalhe — data sem hora (FGC-12)", () => {
   it("formata a data como dd/mm/aaaa, sem hora", () => {
     render(
       <PainelDetalhe
-        item={{ tipo: "registro", idOrigem: 5, titulo: "Registro", dataEvento: "2026-09-05", criadoEm: "2026-09-05T14:30:00Z", idUsuarioAutor: 9 }}
+        item={{ tipo: "registro", idOrigem: 5, titulo: "Registro", dataEvento: "2026-09-05", criadoEm: "2026-09-05T14:30:00Z", idUsuarioAutor: 9, nomeAutor: null }}
         registro={{ idRegistro: 5, tipoRegistro: "Sprint", ocorridoEm: "2026-09-05", resumo: null, nomeAutor: "Ana" }}
       />
     );

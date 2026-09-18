@@ -13,8 +13,8 @@ import { TimelineFeed } from "./timeline-feed";
 afterEach(cleanup);
 
 const ITENS: TimelineItem[] = [
-  { tipo: "registro", idOrigem: 1, titulo: "Registro de setembro", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9 },
-  { tipo: "insight", idOrigem: 2, titulo: "Insight de agosto", dataEvento: "2026-08-20", criadoEm: null, idUsuarioAutor: 9 },
+  { tipo: "registro", idOrigem: 1, titulo: "Registro de setembro", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9, nomeAutor: "Ana" },
+  { tipo: "insight", idOrigem: 2, titulo: "Insight de agosto", dataEvento: "2026-08-20", criadoEm: null, idUsuarioAutor: 9, nomeAutor: "Ana" },
   {
     tipo: "fato_gerador",
     idOrigem: 3,
@@ -22,6 +22,7 @@ const ITENS: TimelineItem[] = [
     dataEvento: "2026-09-10",
     criadoEm: null,
     idUsuarioAutor: 9,
+    nomeAutor: "Ana",
   },
 ];
 
@@ -109,7 +110,10 @@ describe("TimelineFeed — seleção mostra detalhe no painel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Insight de agosto/ }));
 
-    expect(screen.getByText("Incidência política")).toBeInTheDocument();
+    // Acerto de fidelidade visual (pós-Verifier): o card da lista também
+    // passou a mostrar o Pilar como meta -- "Incidência política" aparece
+    // ali E no painel, por isso getAllByText em vez de getByText.
+    expect(screen.getAllByText("Incidência política").length).toBeGreaterThan(0);
   });
 });
 

@@ -124,7 +124,7 @@ beforeEach(() => {
   buscarFatosGeradoresDoContratoMock.mockReset().mockResolvedValue([]);
   buscarPreInsightsDoContratoMock.mockReset().mockResolvedValue([]);
   buscarTimelineIncidenciaMock.mockReset().mockResolvedValue([
-    { tipo: "insight", idOrigem: 1, titulo: "Insight de teste", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9 },
+    { tipo: "insight", idOrigem: 1, titulo: "Insight de teste", dataEvento: "2026-09-05", criadoEm: null, idUsuarioAutor: 9, nomeAutor: "Ana" },
   ]);
   buscarCadeiasIncidenciaMock.mockReset().mockResolvedValue([]);
   maybeSingleMock.mockReset().mockResolvedValue({ data: null });
@@ -212,7 +212,7 @@ describe("/contratos/[id]/fatos-registros — editar a partir da Linha do Tempo 
 
   it("Fato Gerador também edita a partir da timeline (fix pós-Verifier, FatoGeradorForm ganhou edição)", async () => {
     buscarTimelineIncidenciaMock.mockResolvedValue([
-      { tipo: "fato_gerador", idOrigem: 9, titulo: "Fato de teste", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9 },
+      { tipo: "fato_gerador", idOrigem: 9, titulo: "Fato de teste", dataEvento: "2026-09-10", criadoEm: null, idUsuarioAutor: 9, nomeAutor: "Ana" },
     ]);
     maybeSingleMock.mockImplementation((tabela: string) => {
       if (tabela === "fat_fato_gerador") {

@@ -544,6 +544,7 @@ describe("buscarTimelineIncidencia", () => {
         ],
         error: null,
       },
+      dim_usuario: { data: [{ id_usuario: 9, nome: "Fulano" }], error: null },
     });
 
     const resultado = await buscarTimelineIncidencia(client, 100);
@@ -556,6 +557,7 @@ describe("buscarTimelineIncidencia", () => {
         dataEvento: "2026-08-01",
         criadoEm: "2026-08-01T10:00:00Z",
         idUsuarioAutor: 9,
+        nomeAutor: "Fulano",
       },
     ]);
     expect(chamadas.some((c) => c.tabela === "vw_timeline_incidencia" && c.metodo === "gte")).toBe(false);
@@ -592,7 +594,9 @@ describe("buscarTimelineIncidencia", () => {
 
 describe("buscarCadeiasIncidencia", () => {
   // FGC-13 (T12): 1 linha por Fato Gerador, chave_origem é responsabilidade da view (T5).
-  it("mapeia vw_cadeia_incidencia do contrato", async () => {
+  // Acerto de fidelidade visual (pós-Verifier, mockup 109:4): resolve o passo
+  // de origem (Insight/Pré-Insight/Registro/Meta) a partir de chaveOrigem.
+  it("mapeia vw_cadeia_incidencia do contrato e resolve a origem Insight", async () => {
     const { client, chamadas } = criarClienteMock({
       vw_cadeia_incidencia: {
         data: [
@@ -606,6 +610,7 @@ describe("buscarCadeiasIncidencia", () => {
         ],
         error: null,
       },
+      fat_insight: { data: [{ id_insight: 8, conteudo: "Insight de origem", ocorrido_em: "2026-07-20" }], error: null },
     });
 
     const resultado = await buscarCadeiasIncidencia(client, 100);
@@ -617,12 +622,42 @@ describe("buscarCadeiasIncidencia", () => {
         situacao: "realizado",
         dataEvento: "2026-08-01",
         chaveOrigem: "insight:8",
+        origem: { tipo: "insight", titulo: "Insight de origem", dataEvento: "2026-07-20" },
       },
     ]);
     const eqs = chamadas
       .filter((c) => c.tabela === "vw_cadeia_incidencia" && c.metodo === "eq")
       .map((c) => c.args);
     expect(eqs).toContainEqual(["id_contrato", 100]);
+    const insightIns = chamadas.filter((c) => c.tabela === "fat_insight" && c.metodo === "in").map((c) => c.args);
+    expect(insightIns).toContainEqual(["id_insight", [8]]);
+  });
+
+  it("resolve a origem Meta (fat_meta, fora do domínio da Incidência) -- lado oposto do tipo", async () => {
+    const { client } = criarClienteMock({
+      vw_cadeia_incidencia: {
+        data: [
+          { id_fato_gerador: 2, titulo: "Fato via Meta", situacao: "realizado", data_evento: "2026-08-05", chave_origem: "meta:3" },
+        ],
+        error: null,
+      },
+      fat_meta: { data: [{ id_meta: 3, descricao: "Meta de origem", criado_em: "2026-06-01T12:00:00Z" }], error: null },
+    });
+
+    const resultado = await buscarCadeiasIncidencia(client, 100);
+    expect(resultado[0].origem).toEqual({ tipo: "meta", titulo: "Meta de origem", dataEvento: "2026-06-01" });
+  });
+
+  it("cadeia direta no fato (chave 'fato:<id>') não tem origem -- lado oposto de ter origem", async () => {
+    const { client } = criarClienteMock({
+      vw_cadeia_incidencia: {
+        data: [{ id_fato_gerador: 3, titulo: "Fato solo", situacao: "realizado", data_evento: "2026-08-06", chave_origem: "fato:3" }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCadeiasIncidencia(client, 100);
+    expect(resultado[0].origem).toBeNull();
   });
 
   it("retorna [] quando o contrato não tem nenhum Fato Gerador", async () => {

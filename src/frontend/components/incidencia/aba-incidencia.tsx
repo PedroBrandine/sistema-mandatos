@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -72,7 +73,7 @@ export function AbaIncidencia({ linhaDoTempo, cicloDeVida, criar }: AbaIncidenci
   return (
     <div className="grid gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div role="tablist" className="flex gap-2">
+        <div role="tablist" className="flex gap-3">
           {VISOES.map((visao) => (
             <button
               key={visao.id}
@@ -81,8 +82,10 @@ export function AbaIncidencia({ linhaDoTempo, cicloDeVida, criar }: AbaIncidenci
               aria-selected={visaoAtiva === visao.id}
               onClick={() => selecionarVisao(visao.id)}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium",
-                visaoAtiva === visao.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                "border-b-[3px] px-1 py-4 text-sm",
+                visaoAtiva === visao.id
+                  ? "border-secondary font-bold text-secondary"
+                  : "border-transparent font-medium text-muted-foreground hover:text-foreground"
               )}
             >
               {visao.rotulo}
@@ -90,24 +93,34 @@ export function AbaIncidencia({ linhaDoTempo, cicloDeVida, criar }: AbaIncidenci
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {criar.map((item) => (
-            <Dialog
-              key={item.rotulo}
-              open={itemAberto === item.rotulo}
-              onOpenChange={(aberto) => setItemAberto(aberto ? item.rotulo : null)}
-            >
-              <Button type="button" variant="outline" size="sm" onClick={() => setItemAberto(item.rotulo)}>
-                {item.rotulo}
-              </Button>
-              <DialogContent className="max-w-md sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>{item.rotulo}</DialogTitle>
-                </DialogHeader>
-                {item.renderizar(() => setItemAberto(null))}
-              </DialogContent>
-            </Dialog>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          {criar.map((item, indice) => {
+            const principal = indice === criar.length - 1;
+            return (
+              <Dialog
+                key={item.rotulo}
+                open={itemAberto === item.rotulo}
+                onOpenChange={(aberto) => setItemAberto(aberto ? item.rotulo : null)}
+              >
+                <Button
+                  type="button"
+                  variant={principal ? "default" : "outline"}
+                  size="sm"
+                  className={cn("gap-1.5", principal && "bg-secondary text-secondary-foreground shadow-md hover:bg-secondary/90")}
+                  onClick={() => setItemAberto(item.rotulo)}
+                >
+                  {principal && <Plus className="size-3.5" />}
+                  {item.rotulo}
+                </Button>
+                <DialogContent className="max-w-md sm:max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>{item.rotulo}</DialogTitle>
+                  </DialogHeader>
+                  {item.renderizar(() => setItemAberto(null))}
+                </DialogContent>
+              </Dialog>
+            );
+          })}
         </div>
       </div>
 
