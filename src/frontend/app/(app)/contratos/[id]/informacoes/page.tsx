@@ -3,8 +3,10 @@
 import { use, useCallback, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 
+import { atualizarStatusContrato } from "@backend/rpc/contrato";
+import { moverEtapaKanban } from "@backend/rpc/kanban";
 import { createClient } from "@backend/supabase/client";
-import { buscarContratoParaFicha, type ContratoParaFicha } from "@backend/queries/contrato";
+import { buscarContratoParaFicha, buscarEtapasDoProduto, type ContratoParaFicha, type EtapaResumo } from "@backend/queries/contrato";
 import { buscarInformacoesGeraisMandato, type InformacoesGeraisMandato } from "@backend/queries/ficha-mandato";
 
 import { CardHistoricoContratos } from "@/components/fundacao/card-historico-contratos";
@@ -12,8 +14,12 @@ import { CardPontoFocal } from "@/components/fundacao/card-ponto-focal";
 import { CardProjetosCoalizoes } from "@/components/fundacao/card-projetos-coalizoes";
 import { CardSobreMandato } from "@/components/fundacao/card-sobre-mandato";
 import { InformacoesTseMandato } from "@/components/fundacao/informacoes-tse-mandato";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ErroInline } from "@/components/ui/erro-inline";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // FMC-05..FMC-13 (.specs/features/ficha-mandato-contrato/spec.md, "P1:
 // Informações Gerais do mandato"). Monta os 4 cards novos de T25-T28 mais a
@@ -39,6 +45,9 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
   const [dados, setDados] = useState<InformacoesGeraisMandato | null | undefined>(undefined);
   const [erro, setErro] = useState<string | null>(null);
+  // PF-04 (T4): etapas do produto do contrato, pra montar o Select de Etapa
+  // -- mesma leitura que a Ficha já usa pras abas (buscarEtapasDoProduto).
+  const [etapas, setEtapas] = useState<EtapaResumo[]>([]);
 
   const carregarDados = useCallback(async () => {
     setErro(null);
@@ -50,20 +59,25 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
     }
   }, [idContrato]);
 
+  const carregarContrato = useCallback(async () => {
+    const encontrado = await buscarContratoParaFicha(createClient(), idContrato);
+    const valido = encontrado && encontrado.tipoContratante === "mandato" && encontrado.idMandato != null;
+    setContrato(valido ? encontrado : null);
+    return valido ? encontrado : null;
+  }, [idContrato]);
+
   useEffect(() => {
     let cancelado = false;
-    const supabase = createClient();
-
-    buscarContratoParaFicha(supabase, idContrato).then((encontrado) => {
-      if (cancelado) return;
-      const valido = encontrado && encontrado.tipoContratante === "mandato" && encontrado.idMandato != null;
-      setContrato(valido ? encontrado : null);
+    carregarContrato().then((encontrado) => {
+      if (cancelado || !encontrado) return;
+      buscarEtapasDoProduto(createClient(), encontrado.idProduto).then((lista) => {
+        if (!cancelado) setEtapas(lista);
+      });
     });
-
     return () => {
       cancelado = true;
     };
-  }, [idContrato]);
+  }, [carregarContrato]);
 
   useEffect(() => {
     void carregarDados();
@@ -93,6 +107,13 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
 
   return (
     <div className="grid gap-6">
+      <CardStatusEtapa
+        idContrato={idContrato}
+        contrato={contrato}
+        etapas={etapas}
+        onAtualizado={() => void carregarContrato()}
+      />
+
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="grid gap-6">
           <CardSobreMandato
@@ -120,5 +141,145 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
 
       <InformacoesTseMandato idMandato={dados.idMandato} />
     </div>
+  );
+}
+
+type StatusContrato = "ativo" | "concluido" | "nao_concluido";
+
+const ROTULO_STATUS: Record<StatusContrato, string> = {
+  ativo: "Ativo",
+  concluido: "Concluído",
+  nao_concluido: "Não concluído",
+};
+
+interface CardStatusEtapaProps {
+  idContrato: number;
+  contrato: ContratoParaFicha | null | undefined;
+  etapas: EtapaResumo[];
+  onAtualizado: () => void;
+}
+
+// PF-04 (T4): edição de Status (via atualizarStatusContrato, T3) e Etapa
+// (via moverEtapaKanban já existente -- mesma RPC que o Kanban usa, mesma
+// coluna fat_contrato.id_etapa_atual, então uma mudança aqui aparece no
+// Kanban na próxima leitura dele, sem campo duplicado). Transição de etapa
+// inválida é recusada pela própria RPC (KAN01/TransicaoInvalidaError),
+// mesma regra do Kanban.
+function CardStatusEtapa({ idContrato, contrato, etapas, onAtualizado }: CardStatusEtapaProps) {
+  const [statusSelecionado, setStatusSelecionado] = useState<StatusContrato | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [salvandoStatus, setSalvandoStatus] = useState(false);
+  const [erroStatus, setErroStatus] = useState<string | null>(null);
+
+  const [etapaSelecionada, setEtapaSelecionada] = useState<number | null>(null);
+  const [salvandoEtapa, setSalvandoEtapa] = useState(false);
+  const [erroEtapa, setErroEtapa] = useState<string | null>(null);
+
+  if (!contrato) return null;
+
+  const status = statusSelecionado ?? contrato.status;
+  const etapa = etapaSelecionada ?? contrato.idEtapaAtual;
+
+  async function salvarStatus() {
+    setSalvandoStatus(true);
+    setErroStatus(null);
+    try {
+      await atualizarStatusContrato(createClient(), idContrato, status, motivo || null);
+      setStatusSelecionado(null);
+      setMotivo("");
+      onAtualizado();
+    } catch (e) {
+      setErroStatus(e instanceof Error ? e.message : "Erro ao atualizar o status do contrato.");
+    } finally {
+      setSalvandoStatus(false);
+    }
+  }
+
+  async function salvarEtapa() {
+    if (etapa === null) return;
+    setSalvandoEtapa(true);
+    setErroEtapa(null);
+    try {
+      await moverEtapaKanban(createClient(), { idContrato, idEtapaDestino: etapa });
+      setEtapaSelecionada(null);
+      onAtualizado();
+    } catch (e) {
+      setErroEtapa(e instanceof Error ? e.message : "Erro ao atualizar a etapa do contrato.");
+    } finally {
+      setSalvandoEtapa(false);
+    }
+  }
+
+  const statusMudou = status !== contrato.status;
+  const etapaMudou = etapa !== contrato.idEtapaAtual;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Status e Etapa</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-6 text-sm sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Status do contrato</p>
+          {erroStatus && <ErroInline mensagem={erroStatus} />}
+          <Select value={status} onValueChange={(v) => setStatusSelecionado(v as StatusContrato)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(ROTULO_STATUS) as StatusContrato[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {ROTULO_STATUS[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {status === "nao_concluido" && (
+            <Input
+              placeholder="Motivo do encerramento"
+              aria-label="Motivo do encerramento"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+          )}
+          {statusMudou && (
+            <Button
+              type="button"
+              size="sm"
+              className="w-fit"
+              onClick={salvarStatus}
+              disabled={salvandoStatus || (status === "nao_concluido" && motivo.trim().length === 0)}
+            >
+              Salvar status
+            </Button>
+          )}
+        </div>
+
+        <div className="grid gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Etapa do produto</p>
+          {erroEtapa && <ErroInline mensagem={erroEtapa} />}
+          <Select
+            value={etapa !== null ? String(etapa) : undefined}
+            onValueChange={(v) => setEtapaSelecionada(Number(v))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={etapas.length === 0 ? "Carregando…" : "Selecione"} />
+            </SelectTrigger>
+            <SelectContent>
+              {etapas.map((e) => (
+                <SelectItem key={e.idEtapa} value={String(e.idEtapa)}>
+                  {e.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {etapaMudou && (
+            <Button type="button" size="sm" className="w-fit" onClick={salvarEtapa} disabled={salvandoEtapa}>
+              Salvar etapa
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

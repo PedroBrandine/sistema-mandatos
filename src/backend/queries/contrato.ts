@@ -11,6 +11,11 @@ export interface ContratoParaFicha {
   idContratante: number;
   nomeContratante: string;
   tipoContratante: string; // 'mandato' | 'coalizao' | outro (edge case)
+  // PF-04: status/etapa atuais do contrato -- mesmas colunas que o Kanban lê
+  // (fat_contrato.status/id_etapa_atual, ver src/backend/queries/kanban.ts),
+  // expostas aqui pra edição na página de informações gerais (T4).
+  status: "ativo" | "concluido" | "nao_concluido";
+  idEtapaAtual: number | null;
   // presentes só quando tipoContratante === 'mandato':
   idMandato?: number | null;
   cargoAtual?: string | null;
@@ -49,7 +54,9 @@ export async function buscarContratoParaFicha(
 ): Promise<ContratoParaFicha | null> {
   const { data, error } = await client
     .from("fat_contrato")
-    .select("id_contrato, id_produto, id_contratante, ref_produto(nome), dim_contratante(nome, tipo_contratante, sg_uf)")
+    .select(
+      "id_contrato, id_produto, id_contratante, status, id_etapa_atual, ref_produto(nome), dim_contratante(nome, tipo_contratante, sg_uf)"
+    )
     .eq("id_contrato", idContrato)
     .maybeSingle();
 
@@ -70,6 +77,8 @@ export async function buscarContratoParaFicha(
     idContratante: data.id_contratante,
     nomeContratante: contratante?.nome ?? "",
     tipoContratante: contratante?.tipo_contratante ?? "",
+    status: data.status,
+    idEtapaAtual: data.id_etapa_atual,
   };
 
   if (base.tipoContratante === "mandato") {

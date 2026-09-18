@@ -92,6 +92,8 @@ describe("buscarContratoParaFicha", () => {
           id_contrato: 1,
           id_produto: 2,
           id_contratante: 3,
+          status: "ativo",
+          id_etapa_atual: 4,
           ref_produto: { nome: "Estratégia" },
           dim_contratante: { nome: "Fulano", tipo_contratante: "mandato", sg_uf: "SP" },
         },
@@ -116,6 +118,10 @@ describe("buscarContratoParaFicha", () => {
       cargoAtual: "Vereador",
       partidoAtual: "PT",
       sgUf: "SP",
+      // PF-04 (T4): status/etapa atuais passam intactos, mesma coluna que o
+      // Kanban lê (fat_contrato.status/id_etapa_atual).
+      status: "ativo",
+      idEtapaAtual: 4,
     });
     expect(resultado?.nomeProjetoOrigem).toBeUndefined();
   });

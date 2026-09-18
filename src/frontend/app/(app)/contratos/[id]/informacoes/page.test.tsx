@@ -1,7 +1,27 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// PF-04 (T4): CardStatusEtapa usa o <Select> real (Radix) -- mesmos stubs de
+// jsdom que mandato-wizard.test.tsx já usa pra interagir com um Select real
+// (ResizeObserver/scrollIntoView/hasPointerCapture não existem em jsdom).
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver =
+  (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver ?? ResizeObserverStub;
+
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoViewStub() {};
+}
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = function hasPointerCaptureStub() {
+    return false;
+  };
+}
 
 // Spec anchor: .specs/features/ficha-mandato-contrato/spec.md, "P1: Informações
 // Gerais do mandato" (FMC-05..FMC-13) + Edge Cases ("contrato de coalizão
@@ -33,13 +53,25 @@ vi.mock("@backend/supabase/client", () => ({
 
 const buscarContratoParaFichaMock = vi.fn();
 const buscarInformacoesGeraisMandatoMock = vi.fn();
+const buscarEtapasDoProdutoMock = vi.fn();
+const atualizarStatusContratoMock = vi.fn();
+const moverEtapaKanbanMock = vi.fn();
 
 vi.mock("@backend/queries/contrato", () => ({
   buscarContratoParaFicha: (...args: unknown[]) => buscarContratoParaFichaMock(...args),
+  buscarEtapasDoProduto: (...args: unknown[]) => buscarEtapasDoProdutoMock(...args),
 }));
 
 vi.mock("@backend/queries/ficha-mandato", () => ({
   buscarInformacoesGeraisMandato: (...args: unknown[]) => buscarInformacoesGeraisMandatoMock(...args),
+}));
+
+vi.mock("@backend/rpc/contrato", () => ({
+  atualizarStatusContrato: (...args: unknown[]) => atualizarStatusContratoMock(...args),
+}));
+
+vi.mock("@backend/rpc/kanban", () => ({
+  moverEtapaKanban: (...args: unknown[]) => moverEtapaKanbanMock(...args),
 }));
 
 vi.mock("@/components/fundacao/card-sobre-mandato", () => ({
@@ -78,6 +110,8 @@ const CONTRATO_MANDATO = {
   nomeContratante: "Mandato Fulano",
   tipoContratante: "mandato",
   idMandato: 200,
+  status: "ativo" as const,
+  idEtapaAtual: 11,
 };
 
 const CONTRATO_COALIZAO = {
@@ -87,7 +121,14 @@ const CONTRATO_COALIZAO = {
   idContratante: 101,
   nomeContratante: "Coalizão Fulano",
   tipoContratante: "coalizao",
+  status: "ativo" as const,
+  idEtapaAtual: null,
 };
+
+const ETAPAS = [
+  { idEtapa: 11, codigo: "diagnostico", nome: "Diagnóstico", ordem: 1 },
+  { idEtapa: 12, codigo: "planejamento", nome: "Planejamento", ordem: 2 },
+];
 
 const DADOS_BASE = {
   idMandato: 200,
@@ -111,7 +152,13 @@ function paramsProntos(id: string): Promise<{ id: string }> {
 beforeEach(() => {
   buscarContratoParaFichaMock.mockReset();
   buscarInformacoesGeraisMandatoMock.mockReset();
+  buscarEtapasDoProdutoMock.mockReset();
+  atualizarStatusContratoMock.mockReset();
+  moverEtapaKanbanMock.mockReset();
   notFoundMock.mockClear();
+  buscarEtapasDoProdutoMock.mockResolvedValue(ETAPAS);
+  atualizarStatusContratoMock.mockResolvedValue(undefined);
+  moverEtapaKanbanMock.mockResolvedValue(undefined);
 });
 
 afterEach(cleanup);
@@ -186,5 +233,69 @@ describe("Página Informações Gerais — montagem dos 4 cards + TSE (FMC-05..F
     render(<InformacoesContratoPage params={paramsProntos("1")} />);
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+});
+
+// PF-04 (T4). Test Coverage Matrix: 1:1 com as ACs da story "Editar Status e
+// Etapa do mandato na Ficha" (spec.md) -- AC1 (campos visíveis), AC2 (Etapa
+// grava pela mesma RPC do Kanban) e AC3 (transição inválida recusada com a
+// mesma regra do Kanban).
+describe("Página Informações Gerais — Status e Etapa do contrato (PF-04)", () => {
+  async function abrirSelect(rotulo: string) {
+    const secao = screen.getByText(rotulo).closest("div") as HTMLElement;
+    const gatilho = within(secao).getByRole("combobox");
+    fireEvent.click(gatilho);
+    return secao;
+  }
+
+  it("exibe os campos de edição de Status e Etapa (AC1)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+    buscarInformacoesGeraisMandatoMock.mockResolvedValue(DADOS_BASE);
+
+    render(<InformacoesContratoPage params={paramsProntos("1")} />);
+
+    expect(await screen.findByText("Status do contrato")).toBeInTheDocument();
+    expect(screen.getByText("Etapa do produto")).toBeInTheDocument();
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+  });
+
+  it("alterar a Etapa chama moverEtapaKanban com o mesmo contrato/etapa (AC2)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+    buscarInformacoesGeraisMandatoMock.mockResolvedValue(DADOS_BASE);
+
+    render(<InformacoesContratoPage params={paramsProntos("1")} />);
+    await screen.findByText("Etapa do produto");
+
+    await abrirSelect("Etapa do produto");
+    fireEvent.click(await screen.findByRole("option", { name: "Planejamento" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar etapa" }));
+
+    await waitFor(() => expect(moverEtapaKanbanMock).toHaveBeenCalledWith(expect.anything(), {
+      idContrato: 1,
+      idEtapaDestino: 12,
+    }));
+    // AC2: mesma fonte de dados do Kanban -- a página refaz a leitura de
+    // buscarContratoParaFicha (não um estado local paralelo) depois de salvar.
+    await waitFor(() => expect(buscarContratoParaFichaMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("transição de etapa inválida é recusada com a mesma regra do Kanban (AC3)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+    buscarInformacoesGeraisMandatoMock.mockResolvedValue(DADOS_BASE);
+    moverEtapaKanbanMock.mockRejectedValue(
+      new Error("Não é possível pular etapas — mova o card para a coluna adjacente.")
+    );
+
+    render(<InformacoesContratoPage params={paramsProntos("1")} />);
+    await screen.findByText("Etapa do produto");
+
+    await abrirSelect("Etapa do produto");
+    fireEvent.click(await screen.findByRole("option", { name: "Planejamento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar etapa" }));
+
+    expect(
+      await screen.findByText("Não é possível pular etapas — mova o card para a coluna adjacente.")
+    ).toBeInTheDocument();
   });
 });
