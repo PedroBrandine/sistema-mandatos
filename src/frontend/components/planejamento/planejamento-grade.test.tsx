@@ -229,3 +229,62 @@ describe("PlanejamentoGrade — coluna Atraso (PLV-12)", () => {
     expect(screen.getByText("Realizado")).toBeInTheDocument();
   });
 });
+
+// PF-09 (T10, .specs/features/pente-fino-2026-09/tasks.md), AC2: coluna Mês
+// em "Mês/Ano" (ex. "Junho/26"), não a data crua "2026-06-01".
+describe("PlanejamentoGrade — coluna Mês em Mês/Ano (PF-09 AC2)", () => {
+  it("mesReferencia 2026-06-01 aparece como Junho/26, não a data crua", () => {
+    renderiza([objetivo([meta()])], [sucesso({ mesReferencia: "2026-06-01" })]);
+    expect(screen.getByText("Junho/26")).toBeInTheDocument();
+    expect(screen.queryByText("2026-06-01")).not.toBeInTheDocument();
+  });
+});
+
+// PF-09 (T10) AC1: filtro por mês, mesmo padrão client-side de soPendentes.
+describe("PlanejamentoGrade — filtro por mês (PF-09 AC1)", () => {
+  it("sem filtro (mes=null), os SMs de todos os meses aparecem", () => {
+    render(
+      <PlanejamentoGrade
+        idPlanejamento={1}
+        produtoNome="Estratégia"
+        objetivos={[objetivo([meta()])]}
+        linhas={[
+          sucesso({ idSucesso: 1, descricao: "SM de junho", mesReferencia: "2026-06-01" }),
+          sucesso({ idSucesso: 2, descricao: "SM de julho", mesReferencia: "2026-07-01" }),
+        ]}
+        pessoasVinculadas={PESSOAS}
+        permissoes={PERMISSOES.gestora}
+        mes={null}
+        onEdicaoCelula={onEdicaoCelula}
+        onColarFaixa={onColarFaixa}
+        onHierarquiaAlterada={onHierarquiaAlterada}
+        onGradeAlterada={onGradeAlterada}
+      />
+    );
+    expect(screen.getByText("SM de junho")).toBeInTheDocument();
+    expect(screen.getByText("SM de julho")).toBeInTheDocument();
+  });
+
+  it("com mes=2026-07-01, só o SM daquele mês aparece", () => {
+    render(
+      <PlanejamentoGrade
+        idPlanejamento={1}
+        produtoNome="Estratégia"
+        objetivos={[objetivo([meta()])]}
+        linhas={[
+          sucesso({ idSucesso: 1, descricao: "SM de junho", mesReferencia: "2026-06-01" }),
+          sucesso({ idSucesso: 2, descricao: "SM de julho", mesReferencia: "2026-07-01" }),
+        ]}
+        pessoasVinculadas={PESSOAS}
+        permissoes={PERMISSOES.gestora}
+        mes="2026-07-01"
+        onEdicaoCelula={onEdicaoCelula}
+        onColarFaixa={onColarFaixa}
+        onHierarquiaAlterada={onHierarquiaAlterada}
+        onGradeAlterada={onGradeAlterada}
+      />
+    );
+    expect(screen.queryByText("SM de junho")).not.toBeInTheDocument();
+    expect(screen.getByText("SM de julho")).toBeInTheDocument();
+  });
+});

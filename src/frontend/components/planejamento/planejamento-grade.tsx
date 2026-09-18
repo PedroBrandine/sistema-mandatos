@@ -80,6 +80,10 @@ export interface PlanejamentoGradeProps {
   // já carregada -- nenhum round-trip novo ao banco.
   busca?: string;
   soPendentes?: boolean;
+  // PF-09 (T10, .specs/features/pente-fino-2026-09/tasks.md): filtro por mês,
+  // mesmo padrão client-side de busca/soPendentes. Formato "YYYY-MM-01" --
+  // igual a SucessoMensalGrade.mesReferencia, comparado por igualdade exata.
+  mes?: string | null;
   // idUsuario logado -- "só as minhas metas" (T15) compara com
   // fat_meta.idUsuarioResponsavel.
   soMinhasMetas?: boolean;
@@ -104,6 +108,31 @@ export interface PlanejamentoGradeHandle {
   // reusando o mesmo caminho de escrita em lote do paste de faixa (PLM-03/
   // AD-024 -- N updates soltos deixariam estado parcial se um falhasse).
   aplicarEmMassa: (valor: number) => void;
+}
+
+// PF-09 (T10): coluna Mês em "Mês/Ano" (ex. "Junho/26"), não a data crua
+// "2026-06-01". Nenhum formatter existente serve para isto -- evolucao-mensal.tsx
+// tem formatarMes(), mas devolve abreviação de 3 letras ("Jun/26"); a spec
+// pede o nome completo do mês (spec.md, PF-09 AC2).
+const NOMES_MES_LONGO = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
+function formatarMesAno(mesReferencia: string): string {
+  const [ano, mes] = mesReferencia.split("-");
+  const nome = NOMES_MES_LONGO[Number(mes) - 1] ?? mes;
+  return `${nome}/${ano.slice(2)}`;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -267,6 +296,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     somenteLeitura = false,
     busca = "",
     soPendentes = false,
+    mes = null,
     soMinhasMetas = false,
     idUsuario = null,
     onSelecaoMudou,
@@ -590,10 +620,18 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
   // resultado está, mesmo que o ramo estivesse recolhido) -- ao limpar os
   // filtros, o estado de expansão manual volta a valer exatamente como
   // estava antes.
-  const filtrosAtivos = busca.trim() !== "" || soPendentes || soMinhasMetas;
+  const filtrosAtivos = busca.trim() !== "" || soPendentes || soMinhasMetas || Boolean(mes);
   const buscaLower = busca.trim().toLowerCase();
 
   const smPassaSoPendentes = useCallback((sm: SucessoMensalGrade) => !soPendentes || sm.pctAtingimento == null, [soPendentes]);
+  // PF-09 (T10): mesmo padrão de smPassaSoPendentes -- filtro client-side,
+  // combinado por AND com os demais (uma Meta só sobrevive se tiver ao menos
+  // um SM que passe em TODOS os filtros ativos).
+  const smPassaMes = useCallback((sm: SucessoMensalGrade) => !mes || sm.mesReferencia === mes, [mes]);
+  const smPassaFiltrosDeLinha = useCallback(
+    (sm: SucessoMensalGrade) => smPassaSoPendentes(sm) && smPassaMes(sm),
+    [smPassaSoPendentes, smPassaMes]
+  );
 
   // Monta a lista achatada (T11, simplificada em T19): 1 linha por
   // Objetivo/Meta/Sucesso Mensal, na ordem visual, respeitando `expandidos`.
@@ -614,7 +652,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         if (soMinhasMetas && meta.idUsuarioResponsavel !== idUsuario) return false;
         if (!buscaLower) return true;
         const metaTextoMatch = meta.descricao.toLowerCase().includes(buscaLower);
-        const smDaMeta = (linhasPorMeta.get(meta.idMeta) ?? []).filter(smPassaSoPendentes);
+        const smDaMeta = (linhasPorMeta.get(meta.idMeta) ?? []).filter(smPassaFiltrosDeLinha);
         const algumSmTextoMatch = smDaMeta.some((sm) => sm.descricao.toLowerCase().includes(buscaLower));
         return metaTextoMatch || algumSmTextoMatch;
       });
@@ -636,7 +674,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         });
         if (!filtrosAtivos && !expandidos.has(idMeta)) continue;
 
-        const smDaMeta = (linhasPorMeta.get(meta.idMeta) ?? []).filter(smPassaSoPendentes);
+        const smDaMeta = (linhasPorMeta.get(meta.idMeta) ?? []).filter(smPassaFiltrosDeLinha);
         for (const sm of smDaMeta) {
           resultado.push({ tipo: "sm", id: `sm-${sm.idSucesso}`, nivel: 2, linha: sm });
         }
@@ -653,7 +691,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
     buscaLower,
     soMinhasMetas,
     idUsuario,
-    smPassaSoPendentes,
+    smPassaFiltrosDeLinha,
   ]);
 
   const todasAsColunas = useMemo(
@@ -790,7 +828,7 @@ export const PlanejamentoGrade = forwardRef<PlanejamentoGradeHandle, Planejament
         cell: ({ row }) => {
           const item = row.original;
           if (item.tipo !== "sm") return null;
-          return <span className="text-sm tabular-nums text-muted-foreground">{item.linha.mesReferencia}</span>;
+          return <span className="text-sm tabular-nums text-muted-foreground">{formatarMesAno(item.linha.mesReferencia)}</span>;
         },
       }),
       columnHelper.display({

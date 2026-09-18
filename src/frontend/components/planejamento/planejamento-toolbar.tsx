@@ -20,6 +20,12 @@ export interface PlanejamentoToolbarProps {
   onBuscaChange: (valor: string) => void;
   soPendentes: boolean;
   onSoPendentesChange: (valor: boolean) => void;
+  // PF-09 (T10, .specs/features/pente-fino-2026-09/tasks.md): mesmo padrão de
+  // busca/onBuscaChange -- filtro client-side aplicado pela PlanejamentoGrade.
+  // Formato "YYYY-MM-01" (mesma convenção de SucessoMensalGrade.mesReferencia
+  // e de paraMesReferencia em sucesso-mensal-form.tsx), null = sem filtro.
+  mes: string | null;
+  onMesChange: (valor: string | null) => void;
   // T15: "só as minhas metas" -- só faz sentido pra quem enxerga a carteira
   // inteira do contrato mas quer se filtrar à própria responsabilidade
   // (Mentor/Assessor); Gestora/Admin já esperam ver tudo por padrão.
@@ -41,6 +47,8 @@ export function PlanejamentoToolbar({
   onBuscaChange,
   soPendentes,
   onSoPendentesChange,
+  mes,
+  onMesChange,
   soMinhasMetas,
   onSoMinhasMetasChange,
   onExpandirTudo,
@@ -73,6 +81,18 @@ export function PlanejamentoToolbar({
           aria-label="Buscar objetivo, meta ou sucesso mensal por descrição"
         />
       </div>
+
+      {/* PF-09 (T10): <input type="month"> -- mesmo componente já usado em
+          sucesso-mensal-form.tsx para "Mês de referência", torna a
+          conversão "YYYY-MM" -> "YYYY-MM-01" (ck_sucesso_mes) inatingível
+          pela UI em vez de validar depois. */}
+      <Input
+        type="month"
+        value={mes ? mes.slice(0, 7) : ""}
+        onChange={(e) => onMesChange(e.target.value ? `${e.target.value}-01` : null)}
+        className="h-8 w-36"
+        aria-label="Filtrar por mês"
+      />
 
       <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <input

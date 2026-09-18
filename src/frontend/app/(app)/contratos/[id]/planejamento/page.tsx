@@ -87,6 +87,9 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const permissoes = PERMISSOES[papel ?? "assessor"];
   const [busca, setBusca] = useState("");
   const [soPendentes, setSoPendentes] = useState(false);
+  // PF-09 (T10, .specs/features/pente-fino-2026-09/tasks.md): mesmo padrão de
+  // busca/soPendentes -- filtro client-side sobre a árvore já carregada.
+  const [mes, setMes] = useState<string | null>(null);
   const [soMinhasMetas, setSoMinhasMetas] = useState(false);
   const [quantidadeMarcada, setQuantidadeMarcada] = useState(0);
   const gradeRef = useRef<PlanejamentoGradeHandle>(null);
@@ -377,6 +380,8 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
               onBuscaChange={setBusca}
               soPendentes={soPendentes}
               onSoPendentesChange={setSoPendentes}
+              mes={mes}
+              onMesChange={setMes}
               soMinhasMetas={soMinhasMetas}
               onSoMinhasMetasChange={setSoMinhasMetas}
               onExpandirTudo={() => gradeRef.current?.expandirTudo()}
@@ -396,6 +401,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
               permissoes={permissoes}
               busca={busca}
               soPendentes={soPendentes}
+              mes={mes}
               soMinhasMetas={soMinhasMetas}
               idUsuario={idUsuario}
               onSelecaoMudou={setQuantidadeMarcada}
