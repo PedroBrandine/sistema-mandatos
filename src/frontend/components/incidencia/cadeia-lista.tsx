@@ -1,8 +1,9 @@
 import { ArrowRight } from "lucide-react";
 
 import type { CadeiaItem } from "@backend/queries/incidencia";
-import { rotulaCadeias, type CadeiaRotulada, type OrigemCadeia } from "@/lib/incidencia-cadeia";
+import { rotulaCadeias, type CadeiaRotulada, type ItemCadeia, type OrigemCadeia } from "@/lib/incidencia-cadeia";
 import { TIPO_ESTILO, TIPO_ROTULO, type EstiloTipo } from "@/lib/incidencia-visual";
+import { cn } from "@/lib/utils";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +29,10 @@ export interface CadeiaListaProps {
   // T14 (pente-fino 2026-09, PF-08): recarrega os dados depois de marcar um
   // Fato Gerador projetado como realizado pelo card.
   onRealizado?: () => void;
+  // T16 (pente-fino 2026-09, PF-08 AC4): clique no passo do Fato Gerador
+  // abre o detalhe (fato + origem associada). Sem handler, o card continua
+  // só leitura (mesmo comportamento de antes do T16).
+  onAbrirDetalhe?: (item: ItemCadeia) => void;
 }
 
 const COR_FATO_GERADOR = TIPO_ESTILO.fato_gerador;
@@ -57,6 +62,7 @@ function PassoCard({
   data,
   destaque,
   projetado,
+  onClick,
 }: {
   rotulo: string;
   cor: EstiloTipo;
@@ -67,10 +73,20 @@ function PassoCard({
   // projetado -- os passos de origem (Pré-Insight/Registro/Insight/Meta) não
   // têm essa dimensão.
   projetado?: boolean;
+  // T16 (pente-fino 2026-09, PF-08 AC4): quando presente, o passo do Fato
+  // Gerador vira clicável -- abre o detalhe (origem + fato). Os passos de
+  // origem nunca recebem `onClick` (ver Cadeia abaixo): são só contexto.
+  onClick?: () => void;
 }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div
-      className="grid min-w-0 flex-1 gap-2 rounded-lg border bg-card p-3 text-sm"
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn(
+        "grid min-w-0 flex-1 gap-2 rounded-lg border bg-card p-3 text-sm",
+        onClick && "text-left transition-colors hover:bg-muted/50"
+      )}
       style={{
         borderLeftWidth: destaque ? 4 : undefined,
         borderLeftColor: destaque ? DESTAQUE_FATO : undefined,
@@ -95,11 +111,19 @@ function PassoCard({
         <span className="shrink-0 text-xs text-muted-foreground">{formatarData(data)}</span>
       </div>
       <p className="line-clamp-2">{titulo}</p>
-    </div>
+    </Tag>
   );
 }
 
-function Cadeia({ cadeia, onRealizado }: { cadeia: CadeiaRotulada; onRealizado?: () => void }) {
+function Cadeia({
+  cadeia,
+  onRealizado,
+  onAbrirDetalhe,
+}: {
+  cadeia: CadeiaRotulada;
+  onRealizado?: () => void;
+  onAbrirDetalhe?: (item: ItemCadeia) => void;
+}) {
   const origem = cadeia.itens[0]?.origem ?? null;
 
   return (
@@ -128,6 +152,7 @@ function Cadeia({ cadeia, onRealizado }: { cadeia: CadeiaRotulada; onRealizado?:
                 data={cadeia.itens[0].dataEvento}
                 destaque
                 projetado={cadeia.itens[0].situacao === "projetado"}
+                onClick={onAbrirDetalhe ? () => onAbrirDetalhe(cadeia.itens[0]) : undefined}
               />
               {cadeia.itens[0].situacao === "projetado" && onRealizado && (
                 <div className="flex justify-end">
@@ -148,9 +173,17 @@ function Cadeia({ cadeia, onRealizado }: { cadeia: CadeiaRotulada; onRealizado?:
               <div className="grid divide-y">
                 {cadeia.itens.map((item) => {
                   const projetado = item.situacao === "projetado";
+                  const Linha = onAbrirDetalhe ? "button" : "div";
                   return (
                     <div key={item.idFatoGerador} className="grid gap-1.5 py-2 first:pt-0 last:pb-0">
-                      <div className="flex items-center justify-between gap-3">
+                      <Linha
+                        type={onAbrirDetalhe ? "button" : undefined}
+                        onClick={onAbrirDetalhe ? () => onAbrirDetalhe(item) : undefined}
+                        className={cn(
+                          "flex items-center justify-between gap-3",
+                          onAbrirDetalhe && "text-left transition-colors hover:bg-muted/50"
+                        )}
+                      >
                         <span className="inline-flex items-center gap-1.5">
                           {item.titulo ?? "—"}
                           {projetado && (
@@ -160,7 +193,7 @@ function Cadeia({ cadeia, onRealizado }: { cadeia: CadeiaRotulada; onRealizado?:
                           )}
                         </span>
                         <span className="shrink-0 text-muted-foreground">{formatarData(item.dataEvento)}</span>
-                      </div>
+                      </Linha>
                       {projetado && onRealizado && (
                         <div className="flex justify-end">
                           <RealizarFatoDialog idFatoGerador={item.idFatoGerador} onConcluido={onRealizado} />
@@ -178,7 +211,7 @@ function Cadeia({ cadeia, onRealizado }: { cadeia: CadeiaRotulada; onRealizado?:
   );
 }
 
-export function CadeiaLista({ cadeias, onRealizado }: CadeiaListaProps) {
+export function CadeiaLista({ cadeias, onRealizado, onAbrirDetalhe }: CadeiaListaProps) {
   if (cadeias.length === 0) {
     return <EstadoVazio titulo="Nenhuma cadeia ainda" mensagem="Cadeias aparecem aqui a partir do primeiro Fato Gerador." />;
   }
@@ -189,7 +222,7 @@ export function CadeiaLista({ cadeias, onRealizado }: CadeiaListaProps) {
     <div className="grid gap-6">
       <div className="grid gap-3">
         {agrupadas.realizadas.map((cadeia) => (
-          <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} />
+          <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} onAbrirDetalhe={onAbrirDetalhe} />
         ))}
       </div>
 
@@ -197,7 +230,7 @@ export function CadeiaLista({ cadeias, onRealizado }: CadeiaListaProps) {
         <div className="grid gap-3">
           <h3 className="text-sm font-medium text-muted-foreground">Cadeia Projetada (em análise)</h3>
           {agrupadas.projetadas.map((cadeia) => (
-            <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} />
+            <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} onAbrirDetalhe={onAbrirDetalhe} />
           ))}
         </div>
       )}

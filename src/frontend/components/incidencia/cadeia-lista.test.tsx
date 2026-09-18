@@ -147,3 +147,51 @@ describe("CadeiaLista — projetado vs realizado (pente-fino spec.md P2 AC1/AC2)
     expect(screen.queryByRole("button", { name: /mock: marcar/ })).not.toBeInTheDocument();
   });
 });
+
+describe("CadeiaLista — clique abre o detalhe (pente-fino spec.md P2 AC4)", () => {
+  it("cadeia unitária: clicar no passo do Fato Gerador aciona onAbrirDetalhe com o item certo", () => {
+    const onAbrirDetalhe = vi.fn();
+    const cadeias: CadeiaItem[] = [
+      {
+        idFatoGerador: 20,
+        titulo: "Fato A",
+        situacao: "realizado",
+        dataEvento: "2026-09-01",
+        chaveOrigem: "insight:5",
+        origem: { tipo: "insight", titulo: "Insight de origem", dataEvento: "2026-08-20" },
+      },
+    ];
+    render(<CadeiaLista cadeias={cadeias} onAbrirDetalhe={onAbrirDetalhe} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Fato A/ }));
+
+    expect(onAbrirDetalhe).toHaveBeenCalledWith(cadeias[0]);
+    // O passo de origem (Insight) não é clicável -- só o Fato Gerador abre
+    // o detalhe (ver comentário em PassoCard).
+    expect(screen.queryByRole("button", { name: /Insight de origem/ })).not.toBeInTheDocument();
+  });
+
+  it("cadeia de origem comum: clicar numa linha específica aciona onAbrirDetalhe só com aquele item", () => {
+    const onAbrirDetalhe = vi.fn();
+    const cadeias: CadeiaItem[] = [
+      { idFatoGerador: 21, titulo: "Fato B1", situacao: "realizado", dataEvento: "2026-09-01", chaveOrigem: "insight:9" },
+      { idFatoGerador: 22, titulo: "Fato B2", situacao: "realizado", dataEvento: "2026-09-02", chaveOrigem: "insight:9" },
+    ];
+    render(<CadeiaLista cadeias={cadeias} onAbrirDetalhe={onAbrirDetalhe} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Fato B2/ }));
+
+    expect(onAbrirDetalhe).toHaveBeenCalledTimes(1);
+    expect(onAbrirDetalhe).toHaveBeenCalledWith(cadeias[1]);
+  });
+
+  it("sem onAbrirDetalhe (prop ausente), o card não vira botão -- lado oposto", () => {
+    const cadeias: CadeiaItem[] = [
+      { idFatoGerador: 23, titulo: "Fato C", situacao: "realizado", dataEvento: "2026-09-03", chaveOrigem: "fato:23" },
+    ];
+    render(<CadeiaLista cadeias={cadeias} />);
+
+    expect(screen.getByText("Fato C")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Fato C/ })).not.toBeInTheDocument();
+  });
+});

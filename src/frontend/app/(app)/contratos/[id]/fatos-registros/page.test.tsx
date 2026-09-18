@@ -101,12 +101,19 @@ vi.mock("@/components/incidencia/fato-gerador-form", () => ({
   FatoGeradorForm: ({
     onConcluido,
     fatoGeradorExistente,
+    origemInicial,
   }: {
     onConcluido: () => void;
     fatoGeradorExistente?: { idFatoGerador: number; titulo: string | null };
+    origemInicial?: { tipo: string; id: number; rotulo: string };
   }) => (
     <div>
       {fatoGeradorExistente && <p>editando fato gerador: {fatoGeradorExistente.titulo}</p>}
+      {/* T16 (pente-fino 2026-09, PF-08 AC4): quando aberto a partir do
+          Ciclo de Vida, a origem associada vem por esta prop -- mesmo
+          banner que o wizard já mostra no passo 2 (fato-gerador-form.tsx
+          real, não este stub). */}
+      {origemInicial && <p>origem associada: {origemInicial.tipo} #{origemInicial.id} -- {origemInicial.rotulo}</p>}
       <button type="button" onClick={onConcluido}>
         concluir edição de fato gerador
       </button>
@@ -262,5 +269,96 @@ describe("/contratos/[id]/fatos-registros — Ciclo de Vida usa o mesmo dado car
     fireEvent.click(screen.getByRole("tab", { name: "Ciclo de Vida" }));
 
     expect(buscarCadeiasIncidenciaMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("/contratos/[id]/fatos-registros — clique no card do Ciclo de Vida abre o detalhe (pente-fino spec.md P2 AC4)", () => {
+  it("clicar no card abre o Fato Gerador com a origem associada, buscando o dado fresco por id", async () => {
+    buscarCadeiasIncidenciaMock.mockResolvedValue([
+      {
+        idFatoGerador: 9,
+        titulo: "Fato de teste",
+        situacao: "realizado",
+        dataEvento: "2026-09-10",
+        chaveOrigem: "insight:2",
+        origem: { tipo: "insight", titulo: "Insight de origem", dataEvento: "2026-08-20" },
+      },
+    ]);
+    maybeSingleMock.mockImplementation((tabela: string) => {
+      if (tabela === "fat_fato_gerador") {
+        return Promise.resolve({
+          data: {
+            id_fato_gerador: 9,
+            id_tipologia: 5,
+            titulo: "Fato de teste (real)",
+            situacao: "realizado",
+            contribuicao_legisla: null,
+            descricao_evidencia: null,
+            dt_ocorrencia: "2026-09-10",
+            dt_prevista: null,
+          },
+        });
+      }
+      return Promise.resolve({ data: null });
+    });
+
+    // `router.replace`/`useSearchParams` são mocks estáticos neste arquivo
+    // (sem router real) -- clicar na aba não muda `searchParams` sozinho,
+    // por isso a visão inicial já vem via querystring, mesmo padrão de
+    // outros testes deste arquivo que precisam da visão não-padrão.
+    paramsAtuais = new URLSearchParams("visao=ciclo-de-vida");
+
+    render(<ContratoFatosRegistrosPage params={paramsProntos("7")} />);
+    await screen.findByText("Fato de teste");
+
+    fireEvent.click(screen.getByRole("button", { name: /Fato de teste/ }));
+
+    // Busca fresca por id (mesma garantia da edição pela Linha do Tempo),
+    // não o resumo já carregado.
+    expect(await screen.findByText("editando fato gerador: Fato de teste (real)")).toBeInTheDocument();
+    expect(maybeSingleMock).toHaveBeenCalledWith("fat_fato_gerador");
+    // A origem resolvida por buscarCadeiasIncidencia (id extraído de
+    // chaveOrigem "insight:2") chega ao formulário como origemInicial.
+    expect(screen.getByText("origem associada: insight #2 -- Insight de origem")).toBeInTheDocument();
+  });
+
+  it("cadeia sem origem (fato direto) abre o detalhe sem banner de origem -- lado oposto", async () => {
+    buscarCadeiasIncidenciaMock.mockResolvedValue([
+      {
+        idFatoGerador: 11,
+        titulo: "Fato solo",
+        situacao: "realizado",
+        dataEvento: "2026-09-11",
+        chaveOrigem: "fato:11",
+        origem: null,
+      },
+    ]);
+    maybeSingleMock.mockImplementation((tabela: string) => {
+      if (tabela === "fat_fato_gerador") {
+        return Promise.resolve({
+          data: {
+            id_fato_gerador: 11,
+            id_tipologia: 5,
+            titulo: "Fato solo (real)",
+            situacao: "realizado",
+            contribuicao_legisla: null,
+            descricao_evidencia: null,
+            dt_ocorrencia: "2026-09-11",
+            dt_prevista: null,
+          },
+        });
+      }
+      return Promise.resolve({ data: null });
+    });
+
+    paramsAtuais = new URLSearchParams("visao=ciclo-de-vida");
+
+    render(<ContratoFatosRegistrosPage params={paramsProntos("7")} />);
+    await screen.findByText("Fato solo");
+
+    fireEvent.click(screen.getByRole("button", { name: /Fato solo/ }));
+
+    expect(await screen.findByText("editando fato gerador: Fato solo (real)")).toBeInTheDocument();
+    expect(screen.queryByText(/origem associada:/)).not.toBeInTheDocument();
   });
 });

@@ -27,6 +27,7 @@ import { IncidenciaKpis } from "@/components/incidencia/incidencia-kpis";
 import { InsightForm, type InsightExistente } from "@/components/incidencia/insight-form";
 import { PreInsightForm, type PreInsightExistente } from "@/components/incidencia/pre-insight-form";
 import { RegistroForm, type RegistroExistente } from "@/components/incidencia/registro-form";
+import type { OrigemFato } from "@/components/incidencia/seletor-origem";
 import { TimelineFeed } from "@/components/incidencia/timeline-feed";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -47,7 +48,18 @@ type ItemEditando =
   | { tipo: "registro"; dados: RegistroExistente }
   | { tipo: "insight"; dados: InsightExistente }
   | { tipo: "pre_insight"; dados: PreInsightExistente }
-  | { tipo: "fato_gerador"; dados: FatoGeradorExistente; situacao: "projetado" | "realizado" };
+  | {
+      tipo: "fato_gerador";
+      dados: FatoGeradorExistente;
+      situacao: "projetado" | "realizado";
+      // T16 (pente-fino 2026-09, PF-08 AC4): só preenchido quando o diálogo
+      // abre a partir de um card do Ciclo de Vida (CadeiaLista) -- mostra a
+      // origem associada (banner somente-leitura que FatoGeradorForm já
+      // tem, T17) junto do detalhe do Fato Gerador. Ausente quando abre a
+      // partir da Linha do Tempo (abrirEdicao original, T-fix pós-Verifier):
+      // edição não reabre origem lá.
+      origemParaExibir?: OrigemFato;
+    };
 
 // FGC-16 (T25, fatos-geradores-ciclo-vida). Página da aba "Fatos Geradores e
 // Registros" -- casa única de leitura E escrita das 4 entidades (AD-057).
@@ -92,7 +104,7 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
     setCarregando(false);
   }, [idContrato]);
 
-  async function abrirEdicao(item: TimelineItem) {
+  async function abrirEdicao(item: TimelineItem, origemParaExibir?: OrigemFato) {
     const supabase = createClient();
 
     if (item.tipo === "registro") {
@@ -162,6 +174,7 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
       setItemEditando({
         tipo: "fato_gerador",
         situacao: data.situacao as "projetado" | "realizado",
+        origemParaExibir,
         dados: {
           idFatoGerador: data.id_fato_gerador,
           idTipologia: data.id_tipologia,
@@ -173,6 +186,31 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
         },
       });
     }
+  }
+
+  // T16 (pente-fino 2026-09, PF-08 AC4): clique num card do Ciclo de Vida
+  // (CadeiaLista) abre o detalhe da origem + Fato Gerador associado.
+  // Reaproveita o mesmo diálogo/formulário de edição já usado pela Linha do
+  // Tempo (abrirEdicao) -- só monta um TimelineItem sintético (o bloco
+  // `fato_gerador` de abrirEdicao só usa `idOrigem`) e repassa a origem já
+  // resolvida por buscarCadeiasIncidencia para o banner somente-leitura que
+  // FatoGeradorForm já exibe (T17).
+  function abrirDetalheCicloDeVida(item: CadeiaItem) {
+    const origemParaExibir: OrigemFato | undefined = item.origem
+      ? { tipo: item.origem.tipo, id: Number(item.chaveOrigem.split(":")[1]), rotulo: item.origem.titulo }
+      : undefined;
+    void abrirEdicao(
+      {
+        tipo: "fato_gerador",
+        idOrigem: item.idFatoGerador,
+        titulo: item.titulo,
+        dataEvento: item.dataEvento,
+        criadoEm: null,
+        idUsuarioAutor: null,
+        nomeAutor: null,
+      },
+      origemParaExibir
+    );
   }
 
   useEffect(() => {
@@ -215,7 +253,11 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
   const cicloDeVida = (
     <div className="grid gap-4">
       <IncidenciaKpis idContrato={idContrato} fatosGeradores={fatosGeradores} />
-      <CadeiaLista cadeias={cadeias} onRealizado={() => void carregarTudo()} />
+      <CadeiaLista
+        cadeias={cadeias}
+        onRealizado={() => void carregarTudo()}
+        onAbrirDetalhe={abrirDetalheCicloDeVida}
+      />
     </div>
   );
 
@@ -260,6 +302,7 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
             <FatoGeradorForm
               idContrato={idContrato}
               situacaoInicial={itemEditando.situacao}
+              origemInicial={itemEditando.origemParaExibir}
               fatoGeradorExistente={itemEditando.dados}
               onConcluido={aoConcluirEdicao}
               onCancelar={fecharEdicao}
