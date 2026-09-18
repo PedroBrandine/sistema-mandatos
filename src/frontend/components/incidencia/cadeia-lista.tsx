@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 
+import { RealizarFatoDialog } from "./realizar-fato-dialog";
+
 // FGC-13/FGC-14 (T21, fatos-geradores-ciclo-vida). Lista de cadeias do Ciclo
 // de Vida -- letra posicional gerada no render (rotulaCadeias, T14, AD-053),
 // nunca lida do banco. Cadeia com mais de 1 Fato Gerador marcada "Origem
@@ -23,6 +25,9 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 // mostra só o passo do Fato Gerador, sem seta nem card vazio.
 export interface CadeiaListaProps {
   cadeias: CadeiaItem[];
+  // T14 (pente-fino 2026-09, PF-08): recarrega os dados depois de marcar um
+  // Fato Gerador projetado como realizado pelo card.
+  onRealizado?: () => void;
 }
 
 const COR_FATO_GERADOR = TIPO_ESTILO.fato_gerador;
@@ -51,25 +56,42 @@ function PassoCard({
   titulo,
   data,
   destaque,
+  projetado,
 }: {
   rotulo: string;
   cor: EstiloTipo;
   titulo: string;
   data: string | null;
   destaque?: boolean;
+  // T14 (pente-fino 2026-09, PF-08): só o passo de Fato Gerador pode estar
+  // projetado -- os passos de origem (Pré-Insight/Registro/Insight/Meta) não
+  // têm essa dimensão.
+  projetado?: boolean;
 }) {
   return (
     <div
       className="grid min-w-0 flex-1 gap-2 rounded-lg border bg-card p-3 text-sm"
-      style={destaque ? { borderLeftWidth: 4, borderLeftColor: DESTAQUE_FATO } : undefined}
+      style={{
+        borderLeftWidth: destaque ? 4 : undefined,
+        borderLeftColor: destaque ? DESTAQUE_FATO : undefined,
+        borderStyle: projetado ? "dashed" : undefined,
+        opacity: projetado ? 0.85 : 1,
+      }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span
-          className="rounded border px-2 py-0.5 text-[10px] font-bold uppercase"
-          style={{ background: cor.bg, borderColor: cor.border, color: cor.text }}
-        >
-          {rotulo}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="rounded border px-2 py-0.5 text-[10px] font-bold uppercase"
+            style={{ background: cor.bg, borderColor: cor.border, color: cor.text }}
+          >
+            {rotulo}
+          </span>
+          {projetado && (
+            <span className="rounded border border-dashed border-muted-foreground/50 px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">
+              Projetado
+            </span>
+          )}
+        </div>
         <span className="shrink-0 text-xs text-muted-foreground">{formatarData(data)}</span>
       </div>
       <p className="line-clamp-2">{titulo}</p>
@@ -77,7 +99,7 @@ function PassoCard({
   );
 }
 
-function Cadeia({ cadeia }: { cadeia: CadeiaRotulada }) {
+function Cadeia({ cadeia, onRealizado }: { cadeia: CadeiaRotulada; onRealizado?: () => void }) {
   const origem = cadeia.itens[0]?.origem ?? null;
 
   return (
@@ -98,13 +120,21 @@ function Cadeia({ cadeia }: { cadeia: CadeiaRotulada }) {
           )}
 
           {cadeia.itens.length === 1 ? (
-            <PassoCard
-              rotulo={TIPO_ROTULO.fato_gerador}
-              cor={COR_FATO_GERADOR}
-              titulo={cadeia.itens[0].titulo ?? "—"}
-              data={cadeia.itens[0].dataEvento}
-              destaque
-            />
+            <div className="grid min-w-0 flex-1 gap-2">
+              <PassoCard
+                rotulo={TIPO_ROTULO.fato_gerador}
+                cor={COR_FATO_GERADOR}
+                titulo={cadeia.itens[0].titulo ?? "—"}
+                data={cadeia.itens[0].dataEvento}
+                destaque
+                projetado={cadeia.itens[0].situacao === "projetado"}
+              />
+              {cadeia.itens[0].situacao === "projetado" && onRealizado && (
+                <div className="flex justify-end">
+                  <RealizarFatoDialog idFatoGerador={cadeia.itens[0].idFatoGerador} onConcluido={onRealizado} />
+                </div>
+              )}
+            </div>
           ) : (
             <div
               className="grid min-w-0 flex-1 gap-1 rounded-lg border bg-card p-3 text-sm"
@@ -116,12 +146,29 @@ function Cadeia({ cadeia }: { cadeia: CadeiaRotulada }) {
                 </span>
               </div>
               <div className="grid divide-y">
-                {cadeia.itens.map((item) => (
-                  <div key={item.idFatoGerador} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                    <span>{item.titulo ?? "—"}</span>
-                    <span className="shrink-0 text-muted-foreground">{formatarData(item.dataEvento)}</span>
-                  </div>
-                ))}
+                {cadeia.itens.map((item) => {
+                  const projetado = item.situacao === "projetado";
+                  return (
+                    <div key={item.idFatoGerador} className="grid gap-1.5 py-2 first:pt-0 last:pb-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="inline-flex items-center gap-1.5">
+                          {item.titulo ?? "—"}
+                          {projetado && (
+                            <span className="rounded border border-dashed border-muted-foreground/50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">
+                              Projetado
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-muted-foreground">{formatarData(item.dataEvento)}</span>
+                      </div>
+                      {projetado && onRealizado && (
+                        <div className="flex justify-end">
+                          <RealizarFatoDialog idFatoGerador={item.idFatoGerador} onConcluido={onRealizado} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -131,7 +178,7 @@ function Cadeia({ cadeia }: { cadeia: CadeiaRotulada }) {
   );
 }
 
-export function CadeiaLista({ cadeias }: CadeiaListaProps) {
+export function CadeiaLista({ cadeias, onRealizado }: CadeiaListaProps) {
   if (cadeias.length === 0) {
     return <EstadoVazio titulo="Nenhuma cadeia ainda" mensagem="Cadeias aparecem aqui a partir do primeiro Fato Gerador." />;
   }
@@ -142,7 +189,7 @@ export function CadeiaLista({ cadeias }: CadeiaListaProps) {
     <div className="grid gap-6">
       <div className="grid gap-3">
         {agrupadas.realizadas.map((cadeia) => (
-          <Cadeia key={cadeia.rotulo} cadeia={cadeia} />
+          <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} />
         ))}
       </div>
 
@@ -150,7 +197,7 @@ export function CadeiaLista({ cadeias }: CadeiaListaProps) {
         <div className="grid gap-3">
           <h3 className="text-sm font-medium text-muted-foreground">Cadeia Projetada (em análise)</h3>
           {agrupadas.projetadas.map((cadeia) => (
-            <Cadeia key={cadeia.rotulo} cadeia={cadeia} />
+            <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} />
           ))}
         </div>
       )}

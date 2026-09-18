@@ -140,11 +140,15 @@ describe("/contratos/[id]/fatos-registros — carregamento e composição (FGC-1
     expect(buscarTimelineIncidenciaMock).toHaveBeenCalledWith(expect.anything(), 7);
   });
 
-  it("oferece as 4 entidades no menu Criar (spec.md AC1)", async () => {
+  it("oferece Pré-Insight/Insight/Fato Gerador no menu Criar, sem Registrar Registro (pente-fino PF-08 AC5)", async () => {
+    // "Registrar Registro" saiu do menu Criar da Linha do Tempo/Ciclo de
+    // Vida (T14, pente-fino 2026-09) -- é ação da Agenda, não desta aba.
+    // RegistroForm continua importado só para a edição de um Registro já
+    // existente (describe "abrir edição" abaixo).
     render(<ContratoFatosRegistrosPage params={paramsProntos("7")} />);
 
     await screen.findByText("Insight de teste");
-    expect(screen.getByRole("button", { name: "Registrar Registro" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar Registro" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Registrar Pré-Insight" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Registrar Insight" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Registrar Fato Gerador" })).toBeInTheDocument();

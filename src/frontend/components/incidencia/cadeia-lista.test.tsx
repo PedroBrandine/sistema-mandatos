@@ -1,14 +1,29 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CadeiaItem } from "@backend/queries/incidencia";
+
+// T14 (pente-fino 2026-09, PF-08 AC1/AC2): RealizarFatoDialog mockado como
+// componente opaco -- comportamento próprio já coberto em
+// realizar-fato-dialog.test.tsx. Aqui a prova é de composição: qual card
+// ganha a ação.
+vi.mock("./realizar-fato-dialog", () => ({
+  RealizarFatoDialog: ({ idFatoGerador, onConcluido }: { idFatoGerador: number; onConcluido: () => void }) => (
+    <button type="button" onClick={onConcluido}>
+      mock: marcar {idFatoGerador} como realizado
+    </button>
+  ),
+}));
 
 import { CadeiaLista } from "./cadeia-lista";
 
 // Spec anchor: .specs/features/fatos-geradores-ciclo-vida/spec.md, "P2:
 // Ciclo de Vida com cadeias" AC1-AC5.
+//
+// Spec anchor (pente-fino 2026-09): .specs/features/pente-fino-2026-09/spec.md
+// P2 "Linha do Tempo e Ciclo de Vida — ajustes de UI e navegação" AC1/AC2.
 
 afterEach(cleanup);
 
@@ -75,5 +90,60 @@ describe("CadeiaLista — rótulo posicional (AD-053)", () => {
 
     expect(screen.getByText("Cadeia A")).toBeInTheDocument();
     expect(screen.getByText("Cadeia B")).toBeInTheDocument();
+  });
+});
+
+describe("CadeiaLista — projetado vs realizado (pente-fino spec.md P2 AC1/AC2)", () => {
+  it("cadeia unitária projetada mostra badge 'Projetado' e a ação de marcar como realizado", () => {
+    const cadeias: CadeiaItem[] = [
+      { idFatoGerador: 6, titulo: "Fato projetado solo", situacao: "projetado", dataEvento: "2026-11-01", chaveOrigem: "fato:6" },
+    ];
+    render(<CadeiaLista cadeias={cadeias} onRealizado={vi.fn()} />);
+
+    expect(screen.getByText("Projetado")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "mock: marcar 6 como realizado" })).toBeInTheDocument();
+  });
+
+  it("cadeia unitária realizada não mostra badge nem ação -- lado oposto", () => {
+    const cadeias: CadeiaItem[] = [
+      { idFatoGerador: 7, titulo: "Fato realizado solo", situacao: "realizado", dataEvento: "2026-09-07", chaveOrigem: "fato:7" },
+    ];
+    render(<CadeiaLista cadeias={cadeias} onRealizado={vi.fn()} />);
+
+    expect(screen.queryByText("Projetado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /mock: marcar/ })).not.toBeInTheDocument();
+  });
+
+  it("em cadeia de origem comum com fatos mistos, só o item projetado ganha badge e ação", () => {
+    const cadeias: CadeiaItem[] = [
+      { idFatoGerador: 8, titulo: "Fato realizado", situacao: "realizado", dataEvento: "2026-09-08", chaveOrigem: "insight:9" },
+      { idFatoGerador: 9, titulo: "Fato projetado", situacao: "projetado", dataEvento: "2026-11-02", chaveOrigem: "insight:9" },
+    ];
+    render(<CadeiaLista cadeias={cadeias} onRealizado={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "mock: marcar 9 como realizado" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /mock: marcar 8 como realizado/ })).not.toBeInTheDocument();
+  });
+
+  it("confirmar a ação aciona onRealizado (recarrega os dados)", () => {
+    const onRealizado = vi.fn();
+    const cadeias: CadeiaItem[] = [
+      { idFatoGerador: 6, titulo: "Fato projetado solo", situacao: "projetado", dataEvento: "2026-11-01", chaveOrigem: "fato:6" },
+    ];
+    render(<CadeiaLista cadeias={cadeias} onRealizado={onRealizado} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "mock: marcar 6 como realizado" }));
+
+    expect(onRealizado).toHaveBeenCalledTimes(1);
+  });
+
+  it("sem onRealizado (prop ausente), a ação não aparece mesmo projetado -- lado oposto", () => {
+    const cadeias: CadeiaItem[] = [
+      { idFatoGerador: 6, titulo: "Fato projetado solo", situacao: "projetado", dataEvento: "2026-11-01", chaveOrigem: "fato:6" },
+    ];
+    render(<CadeiaLista cadeias={cadeias} />);
+
+    expect(screen.getByText("Projetado")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /mock: marcar/ })).not.toBeInTheDocument();
   });
 });

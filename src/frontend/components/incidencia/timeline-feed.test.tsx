@@ -5,10 +5,27 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TimelineItem } from "@backend/queries/incidencia";
 
+// T14 (pente-fino 2026-09, PF-08 AC1/AC2): RealizarFatoDialog é mockado
+// como componente opaco -- seu próprio comportamento (data exigida,
+// sucesso/erro) já tem cobertura integral em realizar-fato-dialog.test.tsx.
+// O que este arquivo prova é a composição: o card certo recebe a ação certa.
+vi.mock("./realizar-fato-dialog", () => ({
+  RealizarFatoDialog: ({ idFatoGerador, onConcluido }: { idFatoGerador: number; onConcluido: () => void }) => (
+    <button type="button" onClick={onConcluido}>
+      mock: marcar {idFatoGerador} como realizado
+    </button>
+  ),
+}));
+
 import { TimelineFeed } from "./timeline-feed";
 
 // Spec anchor: .specs/features/fatos-geradores-ciclo-vida/spec.md, "P1: Linha
 // do Tempo" AC1-AC9. AD-042 integral.
+//
+// Spec anchor (pente-fino 2026-09): .specs/features/pente-fino-2026-09/spec.md
+// P2 "Linha do Tempo e Ciclo de Vida — ajustes de UI e navegação" AC1/AC2 --
+// diferenciação visual projetado/realizado + ação de marcar como realizado
+// no card, na Linha do Tempo.
 
 afterEach(cleanup);
 
@@ -136,5 +153,73 @@ describe("TimelineFeed — Editar repassado ao PainelDetalhe (fix task pós-T25,
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
 
     expect(onEditar).toHaveBeenCalledWith(ITENS[2]);
+  });
+});
+
+describe("TimelineFeed — projetado vs realizado (pente-fino spec.md P2 AC1/AC2)", () => {
+  const ITEM_PROJETADO: TimelineItem = {
+    tipo: "fato_gerador",
+    idOrigem: 30,
+    titulo: "Projeção de votação",
+    dataEvento: "2026-11-01",
+    criadoEm: null,
+    idUsuarioAutor: 9,
+    nomeAutor: "Ana",
+  };
+
+  const FATO_PROJETADO = {
+    idFatoGerador: 30,
+    tipologia: "2. Produção Legislativa · Projeto de lei / proposição · Em tramitação ativa",
+    niveis: { d1: "baixo", d2: null, d3: null },
+    titulo: "Projeção de votação",
+    situacao: "projetado" as const,
+    dtOcorrencia: null,
+    dtPrevista: "2026-11-01",
+  };
+
+  function renderComProjetadoERealizado(onRealizado?: () => void) {
+    render(
+      <TimelineFeed
+        itens={[ITENS[2], ITEM_PROJETADO]}
+        registros={[]}
+        insights={[]}
+        fatosGeradores={[FATO_SEM_ORIGEM, FATO_PROJETADO]}
+        preInsights={[]}
+        onRealizado={onRealizado}
+      />
+    );
+  }
+
+  it("fato projetado mostra badge 'Projetado'; fato realizado não mostra (AC1)", () => {
+    renderComProjetadoERealizado();
+
+    const cardProjetado = screen.getByRole("button", { name: /Projeção de votação/ });
+    expect(cardProjetado).toHaveTextContent("Projetado");
+
+    const cardRealizado = screen.getByRole("button", { name: /10\/09\/2026/ });
+    expect(cardRealizado).not.toHaveTextContent("Projetado");
+  });
+
+  it("fato projetado exibe ação de marcar como realizado; fato realizado não exibe (AC2)", () => {
+    renderComProjetadoERealizado(vi.fn());
+
+    expect(screen.getByRole("button", { name: "mock: marcar 30 como realizado" })).toBeInTheDocument();
+    // Só 1 ação -- o item já realizado (idOrigem 3) não ganha a mesma ação.
+    expect(screen.queryByRole("button", { name: /mock: marcar 3 como realizado/ })).not.toBeInTheDocument();
+  });
+
+  it("confirmar a ação aciona onRealizado (recarrega os dados)", () => {
+    const onRealizado = vi.fn();
+    renderComProjetadoERealizado(onRealizado);
+
+    fireEvent.click(screen.getByRole("button", { name: "mock: marcar 30 como realizado" }));
+
+    expect(onRealizado).toHaveBeenCalledTimes(1);
+  });
+
+  it("sem onRealizado (prop ausente), a ação não aparece -- lado oposto", () => {
+    renderComProjetadoERealizado(undefined);
+
+    expect(screen.queryByRole("button", { name: /mock: marcar/ })).not.toBeInTheDocument();
   });
 });

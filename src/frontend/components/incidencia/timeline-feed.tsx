@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { PainelDetalhe } from "./painel-detalhe";
+import { RealizarFatoDialog } from "./realizar-fato-dialog";
 
 // FGC-10 (T20, fatos-geradores-ciclo-vida). Feed cronológico agrupado por mês
 // (agrupaPorMes, T13) com filtro por tipo (AC2) e por período (AC3) --
@@ -46,6 +47,9 @@ export interface TimelineFeedProps {
   // Gerador selecionado ("Ver no Ciclo de Vida", mockup 108:4). Só a página
   // sabe trocar a visão (querystring `?visao=`), por isso é um callback.
   onVerNoCicloDeVida?: () => void;
+  // T14 (pente-fino 2026-09, PF-08): recarrega os dados depois de marcar um
+  // Fato Gerador projetado como realizado pelo card (RealizarFatoDialog).
+  onRealizado?: () => void;
 }
 
 const TIPOS: TimelineItem["tipo"][] = ["pre_insight", "registro", "insight", "fato_gerador"];
@@ -68,6 +72,7 @@ export function TimelineFeed({
   preInsights,
   onEditar,
   onVerNoCicloDeVida,
+  onRealizado,
 }: TimelineFeedProps) {
   const [tiposVisiveis, setTiposVisiveis] = useState<Set<TimelineItem["tipo"]>>(() => new Set(TIPOS));
   const [periodoInicio, setPeriodoInicio] = useState("");
@@ -120,6 +125,13 @@ export function TimelineFeed({
       return partes.length === 3 ? partes[1] : tipologia;
     }
     return null;
+  }
+
+  // T14 (pente-fino 2026-09, PF-08): só Fato Gerador tem `situacao`
+  // (projetado/realizado) -- as outras 3 entidades não têm essa dimensão.
+  function situacaoDoFato(item: TimelineItem): "projetado" | "realizado" | null {
+    if (item.tipo !== "fato_gerador") return null;
+    return porFato.get(item.idOrigem)?.situacao ?? null;
   }
 
   const registroSelecionado =
@@ -205,49 +217,73 @@ export function TimelineFeed({
                     const isSelecionado = selecionado ? chave(selecionado) === chave(item) : false;
                     const desc = descricao(item);
                     const meta = metaLinha(item);
+                    // T14 (pente-fino 2026-09, PF-08): diferenciação visual
+                    // projetado/realizado -- só existe para Fato Gerador.
+                    // Projetado ganha borda tracejada + badge própria (não
+                    // reaproveita a badge de tipo, que continua identificando
+                    // a entidade) e a ação de marcar como realizado.
+                    const situacao = situacaoDoFato(item);
+                    const projetado = situacao === "projetado";
                     return (
                       <div key={chave(item)} className="flex gap-3">
                         <div className="flex flex-col items-center pt-1">
                           <span
                             className="size-3 shrink-0 rounded-full ring-4 ring-background"
-                            style={{ background: cor.dot }}
+                            style={{ background: cor.dot, opacity: projetado ? 0.5 : 1 }}
                           />
                           <span className="mt-1 w-px flex-1 bg-border" />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setSelecionado(item)}
-                          aria-pressed={isSelecionado}
-                          data-selecionado={isSelecionado}
-                          className="grid flex-1 gap-2 rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted/50"
-                          style={{
-                            borderColor: isSelecionado ? DESTAQUE_FATO_GERADOR : undefined,
-                            borderWidth: isSelecionado ? 2 : undefined,
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span
-                              className="rounded border px-2 py-0.5 text-[10px] font-bold uppercase"
-                              style={{ background: cor.bg, borderColor: cor.border, color: cor.text }}
-                            >
-                              {TIPO_ROTULO[item.tipo]}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{formatarData(item.dataEvento)}</span>
-                          </div>
-                          <span className="font-medium">{item.titulo ?? "—"}</span>
-                          {desc && <p className="line-clamp-2 text-xs text-muted-foreground">{desc}</p>}
-                          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                            {meta ? (
-                              <span className="inline-flex items-center gap-1" style={{ color: cor.text }}>
-                                <Tag className="size-3" />
-                                {meta}
-                              </span>
-                            ) : (
-                              <span />
-                            )}
-                            {item.nomeAutor && <span>Por: {item.nomeAutor}</span>}
-                          </div>
-                        </button>
+                        <div className="grid flex-1 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelecionado(item)}
+                            aria-pressed={isSelecionado}
+                            data-selecionado={isSelecionado}
+                            data-situacao={situacao ?? undefined}
+                            className="grid gap-2 rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted/50"
+                            style={{
+                              borderColor: isSelecionado ? DESTAQUE_FATO_GERADOR : undefined,
+                              borderWidth: isSelecionado ? 2 : undefined,
+                              borderStyle: projetado ? "dashed" : undefined,
+                              opacity: projetado ? 0.85 : 1,
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="rounded border px-2 py-0.5 text-[10px] font-bold uppercase"
+                                  style={{ background: cor.bg, borderColor: cor.border, color: cor.text }}
+                                >
+                                  {TIPO_ROTULO[item.tipo]}
+                                </span>
+                                {projetado && (
+                                  <span className="rounded border border-dashed border-muted-foreground/50 px-2 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">
+                                    Projetado
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground">{formatarData(item.dataEvento)}</span>
+                            </div>
+                            <span className="font-medium">{item.titulo ?? "—"}</span>
+                            {desc && <p className="line-clamp-2 text-xs text-muted-foreground">{desc}</p>}
+                            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              {meta ? (
+                                <span className="inline-flex items-center gap-1" style={{ color: cor.text }}>
+                                  <Tag className="size-3" />
+                                  {meta}
+                                </span>
+                              ) : (
+                                <span />
+                              )}
+                              {item.nomeAutor && <span>Por: {item.nomeAutor}</span>}
+                            </div>
+                          </button>
+                          {projetado && onRealizado && (
+                            <div className="flex justify-end">
+                              <RealizarFatoDialog idFatoGerador={item.idOrigem} onConcluido={onRealizado} />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

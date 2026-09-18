@@ -208,13 +208,14 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
       preInsights={preInsights}
       onEditar={(item) => void abrirEdicao(item)}
       onVerNoCicloDeVida={verNoCicloDeVida}
+      onRealizado={() => void carregarTudo()}
     />
   );
 
   const cicloDeVida = (
     <div className="grid gap-4">
       <IncidenciaKpis idContrato={idContrato} fatosGeradores={fatosGeradores} />
-      <CadeiaLista cadeias={cadeias} />
+      <CadeiaLista cadeias={cadeias} onRealizado={() => void carregarTudo()} />
     </div>
   );
 
@@ -271,18 +272,10 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
         linhaDoTempo={linhaDoTempo}
         cicloDeVida={cicloDeVida}
         criar={[
-          {
-            rotulo: "Registrar Registro",
-            renderizar: (fechar) => (
-              <RegistroForm
-                idContrato={idContrato}
-                onConcluido={() => {
-                  fechar();
-                  void carregarTudo();
-                }}
-              />
-            ),
-          },
+          // PF-08/T14 (pente-fino 2026-09): "Registrar Registro" saiu do
+          // menu Criar da Linha do Tempo/Ciclo de Vida (spec.md P2 AC5) --
+          // é ação da Agenda, não destas duas visões. RegistroForm continua
+          // importado nesta página só para a edição (abrirEdicao acima).
           {
             rotulo: "Registrar Pré-Insight",
             renderizar: (fechar) => (
