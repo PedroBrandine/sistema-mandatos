@@ -10,12 +10,16 @@ import { buscarContratoParaFicha, type ContratoParaFicha } from "@backend/querie
 import { buscarReguaDoContrato, type EtapaRegua } from "@backend/queries/etapa-contrato";
 import {
   buscarCoalizaoInfo,
+  buscarEvolucaoMensal,
   buscarGradeSucessosMensais,
   buscarPessoasVinculadasAoContrato,
   buscarPlanejamentoCompleto,
+  buscarPlanejamentoKpis,
   buscarPreditoresPlanejamento,
+  type LinhaEvolucaoMensal,
   type PessoaVinculada,
   type PlanejamentoCompleto,
+  type PlanejamentoKpi,
   type PreditorPrioritarioLinha,
   type SucessoMensalGrade,
 } from "@backend/queries/planejamento";
@@ -24,11 +28,14 @@ import { createClient } from "@backend/supabase/client";
 import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ContextoEstrategico } from "@/components/planejamento/contexto-estrategico";
+import { EvolucaoMensal } from "@/components/planejamento/evolucao-mensal";
+import { FiltroObjetivos } from "@/components/planejamento/filtro-objetivos";
 import { PlanejamentoAbas } from "@/components/planejamento/planejamento-abas";
 import { PERMISSOES } from "@/components/planejamento/permissoes";
 import { PlanejamentoAgregadoCoalizao } from "@/components/planejamento/planejamento-agregado-coalizao";
 import { PlanejamentoGrade, type PlanejamentoGradeHandle } from "@/components/planejamento/planejamento-grade";
 import { PlanejamentoHeader } from "@/components/planejamento/planejamento-header";
+import { PlanejamentoKpis } from "@/components/planejamento/planejamento-kpis";
 import { PlanejamentoToolbar } from "@/components/planejamento/planejamento-toolbar";
 
 // PLM-01, PLM-07, PLM-15/16 (planejamento-planilha-monitoramento) + PLR-01,
@@ -110,6 +117,17 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   const [linhasGrade, setLinhasGrade] = useState<SucessoMensalGrade[]>([]);
   const [pessoasVinculadas, setPessoasVinculadas] = useState<PessoaVinculada[]>([]);
   const [preditoresAtuais, setPreditoresAtuais] = useState<PreditorPrioritarioLinha[]>([]);
+  const [kpis, setKpis] = useState<PlanejamentoKpi | null>(null);
+  const [kpisCarregando, setKpisCarregando] = useState(true);
+  // PLV-11 AC3 (T22). Filtro client-side sobre a árvore já carregada -- mesmo
+  // raciocínio de busca/soPendentes/soMinhasMetas (PlanejamentoToolbar):
+  // nenhum novo round-trip ao banco, só recorta o array antes de passar pra
+  // PlanejamentoGrade.
+  const [idObjetivoFiltro, setIdObjetivoFiltro] = useState<number | null>(null);
+  // PLV-13 (T25). Série do gráfico Esperado x Atingido -- carrega junto do
+  // resto, e de novo quando o filtro de responsável (AC5) muda.
+  const [serieEvolucao, setSerieEvolucao] = useState<LinhaEvolucaoMensal[]>([]);
+  const [idResponsavelEvolucao, setIdResponsavelEvolucao] = useState<number | null>(null);
 
   // Carrega contrato -> decide o ramo (Coalizão sem planejamento próprio ou
   // não), as pessoas vinculadas (Select de "responsável" da Meta, PLM-13) e a
@@ -168,6 +186,12 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
       if (dados) {
         const preditores = await buscarPreditoresPlanejamento(supabase, dados.idPlanejamento);
         if (!cancelado) setPreditoresAtuais(preditores);
+
+        const kpisDados = await buscarPlanejamentoKpis(supabase, dados.idPlanejamento);
+        if (!cancelado) {
+          setKpis(kpisDados);
+          setKpisCarregando(false);
+        }
       }
     });
 
@@ -175,6 +199,21 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
       cancelado = true;
     };
   }, [contrato, coalizaoSemPlanejamentoProprio, idContrato]);
+
+  // PLV-13 AC5. Efeito próprio, disparado pelo id do plano E pelo filtro de
+  // responsável -- trocar o filtro refaz a consulta (a view já recalcula P
+  // sobre o subconjunto, este componente só troca o parâmetro).
+  useEffect(() => {
+    if (!planejamento) return;
+    let cancelado = false;
+    const supabase = createClient();
+    buscarEvolucaoMensal(supabase, planejamento.idPlanejamento, idResponsavelEvolucao).then((serie) => {
+      if (!cancelado) setSerieEvolucao(serie);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [planejamento, idResponsavelEvolucao]);
 
   // PLR-04: dispara o recálculo só por ação explícita do botão "Recalcular
   // agora" (PlanejamentoHeader) -- refetch de planejamento+grade depois,
@@ -185,6 +224,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     try {
       await recalcularAtingimento(supabase, planejamento.idPlanejamento);
       setPlanejamento(await buscarPlanejamentoCompleto(supabase, idContrato));
+      void recarregarKpis();
     } catch (erro) {
       toast.error(erro instanceof Error ? erro.message : "Erro ao recalcular o atingimento.");
     }
@@ -193,6 +233,18 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   async function recarregarHierarquia() {
     const supabase = createClient();
     setPlanejamento(await buscarPlanejamentoCompleto(supabase, idContrato));
+    void recarregarKpis();
+  }
+
+  // PLV-11 AC2: os KPIs saem de view, e a view lê fat_meta/fat_objetivo_especifico
+  // ao vivo -- criar/mover/pausar Meta ou Objetivo muda metas_ativas/
+  // metas_prioritarias, e recalcular muda pct_atingimento. Sem isto, os 4
+  // cartões ficariam mostrando o número de antes da ação que a Gestora
+  // acabou de fazer.
+  async function recarregarKpis() {
+    if (!planejamento) return;
+    const supabase = createClient();
+    setKpis(await buscarPlanejamentoKpis(supabase, planejamento.idPlanejamento));
   }
 
   async function recarregarPreditores() {
@@ -275,10 +327,9 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   }
 
   const etapaAtual = regua.find((e) => e.status === "em_andamento") ?? null;
-  const cobertura = {
-    n: linhasGrade.filter((l) => l.pctAtingimento != null).length,
-    N: linhasGrade.length,
-  };
+  const objetivosFiltrados = idObjetivoFiltro
+    ? planejamento.objetivos.filter((o) => o.idObjetivo === idObjetivoFiltro)
+    : planejamento.objetivos;
 
   return (
     <div className="grid gap-6">
@@ -287,8 +338,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
         contrato={contrato}
         etapaAtual={etapaAtual}
         mesCicloAtual={mesReferencia}
-        cobertura={cobertura}
-        permissoes={permissoes}
         onRecalcular={handleRecalcular}
       />
 
@@ -311,7 +360,17 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
           />
         }
         estrutura={
-          <div className="grid min-w-0 gap-3">
+          <div className="grid min-w-0 gap-4">
+            {/* Ordem literal do mockup (227:194): filtro de Objetivo primeiro,
+                depois a faixa de KPIs, depois a árvore-grade. */}
+            <FiltroObjetivos
+              objetivos={planejamento.objetivos}
+              idSelecionado={idObjetivoFiltro}
+              onSelecionar={setIdObjetivoFiltro}
+            />
+
+            <PlanejamentoKpis kpis={kpis} carregando={kpisCarregando} />
+
             <PlanejamentoToolbar
               permissoes={permissoes}
               busca={busca}
@@ -331,7 +390,7 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
               ref={gradeRef}
               idPlanejamento={planejamento.idPlanejamento}
               produtoNome={contrato.nomeProduto}
-              objetivos={planejamento.objetivos}
+              objetivos={objetivosFiltrados}
               linhas={linhasGrade}
               pessoasVinculadas={pessoasVinculadas}
               permissoes={permissoes}
@@ -344,6 +403,13 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
               onColarFaixa={handleColarFaixa}
               onHierarquiaAlterada={recarregarHierarquia}
               onGradeAlterada={recarregarGrade}
+            />
+
+            <EvolucaoMensal
+              serie={serieEvolucao}
+              pessoasVinculadas={pessoasVinculadas}
+              idResponsavel={idResponsavelEvolucao}
+              onFiltrar={setIdResponsavelEvolucao}
             />
           </div>
         }
