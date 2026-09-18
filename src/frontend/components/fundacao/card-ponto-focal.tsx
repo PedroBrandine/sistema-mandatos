@@ -38,6 +38,15 @@ export function CardPontoFocal({ idContrato, pontoFocal, gestoras, onAtualizado 
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
+  // PF-06: mesma lógica de "Vincular usuário" da seção Ponto Focal, mas
+  // grava em rel_usuario_contrato (papel_no_contrato: "gestora") -- um
+  // INSERT que soma à lista, nunca um UPDATE que substitui um valor único.
+  const [vinculandoGestora, setVinculandoGestora] = useState(false);
+  const [opcoesGestora, setOpcoesGestora] = useState<UsuarioResumo[] | null>(null);
+  const [idGestoraSelecionada, setIdGestoraSelecionada] = useState<number | null>(null);
+  const [erroGestora, setErroGestora] = useState<string | null>(null);
+  const [salvandoGestora, setSalvandoGestora] = useState(false);
+
   useEffect(() => {
     if (!editando || opcoes !== null) return;
     let cancelado = false;
@@ -59,6 +68,27 @@ export function CardPontoFocal({ idContrato, pontoFocal, gestoras, onAtualizado 
     };
   }, [editando, opcoes]);
 
+  useEffect(() => {
+    if (!vinculandoGestora || opcoesGestora !== null) return;
+    let cancelado = false;
+    createClient()
+      .from("dim_usuario")
+      .select("id_usuario, nome")
+      .eq("ativo", true)
+      .order("nome")
+      .then(({ data, error }) => {
+        if (cancelado) return;
+        if (error) {
+          setErroGestora(mapeiaErroRpc(error).message);
+          return;
+        }
+        setOpcoesGestora((data ?? []).map((u) => ({ idUsuario: u.id_usuario, nome: u.nome })));
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [vinculandoGestora, opcoesGestora]);
+
   function iniciarEdicao() {
     setIdSelecionado(pontoFocal?.idUsuario ?? null);
     setErro(null);
@@ -78,6 +108,28 @@ export function CardPontoFocal({ idContrato, pontoFocal, gestoras, onAtualizado 
       return;
     }
     setEditando(false);
+    onAtualizado();
+  }
+
+  function iniciarVinculoGestora() {
+    setIdGestoraSelecionada(null);
+    setErroGestora(null);
+    setVinculandoGestora(true);
+  }
+
+  async function salvarGestora() {
+    if (idGestoraSelecionada === null) return;
+    setSalvandoGestora(true);
+    setErroGestora(null);
+    const { error } = await createClient()
+      .from("rel_usuario_contrato")
+      .insert({ id_contrato: idContrato, id_usuario: idGestoraSelecionada, papel_no_contrato: "gestora" });
+    setSalvandoGestora(false);
+    if (error) {
+      setErroGestora(mapeiaErroRpc(error).message);
+      return;
+    }
+    setVinculandoGestora(false);
     onAtualizado();
   }
 
@@ -141,6 +193,7 @@ export function CardPontoFocal({ idContrato, pontoFocal, gestoras, onAtualizado 
 
         <div className="grid gap-1.5">
           <p className="text-xs font-medium text-muted-foreground">Gestoras</p>
+          {erroGestora && <ErroInline mensagem={erroGestora} />}
           {gestoras.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {gestoras.map((g) => (
@@ -151,6 +204,58 @@ export function CardPontoFocal({ idContrato, pontoFocal, gestoras, onAtualizado 
             </div>
           ) : (
             <p className="text-foreground">—</p>
+          )}
+
+          {vinculandoGestora ? (
+            <div className="grid gap-2">
+              <Select
+                value={idGestoraSelecionada ? String(idGestoraSelecionada) : undefined}
+                onValueChange={(v) => setIdGestoraSelecionada(Number(v))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={opcoesGestora === null ? "Carregando…" : "Selecione"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(opcoesGestora ?? []).map((u) => (
+                    <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>
+                      {u.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  aria-label="Salvar gestora"
+                  onClick={salvarGestora}
+                  disabled={salvandoGestora || idGestoraSelecionada === null}
+                >
+                  Salvar
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Cancelar vínculo de gestora"
+                  onClick={() => setVinculandoGestora(false)}
+                  disabled={salvandoGestora}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              aria-label="Vincular usuário (gestora)"
+              onClick={iniciarVinculoGestora}
+            >
+              Vincular usuário
+            </Button>
           )}
         </div>
       </CardContent>

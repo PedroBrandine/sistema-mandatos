@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Database } from "@backend/supabase/database.types";
@@ -63,6 +63,10 @@ function criarClienteMock(respostasPorTabela: Record<string, Resp>) {
       },
       update: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "update", args });
+        return builder;
+      },
+      insert: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "insert", args });
         return builder;
       },
       then: (resolve: (v: Resp) => void, reject: (e: unknown) => void) =>
@@ -199,5 +203,97 @@ describe("CardPontoFocal — Gestoras, em leitura (FMC-11)", () => {
 
     const titulo = screen.getByText("Gestoras");
     expect(titulo.nextElementSibling).toHaveTextContent("—");
+  });
+});
+
+describe("CardPontoFocal — Gestoras, vincular usuário (PF-06)", () => {
+  it("sem gestora vinculada, exibe a ação de vincular usuário (AC1)", () => {
+    ({ client: clienteAtual } = criarClienteMock({}));
+    render(<CardPontoFocal idContrato={1} pontoFocal={null} gestoras={[]} onAtualizado={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Vincular usuário (gestora)" })).toBeInTheDocument();
+  });
+
+  it("com gestoras já vinculadas, a ação de vincular usuário continua disponível (AC1)", () => {
+    ({ client: clienteAtual } = criarClienteMock({}));
+    render(
+      <CardPontoFocal
+        idContrato={1}
+        pontoFocal={null}
+        gestoras={[{ idUsuario: 40, nome: "Gestora Uma" }]}
+        onAtualizado={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Gestora Uma")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Vincular usuário (gestora)" })).toBeInTheDocument();
+  });
+
+  it("vincular um novo usuário insere em rel_usuario_contrato como gestora, sem substituir as já vinculadas (AC2)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      dim_usuario: USUARIOS_RESP,
+      rel_usuario_contrato: { data: null, error: null },
+    });
+    clienteAtual = client;
+    const onAtualizado = vi.fn();
+    render(
+      <CardPontoFocal
+        idContrato={7}
+        pontoFocal={null}
+        gestoras={[{ idUsuario: 40, nome: "Gestora Uma" }]}
+        onAtualizado={onAtualizado}
+      />
+    );
+
+    // Já existe uma gestora vinculada -- a badge dela continua na tela
+    // durante e depois do fluxo de vínculo (nada aqui remove a lista atual;
+    // quem atualiza a lista é o refetch disparado por onAtualizado no pai).
+    expect(screen.getByText("Gestora Uma")).toBeInTheDocument();
+
+    screen.getByRole("button", { name: "Vincular usuário (gestora)" }).click();
+
+    const secaoGestoras = screen.getByText("Gestoras").closest("div") as HTMLElement;
+    const select = await within(secaoGestoras).findByRole("combobox");
+    fireEvent.change(select, { target: { value: "21" } });
+
+    screen.getByRole("button", { name: "Salvar gestora" }).click();
+
+    await waitFor(() => expect(onAtualizado).toHaveBeenCalled());
+    const insert = chamadas.find((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "insert");
+    expect(insert?.args[0]).toEqual({ id_contrato: 7, id_usuario: 21, papel_no_contrato: "gestora" });
+    expect(screen.getByText("Gestora Uma")).toBeInTheDocument();
+  });
+
+  it("Cancelar sai do vínculo de gestora sem gravar nada", async () => {
+    const { client, chamadas } = criarClienteMock({ dim_usuario: USUARIOS_RESP });
+    clienteAtual = client;
+    render(<CardPontoFocal idContrato={7} pontoFocal={null} gestoras={[]} onAtualizado={vi.fn()} />);
+
+    screen.getByRole("button", { name: "Vincular usuário (gestora)" }).click();
+    await screen.findByRole("button", { name: "Cancelar vínculo de gestora" });
+
+    screen.getByRole("button", { name: "Cancelar vínculo de gestora" }).click();
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Cancelar vínculo de gestora" })).not.toBeInTheDocument()
+    );
+    expect(chamadas.some((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "insert")).toBe(false);
+  });
+
+  it("erro ao vincular gestora renderiza <ErroInline>", async () => {
+    const { client } = criarClienteMock({
+      dim_usuario: USUARIOS_RESP,
+      rel_usuario_contrato: { data: null, error: { code: "500", message: "timeout" } },
+    });
+    clienteAtual = client;
+    render(<CardPontoFocal idContrato={7} pontoFocal={null} gestoras={[]} onAtualizado={vi.fn()} />);
+
+    screen.getByRole("button", { name: "Vincular usuário (gestora)" }).click();
+    const secaoGestoras = screen.getByText("Gestoras").closest("div") as HTMLElement;
+    const select = await within(secaoGestoras).findByRole("combobox");
+    fireEvent.change(select, { target: { value: "21" } });
+    screen.getByRole("button", { name: "Salvar gestora" }).click();
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 });
