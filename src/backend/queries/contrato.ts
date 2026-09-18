@@ -77,7 +77,9 @@ export async function buscarContratoParaFicha(
     idContratante: data.id_contratante,
     nomeContratante: contratante?.nome ?? "",
     tipoContratante: contratante?.tipo_contratante ?? "",
-    status: data.status,
+    // espelha ck_contrato_status -- database.types.ts gera a coluna como
+    // `string` genérico (mesmo padrão de ContratoBoard em queries/kanban.ts).
+    status: data.status as ContratoParaFicha["status"],
     idEtapaAtual: data.id_etapa_atual,
   };
 
