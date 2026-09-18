@@ -1,15 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { notFound, usePathname } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@backend/supabase/client";
 import { buscarContratoParaFicha, type ContratoParaFicha } from "@backend/queries/contrato";
+import { PRODUTO_SLUGS } from "@backend/queries/produto";
 
 import { RouteTabs, type RouteTabItem } from "@/components/app-shell/route-tabs";
-import { IipCard } from "@/components/incidencia/iip-card";
+import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { cn } from "@/lib/utils";
+
+// PF-11 (.specs/features/pente-fino-2026-09/tasks.md T12). PRODUTO_SLUGS
+// mapeia slug -> nome; aqui precisamos do sentido inverso (nomeProduto já
+// vem de buscarContratoParaFicha). Só 3 entradas -- não vale criar um índice
+// dedicado em produto.ts por causa de 1 consumidor.
+function slugDoProduto(nomeProduto: string): string | null {
+  return Object.entries(PRODUTO_SLUGS).find(([, info]) => info.nome === nomeProduto)?.[0] ?? null;
+}
 
 interface FichaContratoChromeProps {
   idContrato: number;
@@ -52,6 +63,7 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
   }
 
   const base = `/contratos/${idContrato}`;
+  const slugProduto = slugDoProduto(contrato.nomeProduto);
   // Planejamento Estratégico tem cabeçalho e navegação próprios
   // (PlanejamentoHeader, .specs/features/planejamento-estrategico-redesenho)
   // e a árvore-grade precisa da largura inteira da tela, não dos mesmos
@@ -104,8 +116,23 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
           <div className="flex flex-wrap items-center gap-2">
             {/* Registrar Insight / Registrar Fato Gerador saíram daqui
                 (AD-057): a aba "Fatos Geradores e Registros" (T25) é agora a
-                casa única de escrita das 4 entidades de Incidência. */}
-            <IipCard idContrato={idContrato} />
+                casa única de escrita das 4 entidades de Incidência.
+                PF-11 (T12): o card IIP provisório (sem dado real por trás,
+                AD-005) sai daqui -- vira link pra aba de Incidência +
+                voltar pro dashboard do produto. IipCard continua existindo:
+                incidencia-kpis.tsx (Ciclo de Vida, FGC-14) é outro
+                consumidor real, não órfão. */}
+            {slugProduto && (
+              <Button asChild variant="ghost" size="sm">
+                <Link href={`/produtos/${slugProduto}/dashboard`}>
+                  <ArrowLeft className="size-4" />
+                  Voltar ao dashboard
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${base}/fatos-registros`}>Fatos Geradores e Registros</Link>
+            </Button>
           </div>
         </div>
 

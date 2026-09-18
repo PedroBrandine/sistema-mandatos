@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Spec anchor: .specs/features/ficha-mandato-contrato/spec.md, "P1: Barra de
@@ -80,7 +80,11 @@ describe("FichaContratoChrome (FMC-01..04)", () => {
 
     await screen.findByRole("link", { name: "Informações Gerais" });
 
-    const links = screen.getAllByRole("link").map((el) => el.textContent);
+    // Escopado ao <nav> da RouteTabs (PF-11/T12 acrescentou 2 links no
+    // cabeçalho, fora do <nav> -- "Voltar ao dashboard" e "Fatos Geradores e
+    // Registros", este com o MESMO texto de uma aba já existente).
+    const nav = screen.getByRole("navigation");
+    const links = within(nav).getAllByRole("link").map((el) => el.textContent);
     expect(links).toEqual(OITO_ABAS_MANDATO);
   });
 
@@ -91,8 +95,9 @@ describe("FichaContratoChrome (FMC-01..04)", () => {
 
     await screen.findByRole("link", { name: "Agenda" });
 
-    expect(screen.queryByRole("link", { name: "Informações Gerais" })).not.toBeInTheDocument();
-    const links = screen.getAllByRole("link").map((el) => el.textContent);
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).queryByRole("link", { name: "Informações Gerais" })).not.toBeInTheDocument();
+    const links = within(nav).getAllByRole("link").map((el) => el.textContent);
     expect(links).toEqual(OITO_ABAS_MANDATO.filter((label) => label !== "Informações Gerais"));
     expect(links).toHaveLength(7);
   });
@@ -123,7 +128,9 @@ describe("FichaContratoChrome (FMC-01..04)", () => {
 
     render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
 
-    await screen.findByRole("link", { name: "Fatos Geradores e Registros" });
+    await screen.findByRole("link", { name: "Informações Gerais" });
+    const nav = screen.getByRole("navigation");
+    await within(nav).findByRole("link", { name: "Fatos Geradores e Registros" });
   });
 
   it("não oferece mais 'Registrar Insight'/'Registrar Fato Gerador' (AD-057, T26) -- a escrita migrou para a aba", async () => {
@@ -142,5 +149,43 @@ describe("FichaContratoChrome (FMC-01..04)", () => {
     render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+});
+
+// PF-11 (.specs/features/pente-fino-2026-09/spec.md, "P3: Remover IIP
+// provisório e padronizar botões de ação", T12 de tasks.md): o card IIP
+// provisório sai da Ficha, substituído por um link pra aba de Incidência +
+// botão voltar pro dashboard do produto.
+describe("FichaContratoChrome — remoção do IIP provisório (PF-11)", () => {
+  it("não renderiza mais o card IIP (AC1)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+
+    await screen.findByRole("link", { name: "Informações Gerais" });
+    expect(screen.queryByText(/IIP \(provisório\)/)).not.toBeInTheDocument();
+  });
+
+  it("mostra um link pra aba 'Fatos Geradores e Registros' fora do <nav> (AC2)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+
+    await screen.findByRole("link", { name: "Informações Gerais" });
+    const links = screen.getAllByRole("link", { name: "Fatos Geradores e Registros" });
+    // 2 links com o mesmo nome: a aba (dentro do <nav>) e o botão-atalho do
+    // cabeçalho (fora dele) -- exatamente o que a AC2 pede, não duplicação
+    // acidental.
+    expect(links).toHaveLength(2);
+    expect(links.every((l) => l.getAttribute("href") === "/contratos/1/fatos-registros")).toBe(true);
+  });
+
+  it("mostra um botão de voltar pro dashboard do produto (AC3)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+
+    const voltar = await screen.findByRole("link", { name: /Voltar ao dashboard/ });
+    expect(voltar).toHaveAttribute("href", "/produtos/estrategia/dashboard");
   });
 });
