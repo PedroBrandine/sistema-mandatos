@@ -103,6 +103,10 @@ export function GipRegua({ idContrato, momento }: GipReguaProps) {
       if (!idUsuario) {
         throw new Error("Não foi possível identificar o usuário respondente. Recarregue a página.");
       }
+      // `dados` já foi checado (!== undefined) antes deste componente chegar
+      // a renderizar o formulário que chama `enviar` -- guarda explícita só
+      // pra o TypeScript não perder a narrowing dentro do closure.
+      if (!dados) return;
 
       // PF-01/AD-063: momento já aplicado faz UPDATE na submissão existente
       // (nunca um 2º INSERT, uq_gip_contrato_momento continua intocada).
