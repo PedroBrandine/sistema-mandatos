@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 44,
+  "next_id": 47,
   "lessons": [
     {
       "id": "L-003",
@@ -742,6 +742,60 @@
       ],
       "created": "2026-09-17T11:37:59Z",
       "last_seen": "2026-09-17T11:37:59Z"
+    },
+    {
+      "id": "L-044",
+      "key": "ac_gap::teste de banco grava rel e teste de componente chama update juntos nao substituem um teste de pagina que simula salvar reler peca esse round trip explicitamente quando a ac descreve reexibicao apos releitura",
+      "text": "Teste de banco (grava+relê) e teste de componente (chama update) juntos nao substituem um teste de pagina que simula salvar->reler; peca esse round-trip explicitamente quando a AC descreve reexibicao apos releitura.",
+      "signal": "ac_gap",
+      "scope": "componente/pagina, ciclo salvar-reler",
+      "status": "candidate",
+      "features": [
+        "ficha-mandato-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FMC-05 AC1 (componente/pagina, ciclo salvar-reler)"
+      ],
+      "created": "2026-09-17T20:24:27Z",
+      "last_seen": "2026-09-17T20:24:27Z"
+    },
+    {
+      "id": "L-045",
+      "key": "ac_gap::quando a escrita passa por trigger pre existente com on conflict do update upsert impedir segunda gravacao vira estado de ui nao rejeicao de banco a task precisa testar o mecanismo real upsert em vez de assumir que a constraint de unicidade citada na spec e o caminho exercitado",
+      "text": "Quando a escrita passa por trigger pre-existente com ON CONFLICT DO UPDATE (upsert), 'impedir segunda gravacao' vira estado de UI, nao rejeicao de banco -- a task precisa testar o mecanismo real (upsert) em vez de assumir que a constraint de unicidade citada na spec e o caminho exercitado.",
+      "signal": "ac_gap",
+      "scope": "trigger reusado, upsert vs constraint",
+      "status": "candidate",
+      "features": [
+        "ficha-mandato-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FMC-27 AC7 (trigger reusado, upsert vs constraint)"
+      ],
+      "created": "2026-09-17T20:24:27Z",
+      "last_seen": "2026-09-17T20:24:27Z"
+    },
+    {
+      "id": "L-046",
+      "key": "ac_gap::coluna nova adicionada a tabela ja coberta por trigger de auditoria generico ainda precisa de teste proprio afirmando a linha em log auditoria reusar o trigger nao e evidencia de que a coluna nova foi auditada reforca l 013",
+      "text": "Coluna nova adicionada a tabela ja coberta por trigger de auditoria generico ainda precisa de teste proprio afirmando a linha em log_auditoria -- reusar o trigger nao e evidencia de que a coluna nova foi auditada (reforca L-013).",
+      "signal": "ac_gap",
+      "scope": "auditoria, coluna nova em tabela existente",
+      "status": "candidate",
+      "features": [
+        "ficha-mandato-contrato"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "FMC-36 (colunas novas) (auditoria, coluna nova em tabela existente)"
+      ],
+      "created": "2026-09-17T20:24:27Z",
+      "last_seen": "2026-09-17T20:24:27Z"
     }
   ]
 }

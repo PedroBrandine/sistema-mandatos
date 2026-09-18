@@ -260,6 +260,24 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: fato-gerador-form.tsx (achado real ao construir edição, commit 2d438fe) -- não é mutante do sensor, é bug real de UI encontrado em teste (frontend/components)
 - last seen: 2026-09-17T11:37:59Z
 
+### L-044 — Teste de banco (grava+relê) e teste de componente (chama update) juntos nao substituem um teste de pagina que simula salvar->reler; peca esse round-trip explicitamente quando a AC descreve reexibicao apos releitura.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `componente/pagina, ciclo salvar-reler` · harmful: 0
+- features: ficha-mandato-contrato
+- evidence: FMC-05 AC1 (componente/pagina, ciclo salvar-reler)
+- last seen: 2026-09-17T20:24:27Z
+
+### L-045 — Quando a escrita passa por trigger pre-existente com ON CONFLICT DO UPDATE (upsert), 'impedir segunda gravacao' vira estado de UI, nao rejeicao de banco -- a task precisa testar o mecanismo real (upsert) em vez de assumir que a constraint de unicidade citada na spec e o caminho exercitado.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `trigger reusado, upsert vs constraint` · harmful: 0
+- features: ficha-mandato-contrato
+- evidence: FMC-27 AC7 (trigger reusado, upsert vs constraint)
+- last seen: 2026-09-17T20:24:27Z
+
+### L-046 — Coluna nova adicionada a tabela ja coberta por trigger de auditoria generico ainda precisa de teste proprio afirmando a linha em log_auditoria -- reusar o trigger nao e evidencia de que a coluna nova foi auditada (reforca L-013).
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `auditoria, coluna nova em tabela existente` · harmful: 0
+- features: ficha-mandato-contrato
+- evidence: FMC-36 (colunas novas) (auditoria, coluna nova em tabela existente)
+- last seen: 2026-09-17T20:24:27Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
