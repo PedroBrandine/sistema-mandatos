@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -51,6 +52,21 @@ export function NpsAvaliacoesCard({ idProduto }: NpsAvaliacoesCardProps) {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  // Pente-fino 2026-09: mv_avaliacao_nps só refletia dado novo depois de um
+  // clique manual em "Atualizar" (FRM-21 AC2 exige a ação existir, não proíbe
+  // também refrescar ao montar -- mesmo padrão de IipCard/atualizaIipContrato
+  // e de NumerosImpactoPage/atualizaEBuscaNumerosImpacto). Refresh silencioso
+  // (sem toast) uma vez por montagem, só quando a usuária pode ver o card.
+  const jaAtualizouAoMontar = useRef(false);
+  useEffect(() => {
+    if (podeVer && !jaAtualizouAoMontar.current) {
+      jaAtualizouAoMontar.current = true;
+      atualizarAvaliacaoNps(createClient())
+        .then(() => queryClient.invalidateQueries({ queryKey: ["avaliacoes-nps", idProduto] }))
+        .catch(() => undefined);
+    }
+  }, [podeVer, idProduto, queryClient]);
 
   if (carregandoPapel || !podeVer) {
     return null;
