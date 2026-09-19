@@ -2233,3 +2233,32 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
 - **Branch**: `develop`. Nenhum PR aberto ainda — feature não passou por PR
   nesta sessão, só commits diretos em `develop` (mesmo padrão do restante do
   histórico recente).
+
+---
+
+### AD-063
+- **Decision**: Um momento de GIP já aplicado (Início ou Fim) pode ser **editado
+  in-place** — `UPDATE` nos dados já submetidos (`fat_submissao` e o que a
+  trigger grava a partir dela). Isto substitui, só neste ponto, a leitura de
+  FMC-27 AC7 ("momento aplicado não se reabre como novo") como "não pode mais
+  mudar em hipótese nenhuma". A unicidade continua intocada:
+  `uq_gip_contrato_momento` permanece — edição é UPDATE do registro existente,
+  nunca um segundo INSERT para o mesmo par contrato+momento. "Não se reabre
+  como novo" passa a significar "não gera um segundo envio", não "os dados
+  ficam congelados para sempre".
+- **Reason**: Pedro, pente-fino pós-lançamento de `ficha-mandato-contrato`
+  (2026-09-18, `.specs/features/pente-fino-2026-09/spec.md`, PF-01): erro de
+  preenchimento num momento já submetido hoje não tem correção — a única
+  saída seria mexer direto no banco. FMC-27 AC7 resolvia duplicidade de envio,
+  não previa esse caso de uso.
+- **Trade-off**: A tela de GIP perde a garantia visual "isto é definitivo,
+  não muda mais" que FMC-27 AC7 dava; qualquer feature futura que leia
+  `fat_submissao` do GIP como snapshot imutável de um momento aplicado
+  precisa passar a considerar que o valor pode ter sido corrigido depois do
+  envio original (sem novo registro/timestamp de "reenvio", a não ser que a
+  feature de PF-01 adicione um).
+- **Scope**: GIP (`fat_submissao`, `GipRegua`, RPC de escrita do GIP); não
+  estende a nenhuma outra entidade com unicidade por "já aplicado" (ex.:
+  Fato Gerador projetado→realizado segue sua própria regra, EST-13).
+- **Date**: 2026-09-18
+- **Status**: active
