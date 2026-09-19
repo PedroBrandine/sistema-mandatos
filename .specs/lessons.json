@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 47,
+  "next_id": 49,
   "lessons": [
     {
       "id": "L-003",
@@ -796,6 +796,42 @@
       ],
       "created": "2026-09-17T20:24:27Z",
       "last_seen": "2026-09-17T20:24:27Z"
+    },
+    {
+      "id": "L-047",
+      "key": "gate_fail::when a useeffect fetches dependent data via a nested then chain fetch a then fetch b using a s result extract the second step into its own effect hook instead of calling setstate inside the nested then react hooks set state in effect flags this immediately",
+      "text": "When a useEffect fetches dependent data via a nested .then() chain (fetch A, then fetch B using A's result), extract the second step into its own effect/hook instead of calling setState inside the nested .then -- react-hooks/set-state-in-effect flags this immediately.",
+      "signal": "gate_fail",
+      "scope": "frontend/hooks",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "src/frontend/app/(app)/contratos/[id]/informacoes/page.tsx:71 (frontend/hooks)"
+      ],
+      "created": "2026-09-19T02:16:17Z",
+      "last_seen": "2026-09-19T02:16:17Z"
+    },
+    {
+      "id": "L-048",
+      "key": "spec_precision_gap::before writing an acceptance criterion that names an app router path confirm the route exists today ls the app tree specs that cite a route that was renamed or never built silently diverge from the implementation instead of catching the drift",
+      "text": "Before writing an acceptance criterion that names an App Router path, confirm the route exists today (ls the app/ tree) -- specs that cite a route that was renamed or never built silently diverge from the implementation instead of catching the drift.",
+      "signal": "spec_precision_gap",
+      "scope": "routes",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md PF-11 AC3 vs src/frontend/components/produtos/ficha-contrato-chrome.tsx:127 (routes)"
+      ],
+      "created": "2026-09-19T02:16:17Z",
+      "last_seen": "2026-09-19T02:16:17Z"
     }
   ]
 }

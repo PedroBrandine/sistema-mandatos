@@ -278,6 +278,18 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: FMC-36 (colunas novas) (auditoria, coluna nova em tabela existente)
 - last seen: 2026-09-17T20:24:27Z
 
+### L-047 — When a useEffect fetches dependent data via a nested .then() chain (fetch A, then fetch B using A's result), extract the second step into its own effect/hook instead of calling setState inside the nested .then -- react-hooks/set-state-in-effect flags this immediately.
+- signal: `gate_fail` · recurrence: 1 feature(s) · scope: `frontend/hooks` · harmful: 0
+- features: pente-fino-2026-09
+- evidence: src/frontend/app/(app)/contratos/[id]/informacoes/page.tsx:71 (frontend/hooks)
+- last seen: 2026-09-19T02:16:17Z
+
+### L-048 — Before writing an acceptance criterion that names an App Router path, confirm the route exists today (ls the app/ tree) -- specs that cite a route that was renamed or never built silently diverge from the implementation instead of catching the drift.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `routes` · harmful: 0
+- features: pente-fino-2026-09
+- evidence: spec.md PF-11 AC3 vs src/frontend/components/produtos/ficha-contrato-chrome.tsx:127 (routes)
+- last seen: 2026-09-19T02:16:17Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
