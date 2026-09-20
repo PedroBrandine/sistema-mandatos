@@ -4,6 +4,7 @@ import { useId } from "react";
 
 import type { EstrategiaKpi } from "@backend/queries/estrategia-kpi";
 
+import { DimensoesIip } from "@/components/incidencia/dimensoes-iip";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +114,44 @@ function KpiSimples({ rotulo, formato, valor, barraProgresso }: KpiSimplesProps)
           >
             <div className="h-full rounded-full bg-primary" style={{ width: `${valor}%` }} />
           </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface KpiIipProps {
+  valor: number | null;
+  d1: number | null;
+  d2: number | null;
+  d3: number | null;
+}
+
+// AD-064 (20260920): mesmo card de IIP, com o detalhe por dimensão (D1/D2/D3)
+// embaixo do número -- quais das 3 dimensões o recorte de mandatos mais
+// atingiu, em média. componente_d1/d2/d3_medio chegam null exatamente quando
+// iipMedio chega null (mesmo LEFT JOIN em mv_iip_contrato, vw_estrategia_kpi),
+// então "tem detalhe" é só checar valor !== null -- sem caso intermediário.
+function KpiIip({ valor, d1, d2, d3 }: KpiIipProps) {
+  const rotuloId = useId();
+  const texto = formatar(valor, "decimal");
+
+  return (
+    <Card size="sm" role="group" aria-labelledby={rotuloId}>
+      <CardContent className="flex flex-col gap-2">
+        <p id={rotuloId} className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
+          IIP — Índ. de impacto
+        </p>
+        <p className="font-heading text-3xl text-secondary">
+          <ValorOuAusencia texto={texto} />
+        </p>
+        {valor !== null && (
+          <DimensoesIip
+            d1={d1 ?? 0}
+            d2={d2 ?? 0}
+            d3={d3 ?? 0}
+            formatarValor={(v) => FORMATADOR.decimal.format(v)}
+          />
         )}
       </CardContent>
     </Card>
@@ -242,7 +281,7 @@ export function KpiRow({ kpi }: KpiRowProps) {
         atencao={kpi.mandatosAtrasoAtencao}
         normal={kpi.mandatosAtrasoNormal}
       />
-      <KpiSimples rotulo="IIP — Índ. de impacto" formato="decimal" valor={kpi.iipMedio} />
+      <KpiIip valor={kpi.iipMedio} d1={kpi.componenteD1Medio} d2={kpi.componenteD2Medio} d3={kpi.componenteD3Medio} />
       <KpiNps valor={kpi.npsMedio} />
       <KpiSimples rotulo="Atingimento plan." formato="percentual" valor={kpi.pctAtingimentoMedio} barraProgresso />
       <KpiSimples rotulo="Fatos geradores reg." formato="inteiro" valor={kpi.nrFatosGeradores} />

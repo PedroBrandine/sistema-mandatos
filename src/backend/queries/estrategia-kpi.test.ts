@@ -55,6 +55,9 @@ const LINHA_COMPLETA = {
   mandatos_atraso_atrasados: 4,
   mandatos_atraso_atencao: 3,
   mandatos_atraso_normal: 18,
+  componente_d1_medio: 1.4,
+  componente_d2_medio: 1.2,
+  componente_d3_medio: 1.15,
 };
 
 function filtrosEq(chamadas: Chamada[]) {
@@ -78,6 +81,9 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
       mandatosAtrasoAtrasados: 4,
       mandatosAtrasoAtencao: 3,
       mandatosAtrasoNormal: 18,
+      componenteD1Medio: 1.4,
+      componenteD2Medio: 1.2,
+      componenteD3Medio: 1.15,
     });
   });
 
@@ -99,6 +105,11 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
             mandatos_atraso_atrasados: null,
             mandatos_atraso_atencao: 1,
             mandatos_atraso_normal: 2,
+            // Mesma condição de iip_medio null: sem contrato com Fato Gerador
+            // realizado no recorte, os 3 componentes também ficam null.
+            componente_d1_medio: null,
+            componente_d2_medio: null,
+            componente_d3_medio: null,
           },
         ],
         error: null,
@@ -112,6 +123,9 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
     expect(resultado.npsMedio).toBeNull();
     expect(resultado.pctAtingimentoMedio).toBeNull();
     expect(resultado.mandatosAtrasoAtrasados).toBeNull();
+    expect(resultado.componenteD1Medio).toBeNull();
+    expect(resultado.componenteD2Medio).toBeNull();
+    expect(resultado.componenteD3Medio).toBeNull();
     // E os zeros/contagens reais não viram null: a distinção entre "medimos e
     // deu zero" (ou N) e "não há dado" precisa chegar intacta à tela.
     expect(resultado.nrFatosGeradores).toBe(0);
@@ -120,7 +134,7 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
     expect(resultado.mandatosAtrasoNormal).toBe(2);
   });
 
-  it("EST-08 AC2 / AD-005: recorte sem nenhuma linha devolve os 8 KPIs como null, nunca zeros", async () => {
+  it("EST-08 AC2 / AD-005: recorte sem nenhuma linha devolve os 11 KPIs como null, nunca zeros", async () => {
     const { client } = criarClienteMock({
       vw_estrategia_kpi: { data: [], error: null },
     });
@@ -136,6 +150,9 @@ describe("buscarEstrategiaKpi (EST-08)", () => {
       mandatosAtrasoAtrasados: null,
       mandatosAtrasoAtencao: null,
       mandatosAtrasoNormal: null,
+      componenteD1Medio: null,
+      componenteD2Medio: null,
+      componenteD3Medio: null,
     });
   });
 

@@ -16,11 +16,14 @@
 -- DECISÕES APLICADAS (D1–D13 respondidas pela operação)
 --
 -- D1  Idioma do schema: português, exceção declarada na Constituição. Sem mudança.
--- D2  Fórmula do IIP: insumos confirmados; aritmética final permanece com a área
---     de conhecimento. mv_iip_contrato expõe os componentes separados para que
---     fechar a fórmula seja trocar uma expressão, não migrar dado.
--- D3  contribuicao_legisla: escala 0 a 5 -> CHECK aplicado. Entrada no IIP ainda
---     depende de D2.
+-- D2  Fórmula do IIP: RESOLVIDA em 20260920 (migration
+--     20260920193843_incidencia_iip_por_nivel_sem_peso.sql). iip_provisorio =
+--     soma de (nivel_d1+nivel_d2+nivel_d3) por fato realizado do contrato; não
+--     depende de ref_indicador.peso_iip (o nível já carrega a intensidade, o
+--     estado da tipologia já embute o peso). CAT-16 (levantamento de peso com
+--     Monitoramento) deixou de bloquear o IIP, mesmo sem ter sido feito.
+-- D3  contribuicao_legisla: escala 0 a 5 -> CHECK aplicado. Não entra na
+--     fórmula do IIP (decisão de D2 acima) -- segue só descritivo.
 -- D4  Prospecção NÃO EXISTE como status: 'prospeccao' removido do CHECK,
 --     dt_inicio passa a NOT NULL, o filtro sai de mv_numeros_impacto e do índice
 --     parcial. Consequência a registrar: o sistema não guarda material anterior
@@ -1327,24 +1330,31 @@ COMMENT ON MATERIALIZED VIEW mv_numeros_impacto IS
 'Única porta de saída dos números de impacto — ninguém consulta fat_contrato cru. Sem filtro de status desde D4: todo contrato é contrato assinado. Refresh diário CONCURRENTLY. Não respeita RLS: acesso por GRANT a papéis Legisla.';
 
 -- Uma linha = um contrato, com o IIP e seus componentes.
--- FÓRMULA PROVISÓRIA (decisão D2): os insumos estão certos e são suficientes;
--- a aritmética final é da área de conhecimento. Trocar a fórmula é alterar esta
--- expressão, não migrar dado. contribuicao_legisla não entra até D3 fechar.
+-- FÓRMULA (decisão D2, resolvida em 20260920 -- ver
+-- supabase/migrations/20260920193843_incidencia_iip_por_nivel_sem_peso.sql):
+-- iip_provisorio = SOMA, sobre todo fato realizado do contrato, de
+-- (nivel_d1+nivel_d2+nivel_d3). Não depende de ref_indicador.peso_iip: os 3
+-- níveis por fato já carregam a intensidade, e o estado de cada tipologia
+-- (dado aprovado do CSV) já embute o "peso" ao escolher a combinação de
+-- níveis -- ref_indicador seguiu vazia de propósito (CAT-16), mas deixou de
+-- ser insumo necessário para o IIP. Cresce com volume e com intensidade, não
+-- é média. contribuicao_legisla não entra na fórmula. Só considera
+-- situacao='realizado' (AD-054): fato projetado nunca soma até ser marcado
+-- realizado.
 CREATE MATERIALIZED VIEW mv_iip_contrato AS
 SELECT f.id_contrato,
        COUNT(*)                                                    AS nr_fatos,
-       SUM(COALESCE(n1.valor, 0) * i.peso_iip / 100.0)              AS componente_d1,
-       SUM(COALESCE(n2.valor, 0) * i.peso_iip / 100.0)              AS componente_d2,
-       SUM(COALESCE(n3.valor, 0) * i.peso_iip / 100.0)              AS componente_d3,
-       SUM((COALESCE(n1.valor, 0) + COALESCE(n2.valor, 0) + COALESCE(n3.valor, 0))
-           * i.peso_iip / 100.0)                                    AS iip_provisorio,
+       SUM(COALESCE(n1.valor, 0))                                   AS componente_d1,
+       SUM(COALESCE(n2.valor, 0))                                   AS componente_d2,
+       SUM(COALESCE(n3.valor, 0))                                   AS componente_d3,
+       SUM(COALESCE(n1.valor, 0) + COALESCE(n2.valor, 0) + COALESCE(n3.valor, 0))
+                                                                     AS iip_provisorio,
        MAX(f.dt_ocorrencia)                                         AS dt_ultimo_fato
 FROM fat_fato_gerador f
-JOIN ref_tipologia t         ON t.id_tipologia = f.id_tipologia
-LEFT JOIN ref_indicador i    ON i.id_indicador = t.id_indicador
 LEFT JOIN ref_nivel_iip n1   ON n1.codigo = f.nivel_d1
 LEFT JOIN ref_nivel_iip n2   ON n2.codigo = f.nivel_d2
 LEFT JOIN ref_nivel_iip n3   ON n3.codigo = f.nivel_d3
+WHERE f.situacao = 'realizado'
 GROUP BY f.id_contrato
 WITH NO DATA;
 

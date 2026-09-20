@@ -109,11 +109,14 @@ Gerencial consome.
 9. WHEN um contrato não tem nenhum Fato Gerador THEN `vw_carteira.iip_provisorio`/`nr_fatos`
    SHALL ser `NULL` (nunca `0` — AD-005; `mv_iip_contrato` não gera linha por `GROUP BY` vazio) e a
    UI SHALL mostrar explicitamente "sem fato gerador ainda", nunca um número.
-10. WHEN toda `ref_tipologia` (as 51 linhas seedadas do CSV) tem `id_indicador = NULL` (nenhum
-    peso real ainda cadastrado — CAT-16 sem data) THEN `mv_iip_contrato.iip_provisorio` SHALL ser
-    `NULL` para todo contrato, mesmo com Fatos Geradores reais lançados, e a UI SHALL mostrar
-    "sem dado suficiente" em vez de um número (Assumption #1b — decisão confirmada, não peso=1
-    provisório).
+10. **SUPERSEDED por AD-064 (2026-09-20, `.specs/STATE.md`)** — mantido abaixo por histórico, não
+    reflete mais o comportamento real. WHEN toda `ref_tipologia` (as 51 linhas seedadas do CSV) tem
+    `id_indicador = NULL` (nenhum peso real ainda cadastrado — CAT-16 sem data) THEN
+    `mv_iip_contrato.iip_provisorio` SHALL ser `NULL` para todo contrato, mesmo com Fatos Geradores
+    reais lançados, e a UI SHALL mostrar "sem dado suficiente" em vez de um número (Assumption #1b —
+    decisão confirmada, não peso=1 provisório). Revisitado: a fórmula deixou de depender de
+    `ref_indicador.peso_iip` — `iip_provisorio` agora é a soma de `(nivel_d1+nivel_d2+nivel_d3)` por
+    Fato Gerador realizado, calculável com o dado que já existe. Ver AD-064 para o raciocínio completo.
 
 **Independent Test**: Cria um Fato Gerador para um contrato de teste com Tipologia+nível
 preenchidos, roda o refresh de `mv_iip_contrato`, confirma que `vw_carteira` (versão completa)
@@ -230,9 +233,11 @@ aparecem na lista de presença do Encontro.
 - WHEN `ref_tipologia` (51 linhas do CSV, Assumption #1) inclui uma linha com nível "Máximo" em
   D1/D2/D3 THEN o `INSERT` SHALL resolver contra `ref_nivel_iip.codigo = 'maximo'` (linha nova,
   Assumption #1a — sem ela o seed falha por FK).
-- WHEN a Tipologia de um Fato Gerador não tem `id_indicador` (peso do IIP — hoje: todas as 51,
-  Assumption #1b) THEN `mv_iip_contrato.iip_provisorio` SHALL ser `NULL` para o contrato inteiro,
-  e a UI SHALL mostrar "sem dado suficiente" — nunca um número parcial silenciosamente incompleto.
+- **SUPERSEDED por AD-064** (mantido por histórico): WHEN a Tipologia de um Fato Gerador não tem
+  `id_indicador` (peso do IIP — hoje: todas as 51, Assumption #1b) THEN `mv_iip_contrato.iip_provisorio`
+  SHALL ser `NULL` para o contrato inteiro, e a UI SHALL mostrar "sem dado suficiente" — nunca um
+  número parcial silenciosamente incompleto. Revisitado em AD-064: `iip_provisorio` não depende mais
+  de `id_indicador`/`peso_iip`.
 - WHEN um contrato de Coalizão tenta lançar um Registro (sem `ref_tipo_registro` seedado para
   Coalizão) THEN o formulário SHALL mostrar "nenhum tipo de registro cadastrado para este
   produto" — mesma leitura já usada pro caso "nenhuma etapa cadastrada" (`contratos/[id]/page.tsx`)
@@ -269,7 +274,7 @@ Each requirement gets a unique ID for tracking across design, tasks, and validat
 | INC-05 | P1: Fato Gerador + IIP — rótulo "provisório" na UI (Assumption #2) | Design | Pending |
 | INC-06 | P1: Fato Gerador + IIP — substituição de `vw_carteira` (AD-032) + resolução da entrada em STATE.md | Design | Pending |
 | INC-07 | P1: Fato Gerador + IIP — Edge Case: contrato sem fato gerador → `NULL`, nunca `0` | Design | Pending |
-| INC-08 | P1: Fato Gerador + IIP — `iip_provisorio` fica `NULL`/"sem dado" enquanto `ref_indicador` não tem peso real (Assumption #1b) | Design | Pending |
+| INC-08 | P1: Fato Gerador + IIP — `iip_provisorio` fica `NULL`/"sem dado" enquanto `ref_indicador` não tem peso real (Assumption #1b) — **SUPERSEDED por AD-064** (2026-09-20): fórmula não depende mais de `ref_indicador` | Design | Pending |
 | INC-19 | P1: Seed de `ref_tipologia` (51 linhas, CSV `docs/DB_Fatos_Geradores - Ref_Tipologias.csv`, Assumption #1) | Design | Pending |
 | INC-20 | P1: Seed de `ref_nivel_iip.codigo='maximo'` (valor=4, ordem=4, Assumption #1a) | Design | Pending |
 | INC-09 | P1: Registro por etapa — gravação + validação de produto (`trg_valida_registro_produto`) | Design | Pending |

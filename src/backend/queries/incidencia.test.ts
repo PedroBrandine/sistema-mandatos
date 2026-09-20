@@ -84,26 +84,44 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela>) {
 }
 
 describe("buscarIipContrato", () => {
-  it("mapeia nr_fatos/iip_provisorio de vw_iip_contrato para o view-model", async () => {
+  it("mapeia nr_fatos/iip_provisorio/componente_dN de vw_iip_contrato para o view-model", async () => {
     const { client, chamadas } = criarClienteMock({
-      vw_iip_contrato: { data: { nr_fatos: 3, iip_provisorio: 12 }, error: null },
+      vw_iip_contrato: {
+        data: { nr_fatos: 3, iip_provisorio: 12, componente_d1: 5, componente_d2: 4, componente_d3: 3 },
+        error: null,
+      },
     });
 
     const resultado = await buscarIipContrato(client, 42);
 
-    expect(resultado).toEqual({ nrFatos: 3, iipProvisorio: 12 });
+    expect(resultado).toEqual({
+      nrFatos: 3,
+      iipProvisorio: 12,
+      componenteD1: 5,
+      componenteD2: 4,
+      componenteD3: 3,
+    });
     const chamadaEq = chamadas.find((c) => c.tabela === "vw_iip_contrato" && c.metodo === "eq");
     expect(chamadaEq?.args).toEqual(["id_contrato", 42]);
   });
 
-  // AD-005/Edge Case: contrato sem Fato Gerador -- nr_fatos/iip_provisorio NULL, nunca 0.
-  it("retorna nrFatos/iipProvisorio null quando o contrato não tem Fato Gerador", async () => {
+  // AD-005/Edge Case: contrato sem Fato Gerador -- todas as 5 colunas NULL, nunca 0.
+  it("retorna nrFatos/iipProvisorio/componenteDN null quando o contrato não tem Fato Gerador", async () => {
     const { client } = criarClienteMock({
-      vw_iip_contrato: { data: { nr_fatos: null, iip_provisorio: null }, error: null },
+      vw_iip_contrato: {
+        data: { nr_fatos: null, iip_provisorio: null, componente_d1: null, componente_d2: null, componente_d3: null },
+        error: null,
+      },
     });
 
     const resultado = await buscarIipContrato(client, 42);
-    expect(resultado).toEqual({ nrFatos: null, iipProvisorio: null });
+    expect(resultado).toEqual({
+      nrFatos: null,
+      iipProvisorio: null,
+      componenteD1: null,
+      componenteD2: null,
+      componenteD3: null,
+    });
   });
 
   it("retorna null quando a view não tem nenhuma linha para o contrato", async () => {

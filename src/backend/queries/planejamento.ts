@@ -459,8 +459,11 @@ export async function buscarEvolucaoGip(
 // Trocar por 0 aqui afirmaria desempenho zero onde não há o que medir: um plano
 // sem Meta nenhuma não está a 0%, está sem dado.
 //
-// Fatos Geradores não vem daqui: é placeholder na tela até
-// `fatos-geradores-ciclo-vida` concluir.
+// nrFatosGeradores (20260920): a coluna era placeholder na tela até
+// `fatos-geradores-ciclo-vida` concluir -- concluída e validada em
+// 2026-09-18, ver AD-064 em .specs/STATE.md. Só a contagem: o IIP e a
+// quebra por dimensão continuam fora daqui de propósito, para não duplicar
+// o IipCard que já mora na aba Fatos Geradores e Registros > Ciclo de Vida.
 export interface PlanejamentoKpi {
   idPlanejamento: number;
   idContrato: number;
@@ -468,6 +471,7 @@ export interface PlanejamentoKpi {
   metasAtivas: number | null;
   metasPrioritarias: number | null;
   sucessosMensais: number | null;
+  nrFatosGeradores: number | null;
 }
 
 interface RowPlanejamentoKpi {
@@ -477,6 +481,7 @@ interface RowPlanejamentoKpi {
   metas_ativas: number | null;
   metas_prioritarias: number | null;
   sucessos_mensais: number | null;
+  nr_fatos_geradores: number | null;
 }
 
 export async function buscarPlanejamentoKpis(
@@ -485,7 +490,9 @@ export async function buscarPlanejamentoKpis(
 ): Promise<PlanejamentoKpi | null> {
   const { data, error } = await client
     .from("vw_planejamento_kpi")
-    .select("id_planejamento, id_contrato, pct_atingimento, metas_ativas, metas_prioritarias, sucessos_mensais")
+    .select(
+      "id_planejamento, id_contrato, pct_atingimento, metas_ativas, metas_prioritarias, sucessos_mensais, nr_fatos_geradores"
+    )
     .eq("id_planejamento", idPlanejamento)
     .maybeSingle();
   if (error) throw error;
@@ -499,6 +506,7 @@ export async function buscarPlanejamentoKpis(
     metasAtivas: r.metas_ativas,
     metasPrioritarias: r.metas_prioritarias,
     sucessosMensais: r.sucessos_mensais,
+    nrFatosGeradores: r.nr_fatos_geradores,
   };
 }
 

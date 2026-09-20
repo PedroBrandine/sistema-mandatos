@@ -9,6 +9,8 @@ import { createClient } from "@backend/supabase/client";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { DimensoesIip } from "./dimensoes-iip";
+
 export interface IipCardProps {
   idContrato: number;
 }
@@ -29,7 +31,13 @@ export interface IipCardProps {
 export function IipCard({ idContrato }: IipCardProps) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-  const [dado, setDado] = useState<{ nrFatos: number | null; iipProvisorio: number | null } | null>(null);
+  const [dado, setDado] = useState<{
+    nrFatos: number | null;
+    iipProvisorio: number | null;
+    componenteD1: number | null;
+    componenteD2: number | null;
+    componenteD3: number | null;
+  } | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -67,9 +75,16 @@ export function IipCard({ idContrato }: IipCardProps) {
     texto = `IIP (provisório): ${dado.iipProvisorio} · ${dado.nrFatos} fatos geradores`;
   }
 
+  // Só mostra o detalhe por dimensão quando há IIP calculado (AD-064) --
+  // sem isso os 3 componentes também são null, mesma regra de "sem dado".
+  const mostrarDimensoes = dado?.iipProvisorio !== null && dado != null;
+
   return (
-    <div className="flex items-center rounded-md border border-border/60 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
-      {texto}
+    <div className="flex flex-col gap-1.5 rounded-md border border-border/60 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center">{texto}</div>
+      {mostrarDimensoes && dado && (
+        <DimensoesIip d1={dado.componenteD1 ?? 0} d2={dado.componenteD2 ?? 0} d3={dado.componenteD3 ?? 0} />
+      )}
     </div>
   );
 }

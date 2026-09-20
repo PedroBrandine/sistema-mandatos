@@ -2262,3 +2262,42 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   Fato Gerador projetado→realizado segue sua própria regra, EST-13).
 - **Date**: 2026-09-18
 - **Status**: active
+
+### AD-064
+- **Decision**: Fórmula final do IIP (resolve a decisão D2 de
+  `docs/schema_sistema.sql`, "provisória" desde a aprovação do schema):
+  `mv_iip_contrato.iip_provisorio` = soma, sobre todo Fato Gerador
+  `situacao='realizado'` do contrato, de `(nivel_d1 + nivel_d2 + nivel_d3)`
+  (cada nível 1-4 via `ref_nivel_iip.valor`, ausência conta como 0). A MV
+  **para de depender de `ref_indicador.peso_iip`** — `ref_tipologia` e
+  `ref_indicador` não são mais lidas por `mv_iip_contrato`. Migration
+  `20260920193843_incidencia_iip_por_nivel_sem_peso.sql`.
+- **Reason**: Pedro, revisitando Assumption #1b de
+  `.specs/features/incidencia-encontros/spec.md` (13/08/2026) depois de ver o
+  IIP sempre "sem dado suficiente" nos 3 mandatos de exemplo criados nesta
+  sessão. O desenho original tratava nível (por fato) e peso (por tipo de
+  indicador) como duas variáveis independentes que se multiplicam — e como o
+  CSV aprovado (`docs/DB_Fatos_Geradores - Ref_Tipologias.csv`) nunca trouxe
+  peso, `ref_indicador` ficou vazia e o IIP nunca calculava. Releitura: o
+  "peso do tipo" já está embutido em qual combinação de D1/D2/D3 o ESTADO de
+  cada tipologia assume — a progressão de estados dentro de uma tipologia já
+  sobe de nível junto com o avanço do fato (ex.: em "Projeto de lei /
+  proposição", Apresentado=(baixo,baixo,baixo) soma 3, até
+  Sancionado/promulgado=(alto,alto,maximo) soma 10). `peso_iip` seria uma
+  segunda calibração sobre uma calibração que já existe no dado aprovado, não
+  um insumo que falta.
+- **Trade-off**: Cresce com volume E com intensidade dos fatos (soma, não
+  média) — decisão deliberada, mas significa que dois mandatos com IIP igual
+  podem ter perfis bem diferentes (poucos fatos de alto impacto vs. muitos de
+  impacto médio); não há hoje nenhuma visualização que distinga os dois
+  casos. `ref_indicador`/`peso_iip` continuam existindo no schema (não foram
+  dropadas) caso o modelo precise de uma segunda dimensão de calibração no
+  futuro — mas nenhum código as lê mais. CAT-16 (levantamento de peso com
+  Monitoramento) deixa de bloquear o IIP, mas segue tecnicamente em aberto
+  como pendência de catálogo caso o time queira usá-la para outra coisa.
+- **Scope**: `mv_iip_contrato` e as 3 views que dependem dela em cascata
+  (`vw_iip_contrato`, `vw_carteira`, `vw_estrategia_kpi.iip_medio`) — mesmo
+  raio de impacto documentado em AD-054. Não altera `fat_fato_gerador`,
+  `ref_tipologia` nem o formulário de cadastro de Fato Gerador.
+- **Date**: 2026-09-20
+- **Status**: active

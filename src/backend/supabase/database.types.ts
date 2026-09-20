@@ -62,25 +62,18 @@ export type Database = {
         }
         Returns: Json
       }
-      // ficha-mandato-contrato T19: stub provisório -- app.criar_encontro
-      // (T18) está deliberadamente adiada (política de push suspensa,
-      // tasks.md "Estado de execução"), ainda não existe em dev. Assinatura
-      // verbatim de design.md ("tabela de RPCs") e do payload que
-      // rpc/encontro.ts já envia. Quando `npm run db:types` rodar de
-      // verdade após o push de T18, deve reproduzir o mesmo formato -- se
-      // divergir, o gerador vence.
       criar_encontro: {
         Args: {
+          p_dt_fim?: string
+          p_dt_inicio: string
           p_id_contrato: number
-          p_titulo: string
           p_id_etapa: number
           p_id_tipo_registro: number
-          p_dt_inicio: string
-          p_dt_fim?: string | null
-          p_modalidade?: string | null
-          p_local?: string | null
-          p_tema?: string | null
-          p_participantes: Json
+          p_local?: string
+          p_modalidade?: string
+          p_participantes?: Json
+          p_tema?: string
+          p_titulo: string
         }
         Returns: number
       }
@@ -150,19 +143,16 @@ export type Database = {
         }
         Returns: Json
       }
-      // ficha-mandato-contrato T21: stub provisório -- app.criar_registro
-      // (T20) está deliberadamente adiada (mesma política de T19, acima).
-      // Assinatura verbatim de design.md e do payload de rpc/registro.ts.
       criar_registro: {
         Args: {
+          p_artefatos?: Json
+          p_conteudo?: Json
           p_id_contrato: number
-          p_id_encontro?: number | null
+          p_id_encontro?: number
           p_id_tipo_registro: number
           p_ocorrido_em: string
-          p_resumo?: string | null
-          p_conteudo: Json
-          p_artefatos: Json
-          p_presentes: Json
+          p_presentes?: Json
+          p_resumo?: string
         }
         Returns: number
       }
@@ -4691,6 +4681,9 @@ export type Database = {
       }
       vw_estrategia_kpi: {
         Row: {
+          componente_d1_medio: number | null
+          componente_d2_medio: number | null
+          componente_d3_medio: number | null
           escopo_gestora: boolean | null
           escopo_projeto: boolean | null
           id_produto: number | null
@@ -4860,6 +4853,9 @@ export type Database = {
       }
       vw_iip_contrato: {
         Row: {
+          componente_d1: number | null
+          componente_d2: number | null
+          componente_d3: number | null
           id_contrato: number | null
           iip_provisorio: number | null
           nr_fatos: number | null
@@ -4911,6 +4907,7 @@ export type Database = {
           id_planejamento: number | null
           metas_ativas: number | null
           metas_prioritarias: number | null
+          nr_fatos_geradores: number | null
           pct_atingimento: number | null
           sucessos_mensais: number | null
         }

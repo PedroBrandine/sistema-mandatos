@@ -7,8 +7,14 @@ import { runSql } from "../helpers/sql";
 // 20260813191324_incidencia_encontros_seed_catalogos.sql /
 // 20260813191715_incidencia_encontros_estrutura.sql /
 // 20260813194110_incidencia_encontros_iip.sql --
-//  - Fixture com Fato Gerador real (tipologia do seed T1, sem id_indicador):
-//    nr_fatos correto e iip_provisorio = NULL (Assumption #1b)
+// ATUALIZADO por AD-064 (.specs/STATE.md, 2026-09-20,
+// 20260920193843_incidencia_iip_por_nivel_sem_peso.sql): iip_provisorio não
+// depende mais de ref_indicador.peso_iip -- passou a ser a soma de
+// (nivel_d1+nivel_d2+nivel_d3) por Fato Gerador realizado. AC10/Assumption #1b
+// (spec.md) ficaram SUPERSEDED; id_indicador continua NULL em ref_tipologia
+// (CAT-16 segue sem levantamento), mas isso não bloqueia mais o cálculo.
+//  - Fixture com 2 Fatos Geradores reais (tipologia do seed T1, sem id_indicador):
+//    nr_fatos correto e iip_provisorio = soma dos níveis (não mais NULL)
 //  - Contrato sem nenhum Fato Gerador: as 2 colunas NULL (Edge Case, nunca 0 linhas)
 //  - app.atualiza_iip_contrato() chamado por legisla_mentor sem erro
 //
@@ -71,8 +77,9 @@ describe("incidencia-encontros T14 -- mv_iip_contrato / app.atualiza_iip_contrat
       ON CONFLICT (email) DO UPDATE SET papel_global = EXCLUDED.papel_global, ativo = true;
     `);
 
-    // id_indicador NULL confirmado pela migration de T1 (Assumption #1b -- nenhuma
-    // das 51 tipologias seedadas do CSV ganhou peso ainda, CAT-16 sem data).
+    // id_indicador segue NULL (CAT-16 sem levantamento) -- não impede mais o
+    // cálculo do IIP desde AD-064, só confirma que a fixture usa uma tipologia
+    // "comum", sem depender de peso.
     const [{ id_tipologia, id_indicador }] = await runSql<{ id_tipologia: number; id_indicador: number | null }>(`
       SELECT id_tipologia, id_indicador FROM ref_tipologia ORDER BY id_tipologia LIMIT 1;
     `);
@@ -119,18 +126,19 @@ describe("incidencia-encontros T14 -- mv_iip_contrato / app.atualiza_iip_contrat
     expect(error).toBeNull();
   });
 
-  it("contrato com Fatos Geradores reais (tipologia sem id_indicador): nr_fatos correto, iip_provisorio NULL", async () => {
+  it("contrato com Fatos Geradores reais: nr_fatos correto, iip_provisorio = soma de (d1+d2+d3) por fato (AD-064)", async () => {
+    // Fixture: (baixo=1, medio=2, d3 ausente=0) soma 3; (alto=3, d2/d3 ausentes=0) soma 3. Total = 6.
     const [row] = await runSql<{ nr_fatos: number; iip_provisorio: string | null }>(`
       SELECT nr_fatos, iip_provisorio FROM mv_iip_contrato WHERE id_contrato = ${comFatos.idContrato};
     `);
     expect(row.nr_fatos).toBe(2);
-    expect(row.iip_provisorio).toBeNull();
+    expect(Number(row.iip_provisorio)).toBe(6);
 
     const [viewRow] = await runSql<{ nr_fatos: number; iip_provisorio: string | null }>(`
       SELECT nr_fatos, iip_provisorio FROM vw_iip_contrato WHERE id_contrato = ${comFatos.idContrato};
     `);
     expect(viewRow.nr_fatos).toBe(2);
-    expect(viewRow.iip_provisorio).toBeNull();
+    expect(Number(viewRow.iip_provisorio)).toBe(6);
   });
 
   it("contrato sem nenhum Fato Gerador: vw_iip_contrato retorna 1 linha com nr_fatos e iip_provisorio NULL (nunca 0 linhas)", async () => {

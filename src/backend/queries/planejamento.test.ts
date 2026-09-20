@@ -544,6 +544,10 @@ describe("buscarEvolucaoGip", () => {
 // Spec anchor: PLV-11 (.specs/features/planejamento-estrategico-v2/spec.md) --
 // os KPIs saem de vw_planejamento_kpi (AD-003), e `null` é preservado como
 // `null` para a tela exibir `—` (AD-005), nunca convertido para 0.
+// nrFatosGeradores (AD-064, 20260920) é independente da árvore de Metas --
+// vem de mv_iip_contrato por id_contrato, não de fat_objetivo_especifico/
+// fat_meta -- por isso pode ser não-null mesmo quando as outras 4 colunas
+// são (plano sem Meta, mas contrato com Fato Gerador realizado) e vice-versa.
 describe("buscarPlanejamentoKpis (PLV-11)", () => {
   const linha = {
     id_planejamento: 10,
@@ -552,6 +556,7 @@ describe("buscarPlanejamentoKpis (PLV-11)", () => {
     metas_ativas: 7,
     metas_prioritarias: 3,
     sucessos_mensais: 12,
+    nr_fatos_geradores: 5,
   };
 
   it("lê da view vw_planejamento_kpi, não de tabela transacional (AD-003)", async () => {
@@ -570,6 +575,7 @@ describe("buscarPlanejamentoKpis (PLV-11)", () => {
       metasAtivas: 7,
       metasPrioritarias: 3,
       sucessosMensais: 12,
+      nrFatosGeradores: 5,
     });
   });
 
@@ -583,6 +589,7 @@ describe("buscarPlanejamentoKpis (PLV-11)", () => {
       metas_ativas: null,
       metas_prioritarias: null,
       sucessos_mensais: null,
+      nr_fatos_geradores: null,
     };
     const { client } = criarClienteMock({ vw_planejamento_kpi: { data: vazio, error: null } });
     const kpi = await buscarPlanejamentoKpis(client, 11);
@@ -590,6 +597,7 @@ describe("buscarPlanejamentoKpis (PLV-11)", () => {
     expect(kpi?.metasAtivas).toBeNull();
     expect(kpi?.metasPrioritarias).toBeNull();
     expect(kpi?.sucessosMensais).toBeNull();
+    expect(kpi?.nrFatosGeradores).toBeNull();
   });
 
   it("retorna null quando o planejamento não existe", async () => {

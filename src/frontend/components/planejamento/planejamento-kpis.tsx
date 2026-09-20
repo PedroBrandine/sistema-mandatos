@@ -9,6 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 //
 // Números saem de vw_planejamento_kpi (AD-003): este componente só formata o
 // que buscarPlanejamentoKpis já trouxe, nunca agrega nada sozinho.
+// "Fatos Geradores" era placeholder ("Em desenvolvimento") até
+// fatos-geradores-ciclo-vida concluir -- concluída em 2026-09-18, a view
+// ganhou nr_fatos_geradores (AD-064) e o cartão virou número real, mesma
+// regra de "—" dos outros 3. Só a contagem: o IIP e a quebra por dimensão
+// continuam de fora, de propósito, para não duplicar o IipCard que já mora
+// na aba Fatos Geradores e Registros > Ciclo de Vida do mesmo contrato.
 //
 // AC4/AD-005: plano sem nenhuma Meta faz a view devolver NULL em cada coluna
 // agregada (não a linha inteira -- dim_planejamento sempre tem uma linha via
@@ -72,17 +78,17 @@ export function PlanejamentoKpis({ kpis, carregando }: PlanejamentoKpisProps) {
       ? `${kpis.metasPrioritarias} de ${kpis.metasAtivas}`
       : formata(null);
   const sucessosMensais = formata(kpis?.sucessosMensais);
+  // fatos-geradores-ciclo-vida concluiu em 2026-09-18 (AD-064) -- a contagem
+  // já tem dono. "—" segue o mesmo AD-005 dos outros 3 cartões: contrato sem
+  // nenhum Fato Gerador realizado é ausência de dado, não zero.
+  const fatosGeradores = formata(kpis?.nrFatosGeradores);
 
   return (
     <div className="grid gap-3 sm:grid-cols-4">
       <Cartao titulo="Atingimento total do plano" valor={atingimento} />
       <Cartao titulo="Metas prioritárias" valor={metasPrioritarias} />
       <Cartao titulo="Sucessos Mensais" valor={sucessosMensais} />
-      {/* Fatos Geradores: placeholder até fatos-geradores-ciclo-vida concluir
-          (mesmo padrão do IIP em planejamento-header.tsx, agora removido de lá
-          -- ver comentário daquele arquivo). Nunca "0": a ausência aqui é de
-          feature, não de dado. */}
-      <Cartao titulo="Fatos Geradores" valor="Em desenvolvimento" tracejado placeholder />
+      <Cartao titulo="Fatos Geradores" valor={fatosGeradores} />
     </div>
   );
 }

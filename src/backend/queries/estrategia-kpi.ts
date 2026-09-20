@@ -57,6 +57,11 @@ export interface EstrategiaKpi {
   mandatosAtrasoAtrasados: number | null;
   mandatosAtrasoAtencao: number | null;
   mandatosAtrasoNormal: number | null;
+  // AD-064 (20260920): média de componente_d1/d2/d3 no mesmo recorte de
+  // iipMedio -- quais das 3 dimensões o conjunto de mandatos mais atingiu.
+  componenteD1Medio: number | null;
+  componenteD2Medio: number | null;
+  componenteD3Medio: number | null;
 }
 
 interface RowEstrategiaKpi {
@@ -68,6 +73,9 @@ interface RowEstrategiaKpi {
   mandatos_atraso_atrasados: number | null;
   mandatos_atraso_atencao: number | null;
   mandatos_atraso_normal: number | null;
+  componente_d1_medio: number | null;
+  componente_d2_medio: number | null;
+  componente_d3_medio: number | null;
 }
 
 // Recorte sem nenhum contrato visível não produz linha na view -- e a
@@ -82,6 +90,9 @@ const KPI_AUSENTE: EstrategiaKpi = {
   mandatosAtrasoAtrasados: null,
   mandatosAtrasoAtencao: null,
   mandatosAtrasoNormal: null,
+  componenteD1Medio: null,
+  componenteD2Medio: null,
+  componenteD3Medio: null,
 };
 
 export async function buscarEstrategiaKpi(
@@ -97,7 +108,7 @@ export async function buscarEstrategiaKpi(
   let query = client
     .from("vw_estrategia_kpi")
     .select(
-      "mandatos_ativos, iip_medio, nps_medio, pct_atingimento_medio, nr_fatos_geradores, mandatos_atraso_atrasados, mandatos_atraso_atencao, mandatos_atraso_normal"
+      "mandatos_ativos, iip_medio, nps_medio, pct_atingimento_medio, nr_fatos_geradores, mandatos_atraso_atrasados, mandatos_atraso_atencao, mandatos_atraso_normal, componente_d1_medio, componente_d2_medio, componente_d3_medio"
     )
     .eq("id_produto", filtro.idProduto)
     .eq("escopo_projeto", filtro.idProjeto !== undefined)
@@ -125,5 +136,8 @@ export async function buscarEstrategiaKpi(
     mandatosAtrasoAtrasados: linha.mandatos_atraso_atrasados,
     mandatosAtrasoAtencao: linha.mandatos_atraso_atencao,
     mandatosAtrasoNormal: linha.mandatos_atraso_normal,
+    componenteD1Medio: linha.componente_d1_medio,
+    componenteD2Medio: linha.componente_d2_medio,
+    componenteD3Medio: linha.componente_d3_medio,
   };
 }

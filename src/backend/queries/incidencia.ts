@@ -17,20 +17,33 @@ export interface RefOption {
 // padrão de buscarPlanejamentoCompleto). `iipProvisorio`/`nrFatos` chegam
 // `null` quando o contrato não tem Fato Gerador (LEFT JOIN, AD-005) ou
 // quando nenhuma ref_tipologia ainda tem id_indicador (Assumption #1b) --
-// nunca 0 nesses casos.
+// nunca 0 nesses casos. componenteD1/D2/D3 (AD-064) somam nivel_d1/d2/d3 dos
+// Fatos Geradores realizados -- mesma regra de null que iipProvisorio.
 export async function buscarIipContrato(
   client: SupabaseClient<Database>,
   idContrato: number
-): Promise<{ nrFatos: number | null; iipProvisorio: number | null } | null> {
+): Promise<{
+  nrFatos: number | null;
+  iipProvisorio: number | null;
+  componenteD1: number | null;
+  componenteD2: number | null;
+  componenteD3: number | null;
+} | null> {
   const { data, error } = await client
     .from("vw_iip_contrato")
-    .select("nr_fatos, iip_provisorio")
+    .select("nr_fatos, iip_provisorio, componente_d1, componente_d2, componente_d3")
     .eq("id_contrato", idContrato)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
 
-  return { nrFatos: data.nr_fatos, iipProvisorio: data.iip_provisorio };
+  return {
+    nrFatos: data.nr_fatos,
+    iipProvisorio: data.iip_provisorio,
+    componenteD1: data.componente_d1,
+    componenteD2: data.componente_d2,
+    componenteD3: data.componente_d3,
+  };
 }
 
 // Catálogo de ref_tipologia ativas -- popula o Select de Tipologia do

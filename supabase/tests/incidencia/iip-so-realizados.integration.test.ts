@@ -41,11 +41,10 @@ async function lerIip(idContrato: number): Promise<{ nr_fatos: number | null; ii
 }
 
 // dt_ultimo_fato = MAX(dt_ocorrencia) só entre os fatos realizado -- não
-// exposto por vw_iip_contrato, lido direto da MV. Discrimina o WHERE novo
-// sem depender de ref_indicador.peso_iip estar semeado (iip_provisorio fica
-// NULL em todo o ambiente de dev hoje -- nenhuma tipologia tem peso_iip
-// preenchido, achado confirmado por consulta direta antes de escrever este
-// teste; não é regressão desta migration, é lacuna de seed pré-existente).
+// exposto por vw_iip_contrato, lido direto da MV. Usa nr_fatos/dt_ultimo_fato
+// (não iip_provisorio) porque este teste é sobre o filtro situacao='realizado',
+// não sobre a fórmula do IIP em si (ver AD-064, .specs/STATE.md, e
+// iip.integration.test.ts para a fórmula: soma de nivel_d1+d2+d3 por fato).
 async function lerUltimoFato(idContrato: number): Promise<string | null> {
   const [row] = await runSql<{ dt_ultimo_fato: string | null }>(`
     SELECT dt_ultimo_fato FROM mv_iip_contrato WHERE id_contrato = ${idContrato};

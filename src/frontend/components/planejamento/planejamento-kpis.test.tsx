@@ -8,8 +8,10 @@ import type { PlanejamentoKpi } from "@backend/queries/planejamento";
 import { PlanejamentoKpis } from "./planejamento-kpis";
 
 // Spec anchor: PLV-11 (.specs/features/planejamento-estrategico-v2/spec.md, "P2:
-// KPIs e filtro por Objetivo" AC1/AC4). AD-042: com dado e vazio, placeholder
-// de Fatos Geradores sempre presente.
+// KPIs e filtro por Objetivo" AC1/AC4). Fatos Geradores era placeholder fixo
+// até fatos-geradores-ciclo-vida concluir (18/09/2026, AD-064) -- agora é
+// número real vindo de vw_planejamento_kpi.nr_fatos_geradores, mesma regra de
+// "—" dos outros 3 KPIs.
 
 const KPIS_COM_DADO: PlanejamentoKpi = {
   idPlanejamento: 1,
@@ -18,6 +20,7 @@ const KPIS_COM_DADO: PlanejamentoKpi = {
   metasAtivas: 7,
   metasPrioritarias: 3,
   sucessosMensais: 12,
+  nrFatosGeradores: 9,
 };
 
 const KPIS_VAZIO: PlanejamentoKpi = {
@@ -27,6 +30,7 @@ const KPIS_VAZIO: PlanejamentoKpi = {
   metasAtivas: null,
   metasPrioritarias: null,
   sucessosMensais: null,
+  nrFatosGeradores: null,
 };
 
 afterEach(cleanup);
@@ -55,24 +59,26 @@ describe("PlanejamentoKpis — com dado (AC1)", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
   });
 
-  it("Fatos Geradores é sempre o placeholder, mesmo com os outros 3 preenchidos", () => {
+  it("Fatos Geradores mostra o número real (AD-064)", () => {
     render(<PlanejamentoKpis kpis={KPIS_COM_DADO} carregando={false} />);
-    expect(screen.getByText("Em desenvolvimento")).toBeInTheDocument();
+    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(screen.queryByText("Em desenvolvimento")).not.toBeInTheDocument();
   });
 });
 
 describe("PlanejamentoKpis — vazio (AC4, Independent Test)", () => {
-  // spec.md:299 -- "contrato sem metas mostra — em todos os KPIs".
-  it("os 3 KPIs reais mostram —, nunca 0", () => {
+  // spec.md:299 -- "contrato sem metas mostra — em todos os KPIs". Fatos
+  // Geradores segue a mesma regra desde AD-064: null é ausência, não 0.
+  it("os 4 KPIs mostram —, nunca 0", () => {
     render(<PlanejamentoKpis kpis={KPIS_VAZIO} carregando={false} />);
-    expect(screen.getAllByText("—")).toHaveLength(3);
+    expect(screen.getAllByText("—")).toHaveLength(4);
     expect(screen.queryByText("0")).not.toBeInTheDocument();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
 
   it("kpis nulo (plano ainda não resolvido) também mostra — em todos, não quebra", () => {
     render(<PlanejamentoKpis kpis={null} carregando={false} />);
-    expect(screen.getAllByText("—")).toHaveLength(3);
+    expect(screen.getAllByText("—")).toHaveLength(4);
   });
 
   it("metas prioritárias com só um dos dois números nulo cai em —, não mistura fração incompleta", () => {
@@ -87,7 +93,7 @@ describe("PlanejamentoKpis — vazio (AC4, Independent Test)", () => {
 describe("PlanejamentoKpis — carregando", () => {
   it("mostra reticências, não — nem 0, enquanto a query roda", () => {
     render(<PlanejamentoKpis kpis={null} carregando />);
-    expect(screen.getAllByText("…")).toHaveLength(3);
+    expect(screen.getAllByText("…")).toHaveLength(4);
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

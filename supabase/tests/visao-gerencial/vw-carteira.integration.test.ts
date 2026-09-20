@@ -134,16 +134,16 @@ describe("visao-gerencial-g1-g2 T4 + incidencia-encontros T15 -- vw_carteira com
   // mv_iip_contrato, confirma que vw_carteira (versão completa) retorna
   // nr_fatos = 1 e iip_provisorio não nulo para aquele contrato".
   //
-  // ref_indicador/ref_tipologia de teste (não é dado de negócio -- CAT-16
-  // segue sem levantamento real, Assumption #1b; toda ref_tipologia seedada
-  // aprovada continua com id_indicador NULL). Fixture própria, isolada,
-  // removida no afterAll -- mesmo padrão de "fixture própria de ref_etapa"
-  // em supabase/tests/visao-gerencial/peso-etapa-estrutura.integration.test.ts.
+  // ref_tipologia de teste (não é dado de negócio -- CAT-16 segue sem
+  // levantamento real; toda ref_tipologia seedada aprovada continua com
+  // id_indicador NULL, e desde AD-064 isso não importa mais para o IIP).
+  // Fixture própria, isolada, removida no afterAll -- mesmo padrão de
+  // "fixture própria de ref_etapa" em
+  // supabase/tests/visao-gerencial/peso-etapa-estrutura.integration.test.ts.
   describe("fixture: 1 vínculo (gestora) + Fatos Geradores reais + Registro real (iip_provisorio/nr_fatos/dt_ultimo_registro não nulos)", () => {
     let idContratante: number;
     let idContrato: number;
     let idUsuario: number;
-    let idIndicador: number;
     let idTipologia: number;
     let idTipoRegistro: number;
 
@@ -174,21 +174,17 @@ describe("visao-gerencial-g1-g2 T4 + incidencia-encontros T15 -- vw_carteira com
         VALUES (${idContrato}, ${idUsuario}, 'gestora');
       `);
 
-      const [{ id_indicador }] = await runSql<{ id_indicador: number }>(`
-        INSERT INTO ref_indicador (nome, peso_iip) VALUES ('INC T15 Indicador Teste', 100)
-        RETURNING id_indicador;
-      `);
-      idIndicador = id_indicador;
-
       const [{ id_tipologia }] = await runSql<{ id_tipologia: number }>(`
-        INSERT INTO ref_tipologia (grupo, tipologia, estado, id_indicador)
-        VALUES ('INC T15 Grupo Teste', 'INC T15 Tipologia Teste', 'INC T15 Estado Teste', ${idIndicador})
+        INSERT INTO ref_tipologia (grupo, tipologia, estado)
+        VALUES ('INC T15 Grupo Teste', 'INC T15 Tipologia Teste', 'INC T15 Estado Teste')
         RETURNING id_tipologia;
       `);
       idTipologia = id_tipologia;
 
-      // fato 1: nivel_d1='baixo' (valor 1) -> componente = 1*100/100 = 1.
-      // fato 2: nivel_d1='alto'  (valor 3) -> componente = 3*100/100 = 3.
+      // AD-064: iip_provisorio = soma de (nivel_d1+nivel_d2+nivel_d3) por fato
+      // realizado, sem depender de ref_indicador/peso_iip.
+      // fato 1: nivel_d1='baixo' (valor 1), d2/d3 ausentes -> soma = 1.
+      // fato 2: nivel_d1='alto'  (valor 3), d2/d3 ausentes -> soma = 3.
       // iip_provisorio esperado = 1 + 3 = 4; nr_fatos esperado = 2.
       await runSql(`
         INSERT INTO fat_fato_gerador (id_contrato, id_tipologia, nivel_d1, dt_ocorrencia) VALUES
@@ -219,7 +215,6 @@ describe("visao-gerencial-g1-g2 T4 + incidencia-encontros T15 -- vw_carteira com
       await runSql(`DELETE FROM fat_registro WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM fat_fato_gerador WHERE id_contrato = ${idContrato};`);
       await runSql(`DELETE FROM ref_tipologia WHERE id_tipologia = ${idTipologia};`);
-      await runSql(`DELETE FROM ref_indicador WHERE id_indicador = ${idIndicador};`);
       await runSql(`DELETE FROM rel_usuario_contrato WHERE id_contrato = ${idContrato};`);
       await runSql(`
         DELETE FROM fat_etapa_contrato WHERE id_contrato = ${idContrato};
@@ -232,7 +227,7 @@ describe("visao-gerencial-g1-g2 T4 + incidencia-encontros T15 -- vw_carteira com
       await runSql(`DELETE FROM dim_usuario WHERE id_usuario = ${idUsuario};`);
     }, 60000);
 
-    it("nr_fatos=2, iip_provisorio=4 (fórmula verbatim) e dt_ultimo_registro=MAX(ocorrido_em)", async () => {
+    it("nr_fatos=2, iip_provisorio=4 (AD-064: soma de níveis) e dt_ultimo_registro=MAX(ocorrido_em)", async () => {
       const rows = await runSql<{
         nr_fatos: number | null;
         iip_provisorio: string | null;

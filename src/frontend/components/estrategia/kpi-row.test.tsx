@@ -24,6 +24,9 @@ const KPI_COMPLETO: EstrategiaKpi = {
   mandatosAtrasoAtrasados: 4,
   mandatosAtrasoAtencao: 3,
   mandatosAtrasoNormal: 18,
+  componenteD1Medio: 1.4,
+  componenteD2Medio: 1.6,
+  componenteD3Medio: 0.7,
 };
 
 const KPI_VAZIO: EstrategiaKpi = {
@@ -35,6 +38,9 @@ const KPI_VAZIO: EstrategiaKpi = {
   mandatosAtrasoAtrasados: null,
   mandatosAtrasoAtencao: null,
   mandatosAtrasoNormal: null,
+  componenteD1Medio: null,
+  componenteD2Medio: null,
+  componenteD3Medio: null,
 };
 
 // Grafia do Figma 44:227 (caixa alta vem do CSS, não do texto). São 5 desde
@@ -120,6 +126,25 @@ describe("KpiRow (EST-08 / AD-050)", () => {
     // Os 5 números grandes + as 3 linhas da quebra, cada uma com seu próprio
     // anúncio independente.
     expect(screen.getAllByText("Sem dado suficiente")).toHaveLength(8);
+  });
+
+  // AD-064 (.specs/STATE.md): mesmo detalhe por dimensão do IipCard, agora na
+  // média do recorte -- reusa DimensoesIip (components/incidencia).
+  it("AD-064: IIP com dado mostra o detalhe por dimensão D1/D2/D3", () => {
+    render(<KpiRow kpi={KPI_COMPLETO} />);
+
+    expect(screen.getByText("D1")).toBeInTheDocument();
+    expect(screen.getByText("D2")).toBeInTheDocument();
+    expect(screen.getByText("D3")).toBeInTheDocument();
+    expect(screen.getByText("1,4")).toBeInTheDocument();
+    expect(screen.getByText("1,6")).toBeInTheDocument();
+    expect(screen.getByText("0,7")).toBeInTheDocument();
+  });
+
+  it("AD-064: IIP sem dado não mostra o detalhe por dimensão", () => {
+    render(<KpiRow kpi={KPI_VAZIO} />);
+
+    expect(screen.queryByText("D1")).not.toBeInTheDocument();
   });
 
   it("Figma 44:227: atingimento com valor ganha barra de progresso proporcional", () => {
