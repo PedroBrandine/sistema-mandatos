@@ -24,6 +24,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-coral: var(--coral);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -69,6 +70,10 @@
   --border: #E7E0D3;
   --input: #E7E0D3;
   --ring: #035252;
+  /* Coral da marca (Figma 40:3, #EB5454): quadrado do logo na Topbar. Mesmo hex
+     de --destructive/--chart-3, mas com nome próprio pra não acoplar o logo ao
+     significado de "erro". */
+  --coral: #EB5454;
   --chart-1: #571730;
   --chart-2: #FFD278;
   --chart-3: #EB5454;
@@ -154,5 +159,13 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Anton só existe em peso 400 (layout.tsx). Sem isto, qualquer `font-bold` /
+     `font-semibold` / `font-medium` num título em Anton faz o navegador
+     FABRICAR um negrito, que engrossa e cola as letras -- o "título amassado"
+     que divergia do Figma em ~28 pontos. Peso em título Anton nunca é
+     significativo, então a síntese fica desligada de uma vez, aqui. */
+  .font-heading {
+    font-synthesis-weight: none;
   }
 }

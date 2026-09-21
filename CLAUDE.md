@@ -79,6 +79,25 @@ trivial, leia `.specs/STATE.md` (decisões arquiteturais ativas, prefixo AD-) e
 `.specs/roadmap.md` (o que já foi feito e o que vem a seguir). Specs de
 features individuais ficam em `.specs/features/<nome>/`.
 
+## Aparência das telas: o Figma é a referência
+
+Decisão do Pedro (2026-09-21): as telas implementadas devem ficar **o mais
+próximas possível do Figma** (`eS5CdQrl6yUdYctZwlDzps`), não com o visual
+padrão do shadcn. Antes de dar uma tela por pronta, compare com o nó
+correspondente (`get_screenshot`); os frames `44:*`, `57:*`, `202:*`, `328:*`,
+`336:*` são a referência atual, e os `3:*` (01–26) são imagens antigas.
+
+- **Anton** só no título da página e em número de KPI, caixa alta, e **sem**
+  `font-bold`/`font-semibold` (só existe peso 400). Título de cartão é
+  Commissioner Bold (`CardTitle`).
+- **Um cabeçalho por tela.** Não empilhe cabeçalho de feature dentro do chrome
+  da ficha; cabeçalho, abas e conteúdo usam o mesmo contêiner e a mesma margem.
+- Botão de contorno da marca: `<Button variant="vinho">`. Topbar: verde
+  `#035252` chapado, logo coral (`bg-coral`) + Anton — sem gradiente, blur nem
+  subtítulo.
+- Conflito entre o Figma e uma decisão registrada (AD-XXX): não resolva em
+  silêncio — avise o Pedro.
+
 ## Desenhando tela (Figma)
 
 Antes de gerar, editar ou revisar qualquer design — inclusive ao escrever

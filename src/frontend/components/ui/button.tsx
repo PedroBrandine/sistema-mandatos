@@ -12,6 +12,10 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        // Botão de contorno da marca (Figma 57:671 "Editar", 328:1156 "Parear
+        // mentor"): borda e texto vinho, negrito, fundo transparente.
+        vinho:
+          "border-secondary bg-transparent font-bold text-secondary hover:bg-secondary/5 aria-expanded:bg-secondary/5",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:

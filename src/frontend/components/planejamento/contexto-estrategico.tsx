@@ -118,14 +118,16 @@ export function ContextoEstrategico({
                 superior direito de cada um -- não em grade de 3 colunas. Os três
                 campos são textos longos (Análise de conjuntura ocupa parágrafos
                 no mockup); em coluna estreita eles quebram em tiras ilegíveis. */}
-            <div className="grid gap-3">
+            {/* Figma 57:671: padding 24px, título 14px bold vinho, texto 16px,
+                Editar em contorno vinho. */}
+            <div className="grid gap-4">
               {CAMPOS.map(({ titulo, valor }) => (
-                <Card key={titulo}>
+                <Card key={titulo} className="[--card-spacing:--spacing(6)]">
                   <CardHeader>
-                    <CardTitle className="text-sm font-semibold text-secondary">{titulo}</CardTitle>
+                    <CardTitle className="text-sm text-secondary">{titulo}</CardTitle>
                     {podeEditar && (
                       <CardAction>
-                        <Button type="button" variant="outline" size="sm" onClick={() => setEditando(true)}>
+                        <Button type="button" variant="vinho" size="sm" onClick={() => setEditando(true)}>
                           <Pencil className="size-3.5" />
                           Editar
                         </Button>
@@ -133,7 +135,7 @@ export function ContextoEstrategico({
                     )}
                   </CardHeader>
                   <CardContent>
-                    <p className="whitespace-pre-line text-foreground">{valor ?? "—"}</p>
+                    <p className="whitespace-pre-line text-base text-foreground">{valor ?? "—"}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -144,12 +146,12 @@ export function ContextoEstrategico({
                 não aparece para eles. Dentro do PLL ele segue a regra AC3: vazio é
                 "—", não cartão escondido. */}
             {ePll && (
-              <Card>
+              <Card className="[--card-spacing:--spacing(6)]">
                 <CardHeader>
-                  <CardTitle className="text-sm font-semibold text-secondary">Perfil de atuação</CardTitle>
+                  <CardTitle className="text-sm text-secondary">Perfil de atuação</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-foreground">{perfilExibido ?? "—"}</p>
+                  <p className="text-base text-foreground">{perfilExibido ?? "—"}</p>
                 </CardContent>
               </Card>
             )}

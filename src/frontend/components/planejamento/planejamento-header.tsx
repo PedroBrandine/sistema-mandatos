@@ -3,19 +3,22 @@
 import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 
-import type { ContratoParaFicha } from "@backend/queries/contrato";
 import type { EtapaRegua } from "@backend/queries/etapa-contrato";
 import type { PlanejamentoCompleto } from "@backend/queries/planejamento";
 
 import { Badge } from "@/components/ui/badge";
-import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 
-// PLR-02, PLR-03, PLR-04 (.specs/features/planejamento-estrategico-redesenho). Cabeçalho
-// novo da tela -- renderiza DENTRO de `children` de FichaContratoChrome, abaixo do
-// h1/subtítulo/RouteTabs que o chrome já mostra (design.md "Achado de Design"): não
-// duplica a identidade Contratante/Produto, só acrescenta o que é específico do
-// Planejamento. Breadcrumb curto ("Contratante › Planejamento"), não o trail inteiro.
+// PLR-02, PLR-03, PLR-04 (.specs/features/planejamento-estrategico-redesenho). Renderiza
+// DENTRO de `children` de FichaContratoChrome, abaixo do h1/subtítulo/RouteTabs que o
+// chrome já mostra, e só acrescenta o que é específico do Planejamento: a etapa atual
+// (com atraso) e o alerta de percentuais desatualizados.
+//
+// Ajuste de fidelidade ao Figma, 2026-09-21 (57:671 tem UM cabeçalho: nome + subtítulo
+// + botões, e logo abaixo as duas abas). Saíram daqui, por duplicarem o chrome: o
+// breadcrumb "Contratante › Planejamento" (o chrome já tem título e "Voltar ao
+// dashboard"), o h1 com o Objetivo do ano em Anton (esse texto já é o cartão "Objetivo
+// do ano" da aba Diagnóstico) e o badge do Produto (já está no subtítulo do chrome).
 //
 // `etapaAtual` reaproveita vw_etapa_contrato via buscarReguaDoContrato
 // (queries/etapa-contrato.ts, já usada por EtapaContratoPage) -- nenhuma query nova
@@ -32,7 +35,6 @@ import { Button } from "@/components/ui/button";
 // substituto no Figma (57:671/227:194) -- saiu junto, por decisão explícita.
 export interface PlanejamentoHeaderProps {
   planejamento: PlanejamentoCompleto;
-  contrato: ContratoParaFicha;
   etapaAtual: EtapaRegua | null;
   mesCicloAtual: string; // "YYYY-MM-01"
   onRecalcular: () => void | Promise<void>;
@@ -46,7 +48,6 @@ function formatarMesCiclo(isoData: string): string {
 
 export function PlanejamentoHeader({
   planejamento,
-  contrato,
   etapaAtual,
   mesCicloAtual,
   onRecalcular,
@@ -62,46 +63,31 @@ export function PlanejamentoHeader({
     }
   }
 
+  // Nada a mostrar: não reserva espaço (o `gap` do pai criaria uma faixa vazia).
+  if (!etapaAtual && !planejamento.atingimentoDesatualizado) return null;
+
   return (
-    <div className="grid gap-4">
-      <Breadcrumbs
-        items={[
-          { label: contrato.nomeContratante, href: `/contratos/${contrato.idContrato}` },
-          { label: "Planejamento" },
-        ]}
-      />
-
-      <div className="grid gap-3">
-        <h1 className="font-heading text-xl font-semibold text-foreground">
-          {planejamento.objetivoAno ?? "Planejamento Estratégico"}
-        </h1>
-
+    <div className="grid gap-3">
+      {etapaAtual && (
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{contrato.nomeProduto}</Badge>
-          {contrato.tipoContratante === "coalizao" && <Badge variant="secondary">Coalizão</Badge>}
-          {contrato.tipoContratante === "coalizao" && contrato.nomeProjetoOrigem && (
-            <Badge variant="outline">Projeto: {contrato.nomeProjetoOrigem}</Badge>
-          )}
-          {etapaAtual && (
-            <Badge variant={etapaAtual.estaAtrasada ? "destructive" : "outline"}>
-              {etapaAtual.nome} · {formatarMesCiclo(mesCicloAtual)}
-              {etapaAtual.estaAtrasada && ` · ${etapaAtual.diasAtraso}d de atraso`}
-            </Badge>
-          )}
+          <Badge variant={etapaAtual.estaAtrasada ? "destructive" : "outline"}>
+            {etapaAtual.nome} · {formatarMesCiclo(mesCicloAtual)}
+            {etapaAtual.estaAtrasada && ` · ${etapaAtual.diasAtraso}d de atraso`}
+          </Badge>
         </div>
+      )}
 
-        {planejamento.atingimentoDesatualizado && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
-            <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
-              <TriangleAlert className="size-4 shrink-0" />
-              <span>Os percentuais de Meta/Objetivo estão desatualizados desde a última edição.</span>
-            </div>
-            <Button type="button" size="sm" onClick={handleRecalcular} disabled={recalculando}>
-              {recalculando ? "Recalculando..." : "Recalcular agora"}
-            </Button>
+      {planejamento.atingimentoDesatualizado && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+            <TriangleAlert className="size-4 shrink-0" />
+            <span>Os percentuais de Meta/Objetivo estão desatualizados desde a última edição.</span>
           </div>
-        )}
-      </div>
+          <Button type="button" size="sm" onClick={handleRecalcular} disabled={recalculando}>
+            {recalculando ? "Recalculando..." : "Recalcular agora"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

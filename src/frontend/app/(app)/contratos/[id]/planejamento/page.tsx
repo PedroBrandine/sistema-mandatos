@@ -338,7 +338,6 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     <div className="grid gap-6">
       <PlanejamentoHeader
         planejamento={planejamento}
-        contrato={contrato}
         etapaAtual={etapaAtual}
         mesCicloAtual={mesReferencia}
         onRecalcular={handleRecalcular}

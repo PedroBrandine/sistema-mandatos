@@ -64,13 +64,12 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
 
   const base = `/contratos/${idContrato}`;
   const slugProduto = slugDoProduto(contrato.nomeProduto);
-  // Planejamento Estratégico tem cabeçalho e navegação próprios
-  // (PlanejamentoHeader, .specs/features/planejamento-estrategico-redesenho)
-  // e a árvore-grade precisa da largura inteira da tela, não dos mesmos
-  // ~1152px (`max-w-6xl`) das outras abas de contrato -- pedido do Pedro,
-  // 2026-08-14. O cabeçalho/RouteTabs deste chrome continuam com a largura
-  // de leitura confortável de sempre; só `{children}` foge do limite quando
-  // a rota ativa é a de Planejamento.
+  // A árvore-grade do Planejamento precisa de mais largura que as outras abas
+  // (pedido do Pedro, 2026-08-14). Antes só `{children}` escapava do limite e
+  // o cabeçalho ficava numa coluna estreita e centralizada, com a margem
+  // esquerda em ponto diferente da do conteúdo -- o desalinhamento que
+  // divergia do Figma (57:671, margem única de 48px). Agora cabeçalho, abas
+  // e conteúdo dividem UM contêiner; só o teto muda por rota.
   const eTelaDePlanejamento = pathname === `${base}/planejamento`;
 
   // FMC-01 (AC1): 8 abas funcionais fixas, nesta ordem -- nenhuma derivada de
@@ -97,14 +96,21 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
       : todasAbas.filter((aba) => aba.label !== "Informações Gerais");
 
   return (
-    <div className="grid gap-4 p-6">
-      <div className="mx-auto grid w-full max-w-6xl gap-4">
+    <div
+      className={cn(
+        "mx-auto grid w-full gap-4 px-6 py-6 md:px-12",
+        eTelaDePlanejamento ? "max-w-[1800px]" : "max-w-[1440px]"
+      )}
+    >
+      <div className="grid gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <h1 className="font-heading text-2xl font-bold uppercase tracking-tight">
+          <div className="space-y-1.5">
+            {/* Figma 328:1156 / 57:671: Anton caixa alta vinho, ~40px. Sem
+                `font-bold` -- Anton só tem peso 400. */}
+            <h1 className="font-heading text-4xl uppercase text-secondary">
               {contrato.nomeContratante}
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {contrato.nomeProduto}
               {contrato.tipoContratante === "mandato" &&
                 ` · ${contrato.cargoAtual ?? "—"} · ${contrato.partidoAtual ?? "—"} · ${contrato.sgUf ?? "—"}`}
@@ -123,14 +129,14 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
                 incidencia-kpis.tsx (Ciclo de Vida, FGC-14) é outro
                 consumidor real, não órfão. */}
             {slugProduto && (
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="vinho" size="lg" className="px-4">
                 <Link href={`/produtos/${slugProduto}/dashboard`}>
                   <ArrowLeft className="size-4" />
                   Voltar ao dashboard
                 </Link>
               </Button>
             )}
-            <Button asChild variant="outline" size="sm">
+            <Button asChild size="lg" className="px-4 font-bold">
               <Link href={`${base}/fatos-registros`}>Fatos Geradores e Registros</Link>
             </Button>
           </div>
@@ -139,7 +145,7 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
         <RouteTabs items={abas} />
       </div>
 
-      <div className={cn("pt-2", !eTelaDePlanejamento && "mx-auto w-full max-w-6xl")}>{children}</div>
+      <div className="pt-2">{children}</div>
     </div>
   );
 }
