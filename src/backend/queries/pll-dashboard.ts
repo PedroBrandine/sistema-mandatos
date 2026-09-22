@@ -181,6 +181,51 @@ export async function buscarPllKpis(
 }
 
 // =============================================================================
+// T12: buscarOpcoesMentorPll (opções do filtro "Filtrar por mentor(a)" do
+// Dashboard, design.md "Tech Decisions" / D-4)
+// =============================================================================
+
+export interface OpcaoMentorPll {
+  id: number;
+  nome: string;
+}
+
+// D-4: mentor(a) é usuário com vínculo papel_no_contrato='mentor' ATIVO
+// (dt_fim IS NULL) num contrato PLL -- não a lista global de gestoras
+// (buscarGestorasAtivas, produtos/[slug]/mandatos/page.tsx) nem
+// buscarOpcoesGestora (queries/agenda.ts), que filtram por papel_global.
+export async function buscarOpcoesMentorPll(
+  client: SupabaseClient<Database>,
+  idProduto: number
+): Promise<OpcaoMentorPll[]> {
+  const { data: contratos, error: erroContratos } = await client
+    .from("fat_contrato")
+    .select("id_contrato")
+    .eq("id_produto", idProduto);
+  if (erroContratos) throw erroContratos;
+  const idsContrato = (contratos ?? []).map((c) => (c as RowContratoId).id_contrato);
+  if (idsContrato.length === 0) return [];
+
+  const { data: vinculos, error: erroVinculos } = await client
+    .from("rel_usuario_contrato")
+    .select("id_usuario")
+    .in("id_contrato", idsContrato)
+    .eq("papel_no_contrato", "mentor")
+    .is("dt_fim", null);
+  if (erroVinculos) throw erroVinculos;
+  const idsMentor = Array.from(new Set((vinculos ?? []).map((v) => (v as { id_usuario: number }).id_usuario)));
+  if (idsMentor.length === 0) return [];
+
+  const { data: usuarios, error: erroUsuarios } = await client
+    .from("dim_usuario")
+    .select("id_usuario, nome")
+    .in("id_usuario", idsMentor)
+    .order("nome");
+  if (erroUsuarios) throw erroUsuarios;
+  return ((usuarios ?? []) as { id_usuario: number; nome: string }[]).map((u) => ({ id: u.id_usuario, nome: u.nome }));
+}
+
+// =============================================================================
 // T5: buscarStatusMentoriaPorMes (PLL-DB-05)
 // =============================================================================
 

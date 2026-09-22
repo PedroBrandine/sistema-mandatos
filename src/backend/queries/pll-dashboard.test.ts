@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "../supabase/database.types";
 import {
   buscarMentoradosPll,
+  buscarOpcoesMentorPll,
   buscarPllKpis,
   buscarRegistrosMentores,
   buscarStatusMentoriaPorMes,
@@ -410,6 +411,41 @@ describe("buscarRegistrosMentores (T7, PLL-DB-12…14, D-7)", () => {
 
     await expect(buscarRegistrosMentores(client, { idProduto: 9 })).rejects.toMatchObject({
       message: "permission denied for table fat_registro",
+    });
+  });
+});
+
+describe("buscarOpcoesMentorPll (T12, filtro 'Filtrar por mentor(a)' do Dashboard)", () => {
+  it("caminho feliz: devolve os mentores com vínculo ativo em contratos do produto", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }, { id_contrato: 2 }], ...OK },
+      rel_usuario_contrato: { data: [{ id_usuario: 200 }, { id_usuario: 201 }], ...OK },
+      dim_usuario: { data: [{ id_usuario: 200, nome: "Ana Mentora" }, { id_usuario: 201, nome: "Bia Mentora" }], ...OK },
+    });
+
+    const resultado = await buscarOpcoesMentorPll(client, 9);
+
+    expect(resultado).toEqual([
+      { id: 200, nome: "Ana Mentora" },
+      { id: 201, nome: "Bia Mentora" },
+    ]);
+  });
+
+  it("recorte sem nenhum contrato devolve [], nunca lança", async () => {
+    const { client } = criarClienteMock({ fat_contrato: { data: [], ...OK } });
+
+    const resultado = await buscarOpcoesMentorPll(client, 9);
+
+    expect(resultado).toEqual([]);
+  });
+
+  it("erro do banco propaga", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: null, error: { message: "permission denied for table fat_contrato" } },
+    });
+
+    await expect(buscarOpcoesMentorPll(client, 9)).rejects.toMatchObject({
+      message: "permission denied for table fat_contrato",
     });
   });
 });

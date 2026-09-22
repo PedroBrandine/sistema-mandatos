@@ -10,6 +10,13 @@ import { createClient } from "@backend/supabase/client";
 import { buscarEstrategiaKpi } from "@backend/queries/estrategia-kpi";
 import { buscarProjetosDoProduto } from "@backend/queries/kanban";
 import { buscarLimiares } from "@backend/queries/limiar";
+import {
+  buscarMentoradosPll,
+  buscarOpcoesMentorPll,
+  buscarPllKpis,
+  buscarRegistrosMentores,
+  buscarStatusMentoriaPorMes,
+} from "@backend/queries/pll-dashboard";
 import type { ColunaEtapaQuadro, ColunaQuadro } from "@backend/queries/quadro";
 import { buscarQuadro } from "@backend/queries/quadro";
 import { buscarPendenciasDashboard } from "@backend/queries/pendencias";
@@ -19,6 +26,7 @@ import { PermissaoNegadaError, TransicaoInvalidaError } from "@backend/rpc/error
 
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
 import type { LimiaresEtapa } from "@/lib/limiar";
+import { hojeNoFusoDoProduto } from "@/components/estrategia/agenda-mes";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
@@ -26,6 +34,12 @@ import { FiltroDashboard, type OpcaoFiltroDashboard, type ValorFiltroDashboard }
 import { KpiRow } from "@/components/estrategia/kpi-row";
 import { QuadroAcompanhamento } from "@/components/estrategia/quadro-acompanhamento";
 import { TabelaPendencias } from "@/components/estrategia/tabela-pendencias";
+import { Button } from "@/components/ui/button";
+import { listaOuUndefined, MultiSelectPesquisavel, opcoesDeIdNome } from "@/components/ui/multi-select-pesquisavel";
+import { FeedRegistrosMentores } from "@/components/pll/feed-registros-mentores";
+import { PllKpiRow } from "@/components/pll/pll-kpi-row";
+import { PllStatusMensalChart } from "@/components/pll/pll-status-mensal-chart";
+import { TabelaMentoradosPll } from "@/components/pll/tabela-mentorados-pll";
 
 // Ajuste de fidelidade visual, 2026-09-14 (Figma 44:29 "filter-bar"). Lista de
 // gestoras ativas do sistema (não escopada a este produto -- mesma consulta
@@ -76,11 +90,11 @@ export default function ProdutoDashboardPage({
   // pll-dashboard-agenda T3 (PLL-SH-03, PLL-SH-04): o PLL não reaproveita o
   // Quadro de Acompanhamento/Pendências da Estratégia (D-8, spec.md) -- rota
   // própria por slug, mesmo padrão do design.md ("Tech Decisions": roteamento
-  // por slug decide o componente). Placeholder aqui; T12 substitui pelo
-  // Dashboard real do PLL. Estratégia e Coalizão seguem pelo componente
-  // existente, sem alteração de comportamento.
+  // por slug decide o componente). T12 monta o Dashboard real do PLL.
+  // Estratégia e Coalizão seguem pelo componente existente, sem alteração de
+  // comportamento.
   if (slug === "pll") {
-    return <PllDashboardPagePlaceholder />;
+    return <PllDashboardPage />;
   }
 
   return <EstrategiaDashboardPage slug={slug} />;
@@ -292,13 +306,163 @@ function moverCardOtimista(colunas: ColunaQuadro[], idContrato: number, idEtapaD
   );
 }
 
-// pll-dashboard-agenda T3: placeholder até T8-T12 montarem os blocos reais
-// (KPIs, gráfico, tabela de mentorados, feed de registros).
-function PllDashboardPagePlaceholder() {
+// pll-dashboard-agenda T12 (design.md "Tech Decisions", PLL-DB-01). Dashboard
+// real do PLL (Figma 44:477): 2 filtros (mentor(a)/edição, D-4) recortando os
+// 4 blocos P1 (T8-T11) -- os 3 painéis analíticos (T16-T19, Fase 5) ainda não
+// entram aqui, spec.md marca a aba como P2.
+//
+// Filtro achatado {idsMentor, idsProjeto} -- mesma forma de FiltroPllDashboard
+// (queries/pll-dashboard.ts). "Edição" é ref_projeto (D-4): reaproveita
+// buscarProjetosDoProduto (kanban.ts), já escopado ao produto -- mesma query
+// que EstrategiaDashboardPage usa para o dropdown "Filtrar por projeto".
+// "Mentor(a)" usa buscarOpcoesMentorPll (queries/pll-dashboard.ts, mesma
+// família das outras 4 leituras do Dashboard PLL -- vive lá, não aqui, pra
+// ficar mockável no teste desta página no mesmo padrão das outras 4 queries).
+interface ValorFiltroPllDashboard {
+  idsMentor?: number[];
+  idsProjeto?: number[];
+}
+
+// AD-046: tela de leitura -- caminho feliz de cada AC, sem par
+// positivo/negativo de cada condicional exigido no teste de componente.
+function PllDashboardPage() {
+  const { data: produto, isLoading: carregandoProduto } = useProdutoAtual("pll");
+  const idProduto = produto?.idProduto;
+
+  // L-002: o relógio é lido AQUI, uma vez, e desce por prop -- FeedRegistrosMentores
+  // não chama `new Date()` internamente (mesmo padrão de AgendaMes.hoje).
+  const hoje = useMemo(() => hojeNoFusoDoProduto(new Date()), []);
+
+  const [filtro, setFiltro] = useState<ValorFiltroPllDashboard>({});
+  const filtroConsulta = { idProduto: idProduto as number, idsMentor: filtro.idsMentor, idsProjeto: filtro.idsProjeto };
+
+  const { data: mentores } = useQuery({
+    queryKey: ["pll-dashboard-opcoes-mentor", idProduto],
+    queryFn: () => buscarOpcoesMentorPll(createClient(), idProduto as number),
+    enabled: idProduto !== undefined,
+  });
+
+  const { data: edicoes } = useQuery({
+    queryKey: ["pll-dashboard-opcoes-edicao", idProduto],
+    queryFn: () => buscarProjetosDoProduto(createClient(), idProduto as number),
+    enabled: idProduto !== undefined,
+  });
+  const opcoesEdicao: OpcaoFiltroDashboard[] = (edicoes ?? []).map((p) => ({ id: p.idProjeto, nome: p.nome }));
+
+  const {
+    data: kpi,
+    isLoading: carregandoKpi,
+    isError: erroKpi,
+    refetch: refetchKpi,
+  } = useQuery({
+    queryKey: ["pll-kpis", filtroConsulta],
+    queryFn: () => buscarPllKpis(createClient(), filtroConsulta),
+    enabled: idProduto !== undefined,
+  });
+
+  const {
+    data: serieStatus,
+    isLoading: carregandoSerie,
+    isError: erroSerie,
+    refetch: refetchSerie,
+  } = useQuery({
+    queryKey: ["pll-status-mensal", filtroConsulta],
+    queryFn: () => buscarStatusMentoriaPorMes(createClient(), filtroConsulta),
+    enabled: idProduto !== undefined,
+  });
+
+  const {
+    data: mentorados,
+    isLoading: carregandoMentorados,
+    isError: erroMentorados,
+    refetch: refetchMentorados,
+  } = useQuery({
+    queryKey: ["pll-mentorados", filtroConsulta],
+    queryFn: () => buscarMentoradosPll(createClient(), filtroConsulta),
+    enabled: idProduto !== undefined,
+  });
+
+  const {
+    data: registros,
+    isLoading: carregandoRegistros,
+    isError: erroRegistros,
+    refetch: refetchRegistros,
+  } = useQuery({
+    queryKey: ["pll-registros-mentores", filtroConsulta],
+    queryFn: () => buscarRegistrosMentores(createClient(), { ...filtroConsulta, limite: 10 }),
+    enabled: idProduto !== undefined,
+  });
+
+  if (carregandoProduto) {
+    return <CarregandoSkeleton variante="cards" />;
+  }
+
   return (
-    <EstadoVazio
-      titulo="Dashboard do PLL em construção"
-      mensagem="Os KPIs, o gráfico de status por mês, a tabela de mentorados e o feed de registros chegam nas próximas tasks."
-    />
+    <div className="grid gap-6">
+      {/* D-4: só 2 filtros no Dashboard (mentor(a)/edição) -- "gestora" e
+          "contrato" não existem no PLL (spec.md D-4). Composição inline, no
+          mesmo espírito de FiltroDashboard, sem reaproveitar o componente
+          (rótulos e recorte diferentes). */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center">
+        <MultiSelectPesquisavel
+          className="flex-1"
+          opcoes={opcoesDeIdNome(mentores ?? [])}
+          valores={filtro.idsMentor ?? []}
+          onChange={(v) => setFiltro((f) => ({ ...f, idsMentor: listaOuUndefined(v) }))}
+          placeholder="Filtrar por mentor(a)"
+          rotuloPlural="mentores"
+        />
+        <MultiSelectPesquisavel
+          className="flex-1"
+          opcoes={opcoesDeIdNome(opcoesEdicao)}
+          valores={filtro.idsProjeto ?? []}
+          onChange={(v) => setFiltro((f) => ({ ...f, idsProjeto: listaOuUndefined(v) }))}
+          placeholder="Filtrar por edição"
+          rotuloPlural="edições"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          className="font-semibold text-secondary hover:text-secondary sm:w-auto"
+          onClick={() => setFiltro({})}
+        >
+          Limpar filtros
+        </Button>
+      </div>
+
+      {/* PLL-DB-01: falha de 1 bloco não derruba os outros -- ErroInline
+          local por bloco (AD-029), mesmo padrão do Dashboard de Estratégia. */}
+      {erroKpi ? (
+        <ErroInline mensagem="Não foi possível carregar os KPIs." onRetry={() => refetchKpi()} />
+      ) : carregandoKpi || !kpi ? (
+        <CarregandoSkeleton variante="cards" />
+      ) : (
+        <PllKpiRow kpi={kpi} />
+      )}
+
+      {erroSerie ? (
+        <ErroInline mensagem="Não foi possível carregar o gráfico de status por mês." onRetry={() => refetchSerie()} />
+      ) : carregandoSerie || !serieStatus ? (
+        <CarregandoSkeleton variante="cards" />
+      ) : (
+        <PllStatusMensalChart serie={serieStatus} />
+      )}
+
+      {erroMentorados ? (
+        <ErroInline mensagem="Não foi possível carregar a tabela de mentorados." onRetry={() => refetchMentorados()} />
+      ) : carregandoMentorados || !mentorados ? (
+        <CarregandoSkeleton variante="cards" />
+      ) : (
+        <TabelaMentoradosPll mentorados={mentorados} />
+      )}
+
+      {erroRegistros ? (
+        <ErroInline mensagem="Não foi possível carregar os registros dos mentores." onRetry={() => refetchRegistros()} />
+      ) : carregandoRegistros || !registros ? (
+        <CarregandoSkeleton variante="cards" />
+      ) : (
+        <FeedRegistrosMentores registros={registros} hoje={hoje} />
+      )}
+    </div>
   );
 }
