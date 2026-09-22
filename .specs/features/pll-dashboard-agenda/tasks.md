@@ -85,10 +85,10 @@ segundo `CHECK`.
 **Tools**: MCP: `supabase` (se disponível) ou `Bash`/`PowerShell` com `supabase db push` em dev. Skill: `supabase`.
 
 **Done when**:
-- [ ] `SELECT count(*) FROM fat_contrato WHERE status = 'nao_concluido'` rodado em dev **antes** de escrever a migration; se > 0, o `CHECK` entra `NOT VALID` + `VALIDATE CONSTRAINT` numa segunda migration, documentado no commit
-- [ ] Coluna e os 2 `CHECK` criados
-- [ ] Teste de integração cobre: insert com `status='nao_concluido'` sem `origem_encerramento` falha; com falha; `status='ativo'` sem a coluna passa
-- [ ] `npm run test:integration` verde
+- [x] `SELECT count(*) FROM fat_contrato WHERE status = 'nao_concluido'` rodado em dev **antes** de escrever a migration; se > 0, o `CHECK` entra `NOT VALID` + `VALIDATE CONSTRAINT` numa segunda migration, documentado no commit — deu 0, `CHECK` entrou validado direto
+- [x] Coluna e os 2 `CHECK` criados
+- [x] Teste de integração cobre: insert com `status='nao_concluido'` sem `origem_encerramento` falha; com falha; `status='ativo'` sem a coluna passa
+- [x] `npm run test:integration` verde (arquivo isolado; ver nota de risco no commit sobre `atualizarStatusContrato`)
 
 **Tests**: integration
 **Gate**: full
@@ -109,10 +109,10 @@ Agenda, Participantes, Avaliações, Fatos Geradores).
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] `ABAS_POR_PRODUTO` exportado com as 3 chaves de `ProdutoSlug`
-- [ ] `ProdutoShell` consome o config em vez do array hardcoded
-- [ ] Teste: Estratégia e Coalizão continuam com as 5 abas de hoje (regressão); PLL mostra as 5 abas novas na ordem certa
-- [ ] `npm run test:unit` verde
+- [x] `ABAS_POR_PRODUTO` exportado com as 3 chaves de `ProdutoSlug`
+- [x] `ProdutoShell` consome o config em vez do array hardcoded
+- [x] Teste: Estratégia e Coalizão continuam com as 5 abas de hoje (regressão); PLL mostra as 5 abas novas na ordem certa
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -134,9 +134,9 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] `slug === "pll"` renderiza um componente placeholder próprio (populado nas fases seguintes); outros slugs inalterados
-- [ ] Teste de regressão: Estratégia/Coalizão continuam batendo com o snapshot/asserts atuais
-- [ ] `npm run test:unit` verde
+- [x] `slug === "pll"` renderiza um componente placeholder próprio (populado nas fases seguintes); outros slugs inalterados
+- [x] Teste de regressão: Estratégia/Coalizão continuam batendo com o snapshot/asserts atuais
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -156,9 +156,9 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] `buscarPllKpis` retorna os 5 valores de `PllKpi` (design.md)
-- [ ] Teste: recorte sem contrato devolve `null`/`0` conforme AD-005 (nunca 0 travestido de ausência); erro do banco propaga
-- [ ] `npm run test:unit` verde
+- [x] `buscarPllKpis` retorna os 5 valores de `PllKpi` (design.md)
+- [x] Teste: recorte sem contrato devolve `null`/`0` conforme AD-005 (nunca 0 travestido de ausência); erro do banco propaga
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -178,9 +178,9 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Retorna 1 linha por mês da janela (6 meses), 4 contagens por status
-- [ ] Teste: mês sem Encontro entra com todas as contagens 0 (não omitido)
-- [ ] `npm run test:unit` verde
+- [x] Retorna 1 linha por mês da janela (6 meses), 4 contagens por status
+- [x] Teste: mês sem Encontro entra com todas as contagens 0 (não omitido)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -200,9 +200,13 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Retorna `MentoradoPll[]` com todas as colunas do design
-- [ ] Teste: busca por nome de mentorado e por parlamentar; célula sem mentor pareado vem `null` (vira `—` no componente, AD-005)
-- [ ] `npm run test:unit` verde
+- [x] Retorna `MentoradoPll[]` com todas as colunas do design
+- [~] Teste: busca por nome de mentorado e por parlamentar — **SPEC_DEVIATION**: reconciliado a favor do
+  "Reuses" do design.md ("mesmo formato de paginação/ordenação client-side já usado em TabelaPendencias"),
+  que contradiz este Done-when. `buscarMentoradosPll` NÃO recebe `busca`/`ordenacao` (mesmo padrão de
+  `ListaMandatos`); o teste de busca real pertence ao componente `TabelaMentoradosPll` (T10, fora do Lote 1).
+  Coberto aqui: célula sem mentor pareado vem `null` (AD-005) ✅.
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -222,9 +226,9 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Retorna os 10 `fat_registro` mais recentes do recorte, ordenados por `ocorrido_em desc`
-- [ ] Teste: `resumo` nulo chega como `null` (vira `—` no componente)
-- [ ] `npm run test:unit` verde
+- [x] Retorna os 10 `fat_registro` mais recentes do recorte, ordenados por `ocorrido_em desc`
+- [x] Teste: `resumo` nulo chega como `null` (vira `—` no componente)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
