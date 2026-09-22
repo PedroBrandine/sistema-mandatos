@@ -1,3 +1,4 @@
+import { read, SSF, utils } from "xlsx";
 import { z } from "zod";
 
 import { textoLimpoSchema } from "./texto-limpo";
@@ -125,4 +126,150 @@ export function validarLinhasCadastroPll(linhas: unknown[]): ResultadoValidacaoL
 
   if (erros.length > 0) return { validas: [], erros };
   return { validas: linhasValidadas as LinhaCadastroPll[], erros: [] };
+}
+
+// -----------------------------------------------------------------------------
+// parseCadastroPll (T4) -- função pura: recebe o conteúdo do arquivo (.xlsx ou
+// .csv, já lido pelo browser em ArrayBuffer -- AD-011, parse acontece no
+// client) e devolve linhas brutas (unknown[], antes da validação Zod acima).
+// Sem I/O: não lê arquivo do disco nem faz rede -- só transforma bytes já em
+// memória.
+// -----------------------------------------------------------------------------
+
+// Cabeçalho exato da planilha (Anexo A, frame Figma 387:4) -> campo de
+// fat_cadastro_participante. Comparação por texto exato após trim -- qualquer
+// variação de grafia é cabeçalho "não reconhecido" (ver ErroCabecalhoDesconhecido).
+const MAPA_CABECALHOS: Record<string, string> = {
+  "Você é um(a) [Mentorado/Mentor]": "papel",
+  "Nome Completo": "nome_completo",
+  "Data de nascimento": "dt_nascimento",
+  "E-mail": "email",
+  "Telefone (com DDD)": "telefone",
+  "Identidade de gênero": "identidade_genero",
+  "Orientação sexual": "orientacao_sexual",
+  "Cor/raça": "cor_raca",
+  Deficiências: "deficiencias",
+  "Partido filiado": "partido_filiado",
+  "Tempo na política": "tempo_na_politica",
+  "Já conhecia a Legisla": "conhecia_legisla",
+  "Nome do Parlamentar": "nome_parlamentar",
+  "Cor/raça do parlamentar": "cor_raca_parlamentar",
+  "Partido do parlamentar": "partido_parlamentar",
+  "Estado de eleição": "estado_eleicao",
+  "Cargos anteriores": "cargos_anteriores",
+  "Mandatos anteriores": "mandatos_anteriores",
+  "Instagram/rede social": "rede_social",
+  Educação: "nota_educacao",
+  "Segurança pública": "nota_seguranca_publica",
+  "Modernização do Estado": "nota_modernizacao_estado",
+  Clima: "nota_clima",
+  "Outras pautas prioritárias": "outras_pautas",
+  "Especifique a pauta": "especifique_pauta",
+};
+
+const CAMPOS_NOTA = new Set([
+  "nota_educacao",
+  "nota_seguranca_publica",
+  "nota_modernizacao_estado",
+  "nota_clima",
+]);
+
+// Campos TEXT/texto_limpo do Anexo A -- sempre coagidos para string. Achado
+// real (T4): `sheet_to_json` auto-detecta tipo por formato de CÉLULA, não por
+// coluna, e o mesmo valor textual ("1", "11999999999") vira JS number quando
+// veio de um `.xlsx` real (cuja célula foi gravada como número) mas string
+// quando veio de `.csv` (que não tem tipo de célula). Sem esta coerção,
+// .xlsx e .csv da MESMA planilha produziam objetos com tipos diferentes para
+// o mesmo campo -- exatamente o que o "Done when" de T4 exige que não
+// aconteça.
+const CAMPOS_TEXTO = new Set([
+  "nome_completo",
+  "email",
+  "telefone",
+  "identidade_genero",
+  "orientacao_sexual",
+  "cor_raca",
+  "deficiencias",
+  "partido_filiado",
+  "tempo_na_politica",
+  "nome_parlamentar",
+  "cor_raca_parlamentar",
+  "partido_parlamentar",
+  "estado_eleicao",
+  "cargos_anteriores",
+  "mandatos_anteriores",
+  "rede_social",
+  "especifique_pauta",
+]);
+
+// Excel guarda data como serial numérico (dias desde 1899-12-30); .csv chega
+// como texto. XLSX.SSF.format devolve a mesma string ISO para os dois casos.
+function converterDataCelula(valor: unknown): string {
+  if (typeof valor === "number") return SSF.format("yyyy-mm-dd", valor);
+  if (valor instanceof Date) return SSF.format("yyyy-mm-dd", valor);
+  return String(valor).trim();
+}
+
+/** Erro nomeado (não silencioso -- T4 "Done when") para cabeçalho de coluna sem correspondência no Anexo A. */
+export class ErroCabecalhoDesconhecido extends Error {
+  constructor(public readonly cabecalho: string) {
+    super(`Cabeçalho de coluna não reconhecido: "${cabecalho}"`);
+    this.name = "ErroCabecalhoDesconhecido";
+  }
+}
+
+function converterValorCelula(campo: string, valor: unknown): unknown {
+  if (valor === null || valor === undefined || valor === "") return null;
+  if (campo === "papel") {
+    const texto = String(valor).trim().toLowerCase();
+    if (texto.startsWith("mentorado")) return "mentorado";
+    if (texto.startsWith("mentor")) return "mentor";
+    return texto;
+  }
+  if (campo === "conhecia_legisla") {
+    const texto = String(valor).trim().toLowerCase();
+    if (texto === "sim") return true;
+    if (texto === "não" || texto === "nao") return false;
+    return valor;
+  }
+  if (CAMPOS_NOTA.has(campo)) {
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? numero : valor;
+  }
+  if (campo === "outras_pautas") {
+    if (Array.isArray(valor)) return valor;
+    return String(valor)
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+  if (campo === "dt_nascimento") return converterDataCelula(valor);
+  if (CAMPOS_TEXTO.has(campo)) return String(valor).trim();
+  return valor;
+}
+
+/**
+ * Parseia um arquivo `.xlsx` ou `.csv` (conteúdo já em memória) para um array
+ * de objetos brutos, um por linha da planilha, prontos para
+ * `validarLinhasCadastroPll`. Lança `ErroCabecalhoDesconhecido` (nomeado, não
+ * silencioso) se alguma coluna do arquivo não corresponder ao Anexo A.
+ */
+export function parseCadastroPll(conteudoArquivo: ArrayBuffer | string): unknown[] {
+  const workbook =
+    typeof conteudoArquivo === "string"
+      ? read(conteudoArquivo, { type: "string" })
+      : read(conteudoArquivo, { type: "array" });
+  const planilha = workbook.Sheets[workbook.SheetNames[0]];
+  const linhasBrutas = utils.sheet_to_json<Record<string, unknown>>(planilha, { defval: null });
+
+  return linhasBrutas.map((linhaBruta) => {
+    const linha: Record<string, unknown> = {};
+    for (const [cabecalho, valor] of Object.entries(linhaBruta)) {
+      const cabecalhoNormalizado = cabecalho.trim();
+      const campo = MAPA_CABECALHOS[cabecalhoNormalizado];
+      if (!campo) throw new ErroCabecalhoDesconhecido(cabecalhoNormalizado);
+      linha[campo] = converterValorCelula(campo, valor);
+    }
+    return linha;
+  });
 }
