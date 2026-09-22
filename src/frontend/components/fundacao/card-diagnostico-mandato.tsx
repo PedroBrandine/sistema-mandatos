@@ -6,6 +6,7 @@ import { Pencil, X } from "lucide-react";
 import type { NoticiaMandato } from "@backend/queries/ficha-mandato";
 import { mapeiaErroRpc } from "@backend/rpc/errors";
 import { createClient } from "@backend/supabase/client";
+import type { Json } from "@backend/supabase/database.types";
 
 import { EditorListaLinks } from "@/components/fundacao/editor-lista-links";
 import { Badge } from "@/components/ui/badge";
@@ -146,7 +147,7 @@ export function CardDiagnosticoMandato({
         principais_destaques: destaquesEdicao.length > 0 ? destaquesEdicao : null,
         cargos_legislatura: cargosEdicao.length > 0 ? cargosEdicao : null,
         principais_pls: plsEdicao.length > 0 ? plsEdicao : null,
-        principais_noticias: noticiasEdicao.length > 0 ? noticiasEdicao : null,
+        principais_noticias: noticiasEdicao.length > 0 ? (noticiasEdicao as unknown as Json) : null,
       })
       .eq("id_mandato", idMandato);
     if (error) {
