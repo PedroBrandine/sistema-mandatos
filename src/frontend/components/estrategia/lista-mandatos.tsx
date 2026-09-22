@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ContratoCard } from "@backend/queries/mandatos-lista";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,10 @@ import { cn } from "@/lib/utils";
 // rodapé, então só esse texto é clicável agora.
 export interface ListaMandatosProps {
   mandatos: ContratoCard[];
+  // Quando presente, cada card ganha o botão "Editar contrato". Quem decide se
+  // o usuário pode (hoje só admin/gestora, para excluir o mandato) é a página:
+  // sem o handler, o botão simplesmente não existe.
+  onEditar?: (mandato: ContratoCard) => void;
 }
 
 const STATUS_LABEL: Record<ContratoCard["status"], string> = {
@@ -99,7 +104,7 @@ function CampoRotulado({ rotulo, valor, destaque = false }: { rotulo: string; va
   );
 }
 
-function MandatoCard({ mandato }: { mandato: ContratoCard }) {
+function MandatoCard({ mandato, onEditar }: { mandato: ContratoCard; onEditar?: (mandato: ContratoCard) => void }) {
   return (
     <Card className="h-full gap-4 border border-border/60 p-5 shadow-sm transition-all hover:border-primary/50 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
@@ -137,15 +142,22 @@ function MandatoCard({ mandato }: { mandato: ContratoCard }) {
 
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-border/60 pt-3 text-xs">
         <span className="text-muted-foreground">{textoRodape(mandato)}</span>
-        <Link href={`/contratos/${mandato.idContrato}`} className="font-bold text-secondary hover:underline">
-          Ver contrato →
-        </Link>
+        <div className="flex items-center gap-3">
+          {onEditar && (
+            <Button type="button" variant="vinho" size="sm" onClick={() => onEditar(mandato)}>
+              Editar contrato
+            </Button>
+          )}
+          <Link href={`/contratos/${mandato.idContrato}`} className="font-bold text-secondary hover:underline">
+            Ver contrato →
+          </Link>
+        </div>
       </div>
     </Card>
   );
 }
 
-export function ListaMandatos({ mandatos }: ListaMandatosProps) {
+export function ListaMandatos({ mandatos, onEditar }: ListaMandatosProps) {
   if (mandatos.length === 0) {
     return (
       <EstadoVazio
@@ -158,7 +170,7 @@ export function ListaMandatos({ mandatos }: ListaMandatosProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {mandatos.map((mandato) => (
-        <MandatoCard key={mandato.idContrato} mandato={mandato} />
+        <MandatoCard key={mandato.idContrato} mandato={mandato} onEditar={onEditar} />
       ))}
     </div>
   );

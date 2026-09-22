@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Spec anchor: .specs/features/ficha-mandato-contrato/spec.md, "P2: Agenda na
 // ficha e Novo Agendamento" AC1 (FMC-29). tasks.md T37 Done-when:
-//  - FiltroAgenda recebe idContrato; nenhum encontro de outro contrato aparece
+//  - FiltroAgenda recebe idsContrato=[idContrato]; nenhum encontro de outro contrato aparece
 //  - Mês sem encontro renderiza a grade completa e vazia, com o estado explicativo
 //  - Navegação de mês preserva o recorte por contrato
 //
@@ -159,7 +159,7 @@ describe("ContratoAgendaPage (FMC-29 AC1) — grade recortada pelo contrato", ()
 
     expect(mocks.buscarEncontrosDoMes).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ idProduto: 1, idContrato: 42, ano: 2026, mes: 9 })
+      expect.objectContaining({ idProduto: 1, idsContrato: [42], ano: 2026, mes: 9 })
     );
   });
 
@@ -170,7 +170,7 @@ describe("ContratoAgendaPage (FMC-29 AC1) — grade recortada pelo contrato", ()
     await waitFor(() =>
       expect(mocks.buscarRegistrosDaAgenda).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ idContrato: 42 })
+        expect.objectContaining({ idsContrato: [42] })
       )
     );
   });
@@ -189,7 +189,7 @@ describe("ContratoAgendaPage — navegação de mês preserva o recorte por cont
     await waitFor(() =>
       expect(mocks.buscarEncontrosDoMes).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ idContrato: 42, ano: 2026, mes: 10 })
+        expect.objectContaining({ idsContrato: [42], ano: 2026, mes: 10 })
       )
     );
     expect(await screen.findByRole("grid", { name: "Agenda de Outubro de 2026" })).toBeInTheDocument();
@@ -204,7 +204,7 @@ describe("ContratoAgendaPage — navegação de mês preserva o recorte por cont
     await waitFor(() =>
       expect(mocks.buscarEncontrosDoMes).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ idContrato: 42, ano: 2026, mes: 8 })
+        expect.objectContaining({ idsContrato: [42], ano: 2026, mes: 8 })
       )
     );
   });

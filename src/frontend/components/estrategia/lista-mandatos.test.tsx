@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ContratoCard } from "@backend/queries/mandatos-lista";
 import { ListaMandatos } from "./lista-mandatos";
@@ -86,5 +86,22 @@ describe("ListaMandatos (EST-09)", () => {
     render(<ListaMandatos mandatos={[]} />);
 
     expect(screen.getByText("Nenhum mandato encontrado")).toBeInTheDocument();
+  });
+});
+
+describe("ListaMandatos -- botão Editar contrato", () => {
+  it("com onEditar, cada card oferece 'Editar contrato' e entrega o contrato daquele card", () => {
+    const onEditar = vi.fn();
+    render(<ListaMandatos mandatos={[MANDATO_BASE]} onEditar={onEditar} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar contrato" }));
+
+    expect(onEditar).toHaveBeenCalledWith(MANDATO_BASE);
+  });
+
+  it("sem onEditar (papel sem permissão), o botão não existe", () => {
+    render(<ListaMandatos mandatos={[MANDATO_BASE]} />);
+
+    expect(screen.queryByRole("button", { name: "Editar contrato" })).not.toBeInTheDocument();
   });
 });

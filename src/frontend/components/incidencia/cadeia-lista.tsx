@@ -1,6 +1,7 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Landmark } from "lucide-react";
 
 import type { CadeiaItem } from "@backend/queries/incidencia";
+import type { ContratoIdentificado, MapaContratos } from "@/lib/incidencia-contrato";
 import { rotulaCadeias, type CadeiaRotulada, type ItemCadeia, type OrigemCadeia } from "@/lib/incidencia-cadeia";
 import { TIPO_ESTILO, TIPO_ROTULO, type EstiloTipo } from "@/lib/incidencia-visual";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,9 @@ export interface CadeiaListaProps {
   // abre o detalhe (fato + origem associada). Sem handler, o card continua
   // só leitura (mesmo comportamento de antes do T16).
   onAbrirDetalhe?: (item: ItemCadeia) => void;
+  // Aba agregada do produto: cada cadeia diz de qual mandato é. Ausente na
+  // aba do contrato.
+  contratos?: MapaContratos;
 }
 
 const COR_FATO_GERADOR = TIPO_ESTILO.fato_gerador;
@@ -47,6 +51,13 @@ function corOrigem(tipo: OrigemCadeia["tipo"]): EstiloTipo {
 
 function rotuloOrigem(tipo: OrigemCadeia["tipo"]): string {
   return tipo === "meta" ? "Meta" : TIPO_ROTULO[tipo];
+}
+
+// Grupos por chaveOrigem nunca cruzam mandatos (ids de origem são únicos), então
+// o primeiro item basta para dizer de quem é a cadeia inteira.
+function contratoDaCadeia(cadeia: CadeiaRotulada, contratos?: MapaContratos): ContratoIdentificado | undefined {
+  const id = cadeia.itens[0]?.idContrato;
+  return id != null ? contratos?.get(id) : undefined;
 }
 
 function formatarData(data: string | null): string {
@@ -119,17 +130,27 @@ function Cadeia({
   cadeia,
   onRealizado,
   onAbrirDetalhe,
+  contrato,
 }: {
   cadeia: CadeiaRotulada;
   onRealizado?: () => void;
   onAbrirDetalhe?: (item: ItemCadeia) => void;
+  contrato?: ContratoIdentificado;
 }) {
   const origem = cadeia.itens[0]?.origem ?? null;
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-sm">{cadeia.rotulo}</CardTitle>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <CardTitle className="text-sm">{cadeia.rotulo}</CardTitle>
+          {contrato && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-secondary">
+              <Landmark className="size-3" />
+              {contrato.nome}
+            </span>
+          )}
+        </div>
         {cadeia.origemComum && <Badge variant="outline">Origem comum</Badge>}
       </CardHeader>
       <CardContent>
@@ -211,7 +232,7 @@ function Cadeia({
   );
 }
 
-export function CadeiaLista({ cadeias, onRealizado, onAbrirDetalhe }: CadeiaListaProps) {
+export function CadeiaLista({ cadeias, onRealizado, onAbrirDetalhe, contratos }: CadeiaListaProps) {
   if (cadeias.length === 0) {
     return <EstadoVazio titulo="Nenhuma cadeia ainda" mensagem="Cadeias aparecem aqui a partir do primeiro Fato Gerador." />;
   }
@@ -222,7 +243,13 @@ export function CadeiaLista({ cadeias, onRealizado, onAbrirDetalhe }: CadeiaList
     <div className="grid gap-6">
       <div className="grid gap-3">
         {agrupadas.realizadas.map((cadeia) => (
-          <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} onAbrirDetalhe={onAbrirDetalhe} />
+          <Cadeia
+            key={cadeia.rotulo}
+            cadeia={cadeia}
+            onRealizado={onRealizado}
+            onAbrirDetalhe={onAbrirDetalhe}
+            contrato={contratoDaCadeia(cadeia, contratos)}
+          />
         ))}
       </div>
 
@@ -230,7 +257,13 @@ export function CadeiaLista({ cadeias, onRealizado, onAbrirDetalhe }: CadeiaList
         <div className="grid gap-3">
           <h3 className="text-sm font-medium text-muted-foreground">Cadeia Projetada (em análise)</h3>
           {agrupadas.projetadas.map((cadeia) => (
-            <Cadeia key={cadeia.rotulo} cadeia={cadeia} onRealizado={onRealizado} onAbrirDetalhe={onAbrirDetalhe} />
+            <Cadeia
+            key={cadeia.rotulo}
+            cadeia={cadeia}
+            onRealizado={onRealizado}
+            onAbrirDetalhe={onAbrirDetalhe}
+            contrato={contratoDaCadeia(cadeia, contratos)}
+          />
           ))}
         </div>
       )}

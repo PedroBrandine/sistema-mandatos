@@ -186,12 +186,12 @@ describe("buscarRegistrosDaAgenda (EST-12 AC5)", () => {
   it("herda o recorte da grade: projeto e contrato restringem a consulta de contratos", async () => {
     const { client, chamadas } = criarClienteMock({ fat_contrato: { data: [], error: null } });
 
-    await buscarRegistrosDaAgenda(client, { ...RECORTE, idProjeto: 7, idContrato: 42 });
+    await buscarRegistrosDaAgenda(client, { ...RECORTE, idsProjeto: [7], idsContrato: [42] });
 
-    expect(argsDe(chamadas, "fat_contrato", "eq")).toEqual([
-      ["id_produto", 1],
-      ["id_projeto", 7],
-      ["id_contrato", 42],
+    expect(argsDe(chamadas, "fat_contrato", "eq")).toEqual([["id_produto", 1]]);
+    expect(argsDe(chamadas, "fat_contrato", "in")).toEqual([
+      ["id_projeto", [7]],
+      ["id_contrato", [42]],
     ]);
   });
 

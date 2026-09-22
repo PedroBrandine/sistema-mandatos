@@ -27,6 +27,37 @@ const COR_DIMENSAO: Record<"D1" | "D2" | "D3", string> = {
   D3: "bg-chart-3",
 };
 
+// Figma 109:79 (Dimensions-List): a quebra do IIP no Ciclo de Vida é uma fila
+// de badges "D1 n", uma cor por dimensão (teal/âmbar/vinho), não barras. As
+// dimensões seguem SEM nome (context.md, revisão de mockup): só D1/D2/D3.
+// O âmbar leva texto escuro -- branco sobre #ffb300 não passa contraste.
+const BADGE_DIMENSAO: Record<"D1" | "D2" | "D3", string> = {
+  D1: "bg-[#009688] text-white",
+  D2: "bg-[#ffb300] text-card-foreground",
+  D3: "bg-[#880e4f] text-white",
+};
+
+export function BadgesDimensoesIip({ d1, d2, d3, formatarValor = String }: DimensoesIipProps) {
+  const dimensoes: Array<{ rotulo: "D1" | "D2" | "D3"; valor: number }> = [
+    { rotulo: "D1", valor: d1 },
+    { rotulo: "D2", valor: d2 },
+    { rotulo: "D3", valor: d3 },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {dimensoes.map(({ rotulo, valor }) => (
+        <span
+          key={rotulo}
+          className={`rounded-[4px] px-2 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums ${BADGE_DIMENSAO[rotulo]}`}
+        >
+          {rotulo} {formatarValor(valor)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function DimensoesIip({ d1, d2, d3, formatarValor = String }: DimensoesIipProps) {
   const maior = Math.max(d1, d2, d3);
   const dimensoes: Array<{ rotulo: "D1" | "D2" | "D3"; valor: number }> = [

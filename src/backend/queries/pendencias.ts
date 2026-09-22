@@ -29,10 +29,21 @@ export interface Pendencia {
   diasEmAberto: number;
 }
 
+// Gestora e Projeto aceitam VÁRIOS valores (filtro de seleção múltipla):
+// união dentro do filtro, interseção entre os dois. Lista ausente ou vazia =
+// sem filtro.
+//
+// Intervalo de data (2026-09-22, pedido do Pedro): recorta por
+// fat_contrato.dt_inicio, mesmo grão e mesmas colunas (.gte/.lte) de
+// FiltroQuadro.dataInicio/dataFim (kanban.ts) e FiltroEstrategiaKpi -- os
+// três filtros da barra (FiltroDashboard) precisam recortar o mesmo
+// conjunto de contratos, e Pendências não era mais a exceção.
 export interface FiltroPendencias {
   idProduto: number;
-  idGestora?: number;
-  idProjeto?: number;
+  idsGestora?: number[];
+  idsProjeto?: number[];
+  dataInicio?: string;
+  dataFim?: string;
 }
 
 interface RowPendencia {
@@ -48,8 +59,8 @@ interface RowContratoId {
   id_contrato: number;
 }
 
-// Gestora e Projeto restringem por interseção (AND), nunca por união (OR) --
-// mesma regra de resolverIdsContratoDoRecorte em visao-gerencial.ts. idProduto
+// Gestora e Projeto restringem por interseção (AND) entre si, nunca por união
+// (OR) -- mesma regra de resolverIdsContratoDoRecorte em visao-gerencial.ts. idProduto
 // sempre entra no recorte porque o Dashboard é por produto; os outros dois
 // só entram quando informados.
 async function resolverIdsContratoDoFiltro(
@@ -57,20 +68,26 @@ async function resolverIdsContratoDoFiltro(
   filtro: FiltroPendencias
 ): Promise<number[]> {
   let queryContrato = client.from("fat_contrato").select("id_contrato").eq("id_produto", filtro.idProduto);
-  if (filtro.idProjeto !== undefined) {
-    queryContrato = queryContrato.eq("id_projeto", filtro.idProjeto);
+  if (filtro.idsProjeto !== undefined && filtro.idsProjeto.length > 0) {
+    queryContrato = queryContrato.in("id_projeto", filtro.idsProjeto);
+  }
+  if (filtro.dataInicio !== undefined) {
+    queryContrato = queryContrato.gte("dt_inicio", filtro.dataInicio);
+  }
+  if (filtro.dataFim !== undefined) {
+    queryContrato = queryContrato.lte("dt_inicio", filtro.dataFim);
   }
   const { data: contratosData, error: erroContratos } = await queryContrato;
   if (erroContratos) throw erroContratos;
   let ids = new Set((contratosData ?? []).map((c) => (c as RowContratoId).id_contrato));
 
-  if (filtro.idGestora !== undefined) {
+  if (filtro.idsGestora !== undefined && filtro.idsGestora.length > 0) {
     if (ids.size === 0) return [];
     const { data: vinculosData, error: erroVinculos } = await client
       .from("rel_usuario_contrato")
       .select("id_contrato")
       .in("id_contrato", [...ids])
-      .eq("id_usuario", filtro.idGestora)
+      .in("id_usuario", filtro.idsGestora)
       .eq("papel_no_contrato", "gestora")
       .is("dt_fim", null);
     if (erroVinculos) throw erroVinculos;

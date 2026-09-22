@@ -26,6 +26,7 @@ import {
 import { createClient } from "@backend/supabase/client";
 
 import { usePapelGlobal } from "@/hooks/use-papel-global";
+import { derivaSituacao } from "@/lib/planejamento-formato";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ContextoEstrategico } from "@/components/planejamento/contexto-estrategico";
 import { EvolucaoMensal } from "@/components/planejamento/evolucao-mensal";
@@ -239,6 +240,19 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     void recarregarKpis();
   }
 
+  // Correção de 2026-09-22 (.specs/STATE.md): sem isto, o aviso "Recalcular
+  // agora" (PlanejamentoHeader, planejamento.atingimentoDesatualizado) só
+  // aparecia depois de um F5 -- o trigger de banco já marca
+  // dim_planejamento.atingimento_desatualizado=true a cada escrita de
+  // pct_atingimento (20260812145917), mas `planejamento` no estado do React
+  // só era lido uma vez, no efeito de carga inicial. Refetch leve, só do
+  // planejamento (sem KPIs) -- PLR-04 continua valendo, isto NÃO recalcula a
+  // cascata, só reflete a flag que o banco já setou.
+  async function recarregarAvisoDesatualizado() {
+    const supabase = createClient();
+    setPlanejamento(await buscarPlanejamentoCompleto(supabase, idContrato));
+  }
+
   // PLV-11 AC2: os KPIs saem de view, e a view lê fat_meta/fat_objetivo_especifico
   // ao vivo -- criar/mover/pausar Meta ou Objetivo muda metas_ativas/
   // metas_prioritarias, e recalcular muda pct_atingimento. Sem isto, os 4
@@ -269,9 +283,10 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
   // PLM-02: salva só a célula editada, sem recarregar a grade inteira (AC
   // literal + risco de adoção AD-028 -- refetch completo a cada tecla é
   // exatamente o custo de rede que a US inteira existe para evitar).
-  // Atualização otimista do estado local: nenhum outro campo exibido
-  // (status/diasAtraso/estaAtrasado) deriva de pct_atingimento, então
-  // substituir só esse campo na linha em memória é suficiente e correto.
+  // Atualização otimista do estado local: além de pct_atingimento, também
+  // `status` (correção de 2026-09-22) -- deriva do mesmo jeito que o trigger
+  // de banco (app.trg_deriva_situacao_sm, migration 20260922151933), pra
+  // Situação mudar na grade sem esperar o round-trip.
   //
   // Success Criteria (spec.md "Limpar uma célula de % grava NULL"): aceita
   // `null` -- `pct_atingimento` já é nullable (AD-005, "NULL nunca
@@ -292,8 +307,11 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
       throw error;
     }
     setLinhasGrade((atual) =>
-      atual.map((linha) => (linha.idSucesso === idSucesso ? { ...linha, pctAtingimento } : linha))
+      atual.map((linha) =>
+        linha.idSucesso === idSucesso ? { ...linha, pctAtingimento, status: derivaSituacao(pctAtingimento) } : linha
+      )
     );
+    void recarregarAvisoDesatualizado();
   }
 
   // Mesmo raciocínio de handleEdicaoCelula, para as N linhas da faixa colada
@@ -309,8 +327,12 @@ export default function ContratoPlanejamentoPage({ params }: { params: Promise<{
     }
     const pctPorId = new Map(valores.map((v) => [v.idSucesso, v.pctAtingimento]));
     setLinhasGrade((atual) =>
-      atual.map((linha) => (pctPorId.has(linha.idSucesso) ? { ...linha, pctAtingimento: pctPorId.get(linha.idSucesso)! } : linha))
+      atual.map((linha) => {
+        const pct = pctPorId.get(linha.idSucesso);
+        return pct !== undefined ? { ...linha, pctAtingimento: pct, status: derivaSituacao(pct) } : linha;
+      })
     );
+    void recarregarAvisoDesatualizado();
   }
 
   if (contrato === null) {

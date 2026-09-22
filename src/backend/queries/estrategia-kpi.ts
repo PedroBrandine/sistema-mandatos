@@ -3,27 +3,36 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../supabase/database.types";
 
 // EST-08 (T32, .specs/features/redesenho-estrategia-tela-first/tasks.md).
-// Lê vw_estrategia_kpi (T31), a view que agrega os 6 KPIs do topo do
-// Dashboard na camada Saída.
+// Lê os KPIs do topo do Dashboard, agregados na camada Saída (T31,
+// vw_estrategia_kpi; hoje via fn_estrategia_kpi, ver abaixo).
 //
-// Esta função NÃO agrega nada, e isso é o ponto: os 6 números já vêm somados,
-// contados e mediados pela view (AD-003 -- "impede que cada tela invente sua
-// própria agregação"). O que ela faz é ESCOLHER QUAL LINHA ler. A view emite
-// uma linha por combinação de escopo, e os filtros do Dashboard traduzem-se
-// em igualdade sobre as colunas de escopo:
+// Esta função NÃO agrega nada, e isso é o ponto: os KPIs já vêm somados,
+// contados e mediados no banco (AD-003 -- "impede que cada tela invente sua
+// própria agregação").
 //
-//   sem filtro         -> escopo_projeto = false, escopo_gestora = false
-//   só projeto         -> escopo_projeto = true  + id_projeto
-//   só gestora         -> escopo_gestora = true  + id_usuario_gestora
-//   projeto e gestora  -> as duas condições, que é a interseção (AND)
+// Fonte: fn_estrategia_kpi (migration 20260921230408), a versão de
+// vw_estrategia_kpi que aceita um CONJUNTO de projetos/gestoras/contratos.
+// A view só emite uma linha por (produto x UM projeto x UMA gestora), e com
+// filtro de seleção múltipla somar essas linhas duplicaria contrato com mais
+// de uma gestora e não preservaria o peso das médias. A função agrega no grão
+// de contrato, uma vez, sobre o recorte inteiro; para 1 projeto e/ou 1
+// gestora devolve a mesma linha da view (fn-estrategia-kpi.integration.test.ts
+// compara as duas em todo o banco).
 //
-// Por isso não existe aqui o resolverIdsContratoDoFiltro de
-// queries/pendencias.ts: lá a view é no grão de contrato e o recorte precisa
-// virar uma lista de ids; aqui o recorte é uma coordenada da própria linha.
+// Recorte: lista ausente ou vazia = sem filtro naquele eixo; dentro de um
+// eixo é união (OR), entre eixos é interseção (AND).
 export interface FiltroEstrategiaKpi {
   idProduto: number;
-  idGestora?: number;
-  idProjeto?: number;
+  idsGestora?: number[];
+  idsProjeto?: number[];
+  // Usado pela aba Fatos Geradores, que também filtra por contrato.
+  idsContrato?: number[];
+  // Intervalo de mês/ano por fat_contrato.dt_inicio (AAAA-MM-DD, dia 1 e
+  // último dia do mês respectivamente). Evita que contrato histórico de um
+  // mandatário com mais de um contrato (renovação, ciclo anterior) entre na
+  // média/soma dos indicadores do período atual.
+  dataInicio?: string;
+  dataFim?: string;
 }
 
 // Os 5 KPIs da faixa (AD-050), mais a quebra por status do card "Mandatos
@@ -99,32 +108,19 @@ export async function buscarEstrategiaKpi(
   client: SupabaseClient<Database>,
   filtro: FiltroEstrategiaKpi
 ): Promise<EstrategiaKpi> {
-  // A lista de colunas fica literal e inline de propósito. O supabase-js
-  // parseia essa string em tempo de tipo para inferir o formato da linha; uma
-  // constante montada por concatenação não é um literal para o compilador, a
-  // inferência degrada para GenericStringError[] e o cast abaixo vira erro de
-  // build. Mesmo motivo pelo qual queries/pendencias.ts escreve a lista
-  // inteira dentro do select.
-  let query = client
-    .from("vw_estrategia_kpi")
-    .select(
-      "mandatos_ativos, iip_medio, nps_medio, pct_atingimento_medio, nr_fatos_geradores, mandatos_atraso_atrasados, mandatos_atraso_atencao, mandatos_atraso_normal, componente_d1_medio, componente_d2_medio, componente_d3_medio"
-    )
-    .eq("id_produto", filtro.idProduto)
-    .eq("escopo_projeto", filtro.idProjeto !== undefined)
-    .eq("escopo_gestora", filtro.idGestora !== undefined);
-
-  if (filtro.idProjeto !== undefined) {
-    query = query.eq("id_projeto", filtro.idProjeto);
-  }
-  if (filtro.idGestora !== undefined) {
-    query = query.eq("id_usuario_gestora", filtro.idGestora);
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await client.rpc("fn_estrategia_kpi", {
+    p_id_produto: filtro.idProduto,
+    p_ids_projeto: filtro.idsProjeto,
+    p_ids_gestora: filtro.idsGestora,
+    p_ids_contrato: filtro.idsContrato,
+    p_data_inicio: filtro.dataInicio,
+    p_data_fim: filtro.dataFim,
+  });
   if (error) throw error;
 
-  const linha = ((data ?? []) as RowEstrategiaKpi[])[0];
+  // O gerador de tipos não sabe que as colunas são anuláveis (devolve
+  // `number`); RowEstrategiaKpi é a forma real, com null.
+  const linha = ((data ?? []) as unknown as RowEstrategiaKpi[])[0];
   if (!linha) return KPI_AUSENTE;
 
   return {

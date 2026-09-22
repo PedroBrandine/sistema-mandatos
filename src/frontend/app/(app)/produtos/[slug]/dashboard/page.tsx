@@ -33,7 +33,12 @@ import { hojeNoFusoDoProduto } from "@/components/estrategia/agenda-mes";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
-import { FiltroDashboard, type OpcaoFiltroDashboard, type ValorFiltroDashboard } from "@/components/estrategia/filtro-dashboard";
+import {
+  FiltroDashboard,
+  intervaloDataDoFiltro,
+  type OpcaoFiltroDashboard,
+  type ValorFiltroDashboard,
+} from "@/components/estrategia/filtro-dashboard";
 import { KpiRow } from "@/components/estrategia/kpi-row";
 import { QuadroAcompanhamento } from "@/components/estrategia/quadro-acompanhamento";
 import { TabelaPendencias } from "@/components/estrategia/tabela-pendencias";
@@ -125,13 +130,19 @@ function EstrategiaDashboardPage({ slug }: { slug: ProdutoSlug }) {
     queryFn: () =>
       buscarQuadro(createClient(), {
         idProduto: idProduto as number,
-        filtro: { idsGestora: filtro.idsGestora, idsProjeto: filtro.idsProjeto },
+        filtro: { idsGestora: filtro.idsGestora, idsProjeto: filtro.idsProjeto, ...intervaloDataDoFiltro(filtro) },
       }),
     enabled: idProduto !== undefined,
   });
 
   // EST-08 (T33b). Os 6 KPIs da faixa do topo, recortados pelos mesmos
-  // filtros de gestora/projeto da FiltroDashboard acima do Quadro.
+  // filtros de gestora/projeto da FiltroDashboard acima do Quadro, mais o
+  // intervalo de data (2026-09-22): sem ele, um mandatário com mais de um
+  // contrato de Estratégia (renovação, ciclo anterior) mistura os números do
+  // contrato antigo na média/soma do período atual (fn_estrategia_kpi não
+  // filtra por status). O Quadro (buscarQuadro, abaixo) e Pendências
+  // (buscarPendenciasDashboard, mais abaixo) recortam pelo mesmo intervalo --
+  // contrato fora do período não deve aparecer em nenhum dos três blocos.
   const {
     data: kpi,
     isLoading: carregandoKpi,
@@ -144,6 +155,7 @@ function EstrategiaDashboardPage({ slug }: { slug: ProdutoSlug }) {
         idProduto: idProduto as number,
         idsGestora: filtro.idsGestora,
         idsProjeto: filtro.idsProjeto,
+        ...intervaloDataDoFiltro(filtro),
       }),
     enabled: idProduto !== undefined,
   });
@@ -168,6 +180,7 @@ function EstrategiaDashboardPage({ slug }: { slug: ProdutoSlug }) {
         idProduto: idProduto as number,
         idsGestora: filtro.idsGestora,
         idsProjeto: filtro.idsProjeto,
+        ...intervaloDataDoFiltro(filtro),
       }),
     enabled: idProduto !== undefined,
   });

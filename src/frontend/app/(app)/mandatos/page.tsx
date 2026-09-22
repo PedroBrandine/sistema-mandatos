@@ -9,7 +9,7 @@ import { createClient } from "@backend/supabase/client";
 import { MandatoCard, type MandatoCardProps } from "@/components/fundacao/mandato-card";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultiSelectPesquisavel } from "@/components/ui/multi-select-pesquisavel";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
@@ -20,8 +20,9 @@ export default function MandatosPage() {
   const [mandatos, setMandatos] = useState<MandatoCartao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
-  const [filtroUf, setFiltroUf] = useState<string>("todos");
-  const [filtroPartido, setFiltroPartido] = useState<string>("todos");
+  // Seleção múltipla: lista vazia = sem filtro.
+  const [filtroUf, setFiltroUf] = useState<string[]>([]);
+  const [filtroPartido, setFiltroPartido] = useState<string[]>([]);
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>([]);
   const [partidosDisponiveis, setPartidosDisponiveis] = useState<string[]>([]);
 
@@ -130,8 +131,8 @@ export default function MandatosPage() {
   const filtrados = mandatos.filter((m) => {
     const nome = m.nomeUrna ?? m.nomeContratante;
     const bateBusca = !busca || nome.toLowerCase().includes(busca.toLowerCase());
-    const bateUf = filtroUf === "todos" || m.sgUf === filtroUf;
-    const batePartido = filtroPartido === "todos" || m.siglaPartido === filtroPartido;
+    const bateUf = filtroUf.length === 0 || (m.sgUf !== null && filtroUf.includes(m.sgUf));
+    const batePartido = filtroPartido.length === 0 || (m.siglaPartido !== null && filtroPartido.includes(m.siglaPartido));
     return bateBusca && bateUf && batePartido;
   });
 
@@ -172,33 +173,25 @@ export default function MandatosPage() {
           />
         </div>
 
-        <Select value={filtroUf} onValueChange={setFiltroUf}>
-          <SelectTrigger className="bg-background text-xs">
-            <SelectValue placeholder="Filtrar por UF" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todas as UFs</SelectItem>
-            {ufsDisponiveis.map((uf) => (
-              <SelectItem key={uf} value={uf}>
-                {uf}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectPesquisavel
+          className="bg-background text-xs"
+          opcoes={ufsDisponiveis.map((uf) => ({ valor: uf, rotulo: uf }))}
+          valores={filtroUf}
+          onChange={setFiltroUf}
+          placeholder="Todas as UFs"
+          rotulo="Filtrar por UF"
+          rotuloPlural="UFs"
+        />
 
-        <Select value={filtroPartido} onValueChange={setFiltroPartido}>
-          <SelectTrigger className="bg-background text-xs">
-            <SelectValue placeholder="Filtrar por Partido" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Partidos</SelectItem>
-            {partidosDisponiveis.map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectPesquisavel
+          className="bg-background text-xs"
+          opcoes={partidosDisponiveis.map((p) => ({ valor: p, rotulo: p }))}
+          valores={filtroPartido}
+          onChange={setFiltroPartido}
+          placeholder="Todos os Partidos"
+          rotulo="Filtrar por Partido"
+          rotuloPlural="partidos"
+        />
       </div>
 
       {/* Conteúdo / Cards */}

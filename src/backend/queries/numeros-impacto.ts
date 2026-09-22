@@ -17,6 +17,7 @@ export interface LinhaNumerosImpacto {
   sgUf: string | null;
   nmMunicipio: string | null;
   nomeProduto: string;
+  idProjeto: number | null;
   nomeProjeto: string | null;
   tematica: string | null;
   dtInicio: string;
@@ -28,6 +29,11 @@ export interface LinhaNumerosImpacto {
   nrContratosContratante: number;
   dtPrimeiraContratacao: string;
   ordemContrato: number;
+  idGestora: number | null;
+  nomeGestora: string | null;
+  dsGenero: string | null;
+  dsRaca: string | null;
+  dsOrientacaoSexual: string | null;
 }
 
 interface RowNumerosImpacto {
@@ -38,6 +44,7 @@ interface RowNumerosImpacto {
   sg_uf: string | null;
   nm_municipio: string | null;
   nome_produto: string;
+  id_projeto: number | null;
   nome_projeto: string | null;
   tematica: string | null;
   dt_inicio: string;
@@ -49,13 +56,18 @@ interface RowNumerosImpacto {
   nr_contratos_contratante: number;
   dt_primeira_contratacao: string;
   ordem_contrato: number;
+  id_gestora: number | null;
+  nome_gestora: string | null;
+  ds_genero: string | null;
+  ds_raca: string | null;
+  ds_orientacao_sexual: string | null;
 }
 
 const COLUNAS_NUMEROS_IMPACTO =
   "id_contrato, id_contratante, nome_contratante, tipo_contratante, sg_uf, nm_municipio, " +
-  "nome_produto, nome_projeto, tematica, dt_inicio, dt_fim, ano_inicio, status, " +
+  "nome_produto, id_projeto, nome_projeto, tematica, dt_inicio, dt_fim, ano_inicio, status, " +
   "cargo_no_contrato, partido_no_contrato, nr_contratos_contratante, dt_primeira_contratacao, " +
-  "ordem_contrato";
+  "ordem_contrato, id_gestora, nome_gestora, ds_genero, ds_raca, ds_orientacao_sexual";
 
 // SAI-01, SAI-03. Leitura de mv_numeros_impacto sem filtro de status (D4,
 // verbatim do schema aprovado -- todo contrato é contrato assinado) --
@@ -75,6 +87,7 @@ export async function buscarNumerosImpacto(client: SupabaseClient<Database>): Pr
       sgUf: r.sg_uf,
       nmMunicipio: r.nm_municipio,
       nomeProduto: r.nome_produto,
+      idProjeto: r.id_projeto,
       nomeProjeto: r.nome_projeto,
       tematica: r.tematica,
       dtInicio: r.dt_inicio,
@@ -86,6 +99,11 @@ export async function buscarNumerosImpacto(client: SupabaseClient<Database>): Pr
       nrContratosContratante: r.nr_contratos_contratante,
       dtPrimeiraContratacao: r.dt_primeira_contratacao,
       ordemContrato: r.ordem_contrato,
+      idGestora: r.id_gestora,
+      nomeGestora: r.nome_gestora,
+      dsGenero: r.ds_genero,
+      dsRaca: r.ds_raca,
+      dsOrientacaoSexual: r.ds_orientacao_sexual,
     }))
     .sort((a, b) => a.nomeContratante.localeCompare(b.nomeContratante));
 }
@@ -101,6 +119,140 @@ export async function buscarNumerosImpacto(client: SupabaseClient<Database>): Pr
 export async function atualizaEBuscaNumerosImpacto(client: SupabaseClient<Database>): Promise<LinhaNumerosImpacto[]> {
   await atualizaNumerosImpacto(client);
   return buscarNumerosImpacto(client);
+}
+
+// Dashboard "Números de Impacto" (2026-09-22, apresentação do Pedro). O
+// conjunto de LinhaNumerosImpacto já vem inteiro do Server Component (leitura
+// deliberadamente organização-inteira, comentário de T2/20260831022144) --
+// filtro e agregação para os gráficos/KPIs acontecem aqui, na camada de
+// query, e não dentro do componente React (mesmo padrão de
+// queries/visao-gerencial.ts: `acc.qtdContratos += 1`, `porCampo.get(campo)`
+// -- a tela só recebe números prontos, nunca soma/conta sozinha).
+export interface FiltroNumerosImpacto {
+  idsGestora?: number[];
+  idsProjeto?: number[];
+  anos?: number[];
+}
+
+function temValores<T>(lista: T[] | undefined): lista is T[] {
+  return lista !== undefined && lista.length > 0;
+}
+
+export function filtraNumerosImpacto(
+  linhas: LinhaNumerosImpacto[],
+  filtro: FiltroNumerosImpacto
+): LinhaNumerosImpacto[] {
+  return linhas.filter((l) => {
+    if (temValores(filtro.idsGestora) && (l.idGestora === null || !filtro.idsGestora.includes(l.idGestora))) {
+      return false;
+    }
+    if (temValores(filtro.idsProjeto) && (l.idProjeto === null || !filtro.idsProjeto.includes(l.idProjeto))) {
+      return false;
+    }
+    if (temValores(filtro.anos) && !filtro.anos.includes(l.anoInicio)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+export interface OpcaoNumerosImpacto {
+  id: number;
+  nome: string;
+}
+
+export interface OpcoesFiltroNumerosImpacto {
+  gestoras: OpcaoNumerosImpacto[];
+  projetos: OpcaoNumerosImpacto[];
+  anos: number[];
+}
+
+// Opções derivadas do próprio conjunto carregado -- só gestora/projeto/ano
+// que de fato aparecem em algum contrato de mv_numeros_impacto entram na
+// lista (sem 2ª consulta a dim_usuario/ref_projeto).
+export function opcoesFiltroNumerosImpacto(linhas: LinhaNumerosImpacto[]): OpcoesFiltroNumerosImpacto {
+  const gestoras = new Map<number, string>();
+  const projetos = new Map<number, string>();
+  const anos = new Set<number>();
+
+  for (const l of linhas) {
+    if (l.idGestora !== null && l.nomeGestora !== null) gestoras.set(l.idGestora, l.nomeGestora);
+    if (l.idProjeto !== null && l.nomeProjeto !== null) projetos.set(l.idProjeto, l.nomeProjeto);
+    anos.add(l.anoInicio);
+  }
+
+  const porNome = (a: OpcaoNumerosImpacto, b: OpcaoNumerosImpacto) => a.nome.localeCompare(b.nome);
+
+  return {
+    gestoras: [...gestoras].map(([id, nome]) => ({ id, nome })).sort(porNome),
+    projetos: [...projetos].map(([id, nome]) => ({ id, nome })).sort(porNome),
+    anos: [...anos].sort((a, b) => a - b),
+  };
+}
+
+export interface ItemContagemNumerosImpacto {
+  id: string;
+  rotulo: string;
+  valor: number;
+}
+
+const SEM_PROJETO = "Sem projeto";
+const NAO_INFORMADO = "Não informado";
+
+function contagemPor(linhas: LinhaNumerosImpacto[], chave: (l: LinhaNumerosImpacto) => string): ItemContagemNumerosImpacto[] {
+  const contagem = new Map<string, number>();
+  for (const l of linhas) {
+    const rotulo = chave(l);
+    contagem.set(rotulo, (contagem.get(rotulo) ?? 0) + 1);
+  }
+  return [...contagem].map(([rotulo, valor]) => ({ id: rotulo, rotulo, valor }));
+}
+
+// Percentual sobre o total filtrado (não só sobre quem respondeu) -- "Não
+// informado" entra como fatia própria em vez de sumir do gráfico, mesmo
+// espírito de AD-005 (ausência de dado é fato, não se esconde).
+function percentualPor(linhas: LinhaNumerosImpacto[], chave: (l: LinhaNumerosImpacto) => string | null): ItemContagemNumerosImpacto[] {
+  const total = linhas.length;
+  const contagem = contagemPor(linhas, (l) => chave(l) ?? NAO_INFORMADO);
+  if (total === 0) return contagem;
+  return contagem.map((item) => ({ ...item, valor: Math.round((item.valor / total) * 1000) / 10 }));
+}
+
+// Contratantes distintos que casam com o predicado -- usado pra separar
+// "quantidade de mandatos" de "quantidade de coalizões" por tipoContratante
+// em vez de somar os dois num único número (o que a versão anterior fazia).
+function qtdContratantesDistintos(linhas: LinhaNumerosImpacto[], predicado: (l: LinhaNumerosImpacto) => boolean): number {
+  return new Set(linhas.filter(predicado).map((l) => l.idContratante)).size;
+}
+
+export interface ResumoNumerosImpacto {
+  qtdContratos: number;
+  qtdMandatos: number;
+  qtdCoalizoes: number;
+  porProduto: ItemContagemNumerosImpacto[];
+  porProjeto: ItemContagemNumerosImpacto[];
+  porStatus: ItemContagemNumerosImpacto[];
+  porAno: ItemContagemNumerosImpacto[];
+  percentualGenero: ItemContagemNumerosImpacto[];
+  percentualRaca: ItemContagemNumerosImpacto[];
+  percentualOrientacaoSexual: ItemContagemNumerosImpacto[];
+}
+
+// `linhas` aqui já é o recorte filtrado (filtraNumerosImpacto aplicado antes)
+// -- esta função só soma/agrupa, nunca decide o que entra no recorte.
+export function resumoNumerosImpacto(linhas: LinhaNumerosImpacto[]): ResumoNumerosImpacto {
+  return {
+    qtdContratos: linhas.length,
+    qtdMandatos: qtdContratantesDistintos(linhas, (l) => l.tipoContratante === "mandato"),
+    qtdCoalizoes: qtdContratantesDistintos(linhas, (l) => l.tipoContratante === "coalizao"),
+    porProduto: contagemPor(linhas, (l) => l.nomeProduto),
+    porProjeto: contagemPor(linhas, (l) => l.nomeProjeto ?? SEM_PROJETO),
+    porStatus: contagemPor(linhas, (l) => l.status),
+    porAno: contagemPor(linhas, (l) => String(l.anoInicio)).sort((a, b) => Number(a.rotulo) - Number(b.rotulo)),
+    percentualGenero: percentualPor(linhas, (l) => l.dsGenero),
+    percentualRaca: percentualPor(linhas, (l) => l.dsRaca),
+    percentualOrientacaoSexual: percentualPor(linhas, (l) => l.dsOrientacaoSexual),
+  };
 }
 
 // SAI-05, SAI-06. N linhas por id_contratante (1 timeline); idContratoAnterior

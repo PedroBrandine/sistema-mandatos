@@ -13,3 +13,14 @@ export function normalizaEntradaPct(texto: string): number | null {
 
   return valor;
 }
+
+// PF-02 (T8) + correção de 2026-09-22 (.specs/STATE.md): a Situação do
+// Sucesso Mensal é sempre DERIVADA do % de atingimento, nunca digitada.
+// Migration 20260922151933 espelha esta mesma regra num trigger de banco
+// (fat_sucesso_mensal), que é quem garante o valor final -- esta função serve
+// só para a UI mostrar o mesmo resultado otimisticamente, sem esperar o
+// round-trip. As duas precisam concordar bit a bit.
+export function derivaSituacao(pctAtingimento: number | null | undefined): "pendente" | "realizado" | "nao_realizado" {
+  if (pctAtingimento != null && pctAtingimento >= 100) return "realizado";
+  return "pendente";
+}

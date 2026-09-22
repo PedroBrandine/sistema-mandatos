@@ -83,8 +83,10 @@ function respostasTudoPermitido(overrides: Record<string, RespostaTabela> = {}):
 
 describe("buscarCardsHub", () => {
   // Done-when: "Ordem fixa: Estratégia, PLL, Coalizão, Visão Gerencial,
-  // Números de Impacto, Gestão de Usuários (AC6)"
-  it("devolve os 6 cards na ordem fixa quando nada é negado (Admin)", async () => {
+  // Números de Impacto, Gestão de Usuários (AC6)" + Apresentação -
+  // Funcionalidades e Projetos (2026-09-22, mesma sonda `admin` de Gestão de
+  // Usuários).
+  it("devolve os 8 cards na ordem fixa quando nada é negado (Admin)", async () => {
     const { client } = criarClienteMock(respostasTudoPermitido());
 
     const resultado = await buscarCardsHub(client);
@@ -96,6 +98,8 @@ describe("buscarCardsHub", () => {
       "Visão Gerencial",
       "Números de Impacto",
       "Gestão de Usuários",
+      "Apresentação - Funcionalidades",
+      "Projetos",
     ]);
   });
 
@@ -112,6 +116,8 @@ describe("buscarCardsHub", () => {
     expect(tipos["Visão Gerencial"]).toBe("ferramenta");
     expect(tipos["Números de Impacto"]).toBe("ferramenta");
     expect(tipos["Gestão de Usuários"]).toBe("ferramenta");
+    expect(tipos["Apresentação - Funcionalidades"]).toBe("ferramenta");
+    expect(tipos["Projetos"]).toBe("ferramenta");
   });
 
   // Done-when: "Contagens de mandatos ativos e fatos geradores vêm da
@@ -146,7 +152,15 @@ describe("buscarCardsHub", () => {
 
     const resultado = await buscarCardsHub(client);
 
-    expect(resultado.map((c) => c.titulo)).toEqual(["Estratégia", "PLL", "Coalizão", "Números de Impacto", "Gestão de Usuários"]);
+    expect(resultado.map((c) => c.titulo)).toEqual([
+      "Estratégia",
+      "PLL",
+      "Coalizão",
+      "Números de Impacto",
+      "Gestão de Usuários",
+      "Apresentação - Funcionalidades",
+      "Projetos",
+    ]);
   });
 
   // Done-when: "Consulta negada por permissão -> card omitido (AC2)" --
@@ -160,19 +174,38 @@ describe("buscarCardsHub", () => {
 
     const resultado = await buscarCardsHub(client);
 
-    expect(resultado.map((c) => c.titulo)).toEqual(["Estratégia", "PLL", "Coalizão", "Visão Gerencial", "Gestão de Usuários"]);
+    expect(resultado.map((c) => c.titulo)).toEqual([
+      "Estratégia",
+      "PLL",
+      "Coalizão",
+      "Visão Gerencial",
+      "Gestão de Usuários",
+      "Apresentação - Funcionalidades",
+      "Projetos",
+    ]);
   });
 
   // Done-when (corrigido 2026-09-14): AC7 original pedia "só Admin", mas a
   // RLS p_usuario sempre permitiu SELECT/UPDATE completos a legisla_gestora
   // também -- o card do Hub era o único lugar ainda restringindo mais que o
-  // banco. Gestora vê o card, no mesmo lugar que Admin veria.
-  it("usuária Gestora também vê o card Gestão de Usuários (mesmo acesso do banco)", async () => {
+  // banco. Gestora vê o card, no mesmo lugar que Admin veria. Mesma sonda
+  // `admin` também controla Apresentação - Funcionalidades e Projetos
+  // (2026-09-22).
+  it("usuária Gestora também vê os cards Gestão de Usuários, Apresentação - Funcionalidades e Projetos (mesmo acesso do banco)", async () => {
     const { client } = criarClienteMock(respostasTudoPermitido({ dim_usuario: { data: GESTORA, error: null } }));
 
     const resultado = await buscarCardsHub(client);
 
-    expect(resultado.map((c) => c.titulo)).toEqual(["Estratégia", "PLL", "Coalizão", "Visão Gerencial", "Números de Impacto", "Gestão de Usuários"]);
+    expect(resultado.map((c) => c.titulo)).toEqual([
+      "Estratégia",
+      "PLL",
+      "Coalizão",
+      "Visão Gerencial",
+      "Números de Impacto",
+      "Gestão de Usuários",
+      "Apresentação - Funcionalidades",
+      "Projetos",
+    ]);
   });
 
   // Lado oposto: papel sem nenhum acesso a gestão de usuários não vê o card.

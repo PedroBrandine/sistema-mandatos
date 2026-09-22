@@ -1,7 +1,9 @@
+import type { StatusMandato } from "@backend/queries/mandatos-lista";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listaOuUndefined, MultiSelectPesquisavel, opcoesDeIdNome } from "@/components/ui/multi-select-pesquisavel";
 
 // EST-09 (T21, design.md/tasks.md, Figma 202:554). AD-046: tela de leitura --
 // caminho feliz de cada AC. Presentational, mesmo espírito de
@@ -10,6 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // etapa por conta própria (a orquestração fica pra página, T21b). "Data"
 // (EST-09 AC3) é um único filtro conceitual com dois campos (de/até), sobre
 // dt_inicio -- mesmo par que queries/mandatos-lista.ts (T19) espera.
+//
+// Seleção múltipla (2026-09-21, pedido do Pedro): Gestora, Projeto, Etapa e
+// Status são MultiSelectPesquisavel -- dropdown com busca que aceita vários
+// valores (`idsGestora` etc. são listas; ausente/vazia = sem filtro). Só as
+// datas seguem como campo único. O texto do placeholder e o aria-label são os
+// mesmos de antes.
 //
 // Ajuste de fidelidade visual -- Mandatos (2026-09-14). Layout original era
 // um grid 2x4 com <Label> empilhado sobre cada campo -- o Figma 202:554 usa
@@ -32,10 +40,10 @@ export interface OpcaoFiltroMandatos {
 export interface ValorFiltrosMandatos {
   dtInicioDe?: string;
   dtInicioAte?: string;
-  idGestora?: number;
-  idProjeto?: number;
-  idEtapa?: number;
-  status?: "ativo" | "concluido" | "nao_concluido";
+  idsGestora?: number[];
+  idsProjeto?: number[];
+  idsEtapa?: number[];
+  status?: StatusMandato[];
 }
 
 export interface FiltrosMandatosProps {
@@ -50,7 +58,7 @@ export interface FiltrosMandatosProps {
 // Mesmos rótulos de lista-mandatos.tsx (STATUS_LABEL) -- duplicado aqui de
 // propósito, mesmo padrão de ROTULO_CATEGORIA em tabela-pendencias.tsx: um
 // mapa pequeno o bastante pra não justificar acoplar os dois componentes.
-const OPCOES_STATUS: { valor: ValorFiltrosMandatos["status"] & string; rotulo: string }[] = [
+const OPCOES_STATUS: { valor: StatusMandato; rotulo: string }[] = [
   { valor: "ativo", rotulo: "Ativo" },
   { valor: "concluido", rotulo: "Finalizado" },
   { valor: "nao_concluido", rotulo: "Desligado" },
@@ -92,71 +100,47 @@ export function FiltrosMandatos({ filtro, onChange, gestoras, projetos, etapas, 
             />
           </div>
 
-          <Select
-            value={filtro.idGestora !== undefined ? String(filtro.idGestora) : ""}
-            onValueChange={(v) => atualizar({ idGestora: v ? Number(v) : undefined })}
-          >
-            <SelectTrigger className="h-[42px] w-full flex-1">
-              <SelectValue placeholder="Todas as gestoras" />
-            </SelectTrigger>
-            <SelectContent>
-              {gestoras.map((g) => (
-                <SelectItem key={g.id} value={String(g.id)}>
-                  {g.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectPesquisavel
+            className="h-[42px] flex-1"
+            opcoes={opcoesDeIdNome(gestoras)}
+            valores={filtro.idsGestora ?? []}
+            onChange={(v) => atualizar({ idsGestora: listaOuUndefined(v) })}
+            placeholder="Todas as gestoras"
+            rotulo="Gestora"
+            rotuloPlural="gestoras"
+          />
 
-          <Select
-            value={filtro.idProjeto !== undefined ? String(filtro.idProjeto) : ""}
-            onValueChange={(v) => atualizar({ idProjeto: v ? Number(v) : undefined })}
-          >
-            <SelectTrigger className="h-[42px] w-full flex-1">
-              <SelectValue placeholder="Todos os projetos" />
-            </SelectTrigger>
-            <SelectContent>
-              {projetos.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectPesquisavel
+            className="h-[42px] flex-1"
+            opcoes={opcoesDeIdNome(projetos)}
+            valores={filtro.idsProjeto ?? []}
+            onChange={(v) => atualizar({ idsProjeto: listaOuUndefined(v) })}
+            placeholder="Todos os projetos"
+            rotulo="Projeto"
+            rotuloPlural="projetos"
+          />
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <Select
-            value={filtro.idEtapa !== undefined ? String(filtro.idEtapa) : ""}
-            onValueChange={(v) => atualizar({ idEtapa: v ? Number(v) : undefined })}
-          >
-            <SelectTrigger className="h-[42px] w-full flex-1">
-              <SelectValue placeholder="Todas as etapas" />
-            </SelectTrigger>
-            <SelectContent>
-              {etapas.map((e) => (
-                <SelectItem key={e.id} value={String(e.id)}>
-                  {e.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectPesquisavel
+            className="h-[42px] flex-1"
+            opcoes={opcoesDeIdNome(etapas)}
+            valores={filtro.idsEtapa ?? []}
+            onChange={(v) => atualizar({ idsEtapa: listaOuUndefined(v) })}
+            placeholder="Todas as etapas"
+            rotulo="Etapa"
+            rotuloPlural="etapas"
+          />
 
-          <Select
-            value={filtro.status ?? ""}
-            onValueChange={(v) => atualizar({ status: (v || undefined) as ValorFiltrosMandatos["status"] })}
-          >
-            <SelectTrigger className="h-[42px] w-full flex-1">
-              <SelectValue placeholder="Todos os status: ativo, finalizado, desligado" />
-            </SelectTrigger>
-            <SelectContent>
-              {OPCOES_STATUS.map((o) => (
-                <SelectItem key={o.valor} value={o.valor}>
-                  {o.rotulo}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectPesquisavel
+            className="h-[42px] flex-1"
+            opcoes={OPCOES_STATUS.map((o) => ({ valor: o.valor, rotulo: o.rotulo }))}
+            valores={filtro.status ?? []}
+            onChange={(v) => atualizar({ status: listaOuUndefined(v) })}
+            placeholder="Todos os status: ativo, finalizado, desligado"
+            rotulo="Status"
+            rotuloPlural="status"
+          />
 
           <Button
             type="button"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Calendar, Check, Tag } from "lucide-react";
+import { Calendar, Check, Landmark, Tag } from "lucide-react";
 
 import type {
   FatoGeradorResumo,
@@ -10,6 +10,7 @@ import type {
   RegistroResumo,
   TimelineItem,
 } from "@backend/queries/incidencia";
+import type { MapaContratos } from "@/lib/incidencia-contrato";
 import { agrupaPorMes } from "@/lib/incidencia-timeline";
 import { DESTAQUE_FATO_GERADOR, TIPO_ESTILO, TIPO_ROTULO } from "@/lib/incidencia-visual";
 
@@ -50,6 +51,17 @@ export interface TimelineFeedProps {
   // T14 (pente-fino 2026-09, PF-08): recarrega os dados depois de marcar um
   // Fato Gerador projetado como realizado pelo card (RealizarFatoDialog).
   onRealizado?: () => void;
+  // Aba agregada do produto: quando a lista mistura vários mandatos, cada
+  // card e o painel dizem de qual é o item. Ausente na aba do contrato.
+  contratos?: MapaContratos;
+  // Filtro de período controlado de fora (produto: fica junto de
+  // Gestora/Projeto/Contrato na barra de filtros do topo, T-fix pós-Figma).
+  // Sem essas props, o período volta a ser interno -- caso do contrato, que
+  // não tem barra de filtros por cima da aba.
+  periodoInicio?: string;
+  periodoFim?: string;
+  onPeriodoInicioChange?: (valor: string) => void;
+  onPeriodoFimChange?: (valor: string) => void;
 }
 
 const TIPOS: TimelineItem["tipo"][] = ["pre_insight", "registro", "insight", "fato_gerador"];
@@ -73,11 +85,25 @@ export function TimelineFeed({
   onEditar,
   onVerNoCicloDeVida,
   onRealizado,
+  contratos,
+  periodoInicio: periodoInicioControlado,
+  periodoFim: periodoFimControlado,
+  onPeriodoInicioChange,
+  onPeriodoFimChange,
 }: TimelineFeedProps) {
   const [tiposVisiveis, setTiposVisiveis] = useState<Set<TimelineItem["tipo"]>>(() => new Set(TIPOS));
-  const [periodoInicio, setPeriodoInicio] = useState("");
-  const [periodoFim, setPeriodoFim] = useState("");
+  const [periodoInicioInterno, setPeriodoInicioInterno] = useState("");
+  const [periodoFimInterno, setPeriodoFimInterno] = useState("");
   const [selecionado, setSelecionado] = useState<TimelineItem | null>(null);
+
+  // Controlado (barra de filtros do produto) quando o chamador passa
+  // `onPeriodoXChange`; sem isso, o estado é interno (aba do contrato, que
+  // não tem onde mais colocar esse filtro).
+  const periodoControlado = onPeriodoInicioChange !== undefined;
+  const periodoInicio = periodoControlado ? (periodoInicioControlado ?? "") : periodoInicioInterno;
+  const periodoFim = periodoControlado ? (periodoFimControlado ?? "") : periodoFimInterno;
+  const definirPeriodoInicio = onPeriodoInicioChange ?? setPeriodoInicioInterno;
+  const definirPeriodoFim = onPeriodoFimChange ?? setPeriodoFimInterno;
 
   function alternarTipo(tipo: TimelineItem["tipo"]) {
     setTiposVisiveis((atual) => {
@@ -171,33 +197,35 @@ export function TimelineFeed({
           })}
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card px-3 py-2">
-          <Calendar className="mb-1.5 size-3.5 text-muted-foreground" />
-          <div className="grid gap-1">
-            <Label htmlFor="timeline-periodo-inicio" className="text-xs text-muted-foreground">
-              De
-            </Label>
-            <Input
-              id="timeline-periodo-inicio"
-              type="date"
-              value={periodoInicio}
-              onChange={(e) => setPeriodoInicio(e.target.value)}
-              className="h-8 w-auto text-xs"
-            />
+        {!periodoControlado && (
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card px-3 py-2">
+            <Calendar className="mb-1.5 size-3.5 text-muted-foreground" />
+            <div className="grid gap-1">
+              <Label htmlFor="timeline-periodo-inicio" className="text-xs text-muted-foreground">
+                De
+              </Label>
+              <Input
+                id="timeline-periodo-inicio"
+                type="date"
+                value={periodoInicio}
+                onChange={(e) => definirPeriodoInicio(e.target.value)}
+                className="h-8 w-auto text-xs"
+              />
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="timeline-periodo-fim" className="text-xs text-muted-foreground">
+                Até
+              </Label>
+              <Input
+                id="timeline-periodo-fim"
+                type="date"
+                value={periodoFim}
+                onChange={(e) => definirPeriodoFim(e.target.value)}
+                className="h-8 w-auto text-xs"
+              />
+            </div>
           </div>
-          <div className="grid gap-1">
-            <Label htmlFor="timeline-periodo-fim" className="text-xs text-muted-foreground">
-              Até
-            </Label>
-            <Input
-              id="timeline-periodo-fim"
-              type="date"
-              value={periodoFim}
-              onChange={(e) => setPeriodoFim(e.target.value)}
-              className="h-8 w-auto text-xs"
-            />
-          </div>
-        </div>
+        )}
 
         {grupos.length === 0 ? (
           <EstadoVazio titulo="Nenhum item no período" mensagem="Ajuste os filtros de tipo ou período para ver a linha do tempo." />
@@ -264,6 +292,12 @@ export function TimelineFeed({
                               </div>
                               <span className="text-xs text-muted-foreground">{formatarData(item.dataEvento)}</span>
                             </div>
+                            {contratos && item.idContrato != null && contratos.has(item.idContrato) && (
+                              <span className="inline-flex w-fit items-center gap-1 text-xs font-semibold text-secondary">
+                                <Landmark className="size-3" />
+                                {contratos.get(item.idContrato)!.nome}
+                              </span>
+                            )}
                             <span className="font-medium">{item.titulo ?? "—"}</span>
                             {desc && <p className="line-clamp-2 text-xs text-muted-foreground">{desc}</p>}
                             <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -300,6 +334,7 @@ export function TimelineFeed({
         insight={insightSelecionado}
         fatoGerador={fatoGeradorSelecionado}
         preInsight={preInsightSelecionado}
+        contrato={selecionado?.idContrato != null ? contratos?.get(selecionado.idContrato) : undefined}
         onEditar={onEditar && selecionado ? () => onEditar(selecionado) : undefined}
         onVerNoCicloDeVida={
           onVerNoCicloDeVida && selecionado?.tipo === "fato_gerador" ? onVerNoCicloDeVida : undefined

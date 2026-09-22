@@ -7,9 +7,9 @@ import { FiltroDashboard } from "./filtro-dashboard";
 
 // Ajuste de fidelidade visual, 2026-09-14 (Figma 44:29 "filter-bar").
 // Componente presentational novo -- mesmo espírito de teste de
-// filtros-mandatos.test.tsx: cobre o que a interação do Select permite
-// verificar sem simular abrir o dropdown do Radix (não testado em nenhum dos
-// componentes já existentes que usam <Select> nesta base).
+// filtros-mandatos.test.tsx: cobre o que se afirma a partir das props, sem
+// abrir o dropdown (a interação da lista está em
+// multi-select-pesquisavel.test.tsx).
 afterEach(cleanup);
 
 const OPCOES = {
@@ -26,9 +26,23 @@ describe("FiltroDashboard", () => {
   });
 
   it("mostra o nome já selecionado quando o filtro chega com gestora/projeto aplicados", () => {
-    render(<FiltroDashboard filtro={{ idGestora: 1, idProjeto: 10 }} onChange={vi.fn()} {...OPCOES} />);
+    render(<FiltroDashboard filtro={{ idsGestora: [1], idsProjeto: [10] }} onChange={vi.fn()} {...OPCOES} />);
 
     expect(screen.getByText("Gestora Um")).toBeInTheDocument();
+    expect(screen.getByText("Projeto Alfa")).toBeInTheDocument();
+  });
+
+  it("com várias opções marcadas, mostra a contagem no plural", () => {
+    render(
+      <FiltroDashboard
+        filtro={{ idsGestora: [1, 2], idsProjeto: [10] }}
+        onChange={vi.fn()}
+        gestoras={[...OPCOES.gestoras, { id: 2, nome: "Gestora Dois" }]}
+        projetos={OPCOES.projetos}
+      />
+    );
+
+    expect(screen.getByText("2 gestoras")).toBeInTheDocument();
     expect(screen.getByText("Projeto Alfa")).toBeInTheDocument();
   });
 
@@ -37,7 +51,7 @@ describe("FiltroDashboard", () => {
   // botão, mas a função exige ele.
   it("Limpar filtros devolve o filtro vazio, mesmo com gestora e projeto aplicados", () => {
     const onChange = vi.fn();
-    render(<FiltroDashboard filtro={{ idGestora: 1, idProjeto: 10 }} onChange={onChange} {...OPCOES} />);
+    render(<FiltroDashboard filtro={{ idsGestora: [1], idsProjeto: [10] }} onChange={onChange} {...OPCOES} />);
 
     screen.getByRole("button", { name: "Limpar filtros" }).click();
 

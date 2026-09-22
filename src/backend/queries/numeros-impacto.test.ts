@@ -2,7 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { atualizaEBuscaNumerosImpacto, buscarNumerosImpacto, buscarVisaoMandato } from "./numeros-impacto";
+import {
+  atualizaEBuscaNumerosImpacto,
+  buscarNumerosImpacto,
+  buscarVisaoMandato,
+  filtraNumerosImpacto,
+  opcoesFiltroNumerosImpacto,
+  resumoNumerosImpacto,
+  type LinhaNumerosImpacto,
+} from "./numeros-impacto";
 
 // Spec anchor: saida-numeros-impacto T7 Done-when (.specs/features/saida-numeros-impacto/tasks.md) --
 //  - Mapeia todas as colunas de mv_numeros_impacto (design.md, LinhaNumerosImpacto) de
@@ -29,6 +37,7 @@ const LINHA_COMPLETA = {
   sg_uf: "SP",
   nm_municipio: "São Paulo",
   nome_produto: "Estratégia",
+  id_projeto: 5,
   nome_projeto: "Projeto X",
   tematica: "Saúde",
   dt_inicio: "2025-01-10",
@@ -40,6 +49,11 @@ const LINHA_COMPLETA = {
   nr_contratos_contratante: 1,
   dt_primeira_contratacao: "2025-01-10",
   ordem_contrato: 1,
+  id_gestora: 7,
+  nome_gestora: "Gestora Exemplo",
+  ds_genero: "feminino",
+  ds_raca: "parda",
+  ds_orientacao_sexual: "heterossexual",
 };
 
 describe("buscarNumerosImpacto", () => {
@@ -57,6 +71,7 @@ describe("buscarNumerosImpacto", () => {
         sgUf: "SP",
         nmMunicipio: "São Paulo",
         nomeProduto: "Estratégia",
+        idProjeto: 5,
         nomeProjeto: "Projeto X",
         tematica: "Saúde",
         dtInicio: "2025-01-10",
@@ -68,6 +83,11 @@ describe("buscarNumerosImpacto", () => {
         nrContratosContratante: 1,
         dtPrimeiraContratacao: "2025-01-10",
         ordemContrato: 1,
+        idGestora: 7,
+        nomeGestora: "Gestora Exemplo",
+        dsGenero: "feminino",
+        dsRaca: "parda",
+        dsOrientacaoSexual: "heterossexual",
       },
     ]);
   });
@@ -262,5 +282,132 @@ describe("atualizaEBuscaNumerosImpacto", () => {
 
     await expect(atualizaEBuscaNumerosImpacto(client as unknown as SupabaseClient<Database>)).rejects.toThrow();
     expect(chamadas).toEqual(["rpc:atualiza_numeros_impacto"]);
+  });
+});
+
+// Dashboard "Números de Impacto" (2026-09-22): filtro e agregação puros,
+// sem Supabase -- testados só com dados em memória.
+describe("filtraNumerosImpacto / opcoesFiltroNumerosImpacto / resumoNumerosImpacto", () => {
+  const BASE: LinhaNumerosImpacto = {
+    idContrato: 1,
+    idContratante: 100,
+    nomeContratante: "Contratante A",
+    tipoContratante: "mandato",
+    sgUf: "SP",
+    nmMunicipio: "São Paulo",
+    nomeProduto: "Estratégia",
+    idProjeto: 5,
+    nomeProjeto: "Projeto X",
+    tematica: "Saúde",
+    dtInicio: "2025-01-10",
+    dtFim: null,
+    anoInicio: 2025,
+    status: "ativo",
+    cargoNoContrato: "Vereador(a)",
+    partidoNoContrato: "PT",
+    nrContratosContratante: 1,
+    dtPrimeiraContratacao: "2025-01-10",
+    ordemContrato: 1,
+    idGestora: 10,
+    nomeGestora: "Gestora 1",
+    dsGenero: "feminino",
+    dsRaca: "parda",
+    dsOrientacaoSexual: "heterossexual",
+  };
+
+  const LINHAS: LinhaNumerosImpacto[] = [
+    BASE,
+    { ...BASE, idContrato: 2, idContratante: 100, idProjeto: 6, nomeProjeto: "Projeto Y", anoInicio: 2025, status: "ativo", idGestora: 10, nomeGestora: "Gestora 1", dsGenero: "masculino", dsRaca: "branca", dsOrientacaoSexual: "heterossexual" },
+    { ...BASE, idContrato: 3, idContratante: 200, nomeContratante: "Contratante B", idProjeto: null, nomeProjeto: null, anoInicio: 2026, status: "concluido", idGestora: 20, nomeGestora: "Gestora 2", dsGenero: null, dsRaca: null, dsOrientacaoSexual: null },
+    {
+      ...BASE,
+      idContrato: 4,
+      idContratante: 300,
+      nomeContratante: "Coalizão C",
+      tipoContratante: "coalizao",
+      nomeProduto: "Coalizão",
+      idProjeto: null,
+      nomeProjeto: null,
+      anoInicio: 2026,
+      status: "ativo",
+      idGestora: 20,
+      nomeGestora: "Gestora 2",
+    },
+  ];
+
+  it("filtraNumerosImpacto sem filtro devolve tudo", () => {
+    expect(filtraNumerosImpacto(LINHAS, {})).toHaveLength(4);
+  });
+
+  it("filtraNumerosImpacto por idsGestora/idsProjeto/anos combina como E, não OU", () => {
+    const resultado = filtraNumerosImpacto(LINHAS, { idsGestora: [10], anos: [2025] });
+    expect(resultado.map((l) => l.idContrato)).toEqual([1, 2]);
+  });
+
+  it("filtraNumerosImpacto exclui linha com idProjeto null quando o filtro de projeto está ativo", () => {
+    const resultado = filtraNumerosImpacto(LINHAS, { idsProjeto: [5] });
+    expect(resultado.map((l) => l.idContrato)).toEqual([1]);
+  });
+
+  it("opcoesFiltroNumerosImpacto deriva listas distintas e ordenadas do próprio conjunto", () => {
+    const opcoes = opcoesFiltroNumerosImpacto(LINHAS);
+    expect(opcoes.gestoras).toEqual([
+      { id: 10, nome: "Gestora 1" },
+      { id: 20, nome: "Gestora 2" },
+    ]);
+    expect(opcoes.projetos).toEqual([
+      { id: 5, nome: "Projeto X" },
+      { id: 6, nome: "Projeto Y" },
+    ]);
+    expect(opcoes.anos).toEqual([2025, 2026]);
+  });
+
+  it("resumoNumerosImpacto conta contratos, mandatos e coalizões (contratantes distintos por tipo)", () => {
+    const resumo = resumoNumerosImpacto(LINHAS);
+    expect(resumo.qtdContratos).toBe(4);
+    expect(resumo.qtdMandatos).toBe(2);
+    expect(resumo.qtdCoalizoes).toBe(1);
+  });
+
+  it("resumoNumerosImpacto agrupa por produto", () => {
+    const resumo = resumoNumerosImpacto(LINHAS);
+    expect(resumo.porProduto).toEqual(
+      expect.arrayContaining([
+        { id: "Estratégia", rotulo: "Estratégia", valor: 3 },
+        { id: "Coalizão", rotulo: "Coalizão", valor: 1 },
+      ])
+    );
+  });
+
+  it("resumoNumerosImpacto agrupa por projeto, status e ano", () => {
+    const resumo = resumoNumerosImpacto(LINHAS);
+    expect(resumo.porProjeto).toEqual(
+      expect.arrayContaining([
+        { id: "Projeto X", rotulo: "Projeto X", valor: 1 },
+        { id: "Projeto Y", rotulo: "Projeto Y", valor: 1 },
+        { id: "Sem projeto", rotulo: "Sem projeto", valor: 2 },
+      ])
+    );
+    expect(resumo.porStatus).toEqual(
+      expect.arrayContaining([
+        { id: "ativo", rotulo: "ativo", valor: 3 },
+        { id: "concluido", rotulo: "concluido", valor: 1 },
+      ])
+    );
+    expect(resumo.porAno).toEqual([
+      { id: "2025", rotulo: "2025", valor: 2 },
+      { id: "2026", rotulo: "2026", valor: 2 },
+    ]);
+  });
+
+  it("resumoNumerosImpacto calcula percentual sobre o total, com 'Não informado' para null", () => {
+    const resumo = resumoNumerosImpacto(LINHAS);
+    expect(resumo.percentualGenero).toEqual(
+      expect.arrayContaining([
+        { id: "feminino", rotulo: "feminino", valor: 50 },
+        { id: "masculino", rotulo: "masculino", valor: 25 },
+        { id: "Não informado", rotulo: "Não informado", valor: 25 },
+      ])
+    );
   });
 });

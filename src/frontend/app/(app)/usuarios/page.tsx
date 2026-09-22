@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Search, Shield, Trash2, UserPlus, Users2 } from "lucide-react";
+import { CheckSquare, Plus, Search, Shield, Trash2, UserPlus, Users2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@backend/supabase/client";
@@ -31,6 +31,34 @@ interface ContratoOption {
   nome: string;
 }
 
+const CODIGO_VIOLACAO_FK = "23503";
+
+interface ErroPostgrest {
+  message: string;
+  details?: string | null;
+  hint?: string | null;
+  code?: string;
+}
+
+function ehErroPostgrest(err: unknown): err is ErroPostgrest {
+  return typeof err === "object" && err !== null && "message" in err && typeof (err as { message: unknown }).message === "string";
+}
+
+function mensagemDeErro(err: unknown): string {
+  if (ehErroPostgrest(err)) {
+    return err.details ? `${err.message} (${err.details})` : err.message;
+  }
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  try {
+    const serializado = JSON.stringify(err);
+    return serializado && serializado !== "{}" ? serializado : "Falha na exclusão (erro sem detalhes)";
+  } catch {
+    return "Falha na exclusão (erro sem detalhes)";
+  }
+}
+
 export default function UsuariosPage() {
   const [souAdmin, setSouAdmin] = useState(true); // Default permissivo para interface
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
@@ -46,6 +74,11 @@ export default function UsuariosPage() {
 
   // Estado para exclusão
   const [usuarioExcluir, setUsuarioExcluir] = useState<UsuarioRow | null>(null);
+
+  // Estado para exclusão em lote
+  const [modoSelecao, setModoSelecao] = useState(false);
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [excluirLoteAberto, setExcluirLoteAberto] = useState(false);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -83,6 +116,17 @@ export default function UsuariosPage() {
     void carregar();
   }, [carregar]);
 
+  const handleDesativarUsuario = async (id_usuario: number, nome: string) => {
+    const supabase = createClient();
+    const { error } = await supabase.from("dim_usuario").update({ ativo: false }).eq("id_usuario", id_usuario);
+    if (error) {
+      toast.error(`Erro ao desativar "${nome}": ${mensagemDeErro(error)}`);
+      return;
+    }
+    toast.success(`Usuário "${nome}" desativado.`);
+    setUsuarios((prev) => prev.map((u) => (u.id_usuario === id_usuario ? { ...u, ativo: false } : u)));
+  };
+
   const handleExcluirUsuario = async () => {
     if (!usuarioExcluir) return;
 
@@ -101,10 +145,80 @@ export default function UsuariosPage() {
       setUsuarios((prev) => prev.filter((u) => u.id_usuario !== id_usuario));
     } catch (err: unknown) {
       console.error("Erro ao excluir usuário:", err);
-      const msg = err instanceof Error ? err.message : "Falha na exclusão";
-      toast.error(`Erro ao excluir usuário: ${msg}`);
+      const msg = mensagemDeErro(err);
+      if (ehErroPostgrest(err) && err.code === CODIGO_VIOLACAO_FK) {
+        toast.error(`Não é possível excluir "${nome}": ele(a) possui registros vinculados (histórico, autoria ou auditoria). ${msg}`, {
+          action: {
+            label: "Desativar em vez disso",
+            onClick: () => void handleDesativarUsuario(id_usuario, nome),
+          },
+          duration: 10000,
+        });
+      } else {
+        toast.error(`Erro ao excluir usuário: ${msg}`);
+      }
     } finally {
       setUsuarioExcluir(null);
+    }
+  };
+
+  const alternarSelecao = (id: number) => {
+    setSelecionados((prev) => {
+      const proximo = new Set(prev);
+      if (proximo.has(id)) proximo.delete(id);
+      else proximo.add(id);
+      return proximo;
+    });
+  };
+
+  const sairModoSelecao = () => {
+    setModoSelecao(false);
+    setSelecionados(new Set());
+  };
+
+  const handleDesativarSelecionados = async (ids: number[]) => {
+    const supabase = createClient();
+    const { error } = await supabase.from("dim_usuario").update({ ativo: false }).in("id_usuario", ids);
+    if (error) {
+      toast.error(`Erro ao desativar usuários: ${mensagemDeErro(error)}`);
+      return;
+    }
+    toast.success(`${ids.length} usuário(s) desativado(s).`);
+    setUsuarios((prev) => prev.map((u) => (ids.includes(u.id_usuario) ? { ...u, ativo: false } : u)));
+    sairModoSelecao();
+  };
+
+  const handleExcluirSelecionados = async () => {
+    if (selecionados.size === 0) return;
+
+    const supabase = createClient();
+    const ids = Array.from(selecionados);
+
+    try {
+      await supabase.from("rel_usuario_contrato").delete().in("id_usuario", ids);
+
+      const { error } = await supabase.from("dim_usuario").delete().in("id_usuario", ids);
+      if (error) throw error;
+
+      toast.success(`${ids.length} usuário(s) excluído(s) do banco de dados com sucesso!`);
+      setUsuarios((prev) => prev.filter((u) => !selecionados.has(u.id_usuario)));
+      sairModoSelecao();
+    } catch (err: unknown) {
+      console.error("Erro ao excluir usuários:", err);
+      const msg = mensagemDeErro(err);
+      if (ehErroPostgrest(err) && err.code === CODIGO_VIOLACAO_FK) {
+        toast.error(`Não é possível excluir todos os selecionados: um ou mais possuem registros vinculados (histórico, autoria ou auditoria). ${msg}`, {
+          action: {
+            label: "Desativar selecionados",
+            onClick: () => void handleDesativarSelecionados(ids),
+          },
+          duration: 10000,
+        });
+      } else {
+        toast.error(`Erro ao excluir usuários: ${msg}`);
+      }
+    } finally {
+      setExcluirLoteAberto(false);
     }
   };
 
@@ -165,7 +279,20 @@ export default function UsuariosPage() {
           </p>
         </div>
 
-        <Dialog open={modalAberto} onOpenChange={setModalAberto}>
+        <div className="flex items-center gap-2">
+          {usuarios.length > 0 && (
+            <Button
+              type="button"
+              variant={modoSelecao ? "secondary" : "outline"}
+              className="gap-2"
+              onClick={() => (modoSelecao ? sairModoSelecao() : setModoSelecao(true))}
+            >
+              {modoSelecao ? <X className="size-4" /> : <CheckSquare className="size-4" />}
+              {modoSelecao ? "Cancelar seleção" : "Selecionar"}
+            </Button>
+          )}
+
+          <Dialog open={modalAberto} onOpenChange={setModalAberto}>
           <DialogTrigger asChild>
             <Button type="button" className="gap-2 font-semibold shadow-sm active:scale-[0.98]">
               <UserPlus className="size-4" />
@@ -247,6 +374,7 @@ export default function UsuariosPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Busca */}
@@ -259,6 +387,45 @@ export default function UsuariosPage() {
           className="pl-9 text-xs"
         />
       </div>
+
+      {/* Barra de ações de seleção em lote */}
+      {modoSelecao && (
+        <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs text-muted-foreground">
+            {selecionados.size === 0
+              ? "Nenhum usuário selecionado"
+              : `${selecionados.size} usuário(s) selecionado(s)`}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() =>
+                setSelecionados(
+                  selecionados.size === filtrados.length
+                    ? new Set()
+                    : new Set(filtrados.map((u) => u.id_usuario))
+                )
+              }
+            >
+              {selecionados.size === filtrados.length ? "Limpar seleção" : "Selecionar todos"}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="gap-2 text-xs"
+              disabled={selecionados.size === 0}
+              onClick={() => setExcluirLoteAberto(true)}
+            >
+              <Trash2 className="size-3.5" />
+              Excluir selecionados
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Lista de Usuários */}
       {carregando ? (
@@ -281,11 +448,30 @@ export default function UsuariosPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtrados.map((u) => (
-            <Card key={u.id_usuario} className="border border-border/60 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+          {filtrados.map((u) => {
+            const selecionado = selecionados.has(u.id_usuario);
+            return (
+            <Card
+              key={u.id_usuario}
+              className={`border shadow-sm flex flex-col justify-between transition-shadow ${
+                modoSelecao
+                  ? `cursor-pointer hover:shadow-md ${selecionado ? "border-primary ring-1 ring-primary" : "border-border/60"}`
+                  : "border-border/60 hover:shadow-md"
+              }`}
+              onClick={modoSelecao ? () => alternarSelecao(u.id_usuario) : undefined}
+            >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
+                  {modoSelecao && (
+                    <input
+                      type="checkbox"
+                      checked={selecionado}
+                      onChange={() => alternarSelecao(u.id_usuario)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-1 size-4 shrink-0 accent-primary"
+                    />
+                  )}
+                  <div className="space-y-1 flex-1 min-w-0">
                     <CardTitle className="text-base font-bold">{u.nome}</CardTitle>
                     <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                   </div>
@@ -311,20 +497,23 @@ export default function UsuariosPage() {
                 </div>
               </CardContent>
 
-              <div className="px-6 pb-3 pt-1 flex justify-end border-t border-border/40">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setUsuarioExcluir(u)}
-                  className="size-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  title="Excluir Usuário"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
+              {!modoSelecao && (
+                <div className="px-6 pb-3 pt-1 flex justify-end border-t border-border/40">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setUsuarioExcluir(u)}
+                    className="size-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Excluir Usuário"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              )}
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -336,6 +525,15 @@ export default function UsuariosPage() {
         itemNome={usuarioExcluir?.nome}
         description="Esta ação removerá permanentemente o usuário e seus vínculos de papéis no banco de dados do Supabase."
         onConfirm={handleExcluirUsuario}
+      />
+
+      {/* Modal de Confirmação de Exclusão em Lote */}
+      <ConfirmDeleteDialog
+        open={excluirLoteAberto}
+        onOpenChange={setExcluirLoteAberto}
+        title="Excluir Usuários Selecionados"
+        description={`Esta ação removerá permanentemente ${selecionados.size} usuário(s) e seus vínculos de papéis no banco de dados do Supabase. Esta ação é permanente e não poderá ser desfeita.`}
+        onConfirm={handleExcluirSelecionados}
       />
     </div>
   );

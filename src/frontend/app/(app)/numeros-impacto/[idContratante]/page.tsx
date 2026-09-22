@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CornerDownRight } from "lucide-react";
 
 import { createClient } from "@backend/supabase/server";
@@ -81,40 +82,42 @@ export default async function VisaoMandatoPage({
                   Continuação do contrato #{contrato.idContratoAnterior}
                 </div>
               )}
-              <Card>
-                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base font-bold">
-                      #{contrato.ordemContrato} — {contrato.nomeProduto}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">{contrato.nomeProjeto ?? "—"}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {contrato.idContratoAnterior !== null && <Badge variant="secondary">Continuação</Badge>}
-                    <Badge variant="outline">{contrato.status}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-                  <div className="grid gap-0.5">
-                    <span className="text-muted-foreground">Cargo</span>
-                    <span className="font-medium text-foreground">{contrato.cargoNoContrato ?? "—"}</span>
-                  </div>
-                  <div className="grid gap-0.5">
-                    <span className="text-muted-foreground">Partido</span>
-                    <span className="font-medium text-foreground">{contrato.partidoNoContrato ?? "—"}</span>
-                  </div>
-                  <div className="grid gap-0.5">
-                    <span className="text-muted-foreground">Início</span>
-                    <span className="font-mono text-foreground">{formataData(contrato.dtInicio)}</span>
-                  </div>
-                  <div className="grid gap-0.5">
-                    <span className="text-muted-foreground">Fim</span>
-                    <span className="font-mono text-foreground">
-                      {contrato.dtFim ? formataData(contrato.dtFim) : "em andamento"}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+              <Link href={`/contratos/${contrato.idContrato}`} className="block">
+                <Card className="transition-colors hover:border-primary/50">
+                  <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
+                    <div className="space-y-1">
+                      <CardTitle className="text-base font-bold">
+                        #{contrato.ordemContrato} — {contrato.nomeProduto}
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground">{contrato.nomeProjeto ?? "—"}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {contrato.idContratoAnterior !== null && <Badge variant="secondary">Continuação</Badge>}
+                      <Badge variant="outline">{contrato.status}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                    <div className="grid gap-0.5">
+                      <span className="text-muted-foreground">Cargo</span>
+                      <span className="font-medium text-foreground">{contrato.cargoNoContrato ?? "—"}</span>
+                    </div>
+                    <div className="grid gap-0.5">
+                      <span className="text-muted-foreground">Partido</span>
+                      <span className="font-medium text-foreground">{contrato.partidoNoContrato ?? "—"}</span>
+                    </div>
+                    <div className="grid gap-0.5">
+                      <span className="text-muted-foreground">Início</span>
+                      <span className="font-mono text-foreground">{formataData(contrato.dtInicio)}</span>
+                    </div>
+                    <div className="grid gap-0.5">
+                      <span className="text-muted-foreground">Fim</span>
+                      <span className="font-mono text-foreground">
+                        {contrato.dtFim ? formataData(contrato.dtFim) : "em andamento"}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             </div>
           ))}
         </div>

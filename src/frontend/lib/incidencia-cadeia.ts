@@ -19,6 +19,9 @@ export interface ItemCadeia {
   situacao: "projetado" | "realizado";
   dataEvento: string | null;
   chaveOrigem: string;
+  // Repassado sem interpretação (leitura agregada por produto): grupos por
+  // chaveOrigem nunca cruzam mandatos, porque os ids de origem são únicos.
+  idContrato?: number;
   // Opcional (acerto de fidelidade visual pós-Verifier, mockup 109:4): passo
   // de origem do card horizontal. rotulaCadeias só agrupa/rotula -- não
   // interpreta este campo, só repassa.

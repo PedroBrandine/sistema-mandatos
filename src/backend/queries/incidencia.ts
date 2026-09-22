@@ -425,6 +425,11 @@ export interface TimelineItem {
   criadoEm: string | null;
   idUsuarioAutor: number | null;
   nomeAutor: string | null;
+  // Só preenchido pela leitura agregada por produto (incidencia-produto.ts),
+  // onde itens de vários mandatos convivem na mesma lista e a tela precisa
+  // dizer de quem é cada um. A leitura por contrato não precisa (todos são
+  // do mesmo) e não preenche.
+  idContrato?: number;
 }
 
 export interface PeriodoFiltro {
@@ -493,6 +498,8 @@ export interface CadeiaItem {
   situacao: "projetado" | "realizado";
   dataEvento: string | null;
   chaveOrigem: string;
+  // Mesma regra de TimelineItem.idContrato: só a leitura agregada preenche.
+  idContrato?: number;
   // Opcional (acerto de fidelidade visual pós-Verifier, mockup 109:4): o
   // card da cadeia no Ciclo de Vida mostra o passo de origem (Pré-Insight/
   // Registro/Insight/Meta) antes da seta pro Fato Gerador. `null` quando
@@ -502,34 +509,20 @@ export interface CadeiaItem {
   origem?: CadeiaOrigem | null;
 }
 
-// FGC-13 (T12). Lê vw_cadeia_incidencia (T5) -- 1 linha por Fato Gerador,
-// escopada por id_contrato. Rótulo posicional (Cadeia A/B/C) e separação das
-// cadeias só-projetadas ficam para rotulaCadeias (T14, módulo puro, AD-053)
-// -- esta leitura não agrupa nem ordena.
-//
-// Acerto de fidelidade visual (pós-Verifier, mockup 109:4): chave_origem já
-// codifica "<tipo>:<id>" (view T5) -- só faltava resolver o conteúdo de cada
-// tipo de origem para o card horizontal. 4 buscas em lote (uma por tipo,
-// só quando há id daquele tipo), mesmo padrão client-side das demais
-// funções deste arquivo -- nenhum embed do PostgREST. Meta vem de
-// `planejamento-estrategico` (fat_meta, fora deste domínio) -- só lê
-// descricao/criado_em, sem acoplar a mais nada daquela feature.
-export async function buscarCadeiasIncidencia(
+// Resolve o passo de origem (Pré-Insight/Registro/Insight/Meta) de cada
+// chave "<tipo>:<id>" de vw_cadeia_incidencia. Extraída de
+// buscarCadeiasIncidencia para a leitura agregada por produto
+// (incidencia-produto.ts) usar a MESMA resolução -- 4 buscas em lote, uma por
+// tipo, só quando há id daquele tipo.
+export async function resolverOrigensCadeia(
   client: SupabaseClient<Database>,
-  idContrato: number
-): Promise<CadeiaItem[]> {
-  const { data, error } = await client
-    .from("vw_cadeia_incidencia")
-    .select("id_fato_gerador, titulo, situacao, data_evento, chave_origem")
-    .eq("id_contrato", idContrato);
-  if (error) throw error;
-  if (!data) return [];
-
+  rows: { chave_origem: string | null }[]
+): Promise<(chaveOrigem: string) => CadeiaOrigem | null> {
   const idsPreInsight = new Set<number>();
   const idsRegistro = new Set<number>();
   const idsInsight = new Set<number>();
   const idsMeta = new Set<number>();
-  for (const row of data) {
+  for (const row of rows) {
     if (!row.chave_origem) continue;
     const [tipo, idStr] = row.chave_origem.split(":");
     const id = Number(idStr);
@@ -590,6 +583,34 @@ export async function buscarCadeiasIncidencia(
     }
     return null;
   }
+
+  return resolveOrigem;
+}
+
+// FGC-13 (T12). Lê vw_cadeia_incidencia (T5) -- 1 linha por Fato Gerador,
+// escopada por id_contrato. Rótulo posicional (Cadeia A/B/C) e separação das
+// cadeias só-projetadas ficam para rotulaCadeias (T14, módulo puro, AD-053)
+// -- esta leitura não agrupa nem ordena.
+//
+// Acerto de fidelidade visual (pós-Verifier, mockup 109:4): chave_origem já
+// codifica "<tipo>:<id>" (view T5) -- só faltava resolver o conteúdo de cada
+// tipo de origem para o card horizontal. 4 buscas em lote (uma por tipo,
+// só quando há id daquele tipo), mesmo padrão client-side das demais
+// funções deste arquivo -- nenhum embed do PostgREST. Meta vem de
+// `planejamento-estrategico` (fat_meta, fora deste domínio) -- só lê
+// descricao/criado_em, sem acoplar a mais nada daquela feature.
+export async function buscarCadeiasIncidencia(
+  client: SupabaseClient<Database>,
+  idContrato: number
+): Promise<CadeiaItem[]> {
+  const { data, error } = await client
+    .from("vw_cadeia_incidencia")
+    .select("id_fato_gerador, titulo, situacao, data_evento, chave_origem")
+    .eq("id_contrato", idContrato);
+  if (error) throw error;
+  if (!data) return [];
+
+  const resolveOrigem = await resolverOrigensCadeia(client, data);
 
   return data.map((c) => ({
     idFatoGerador: c.id_fato_gerador as number,

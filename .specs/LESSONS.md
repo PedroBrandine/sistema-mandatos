@@ -290,6 +290,18 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: spec.md PF-11 AC3 vs src/frontend/components/produtos/ficha-contrato-chrome.tsx:127 (routes)
 - last seen: 2026-09-19T02:16:17Z
 
+### L-049 — When a spec defines a derived status column (completeness/state-machine rule), assign an explicit task that computes and writes it — a DEFAULT plus a CHECK constraint is not enough; without a trigger or application write path the column silently never transitions.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `schema` · harmful: 0
+- features: pll-cadastro-participantes
+- evidence: supabase/migrations/20260922072328_pll_cadastro_participante_estrutura.sql:60; src/backend/queries/pll-cadastro.ts:60-69,333-356,384-407 (schema)
+- last seen: 2026-09-22T15:14:35Z
+
+### L-050 — When a component correctly implements an exact spec-mandated string or empty-state message, add a component test asserting that literal text renders — testing only the upstream data-shaping function is not equivalent evidence for a UI acceptance criterion.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `frontend-components` · harmful: 0
+- features: pll-cadastro-participantes
+- evidence: PLL-CP-08/PLL-CP-09/PLL-CP-19 — src/frontend/components/pll/lista-participantes-pll.tsx:120-164,218-223; produtos/pll/participantes/[id]/page.tsx:184-198 (frontend-components)
+- last seen: 2026-09-22T15:14:41Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

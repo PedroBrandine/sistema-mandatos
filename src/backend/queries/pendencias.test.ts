@@ -44,6 +44,14 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | Re
         chamadas.push({ tabela, metodo: "in", args });
         return builder;
       },
+      gte: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "gte", args });
+        return builder;
+      },
+      lte: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "lte", args });
+        return builder;
+      },
       is: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "is", args });
         return builder;
@@ -144,15 +152,37 @@ describe("buscarPendenciasDashboard (EST-07)", () => {
       vw_pendencias: { data: [], error: null },
     });
 
-    await buscarPendenciasDashboard(client, { idProduto: 7, idProjeto: 3 });
+    await buscarPendenciasDashboard(client, { idProduto: 7, idsProjeto: [3] });
 
-    const filtrosContrato = chamadas
-      .filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq")
-      .map((c) => c.args);
-    expect(filtrosContrato).toEqual([
-      ["id_produto", 7],
-      ["id_projeto", 3],
-    ]);
+    const eqsContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(eqsContrato).toEqual([["id_produto", 7]]);
+    expect(insContrato).toEqual([["id_projeto", [3]]]);
+  });
+
+  it("vários projetos e várias gestoras viram IN (união dentro do filtro); listas vazias não filtram", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }, { id_contrato: 2 }], error: null },
+      rel_usuario_contrato: { data: [{ id_contrato: 1 }], error: null },
+      vw_pendencias: { data: [], error: null },
+    });
+
+    await buscarPendenciasDashboard(client, { idProduto: 7, idsProjeto: [3, 4], idsGestora: [42, 43] });
+
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insContrato).toContainEqual(["id_projeto", [3, 4]]);
+    const insVinculo = chamadas.filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insVinculo).toContainEqual(["id_usuario", [42, 43]]);
+
+    const semFiltro = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }], error: null },
+      vw_pendencias: { data: [], error: null },
+    });
+    await buscarPendenciasDashboard(semFiltro.client, { idProduto: 7, idsProjeto: [], idsGestora: [] });
+    expect(semFiltro.chamadas.some((c) => c.tabela === "rel_usuario_contrato")).toBe(false);
+    expect(
+      semFiltro.chamadas.some((c) => c.tabela === "fat_contrato" && c.metodo === "in" && c.args[0] === "id_projeto")
+    ).toBe(false);
   });
 
   it("filtro de gestora restringe isoladamente -- consulta rel_usuario_contrato por papel gestora", async () => {
@@ -162,12 +192,39 @@ describe("buscarPendenciasDashboard (EST-07)", () => {
       vw_pendencias: { data: [], error: null },
     });
 
-    await buscarPendenciasDashboard(client, { idProduto: 7, idGestora: 42 });
+    await buscarPendenciasDashboard(client, { idProduto: 7, idsGestora: [42] });
 
     const chamadaVinculo = chamadas.find((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "eq");
     expect(chamadaVinculo).toBeDefined();
     const idInVwPendencias = chamadas.find((c) => c.tabela === "vw_pendencias" && c.metodo === "in");
     expect(idInVwPendencias?.args).toEqual(["id_contrato", [1]]);
+  });
+
+  it("intervalo de data recorta fat_contrato.dt_inicio (gte/lte), mesmo grão do Quadro e do KPI", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }], error: null },
+      vw_pendencias: { data: [], error: null },
+    });
+
+    await buscarPendenciasDashboard(client, { idProduto: 7, dataInicio: "2026-01-01", dataFim: "2026-06-30" });
+
+    const gteContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "gte").map((c) => c.args);
+    const lteContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "lte").map((c) => c.args);
+    expect(gteContrato).toEqual([["dt_inicio", "2026-01-01"]]);
+    expect(lteContrato).toEqual([["dt_inicio", "2026-06-30"]]);
+  });
+
+  it("sem intervalo de data, não filtra por dt_inicio", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }], error: null },
+      vw_pendencias: { data: [], error: null },
+    });
+
+    await buscarPendenciasDashboard(client, { idProduto: 7 });
+
+    expect(chamadas.some((c) => c.tabela === "fat_contrato" && (c.metodo === "gte" || c.metodo === "lte"))).toBe(
+      false
+    );
   });
 
   it("gestora e projeto juntos aplicam AND (interseção), não OR", async () => {
@@ -179,7 +236,7 @@ describe("buscarPendenciasDashboard (EST-07)", () => {
       vw_pendencias: { data: [], error: null },
     });
 
-    await buscarPendenciasDashboard(client, { idProduto: 7, idProjeto: 9, idGestora: 42 });
+    await buscarPendenciasDashboard(client, { idProduto: 7, idsProjeto: [9], idsGestora: [42] });
 
     const idInVwPendencias = chamadas.find((c) => c.tabela === "vw_pendencias" && c.metodo === "in");
     const idsFinal = (idInVwPendencias?.args[1] as number[]).slice().sort();

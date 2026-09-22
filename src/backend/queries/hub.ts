@@ -95,9 +95,10 @@ async function podeLerMvNumerosImpacto(client: SupabaseClient<Database>): Promis
 }
 
 // EST-02 AC1/AC6: ordem fixa -- Estratégia, PLL, Coalizão, Visão Gerencial,
-// Números de Impacto, Gestão de Usuários. Card cuja consulta de contador (ou
-// sonda de permissão) foi negada some da lista; a ordem dos que restam nunca
-// muda.
+// Números de Impacto, Gestão de Usuários, Apresentação - Funcionalidades,
+// Projetos.
+// Card cuja consulta de contador (ou sonda de permissão) foi negada some da
+// lista; a ordem dos que restam nunca muda.
 export async function buscarCardsHub(client: SupabaseClient<Database>): Promise<CardHub[]> {
   const [badgeEstrategia, podeVisaoGerencial, podeNumerosImpacto, admin] = await Promise.all([
     contarMandatosAtivosEstrategia(client),
@@ -155,6 +156,33 @@ export async function buscarCardsHub(client: SupabaseClient<Database>): Promise<
           titulo: "Gestão de Usuários",
           descricao: "Gerencie usuários, permissões e acessos da plataforma",
           icone: "usuarios",
+        }
+      : null,
+    // Pedido de Pedro (2026-09-22): tela de apresentação do progresso do
+    // sistema, pra levar pra chefia. Mesmo público de "Gestão de Usuários"
+    // (Admin/Gestora) -- reaproveita a mesma sonda `admin`, sem consulta
+    // adicional. Conteúdo é estático (lib/apresentacao-funcionalidades.ts),
+    // não dado de negócio, então não há nova tabela nem RLS envolvida aqui.
+    admin
+      ? {
+          destino: "/apresentacao-funcionalidades",
+          tipo: "ferramenta",
+          titulo: "Apresentação - Funcionalidades",
+          descricao: "O que já foi entregue e o que falta no sistema",
+          icone: "apresentacao",
+        }
+      : null,
+    // Pedido de Pedro (2026-09-22): CRUD simples de ref_projeto (catálogo já
+    // provisionado, sem RLS -- 0024_ref_tables_rls_fix.sql). Mesmo público de
+    // "Gestão de Usuários"/"Apresentação" (Admin/Gestora), reaproveita a sonda
+    // `admin` sem consulta adicional.
+    admin
+      ? {
+          destino: "/projetos",
+          tipo: "ferramenta",
+          titulo: "Projetos",
+          descricao: "Cadastro de projetos usados por contratos e coalizões",
+          icone: "projetos",
         }
       : null,
   ];

@@ -1,24 +1,104 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { buscarIipContrato } from "@backend/queries/incidencia";
 import { atualizaIipContrato } from "@backend/rpc/iip";
 import { createClient } from "@backend/supabase/client";
 
+import { Card, CardContent } from "@/components/ui/card";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-import { DimensoesIip } from "./dimensoes-iip";
+import { BadgesDimensoesIip } from "./dimensoes-iip";
+import { CLASSE_KPI_CARD, CLASSE_KPI_NUMERO, CLASSE_KPI_ROTULO } from "./kpi-estilo";
+
+export interface IipKpiCardProps {
+  // Título do cartão. "IIP — Índ. de impacto" no contrato; o agregado troca
+  // por "IIP médio — Índ. de impacto" (é a média dos mandatos do recorte).
+  titulo?: string;
+  carregando?: boolean;
+  erro?: string | null;
+  onRetry?: () => void;
+  valor: number | null;
+  d1: number | null;
+  d2: number | null;
+  d3: number | null;
+  // Texto quando `valor` é null (AD-005) -- a causa muda por chamador.
+  mensagemVazia?: string;
+  formatarValor?: (valor: number) => string;
+  className?: string;
+}
+
+// Figma 109:73. Só desenha: quem busca o dado (por contrato ou agregado por
+// produto) decide o que é `valor` e o que dizer quando ele não existe.
+export function IipKpiCard({
+  titulo = "IIP — Índ. de impacto",
+  carregando,
+  erro,
+  onRetry,
+  valor,
+  d1,
+  d2,
+  d3,
+  mensagemVazia = "sem dado suficiente",
+  formatarValor = String,
+  className,
+}: IipKpiCardProps) {
+  let corpo: ReactNode;
+  if (carregando) {
+    corpo = <Skeleton className="h-10 w-full rounded-md" />;
+  } else if (erro) {
+    corpo = <ErroInline mensagem={erro} onRetry={onRetry} />;
+  } else {
+    // Só mostra o detalhe por dimensão quando há IIP calculado (AD-064) --
+    // sem isso os 3 componentes também são null, mesma regra de "sem dado".
+    const temValor = valor !== null;
+    corpo = (
+      <>
+        <p className="text-[11px] font-bold text-muted-foreground">Somente realizados</p>
+        <div className="flex items-center gap-4">
+          <p className={CLASSE_KPI_NUMERO}>
+            {temValor ? (
+              formatarValor(valor)
+            ) : (
+              <>
+                —<span className="sr-only">Sem dado suficiente</span>
+              </>
+            )}
+          </p>
+          {temValor ? (
+            <BadgesDimensoesIip d1={d1 ?? 0} d2={d2 ?? 0} d3={d3 ?? 0} formatarValor={formatarValor} />
+          ) : (
+            <p className="text-xs text-muted-foreground">{mensagemVazia}</p>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <Card className={cn(CLASSE_KPI_CARD, className)} role="group" aria-label={`${titulo} (provisório)`}>
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className={CLASSE_KPI_ROTULO}>{titulo}</p>
+          <p className="text-[10px] text-muted-foreground italic">(provisório)</p>
+        </div>
+        {corpo}
+      </CardContent>
+    </Card>
+  );
+}
 
 export interface IipCardProps {
   idContrato: number;
+  className?: string;
 }
 
-// INC-04, INC-05, INC-06, INC-07, INC-08. Card compacto na ficha do contrato,
-// perto dos botões de Insight/Fato Gerador (mesmo tamanho de componente, ver
-// context.md "Card de IIP replica o padrão visual dos botões já existentes
-// -- não uma seção nova e destacada"). Ao montar: refresh síncrono de
+// INC-04, INC-05, INC-06, INC-07, INC-08. Cartão de IIP da faixa de KPIs do
+// Ciclo de Vida (Figma 109:73): rótulo + "(provisório)", "Somente realizados",
+// número grande e a quebra D1/D2/D3 em badges. Ao montar: refresh síncrono de
 // mv_iip_contrato (Assumption #3, atualizaIipContrato) seguido da leitura de
 // vw_iip_contrato (1 linha por contrato, T8).
 //
@@ -28,7 +108,7 @@ export interface IipCardProps {
 // mas iip_provisorio null (toda ref_tipologia sem id_indicador ainda,
 // Assumption #1b/INC-08) mostra "sem dado suficiente" -- mantendo a contagem
 // real de fatos como contexto, nunca substituída por um número parcial.
-export function IipCard({ idContrato }: IipCardProps) {
+export function IipCard({ idContrato, className }: IipCardProps) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [dado, setDado] = useState<{
@@ -55,36 +135,30 @@ export function IipCard({ idContrato }: IipCardProps) {
   }, [idContrato]);
 
   useEffect(() => {
+    // Falso-positivo: os setState de `carregar` rodam depois do `await`, e a
+    // função também serve ao "tentar de novo" do ErroInline, então não cabe
+    // dentro do efeito (mesmo racional de fatos-registros/page.tsx).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void carregar();
   }, [carregar]);
 
-  if (carregando) {
-    return <Skeleton className="h-8 w-64 rounded-md" />;
-  }
-
-  if (erro) {
-    return <ErroInline mensagem={erro} onRetry={() => void carregar()} />;
-  }
-
-  let texto: string;
-  if (!dado || dado.nrFatos === null) {
-    texto = "IIP (provisório): sem fato gerador ainda";
-  } else if (dado.iipProvisorio === null) {
-    texto = `IIP (provisório): sem dado suficiente · ${dado.nrFatos} fatos geradores`;
-  } else {
-    texto = `IIP (provisório): ${dado.iipProvisorio} · ${dado.nrFatos} fatos geradores`;
-  }
-
-  // Só mostra o detalhe por dimensão quando há IIP calculado (AD-064) --
-  // sem isso os 3 componentes também são null, mesma regra de "sem dado".
-  const mostrarDimensoes = dado?.iipProvisorio !== null && dado != null;
+  // 2 causas distintas de "sem IIP" (ver comentário acima) => 2 textos.
+  const semFato = !dado || dado.nrFatos === null;
+  const mensagemVazia = semFato
+    ? "sem fato gerador ainda"
+    : `sem dado suficiente · ${dado?.nrFatos} fatos geradores`;
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-border/60 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
-      <div className="flex items-center">{texto}</div>
-      {mostrarDimensoes && dado && (
-        <DimensoesIip d1={dado.componenteD1 ?? 0} d2={dado.componenteD2 ?? 0} d3={dado.componenteD3 ?? 0} />
-      )}
-    </div>
+    <IipKpiCard
+      carregando={carregando}
+      erro={erro}
+      onRetry={() => void carregar()}
+      valor={semFato ? null : (dado?.iipProvisorio ?? null)}
+      d1={dado?.componenteD1 ?? null}
+      d2={dado?.componenteD2 ?? null}
+      d3={dado?.componenteD3 ?? null}
+      mensagemVazia={mensagemVazia}
+      className={className}
+    />
   );
 }

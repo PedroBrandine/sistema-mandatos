@@ -4561,6 +4561,7 @@ export type Database = {
           ano_inicio: number | null
           cargo_no_contrato: string | null
           ds_genero: string | null
+          ds_orientacao_sexual: string | null
           ds_raca: string | null
           dt_fim: string | null
           dt_inicio: string | null
@@ -4568,11 +4569,13 @@ export type Database = {
           fl_pcd: boolean | null
           id_contratante: number | null
           id_contrato: number | null
+          id_gestora: number | null
           id_produto: number | null
           id_projeto: number | null
           nivel_federativo: string | null
           nm_municipio: string | null
           nome_contratante: string | null
+          nome_gestora: string | null
           nome_produto: string | null
           nome_projeto: string | null
           nr_contratos_contratante: number | null
@@ -4612,6 +4615,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ref_projeto"
             referencedColumns: ["id_projeto"]
+          },
+          {
+            foreignKeyName: "rel_usuario_contrato_id_usuario_fkey"
+            columns: ["id_gestora"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
           },
         ]
       }
@@ -5499,27 +5509,51 @@ export type Database = {
     }
     Functions: {
       carrega_tse: { Args: { dados: Json; tabela: string }; Returns: undefined }
-      fn_estrategia_kpi: {
-        Args: {
-          p_id_produto: number
-          p_ids_contrato?: number[]
-          p_ids_gestora?: number[]
-          p_ids_projeto?: number[]
-        }
-        Returns: {
-          componente_d1_medio: number
-          componente_d2_medio: number
-          componente_d3_medio: number
-          iip_medio: number
-          mandatos_ativos: number
-          mandatos_atraso_atencao: number
-          mandatos_atraso_atrasados: number
-          mandatos_atraso_normal: number
-          nps_medio: number
-          nr_fatos_geradores: number
-          pct_atingimento_medio: number
-        }[]
-      }
+      fn_estrategia_kpi:
+        | {
+            Args: {
+              p_id_produto: number
+              p_ids_contrato?: number[]
+              p_ids_gestora?: number[]
+              p_ids_projeto?: number[]
+            }
+            Returns: {
+              componente_d1_medio: number
+              componente_d2_medio: number
+              componente_d3_medio: number
+              iip_medio: number
+              mandatos_ativos: number
+              mandatos_atraso_atencao: number
+              mandatos_atraso_atrasados: number
+              mandatos_atraso_normal: number
+              nps_medio: number
+              nr_fatos_geradores: number
+              pct_atingimento_medio: number
+            }[]
+          }
+        | {
+            Args: {
+              p_data_fim?: string
+              p_data_inicio?: string
+              p_id_produto: number
+              p_ids_contrato?: number[]
+              p_ids_gestora?: number[]
+              p_ids_projeto?: number[]
+            }
+            Returns: {
+              componente_d1_medio: number
+              componente_d2_medio: number
+              componente_d3_medio: number
+              iip_medio: number
+              mandatos_ativos: number
+              mandatos_atraso_atencao: number
+              mandatos_atraso_atrasados: number
+              mandatos_atraso_normal: number
+              nps_medio: number
+              nr_fatos_geradores: number
+              pct_atingimento_medio: number
+            }[]
+          }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }

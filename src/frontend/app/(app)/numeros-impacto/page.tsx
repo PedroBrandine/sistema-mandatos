@@ -1,21 +1,13 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-
 import { createClient } from "@backend/supabase/server";
 import { buscarPapelGlobalAtual } from "@backend/queries/usuario";
 import { atualizaEBuscaNumerosImpacto, type LinhaNumerosImpacto } from "@backend/queries/numeros-impacto";
 import { NaoAutorizado } from "@/components/app-shell/nao-autorizado";
+import { NumerosImpactoDashboard } from "@/components/numeros-impacto/numeros-impacto-dashboard";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
-function formataData(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR");
-}
 
 // SAI-01, SAI-02, SAI-03, SAI-04. Server Component -- gate de papel idêntico
 // ao de visao-gerencial/page.tsx:52-66 (bloqueia mentor/assessor com
@@ -67,7 +59,7 @@ export default async function NumerosImpactoPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 p-6">
+    <div className="mx-auto grid max-w-7xl gap-6 p-6">
       <Breadcrumbs items={[{ label: "Números de Impacto" }]} />
 
       <div className="space-y-1">
@@ -89,47 +81,7 @@ export default async function NumerosImpactoPage() {
           mensagem="Ainda não há contratos para calcular números de impacto."
         />
       ) : (
-        <Card>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Contratante</TableHead>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>Projeto</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ano de início</TableHead>
-                  <TableHead>Nº contratos</TableHead>
-                  <TableHead>1ª contratação</TableHead>
-                  <TableHead>Ordem</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {linhas.map((linha) => (
-                  <TableRow key={linha.idContrato}>
-                    <TableCell className="font-medium">{linha.nomeContratante}</TableCell>
-                    <TableCell>{linha.nomeProduto}</TableCell>
-                    <TableCell>{linha.nomeProjeto ?? "—"}</TableCell>
-                    <TableCell>{linha.status}</TableCell>
-                    <TableCell>{linha.anoInicio}</TableCell>
-                    <TableCell>{linha.nrContratosContratante}</TableCell>
-                    <TableCell>{formataData(linha.dtPrimeiraContratacao)}</TableCell>
-                    <TableCell>{linha.ordemContrato}</TableCell>
-                    <TableCell>
-                      <Link href={`/numeros-impacto/${linha.idContratante}`}>
-                        <Button variant="ghost" size="sm" className="gap-1 text-xs font-semibold text-primary">
-                          Ver mandato
-                          <ArrowRight className="size-3.5" />
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <NumerosImpactoDashboard linhas={linhas} />
       )}
     </div>
   );

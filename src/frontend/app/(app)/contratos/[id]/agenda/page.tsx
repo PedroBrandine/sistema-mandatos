@@ -30,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 // FiltroAgenda (queries/agenda.ts) exige idProduto -- este contrato já
 // resolve pra UM produto conhecido (buscarContratoParaFicha), então não há
 // barra de filtros de gestora/projeto/contrato aqui: o recorte é fixo no
-// próprio contrato da ficha, sempre com idContrato preenchido.
+// próprio contrato da ficha, sempre com idsContrato = [idContrato].
 //
 // Sem onAdicionarRegistro no EncontroPopover: mesmo caminho de T32
 // (encontro-popover.tsx) -- "Adicionar registro" abre RegistroEncontroForm
@@ -91,7 +91,7 @@ export default function ContratoAgendaPage({ params }: { params: Promise<{ id: s
         idProduto: idProduto as number,
         ano: periodo.ano,
         mes: periodo.mes,
-        idContrato,
+        idsContrato: [idContrato],
       }),
     enabled: idProduto !== undefined,
   });
@@ -107,7 +107,7 @@ export default function ContratoAgendaPage({ params }: { params: Promise<{ id: s
         idProduto: idProduto as number,
         ano: periodo.ano,
         mes: periodo.mes,
-        idContrato,
+        idsContrato: [idContrato],
         idEncontro: idEncontroSelecionado ?? undefined,
       }),
     enabled: idProduto !== undefined,

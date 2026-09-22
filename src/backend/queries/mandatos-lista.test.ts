@@ -201,28 +201,49 @@ describe("buscarMandatosLista (EST-09)", () => {
   it("filtro de projeto restringe isoladamente -- entra no select de fat_contrato (AC3)", async () => {
     const { client, chamadas } = criarClienteMock(respostasBase());
 
-    await buscarMandatosLista(client, { idProduto: 7, idProjeto: 100 });
+    await buscarMandatosLista(client, { idProduto: 7, idsProjeto: [100] });
 
-    const eqsContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
-    expect(eqsContrato).toContainEqual(["id_projeto", 100]);
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insContrato).toContainEqual(["id_projeto", [100]]);
+  });
+
+  it("vários projetos viram um único IN -- união dentro do mesmo filtro", async () => {
+    const { client, chamadas } = criarClienteMock(respostasBase());
+
+    await buscarMandatosLista(client, { idProduto: 7, idsProjeto: [100, 101] });
+
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insContrato).toContainEqual(["id_projeto", [100, 101]]);
+  });
+
+  it("lista vazia em qualquer filtro equivale a sem filtro (não vira IN ())", async () => {
+    const { client, chamadas } = criarClienteMock(respostasBase());
+
+    await buscarMandatosLista(client, { idProduto: 7, idsProjeto: [], idsEtapa: [], status: [], idsGestora: [] });
+
+    const filtrosContrato = chamadas.filter(
+      (c) => c.tabela === "fat_contrato" && c.metodo === "in" && ["id_projeto", "id_etapa_atual", "status"].includes(c.args[0] as string)
+    );
+    expect(filtrosContrato).toEqual([]);
+    expect(chamadas.some((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in" && c.args[0] === "id_usuario")).toBe(false);
   });
 
   it("filtro de etapa restringe isoladamente -- entra no select de fat_contrato (AC3)", async () => {
     const { client, chamadas } = criarClienteMock(respostasBase());
 
-    await buscarMandatosLista(client, { idProduto: 7, idEtapa: 1000 });
+    await buscarMandatosLista(client, { idProduto: 7, idsEtapa: [1000] });
 
-    const eqsContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
-    expect(eqsContrato).toContainEqual(["id_etapa_atual", 1000]);
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insContrato).toContainEqual(["id_etapa_atual", [1000]]);
   });
 
   it("filtro de status restringe isoladamente -- entra no select de fat_contrato (AC3)", async () => {
     const { client, chamadas } = criarClienteMock(respostasBase());
 
-    await buscarMandatosLista(client, { idProduto: 7, status: "ativo" });
+    await buscarMandatosLista(client, { idProduto: 7, status: ["ativo", "concluido"] });
 
-    const eqsContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
-    expect(eqsContrato).toContainEqual(["status", "ativo"]);
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insContrato).toContainEqual(["status", ["ativo", "concluido"]]);
   });
 
   it("filtro de gestora restringe isoladamente -- consulta rel_usuario_contrato por papel gestora (AC3)", async () => {
@@ -231,13 +252,17 @@ describe("buscarMandatosLista (EST-09)", () => {
       rel_usuario_contrato: { data: [{ id_contrato: 1 }], error: null },
     });
 
-    const resultado = await buscarMandatosLista(client, { idProduto: 7, idGestora: 42 });
+    const resultado = await buscarMandatosLista(client, { idProduto: 7, idsGestora: [42, 43] });
 
     expect(resultado.map((c) => c.idContrato)).toEqual([1]);
     const chamadaVinculo = chamadas.find(
       (c) => c.tabela === "rel_usuario_contrato" && c.metodo === "eq" && c.args[0] === "papel_no_contrato"
     );
     expect(chamadaVinculo?.args).toEqual(["papel_no_contrato", "gestora"]);
+    const chamadaGestoras = chamadas.find(
+      (c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in" && c.args[0] === "id_usuario"
+    );
+    expect(chamadaGestoras?.args).toEqual(["id_usuario", [42, 43]]);
   });
 
   it("gestora e projeto juntos aplicam AND (interseção), não OR", async () => {
@@ -252,7 +277,7 @@ describe("buscarMandatosLista (EST-09)", () => {
       rel_usuario_contrato: { data: [{ id_contrato: 2 }], error: null },
     });
 
-    const resultado = await buscarMandatosLista(client, { idProduto: 7, idProjeto: 100, idGestora: 42 });
+    const resultado = await buscarMandatosLista(client, { idProduto: 7, idsProjeto: [100], idsGestora: [42] });
 
     expect(resultado).toEqual([]);
   });

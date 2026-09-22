@@ -63,13 +63,16 @@ export interface EncontroAgenda {
   participantes: ParticipanteEncontro[];
 }
 
+// Gestora, projeto e contrato aceitam VÁRIOS valores (filtro de seleção
+// múltipla): dentro de um filtro é união (OR), entre filtros é interseção
+// (AND). Lista ausente ou vazia = sem filtro.
 export interface FiltroAgenda {
   idProduto: number;
   ano: number;
   mes: number;
-  idGestora?: number;
-  idProjeto?: number;
-  idContrato?: number;
+  idsGestora?: number[];
+  idsProjeto?: number[];
+  idsContrato?: number[];
 }
 
 // Opção genérica de dropdown (id + rótulo) -- forma que EST-12/EST-13 (T30b,
@@ -169,8 +172,9 @@ interface RowParticipante {
   presente: boolean;
 }
 
-// Gestora, projeto e contrato restringem por interseção (AND), nunca por
-// união -- mesma regra de resolverIdsContratoDoFiltro em queries/pendencias.ts.
+// Gestora, projeto e contrato restringem por interseção (AND) ENTRE si, nunca
+// por união -- mesma regra de resolverIdsContratoDoFiltro em
+// queries/pendencias.ts. Dentro de cada um, os valores marcados se somam (OR).
 // idProduto sempre entra: a Agenda é por produto.
 //
 // Exportada para queries/registros-agenda.ts (T27): a lista de Registros da
@@ -183,23 +187,23 @@ export async function resolverIdsContratoDoFiltro(
   filtro: FiltroAgenda
 ): Promise<number[]> {
   let queryContrato = client.from("fat_contrato").select("id_contrato").eq("id_produto", filtro.idProduto);
-  if (filtro.idProjeto !== undefined) {
-    queryContrato = queryContrato.eq("id_projeto", filtro.idProjeto);
+  if (filtro.idsProjeto !== undefined && filtro.idsProjeto.length > 0) {
+    queryContrato = queryContrato.in("id_projeto", filtro.idsProjeto);
   }
-  if (filtro.idContrato !== undefined) {
-    queryContrato = queryContrato.eq("id_contrato", filtro.idContrato);
+  if (filtro.idsContrato !== undefined && filtro.idsContrato.length > 0) {
+    queryContrato = queryContrato.in("id_contrato", filtro.idsContrato);
   }
   const { data: contratosData, error: erroContratos } = await queryContrato;
   if (erroContratos) throw erroContratos;
   let ids = new Set((contratosData ?? []).map((c) => (c as RowContratoId).id_contrato));
 
-  if (filtro.idGestora !== undefined) {
+  if (filtro.idsGestora !== undefined && filtro.idsGestora.length > 0) {
     if (ids.size === 0) return [];
     const { data: vinculosData, error: erroVinculos } = await client
       .from("rel_usuario_contrato")
       .select("id_contrato")
       .in("id_contrato", [...ids])
-      .eq("id_usuario", filtro.idGestora)
+      .in("id_usuario", filtro.idsGestora)
       .eq("papel_no_contrato", "gestora")
       .is("dt_fim", null);
     if (erroVinculos) throw erroVinculos;

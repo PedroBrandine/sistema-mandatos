@@ -10,6 +10,7 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MultiSelectPesquisavel } from "@/components/ui/multi-select-pesquisavel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 
@@ -24,8 +25,9 @@ interface ContratoItem {
 export default function ContratosPage() {
   const [contratos, setContratos] = useState<ContratoItem[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
-  const [filtroProduto, setFiltroProduto] = useState<string>("todos");
+  // Seleção múltipla: lista vazia = sem filtro.
+  const [filtroStatus, setFiltroStatus] = useState<string[]>([]);
+  const [filtroProduto, setFiltroProduto] = useState<string[]>([]);
   const [produtosDisponiveis, setProdutosDisponiveis] = useState<string[]>([]);
   const [statusDisponiveis, setStatusDisponiveis] = useState<string[]>([]);
 
@@ -121,8 +123,8 @@ export default function ContratosPage() {
 
   const filtrados = contratos.filter(
     (c) =>
-      (filtroStatus === "todos" || c.status === filtroStatus) &&
-      (filtroProduto === "todos" || c.nomeProduto === filtroProduto)
+      (filtroStatus.length === 0 || filtroStatus.includes(c.status)) &&
+      (filtroProduto.length === 0 || filtroProduto.includes(c.nomeProduto))
   );
 
   return (
@@ -152,33 +154,25 @@ export default function ContratosPage() {
 
       {/* Filtros */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-border/60 bg-card p-3 shadow-sm">
-        <Select value={filtroProduto} onValueChange={setFiltroProduto}>
-          <SelectTrigger className="bg-background text-xs">
-            <SelectValue placeholder="Filtrar por Produto" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Produtos</SelectItem>
-            {produtosDisponiveis.map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectPesquisavel
+          className="bg-background text-xs"
+          opcoes={produtosDisponiveis.map((p) => ({ valor: p, rotulo: p }))}
+          valores={filtroProduto}
+          onChange={setFiltroProduto}
+          placeholder="Todos os Produtos"
+          rotulo="Filtrar por Produto"
+          rotuloPlural="produtos"
+        />
 
-        <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-          <SelectTrigger className="bg-background text-xs">
-            <SelectValue placeholder="Filtrar por Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Status</SelectItem>
-            {statusDisponiveis.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectPesquisavel
+          className="bg-background text-xs"
+          opcoes={statusDisponiveis.map((st) => ({ valor: st, rotulo: st }))}
+          valores={filtroStatus}
+          onChange={setFiltroStatus}
+          placeholder="Todos os Status"
+          rotulo="Filtrar por Status"
+          rotuloPlural="status"
+        />
       </div>
 
       {/* Grid de Contratos */}

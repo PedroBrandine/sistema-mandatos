@@ -151,7 +151,7 @@ describe("buscarBoardKanban", () => {
   });
 
   // Done-when: "Filtro por papel+pessoa ... restringe corretamente isoladamente"
-  it("filtro por papel+pessoa (idGestora) restringe aos contratos com vínculo ativo daquela pessoa", async () => {
+  it("filtro por papel+pessoa (idsGestora) restringe aos contratos com vínculo ativo daquela pessoa", async () => {
     const { client, chamadas } = criarClienteMock({
       ref_etapa: { data: [ETAPA_CADASTRO], error: null },
       fat_contrato: {
@@ -166,19 +166,51 @@ describe("buscarBoardKanban", () => {
       fat_etapa_contrato: { data: [], error: null },
     });
 
-    const resultado = await buscarBoardKanban(client, 5, { idGestora: 42 });
+    const resultado = await buscarBoardKanban(client, 5, { idsGestora: [42] });
 
     const idsCards = resultado.flatMap((c) => c.cards.map((card) => card.idContrato));
     expect(idsCards).toEqual([100]);
     const eqsVinculo = chamadas
       .filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "eq")
       .map((c) => c.args);
-    expect(eqsVinculo).toContainEqual(["id_usuario", 42]);
+    const insVinculo = chamadas
+      .filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in")
+      .map((c) => c.args);
+    expect(insVinculo).toContainEqual(["id_usuario", [42]]);
     expect(eqsVinculo).toContainEqual(["papel_no_contrato", "gestora"]);
   });
 
+  it("várias gestoras viram um único IN em id_usuario (união); lista vazia não filtra", async () => {
+    const { client, chamadas } = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO], error: null },
+      fat_contrato: {
+        data: [{ id_contrato: 100, id_etapa_atual: null, id_contratante: 1, status: "ativo", dt_inicio: "2026-01-01" }],
+        error: null,
+      },
+      rel_usuario_contrato: { data: [{ id_contrato: 100 }], error: null },
+      dim_contratante: { data: [{ id_contratante: 1, nome: "Fulano" }], error: null },
+      fat_etapa_contrato: { data: [], error: null },
+    });
+
+    await buscarBoardKanban(client, 5, { idsGestora: [42, 43] });
+    const ins = chamadas.filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(ins).toContainEqual(["id_usuario", [42, 43]]);
+
+    const vazio = criarClienteMock({
+      ref_etapa: { data: [ETAPA_CADASTRO], error: null },
+      fat_contrato: {
+        data: [{ id_contrato: 100, id_etapa_atual: null, id_contratante: 1, status: "ativo", dt_inicio: "2026-01-01" }],
+        error: null,
+      },
+      dim_contratante: { data: [{ id_contratante: 1, nome: "Fulano" }], error: null },
+      fat_etapa_contrato: { data: [], error: null },
+    });
+    await buscarBoardKanban(vazio.client, 5, { idsGestora: [], idsProjeto: [] });
+    expect(vazio.chamadas.some((c) => c.tabela === "rel_usuario_contrato")).toBe(false);
+  });
+
   // Done-when: "Filtro por ... projeto ... restringe corretamente isoladamente"
-  it("filtro por projeto aplica eq(id_projeto) na consulta de fat_contrato", async () => {
+  it("filtro por projeto aplica in(id_projeto) na consulta de fat_contrato", async () => {
     const { client, chamadas } = criarClienteMock({
       ref_etapa: { data: [ETAPA_CADASTRO], error: null },
       fat_contrato: {
@@ -189,10 +221,10 @@ describe("buscarBoardKanban", () => {
       fat_etapa_contrato: { data: [], error: null },
     });
 
-    await buscarBoardKanban(client, 5, { idProjeto: 7 });
+    await buscarBoardKanban(client, 5, { idsProjeto: [7, 8] });
 
-    const eqsContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
-    expect(eqsContrato).toContainEqual(["id_projeto", 7]);
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insContrato).toContainEqual(["id_projeto", [7, 8]]);
   });
 
   // Done-when: "Filtro por ... 'minha carteira' ... restringe corretamente isoladamente"
@@ -234,15 +266,19 @@ describe("buscarBoardKanban", () => {
       fat_etapa_contrato: { data: [], error: null },
     });
 
-    await buscarBoardKanban(client, 5, { idGestora: 42, idProjeto: 7 });
+    await buscarBoardKanban(client, 5, { idsGestora: [42], idsProjeto: [7] });
 
     const eqsContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "eq").map((c) => c.args);
     expect(eqsContrato).toContainEqual(["id_produto", 5]);
-    expect(eqsContrato).toContainEqual(["id_projeto", 7]);
+    const insContrato = chamadas.filter((c) => c.tabela === "fat_contrato" && c.metodo === "in").map((c) => c.args);
+    expect(insContrato).toContainEqual(["id_projeto", [7]]);
     const eqsVinculo = chamadas
       .filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "eq")
       .map((c) => c.args);
-    expect(eqsVinculo).toContainEqual(["id_usuario", 42]);
+    const insVinculo = chamadas
+      .filter((c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in")
+      .map((c) => c.args);
+    expect(insVinculo).toContainEqual(["id_usuario", [42]]);
     expect(eqsVinculo).toContainEqual(["papel_no_contrato", "gestora"]);
   });
 

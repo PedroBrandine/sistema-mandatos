@@ -41,14 +41,25 @@ export interface ContratoCard {
 // intervalo [de, ate] -- o Figma mostra dois seletores de calendário lado a
 // lado na mesma faixa de "Período e gestão"; nenhum AC/design.md define qual
 // data literalmente, decisão registrada no Registro de execução.
+//
+// Gestora, projeto, etapa e status aceitam VÁRIOS valores (filtro de seleção
+// múltipla): dentro de um mesmo filtro é união (OR -- contrato de qualquer uma
+// das gestoras marcadas), entre filtros diferentes segue interseção (AND).
+// Lista ausente ou vazia = sem filtro.
+export type StatusMandato = "ativo" | "concluido" | "nao_concluido";
+
 export interface FiltroMandatosLista {
   idProduto: number;
   dtInicioDe?: string;
   dtInicioAte?: string;
-  idGestora?: number;
-  idProjeto?: number;
-  idEtapa?: number;
-  status?: "ativo" | "concluido" | "nao_concluido";
+  idsGestora?: number[];
+  idsProjeto?: number[];
+  idsEtapa?: number[];
+  status?: StatusMandato[];
+}
+
+function temValores<T>(lista: T[] | undefined): lista is T[] {
+  return lista !== undefined && lista.length > 0;
 }
 
 interface RowContratoLista {
@@ -73,19 +84,20 @@ function filtroVinculoAtivo(): string {
   return `dt_fim.is.null,dt_fim.gte.${hoje}`;
 }
 
-// Restringe idsContrato aos que têm vínculo ativo com idUsuario naquele
-// papel -- mesmo padrão de idsContratoPorPapelPessoa em queries/kanban.ts.
+// Restringe idsContrato aos que têm vínculo ativo com QUALQUER um dos
+// idsUsuario naquele papel -- mesmo padrão de idsContratoPorPapelPessoa em
+// queries/kanban.ts.
 async function idsContratoPorGestora(
   client: SupabaseClient<Database>,
   idsContrato: number[],
-  idUsuario: number
+  idsUsuario: number[]
 ): Promise<number[]> {
   if (idsContrato.length === 0) return [];
   const { data, error } = await client
     .from("rel_usuario_contrato")
     .select("id_contrato")
     .in("id_contrato", idsContrato)
-    .eq("id_usuario", idUsuario)
+    .in("id_usuario", idsUsuario)
     .eq("papel_no_contrato", "gestora")
     .or(filtroVinculoAtivo());
   if (error) throw error;
@@ -149,9 +161,9 @@ export async function buscarMandatosLista(
     .select("id_contrato, id_contratante, id_projeto, id_etapa_atual, status, dt_inicio, dt_fim, atualizado_em")
     .eq("id_produto", filtro.idProduto);
 
-  if (filtro.idProjeto !== undefined) query = query.eq("id_projeto", filtro.idProjeto);
-  if (filtro.idEtapa !== undefined) query = query.eq("id_etapa_atual", filtro.idEtapa);
-  if (filtro.status !== undefined) query = query.eq("status", filtro.status);
+  if (temValores(filtro.idsProjeto)) query = query.in("id_projeto", filtro.idsProjeto);
+  if (temValores(filtro.idsEtapa)) query = query.in("id_etapa_atual", filtro.idsEtapa);
+  if (temValores(filtro.status)) query = query.in("status", filtro.status);
   if (filtro.dtInicioDe !== undefined) query = query.gte("dt_inicio", filtro.dtInicioDe);
   if (filtro.dtInicioAte !== undefined) query = query.lte("dt_inicio", filtro.dtInicioAte);
 
@@ -161,12 +173,12 @@ export async function buscarMandatosLista(
   let contratos = (data ?? []) as RowContratoLista[];
   if (contratos.length === 0) return [];
 
-  if (filtro.idGestora !== undefined) {
+  if (temValores(filtro.idsGestora)) {
     const idsGestora = new Set(
       await idsContratoPorGestora(
         client,
         contratos.map((c) => c.id_contrato),
-        filtro.idGestora
+        filtro.idsGestora
       )
     );
     contratos = contratos.filter((c) => idsGestora.has(c.id_contrato));

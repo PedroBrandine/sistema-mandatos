@@ -134,7 +134,7 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
         </div>
 
         <div className="grid gap-6">
-          <CardHistoricoContratos contratos={dados.historicoContratos} />
+          <CardHistoricoContratos contratos={dados.historicoContratos} idContratoAtual={idContrato} />
           <CardProjetosCoalizoes projeto={dados.projeto} coalizoes={dados.coalizoes} />
         </div>
       </div>

@@ -179,15 +179,52 @@ describe("buscarEncontrosDoMes (EST-12)", () => {
       idProduto: 1,
       ano: 2026,
       mes: 9,
-      idProjeto: 7,
-      idContrato: 42,
+      idsProjeto: [7],
+      idsContrato: [42],
     });
 
-    expect(argsDe(chamadas, "fat_contrato", "eq")).toEqual([
-      ["id_produto", 1],
-      ["id_projeto", 7],
-      ["id_contrato", 42],
+    expect(argsDe(chamadas, "fat_contrato", "eq")).toEqual([["id_produto", 1]]);
+    expect(argsDe(chamadas, "fat_contrato", "in")).toEqual([
+      ["id_projeto", [7]],
+      ["id_contrato", [42]],
     ]);
+  });
+
+  it("vários projetos, contratos e gestoras chegam como IN (união dentro de cada filtro)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }, { id_contrato: 2 }], error: null },
+      rel_usuario_contrato: { data: [{ id_contrato: 1 }], error: null },
+      fat_encontro: { data: [], error: null },
+    });
+
+    await buscarEncontrosDoMes(client, {
+      idProduto: 1,
+      ano: 2026,
+      mes: 9,
+      idsProjeto: [7, 8],
+      idsContrato: [1, 2],
+      idsGestora: [55, 56],
+    });
+
+    expect(argsDe(chamadas, "fat_contrato", "in")).toContainEqual(["id_projeto", [7, 8]]);
+    expect(argsDe(chamadas, "fat_contrato", "in")).toContainEqual(["id_contrato", [1, 2]]);
+    expect(argsDe(chamadas, "rel_usuario_contrato", "in")).toContainEqual(["id_usuario", [55, 56]]);
+  });
+
+  it("listas vazias equivalem a sem filtro", async () => {
+    const { client, chamadas } = criarClienteMock({ fat_contrato: { data: [], error: null } });
+
+    await buscarEncontrosDoMes(client, {
+      idProduto: 1,
+      ano: 2026,
+      mes: 9,
+      idsProjeto: [],
+      idsContrato: [],
+      idsGestora: [],
+    });
+
+    expect(argsDe(chamadas, "fat_contrato", "in")).toEqual([]);
+    expect(chamadas.filter((c) => c.tabela === "rel_usuario_contrato")).toHaveLength(0);
   });
 
   it("gestora aplica AND: só os contratos na interseção chegam em fat_encontro", async () => {
@@ -211,7 +248,7 @@ describe("buscarEncontrosDoMes (EST-12)", () => {
       rel_encontro_participante: { data: [], error: null },
     });
 
-    await buscarEncontrosDoMes(client, { idProduto: 1, ano: 2026, mes: 9, idGestora: 55 });
+    await buscarEncontrosDoMes(client, { idProduto: 1, ano: 2026, mes: 9, idsGestora: [55] });
 
     expect(argsDe(chamadas, "fat_encontro", "in")).toEqual([["id_contrato", [2, 3]]]);
   });

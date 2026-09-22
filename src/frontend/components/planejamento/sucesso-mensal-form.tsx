@@ -18,6 +18,8 @@ import { createClient } from "@backend/supabase/client";
 import { expandeMesesEmSucessos } from "./planejamento-lote";
 import type { PermissoesModo } from "./permissoes";
 
+import { derivaSituacao } from "@/lib/planejamento-formato";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErroInline } from "@/components/ui/erro-inline";
@@ -35,12 +37,14 @@ import { cn } from "@/lib/utils";
 // planejamento-grade.tsx (STATUS_LABEL/STATUS_VARIANT), duplicados aqui em
 // vez de exportados de lá -- T8 está escopado só a este arquivo.
 //
-// Spec-precision gap: a AC fala só em "% de atingimento" como entrada da
-// derivação -- não em prazo. Por isso "nao_realizado" não é alcançável por
-// esta função (só pelo status inicial da criação em lote, fora do escopo de
-// T8); confirmar com o usuário se um SM vencido com % < 100 deveria virar
-// "nao_realizado" automaticamente é uma decisão de produto não coberta pela
-// spec, não assumida aqui.
+// `derivaSituacao` mora em lib/planejamento-formato.ts (correção de
+// 2026-09-22, .specs/STATE.md): T8 só cobria este modal -- a edição inline da
+// grade e o colar em faixa escreviam pct_atingimento sem nunca tocar em
+// status, reabrindo o mesmo bug pelos outros três caminhos de escrita. A
+// derivação real agora vive num trigger de banco (migration 20260922151933),
+// que é quem garante o valor final nos 4 caminhos; esta cópia da função só
+// precisa concordar com o trigger para a UI não piscar um valor errado antes
+// do round-trip.
 const SITUACAO_LABEL: Record<string, string> = {
   pendente: "Pendente",
   realizado: "Realizado",
@@ -52,11 +56,6 @@ const SITUACAO_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
   realizado: "default",
   nao_realizado: "outline",
 };
-
-function derivaSituacao(pctAtingimento: number | null | undefined): "pendente" | "realizado" | "nao_realizado" {
-  if (pctAtingimento != null && pctAtingimento >= 100) return "realizado";
-  return "pendente";
-}
 
 // PLM-17/18 + PLV-04/05/06 (T19, .specs/features/planejamento-estrategico-v2).
 // INSERT/UPDATE direto em fat_sucesso_mensal na EDIÇÃO (AD-024, 1 linha só);

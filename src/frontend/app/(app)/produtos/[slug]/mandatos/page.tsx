@@ -1,13 +1,15 @@
 "use client";
 
 import { use, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { createClient } from "@backend/supabase/client";
 import { buscarMandatosLista, type ContratoCard } from "@backend/queries/mandatos-lista";
 import { buscarEtapasDoProduto } from "@backend/queries/contrato";
 import type { ProdutoSlug } from "@backend/queries/produto";
+import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
+import { EditarContratoDialog } from "@/components/estrategia/editar-contrato-dialog";
 import { FiltrosMandatos, type OpcaoFiltroMandatos, type ValorFiltrosMandatos } from "@/components/estrategia/filtros-mandatos";
 import { ListaMandatos } from "@/components/estrategia/lista-mandatos";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
@@ -47,6 +49,12 @@ export default function ProdutoMandatosPage({
   const { slug } = use(params) as { slug: ProdutoSlug };
   const { data: produto } = useProdutoAtual(slug);
   const [filtro, setFiltro] = useState<ValorFiltrosMandatos>({});
+  // "Editar contrato" (hoje: excluir o mandato) só para admin/gestora. O banco
+  // recusa os demais papéis; esconder o botão é conforto.
+  const { papel } = usePapelGlobal();
+  const podeEditar = papel === "admin" || papel === "gestora";
+  const [editando, setEditando] = useState<ContratoCard | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: gestoras } = useQuery({ queryKey: ["mandatos-lista-gestoras"], queryFn: buscarGestoras });
   const { data: projetos } = useQuery({ queryKey: ["mandatos-lista-projetos"], queryFn: buscarProjetosAtivos });
@@ -89,7 +97,14 @@ export default function ProdutoMandatosPage({
         etapas={opcoesEtapa}
         contagem={mandatos.length}
       />
-      <ListaMandatos mandatos={mandatos} />
+      <ListaMandatos mandatos={mandatos} onEditar={podeEditar ? setEditando : undefined} />
+      <EditarContratoDialog
+        contrato={editando}
+        onOpenChange={(aberto) => !aberto && setEditando(null)}
+        // O mandato excluído aparece em mais de uma tela (lista, Dashboard,
+        // Agenda, Fatos Geradores): invalida tudo em vez de listar chaves.
+        onExcluido={() => void queryClient.invalidateQueries()}
+      />
     </div>
   );
 }

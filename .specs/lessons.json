@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 49,
+  "next_id": 51,
   "lessons": [
     {
       "id": "L-003",
@@ -832,6 +832,42 @@
       ],
       "created": "2026-09-19T02:16:17Z",
       "last_seen": "2026-09-19T02:16:17Z"
+    },
+    {
+      "id": "L-049",
+      "key": "ac_gap::when a spec defines a derived status column completeness state machine rule assign an explicit task that computes and writes it a default plus a check constraint is not enough without a trigger or application write path the column silently never transitions",
+      "text": "When a spec defines a derived status column (completeness/state-machine rule), assign an explicit task that computes and writes it — a DEFAULT plus a CHECK constraint is not enough; without a trigger or application write path the column silently never transitions.",
+      "signal": "ac_gap",
+      "scope": "schema",
+      "status": "candidate",
+      "features": [
+        "pll-cadastro-participantes"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "supabase/migrations/20260922072328_pll_cadastro_participante_estrutura.sql:60; src/backend/queries/pll-cadastro.ts:60-69,333-356,384-407 (schema)"
+      ],
+      "created": "2026-09-22T15:14:35Z",
+      "last_seen": "2026-09-22T15:14:35Z"
+    },
+    {
+      "id": "L-050",
+      "key": "spec_precision_gap::when a component correctly implements an exact spec mandated string or empty state message add a component test asserting that literal text renders testing only the upstream data shaping function is not equivalent evidence for a ui acceptance criterion",
+      "text": "When a component correctly implements an exact spec-mandated string or empty-state message, add a component test asserting that literal text renders — testing only the upstream data-shaping function is not equivalent evidence for a UI acceptance criterion.",
+      "signal": "spec_precision_gap",
+      "scope": "frontend-components",
+      "status": "candidate",
+      "features": [
+        "pll-cadastro-participantes"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "PLL-CP-08/PLL-CP-09/PLL-CP-19 — src/frontend/components/pll/lista-participantes-pll.tsx:120-164,218-223; produtos/pll/participantes/[id]/page.tsx:184-198 (frontend-components)"
+      ],
+      "created": "2026-09-22T15:14:41Z",
+      "last_seen": "2026-09-22T15:14:41Z"
     }
   ]
 }

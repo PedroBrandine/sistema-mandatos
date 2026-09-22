@@ -8,9 +8,9 @@ import { FiltrosAgenda } from "./filtros-agenda";
 // Ajuste de fidelidade visual — Agenda (2026-09-14, Figma 163:4
 // "filter-bar"): relato do Pedro -- "os filtros de gestora, projeto e
 // contrato também não aparecem como foi definido no Figma". Presentational
-// puro, mesmo espírito do teste de FiltrosMandatos (T21): não interage com o
-// listbox do Radix Select (custo alto em jsdom, mesma razão documentada em
-// EncontroPopover/T28), só afirma o que a tela mostra a partir de props.
+// puro, mesmo espírito do teste de FiltrosMandatos (T21): não abre o dropdown
+// (a interação com a lista está em multi-select-pesquisavel.test.tsx), só
+// afirma o que a tela mostra a partir de props.
 
 afterEach(cleanup);
 
@@ -41,11 +41,24 @@ describe("FiltrosAgenda (ajuste de fidelidade visual 2026-09-14)", () => {
   });
 
   it("com filtro aplicado, o dropdown mostra o nome da opção escolhida, não o rótulo genérico", () => {
-    render(<FiltrosAgenda filtro={{ idContrato: 42 }} onChange={vi.fn()} {...OPCOES} />);
+    render(<FiltrosAgenda filtro={{ idsContrato: [42] }} onChange={vi.fn()} {...OPCOES} />);
 
     expect(screen.getByRole("combobox", { name: "Filtrar por contrato" })).toHaveTextContent(
       "Dep. Ana Ribeiro"
     );
+  });
+
+  it("com várias opções marcadas, o dropdown mostra a contagem no plural", () => {
+    render(
+      <FiltrosAgenda
+        filtro={{ idsGestora: [1, 2] }}
+        onChange={vi.fn()}
+        {...OPCOES}
+        gestoras={[...OPCOES.gestoras, { id: 2, nome: "Bia Gestora" }]}
+      />
+    );
+
+    expect(screen.getByRole("combobox", { name: "Filtrar por gestora" })).toHaveTextContent("2 gestoras");
   });
 
   // Pedido do Pedro, 2026-09-14: um botão zera os 3 filtros de uma vez, em
@@ -54,7 +67,7 @@ describe("FiltrosAgenda (ajuste de fidelidade visual 2026-09-14)", () => {
     const onChange = vi.fn();
     render(
       <FiltrosAgenda
-        filtro={{ idGestora: 1, idProjeto: 10, idContrato: 42 }}
+        filtro={{ idsGestora: [1], idsProjeto: [10], idsContrato: [42] }}
         onChange={onChange}
         {...OPCOES}
       />

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Spec anchor: AD-064 (.specs/STATE.md) -- iip_provisorio = soma de
 // componente_d1/d2/d3; pedido de Pedro para mostrar quais dimensões os Fatos
-// Geradores mais atingiram, não só o total somado.
+// Geradores mais atingiram, não só o total somado. Layout: Figma 109:73.
 
 const { mockBuscarIipContrato } = vi.hoisted(() => ({ mockBuscarIipContrato: vi.fn() }));
 vi.mock("@backend/queries/incidencia", async (importOriginal) => {
@@ -21,7 +21,7 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
 describe("IipCard — detalhe por dimensão (AD-064)", () => {
-  it("com IIP calculado, mostra D1/D2/D3 e o valor de cada um", async () => {
+  it("com IIP calculado, mostra o total, 'Somente realizados' e um badge por dimensão", async () => {
     mockBuscarIipContrato.mockResolvedValue({
       nrFatos: 4,
       iipProvisorio: 12,
@@ -32,16 +32,15 @@ describe("IipCard — detalhe por dimensão (AD-064)", () => {
 
     render(<IipCard idContrato={1} />);
 
-    await waitFor(() => expect(screen.getByText(/IIP \(provisório\): 12/)).toBeInTheDocument());
-    expect(screen.getByText("D1")).toBeInTheDocument();
-    expect(screen.getByText("D2")).toBeInTheDocument();
-    expect(screen.getByText("D3")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("12")).toBeInTheDocument());
+    expect(screen.getByText("(provisório)")).toBeInTheDocument();
+    expect(screen.getByText("Somente realizados")).toBeInTheDocument();
+    expect(screen.getByText("D1 5")).toBeInTheDocument();
+    expect(screen.getByText("D2 4")).toBeInTheDocument();
+    expect(screen.getByText("D3 3")).toBeInTheDocument();
   });
 
-  it("sem fato gerador ainda, não mostra detalhe por dimensão", async () => {
+  it("sem fato gerador ainda, não mostra detalhe por dimensão nem número inventado", async () => {
     mockBuscarIipContrato.mockResolvedValue({
       nrFatos: null,
       iipProvisorio: null,
@@ -53,7 +52,8 @@ describe("IipCard — detalhe por dimensão (AD-064)", () => {
     render(<IipCard idContrato={1} />);
 
     await waitFor(() => expect(screen.getByText(/sem fato gerador ainda/)).toBeInTheDocument());
-    expect(screen.queryByText("D1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^D1/)).not.toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
   it("com fatos mas sem IIP (Assumption #1b/AD-064), não mostra detalhe por dimensão", async () => {
@@ -67,7 +67,7 @@ describe("IipCard — detalhe por dimensão (AD-064)", () => {
 
     render(<IipCard idContrato={1} />);
 
-    await waitFor(() => expect(screen.getByText(/sem dado suficiente/)).toBeInTheDocument());
-    expect(screen.queryByText("D1")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/sem dado suficiente · 2 fatos geradores/)).toBeInTheDocument());
+    expect(screen.queryByText(/^D1/)).not.toBeInTheDocument();
   });
 });

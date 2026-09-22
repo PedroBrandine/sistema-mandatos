@@ -1,4 +1,5 @@
-import { Network } from "lucide-react";
+import Link from "next/link";
+import { Landmark, Network } from "lucide-react";
 
 import type {
   FatoGeradorResumo,
@@ -7,6 +8,7 @@ import type {
   RegistroResumo,
   TimelineItem,
 } from "@backend/queries/incidencia";
+import type { ContratoIdentificado } from "@/lib/incidencia-contrato";
 import { DESTAQUE_FATO_GERADOR, posicaoNivel, TIPO_ESTILO, TIPO_ROTULO, TOTAL_NIVEIS } from "@/lib/incidencia-visual";
 
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,9 @@ export interface PainelDetalheProps {
   // quando o chamador passa o handler (TimelineFeed só passa para
   // fato_gerador -- é o único tipo com identidade de cadeia, D-8).
   onVerNoCicloDeVida?: () => void;
+  // Aba agregada do produto: de qual mandato é o item, com atalho para a
+  // ficha dele (onde se edita, AD-057). Ausente na aba do contrato.
+  contrato?: ContratoIdentificado;
 }
 
 function formatarData(data: string | null): string {
@@ -80,6 +85,7 @@ export function PainelDetalhe({
   preInsight,
   onEditar,
   onVerNoCicloDeVida,
+  contrato,
 }: PainelDetalheProps) {
   if (!item) {
     return (
@@ -112,6 +118,17 @@ export function PainelDetalhe({
         )}
       </CardHeader>
       <CardContent className="grid gap-3 text-sm">
+        {contrato && (
+          <div className="flex items-center justify-between gap-2 rounded-md bg-muted/50 p-3">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-secondary">
+              <Landmark className="size-3.5" />
+              {contrato.nome}
+            </span>
+            <Link href={contrato.href} className="text-xs font-semibold text-secondary underline-offset-2 hover:underline">
+              Abrir ficha
+            </Link>
+          </div>
+        )}
         <div>
           <span className="text-muted-foreground">Data: </span>
           {formatarData(item.dataEvento)}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BarChart3, Flag, Handshake, Landmark, TrendingUp, Users2, type LucideIcon } from "lucide-react";
+import { ArrowRight, BarChart3, Flag, FolderKanban, Handshake, Landmark, Presentation, TrendingUp, Users2, type LucideIcon } from "lucide-react";
 
 import type { CardHub } from "@backend/queries/hub";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,8 @@ const ICONES: Record<string, LucideIcon> = {
   "visao-gerencial": BarChart3,
   "numeros-impacto": TrendingUp,
   usuarios: Users2,
+  apresentacao: Presentation,
+  projetos: FolderKanban,
 };
 
 interface HubCardProps {

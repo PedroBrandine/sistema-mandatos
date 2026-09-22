@@ -35,7 +35,7 @@ describe("FiltrosMandatos (EST-09)", () => {
 
   it("'Limpar filtros' devolve o filtro ao estado inicial (AC4)", () => {
     const onChange = vi.fn();
-    const filtroAplicado: ValorFiltrosMandatos = { idGestora: 1, idProjeto: 10, status: "ativo" };
+    const filtroAplicado: ValorFiltrosMandatos = { idsGestora: [1], idsProjeto: [10], status: ["ativo"] };
     render(<FiltrosMandatos filtro={filtroAplicado} onChange={onChange} {...OPCOES} contagem={1} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));

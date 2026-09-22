@@ -19,11 +19,19 @@ export interface CardKanban {
   diasNaEtapaAtual: number;
 }
 
+// Gestora e Projeto aceitam VÁRIOS valores (filtro de seleção múltipla): união
+// dentro do filtro, interseção entre filtros. Lista ausente ou vazia = sem filtro.
 export interface FiltroBoard {
-  idGestora?: number;
+  idsGestora?: number[];
   idMentor?: number;
-  idProjeto?: number;
+  idsProjeto?: number[];
   minhaCarteira?: boolean; // restringe a contratos com vínculo ativo do usuário logado
+  // Intervalo de data por fat_contrato.dt_inicio (AAAA-MM-DD), mesmo recorte
+  // de FiltroEstrategiaKpi.dataInicio/dataFim (estrategia-kpi.ts) -- contrato
+  // histórico de um mandatário com mais de um contrato no produto não deve
+  // aparecer no Quadro fora do período selecionado.
+  dataInicio?: string;
+  dataFim?: string;
 }
 
 interface ContratoBoard {
@@ -41,20 +49,20 @@ function filtroVinculoAtivo(): string {
   return `dt_fim.is.null,dt_fim.gte.${hoje}`;
 }
 
-// Restringe idsContrato aos contratos onde idUsuario tem vínculo ativo
-// naquele papel -- mesmo padrão de contarContratosEAssessoresAtivos.
+// Restringe idsContrato aos contratos onde QUALQUER um dos idsUsuario tem
+// vínculo ativo naquele papel -- mesmo padrão de contarContratosEAssessoresAtivos.
 async function idsContratoPorPapelPessoa(
   client: SupabaseClient<Database>,
   idsContrato: number[],
   papel: "gestora" | "mentor",
-  idUsuario: number
+  idsUsuario: number[]
 ): Promise<number[]> {
   if (idsContrato.length === 0) return [];
   const { data, error } = await client
     .from("rel_usuario_contrato")
     .select("id_contrato")
     .in("id_contrato", idsContrato)
-    .eq("id_usuario", idUsuario)
+    .in("id_usuario", idsUsuario)
     .eq("papel_no_contrato", papel)
     .or(filtroVinculoAtivo());
   if (error) throw error;
@@ -112,8 +120,14 @@ export async function buscarBoardKanban(
     .from("fat_contrato")
     .select("id_contrato, id_etapa_atual, id_contratante, status, dt_inicio")
     .eq("id_produto", idProduto);
-  if (filtro?.idProjeto !== undefined) {
-    queryContratos = queryContratos.eq("id_projeto", filtro.idProjeto);
+  if (filtro?.idsProjeto !== undefined && filtro.idsProjeto.length > 0) {
+    queryContratos = queryContratos.in("id_projeto", filtro.idsProjeto);
+  }
+  if (filtro?.dataInicio !== undefined) {
+    queryContratos = queryContratos.gte("dt_inicio", filtro.dataInicio);
+  }
+  if (filtro?.dataFim !== undefined) {
+    queryContratos = queryContratos.lte("dt_inicio", filtro.dataFim);
   }
 
   const { data: contratosData, error: erroContratos } = await queryContratos;
@@ -126,11 +140,11 @@ export async function buscarBoardKanban(
 
   let idsContrato = contratos.map((c) => c.id_contrato);
 
-  if (filtro?.idGestora !== undefined) {
-    idsContrato = await idsContratoPorPapelPessoa(client, idsContrato, "gestora", filtro.idGestora);
+  if (filtro?.idsGestora !== undefined && filtro.idsGestora.length > 0) {
+    idsContrato = await idsContratoPorPapelPessoa(client, idsContrato, "gestora", filtro.idsGestora);
   }
   if (filtro?.idMentor !== undefined) {
-    idsContrato = await idsContratoPorPapelPessoa(client, idsContrato, "mentor", filtro.idMentor);
+    idsContrato = await idsContratoPorPapelPessoa(client, idsContrato, "mentor", [filtro.idMentor]);
   }
   if (filtro?.minhaCarteira) {
     idsContrato = await idsContratoMinhaCarteira(client, idsContrato);

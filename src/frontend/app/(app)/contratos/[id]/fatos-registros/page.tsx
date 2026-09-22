@@ -22,6 +22,7 @@ import { createClient } from "@backend/supabase/client";
 import { AbaIncidencia, PARAM_VISAO } from "@/components/incidencia/aba-incidencia";
 import { CadeiaLista } from "@/components/incidencia/cadeia-lista";
 import { FatoGeradorForm, type FatoGeradorExistente } from "@/components/incidencia/fato-gerador-form";
+import { ExcluirIncidencia } from "@/components/incidencia/excluir-incidencia";
 import { FatoGeradorWizard } from "@/components/incidencia/fato-gerador-wizard";
 import { IncidenciaKpis } from "@/components/incidencia/incidencia-kpis";
 import { InsightForm, type InsightExistente } from "@/components/incidencia/insight-form";
@@ -250,15 +251,18 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
     />
   );
 
+  const resumo = (
+    <IncidenciaKpis
+      idContrato={idContrato}
+      fatosGeradores={fatosGeradores}
+      totalInsights={insights.length}
+      totalPreInsights={preInsights.length}
+      totalRegistros={registros.length}
+    />
+  );
+
   const cicloDeVida = (
-    <div className="grid gap-4">
-      <IncidenciaKpis idContrato={idContrato} fatosGeradores={fatosGeradores} />
-      <CadeiaLista
-        cadeias={cadeias}
-        onRealizado={() => void carregarTudo()}
-        onAbrirDetalhe={abrirDetalheCicloDeVida}
-      />
-    </div>
+    <CadeiaLista cadeias={cadeias} onRealizado={() => void carregarTudo()} onAbrirDetalhe={abrirDetalheCicloDeVida} />
   );
 
   const ROTULO_EDICAO: Record<ItemEditando["tipo"], string> = {
@@ -285,28 +289,40 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
             <DialogTitle>{itemEditando ? ROTULO_EDICAO[itemEditando.tipo] : ""}</DialogTitle>
           </DialogHeader>
           {itemEditando?.tipo === "registro" && (
-            <RegistroForm idContrato={idContrato} registroExistente={itemEditando.dados} onConcluido={aoConcluirEdicao} />
+            <>
+              <RegistroForm idContrato={idContrato} registroExistente={itemEditando.dados} onConcluido={aoConcluirEdicao} />
+              <ExcluirIncidencia tipo="registro" id={itemEditando.dados.idRegistro} onExcluido={aoConcluirEdicao} />
+            </>
           )}
           {itemEditando?.tipo === "insight" && (
-            <InsightForm
-              idContrato={idContrato}
-              insightExistente={itemEditando.dados}
-              onConcluido={aoConcluirEdicao}
-              onCancelar={fecharEdicao}
-            />
+            <>
+              <InsightForm
+                idContrato={idContrato}
+                insightExistente={itemEditando.dados}
+                onConcluido={aoConcluirEdicao}
+                onCancelar={fecharEdicao}
+              />
+              <ExcluirIncidencia tipo="insight" id={itemEditando.dados.idInsight} onExcluido={aoConcluirEdicao} />
+            </>
           )}
           {itemEditando?.tipo === "pre_insight" && (
-            <PreInsightForm idContrato={idContrato} preInsightExistente={itemEditando.dados} onConcluido={aoConcluirEdicao} />
+            <>
+              <PreInsightForm idContrato={idContrato} preInsightExistente={itemEditando.dados} onConcluido={aoConcluirEdicao} />
+              <ExcluirIncidencia tipo="pre_insight" id={itemEditando.dados.idPreInsight} onExcluido={aoConcluirEdicao} />
+            </>
           )}
           {itemEditando?.tipo === "fato_gerador" && (
-            <FatoGeradorForm
-              idContrato={idContrato}
-              situacaoInicial={itemEditando.situacao}
-              origemInicial={itemEditando.origemParaExibir}
-              fatoGeradorExistente={itemEditando.dados}
-              onConcluido={aoConcluirEdicao}
-              onCancelar={fecharEdicao}
-            />
+            <>
+              <FatoGeradorForm
+                idContrato={idContrato}
+                situacaoInicial={itemEditando.situacao}
+                origemInicial={itemEditando.origemParaExibir}
+                fatoGeradorExistente={itemEditando.dados}
+                onConcluido={aoConcluirEdicao}
+                onCancelar={fecharEdicao}
+              />
+              <ExcluirIncidencia tipo="fato_gerador" id={itemEditando.dados.idFatoGerador} onExcluido={aoConcluirEdicao} />
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -314,6 +330,7 @@ export default function ContratoFatosRegistrosPage({ params }: { params: Promise
       <AbaIncidencia
         linhaDoTempo={linhaDoTempo}
         cicloDeVida={cicloDeVida}
+        resumo={resumo}
         criar={[
           // PF-08/T14 (pente-fino 2026-09): "Registrar Registro" saiu do
           // menu Criar da Linha do Tempo/Ciclo de Vida (spec.md P2 AC5) --

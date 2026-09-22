@@ -47,6 +47,11 @@ export interface AbaIncidenciaProps {
   linhaDoTempo: ReactNode;
   cicloDeVida: ReactNode;
   criar: ItemCriar[];
+  // Faixa de KPIs do Ciclo de Vida (IncidenciaKpis): fica acima do conteúdo
+  // das duas visões, não só da de Ciclo de Vida -- pedido pra também
+  // aparecer na Linha do Tempo, então sobe pra cá em vez de duplicar nas
+  // duas páginas que montam esta aba.
+  resumo?: ReactNode;
 }
 
 const VISOES: { id: AbaVisao; rotulo: string }[] = [
@@ -54,7 +59,7 @@ const VISOES: { id: AbaVisao; rotulo: string }[] = [
   { id: "ciclo-de-vida", rotulo: "Ciclo de Vida" },
 ];
 
-export function AbaIncidencia({ linhaDoTempo, cicloDeVida, criar }: AbaIncidenciaProps) {
+export function AbaIncidencia({ linhaDoTempo, cicloDeVida, criar, resumo }: AbaIncidenciaProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -123,6 +128,8 @@ export function AbaIncidencia({ linhaDoTempo, cicloDeVida, criar }: AbaIncidenci
           })}
         </div>
       </div>
+
+      {resumo}
 
       {/* Renderização condicional, não `hidden` -- mesma escolha e mesmo
           racional de planejamento-abas.tsx: os dados (timeline, cadeias,

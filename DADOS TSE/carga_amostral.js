@@ -160,7 +160,15 @@ async function run() {
   const CARGOS_LEGISLATIVO = ['5', '6', '7', '13'];
   const isCargoLegislativo = (row) => CARGOS_LEGISLATIVO.includes(String(row['CD_CARGO']).trim());
   const filterCandidaturaLegislativo = (row) => filterSP(row) && isCargoLegislativo(row);
-  const filterVotacaoLegislativo = (row) => filterCampinas(row) && isCargoLegislativo(row);
+  const filterVotacaoLegislativo = (row) => filterSP(row) && isCargoLegislativo(row);
+
+  // tse.dim_perfil_eleitorado tem PK em (ano_eleicao, id_perfil) -- um serial,
+  // não a chave de negócio (município/zona/demografia) -- e a RPC carrega_tse
+  // não tem ON CONFLICT DO NOTHING pra essa tabela (só tem pras outras três).
+  // Reprocessar Campinas aqui duplicaria os 30.350 registros já carregados em
+  // 30/07. Como Campinas já está no banco, a carga estadual exclui Campinas
+  // pra completar o resto de SP sem duplicar.
+  const filterSPExcetoCampinas = (row) => filterSP(row) && row['NM_MUNICIPIO'] !== 'CAMPINAS';
 
   await processFile(path.join(BASE_DIR, 'consulta_cand_2022', 'consulta_cand_2022_BRASIL.csv'), 'dim_candidatura', candMap, candTransform, filterCandidaturaLegislativo);
   await processFile(path.join(BASE_DIR, 'consulta_cand_2024', 'consulta_cand_2024_BRASIL.csv'), 'dim_candidatura', candMap, candTransform, filterCandidaturaLegislativo);
@@ -202,8 +210,8 @@ async function run() {
     'QT_ELEITORES': 'qt_eleitores',
     'QT_ELEITORES_DEFICIENCIA': 'qt_eleitores_deficiencia'
   };
-  await processFile(path.join(BASE_DIR, 'perfil_eleitorado_2022', 'perfil_eleitorado_2022_BRASIL.csv'), 'dim_perfil_eleitorado', perfMap, null, filterCampinas);
-  await processFile(path.join(BASE_DIR, 'perfil_eleitorado_2024', 'perfil_eleitorado_2024_BRASIL.csv'), 'dim_perfil_eleitorado', perfMap, null, filterCampinas);
+  await processFile(path.join(BASE_DIR, 'perfil_eleitorado_2022', 'perfil_eleitorado_2022_BRASIL.csv'), 'dim_perfil_eleitorado', perfMap, null, filterSPExcetoCampinas);
+  await processFile(path.join(BASE_DIR, 'perfil_eleitorado_2024', 'perfil_eleitorado_2024_BRASIL.csv'), 'dim_perfil_eleitorado', perfMap, null, filterSPExcetoCampinas);
 
   // 4. REDE SOCIAL 2024
   const redeMap = {

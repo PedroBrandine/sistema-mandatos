@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pente-fino — Sistema Mandatos</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --border: #2a2e38;
+    --text: #e6e8ec;
+    --muted: #9aa1ac;
+    --accent: #6ea8fe;
+    --danger: #ff6b6b;
+    --warn: #ffb454;
+    --ok: #52c793;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #0f1115; border-color: var(--accent); font-weight: 600; }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 28px 80px; }
+  .filters { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .filters select, .filters input {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 10px; border-radius: 8px; font-size: 13px;
+  }
+  .filters input[type=text] { flex: 1; min-width: 160px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .card.done { opacity: .55; }
+  .card-top { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+  .card-top .left { flex: 1; }
+  .num { color: var(--muted); font-size: 12px; }
+  .card input[type=text].title {
+    font-size: 15px; font-weight: 600; background: transparent; border: none; color: var(--text);
+    width: 100%; padding: 2px 0; outline: none;
+  }
+  .card textarea.desc {
+    width: 100%; background: transparent; border: none; color: var(--text);
+    resize: vertical; min-height: 44px; outline: none; font-size: 13.5px; line-height: 1.4;
+    font-family: inherit; padding: 2px 0;
+  }
+  .meta-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .meta-row select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 8px; border-radius: 6px; font-size: 12px;
+  }
+  .tag { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .tag.tela { color: var(--accent); border-color: var(--accent); }
+  .pill-bug { color: var(--danger); border-color: var(--danger); }
+  .pill-cosm { color: var(--warn); border-color: var(--warn); }
+  .pill-duvida { color: var(--muted); }
+  .pill-done { color: var(--ok); border-color: var(--ok); }
+  .drop {
+    margin-top: 10px;
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    cursor: text;
+  }
+  .drop:focus { outline: none; border-color: var(--accent); }
+  .shots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .shots img {
+    max-height: 140px; border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in;
+  }
+  .shot-wrap { position: relative; }
+  .shot-wrap .rm {
+    position: absolute; top: -6px; right: -6px; background: var(--danger); color: #fff;
+    border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 20px;
+    padding: 0; cursor: pointer;
+  }
+  .card-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+  .card-footer button { font-size: 12px; padding: 5px 10px; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.85);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 30px;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  footer.hint { color: var(--muted); font-size: 12px; text-align: center; padding: 20px; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Pente-fino — Sistema Mandatos</h1>
+    <div class="sub">Cole prints com Ctrl+V dentro de cada item. Tudo fica salvo neste navegador.</div>
+  </div>
+  <div class="actions">
+    <button id="btnNew" class="primary">+ Novo item</button>
+    <button id="btnExportJson">Exportar backup (.json)</button>
+    <button id="btnImportJson">Importar backup</button>
+    <button id="btnExportHtml">Exportar relatório (.html)</button>
+    <button id="btnZerar" style="border-color:var(--danger);color:var(--danger);">Zerar tudo</button>
+    <input type="file" id="fileImport" accept="application/json">
+  </div>
+</header>
+
+<main>
+  <div class="filters">
+    <input type="text" id="search" placeholder="Buscar por texto ou tela...">
+    <select id="filterTipo">
+      <option value="">Todos os tipos</option>
+      <option value="bug">Bug</option>
+      <option value="cosmetico">Cosmético</option>
+      <option value="duvida">Dúvida</option>
+    </select>
+    <select id="filterStatus">
+      <option value="">Todos os status</option>
+      <option value="aberto">Aberto</option>
+      <option value="done">Resolvido</option>
+    </select>
+  </div>
+
+  <div id="list"></div>
+</main>
+
+<footer class="hint">Arquivo local (docs/pente-fino.html) — não versionado. Use "Exportar backup" antes de fechar se quiser guardar fora do navegador.</footer>
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" src=""></div>
+
+<script>
+const STORE_KEY = 'pente-fino-mandatos-v1';
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  catch { return []; }
+}
+function save(items) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(items));
+}
+
+let items = load();
+
+function uid() { return 'i' + Date.now() + Math.random().toString(36).slice(2, 7); }
+
+function newItem() {
+  return { id: uid(), title: '', desc: '', tela: '', tipo: 'bug', status: 'aberto', shots: [], created: Date.now() };
+}
+
+function render() {
+  const list = document.getElementById('list');
+  const q = document.getElementById('search').value.toLowerCase();
+  const fTipo = document.getElementById('filterTipo').value;
+  const fStatus = document.getElementById('filterStatus').value;
+
+  const filtered = items.filter(it => {
+    if (fTipo && it.tipo !== fTipo) return false;
+    if (fStatus && it.status !== fStatus) return false;
+    if (q && !(it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q) || it.tela.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty">Nenhum item ainda. Clique em "+ Novo item".</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  filtered.forEach((it, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card' + (it.status === 'done' ? ' done' : '');
+
+    const shotsHtml = it.shots.map((src, si) => `
+      <div class="shot-wrap">
+        <img src="${src}" data-idx="${si}" class="shot-img">
+        <button class="rm" data-idx="${si}">×</button>
+      </div>
+    `).join('');
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="left">
+          <div class="num">#${items.indexOf(it) + 1}</div>
+          <input type="text" class="title" placeholder="Título curto do problema" value="${escapeAttr(it.title)}">
+          <textarea class="desc" placeholder="Descreva: atual vs esperado...">${escapeHtml(it.desc)}</textarea>
+        </div>
+      </div>
+      <div class="meta-row">
+        <input type="text" class="tela-input" placeholder="Tela/rota (ex: /mandatos/[id])" value="${escapeAttr(it.tela)}"
+          style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px;min-width:180px;">
+        <select class="tipo-sel">
+          <option value="bug" ${it.tipo === 'bug' ? 'selected' : ''}>Bug</option>
+          <option value="cosmetico" ${it.tipo === 'cosmetico' ? 'selected' : ''}>Cosmético</option>
+          <option value="duvida" ${it.tipo === 'duvida' ? 'selected' : ''}>Dúvida</option>
+        </select>
+        <select class="status-sel">
+          <option value="aberto" ${it.status === 'aberto' ? 'selected' : ''}>Aberto</option>
+          <option value="done" ${it.status === 'done' ? 'selected' : ''}>Resolvido</option>
+        </select>
+      </div>
+      <div class="drop" contenteditable="true" data-placeholder="Clique aqui e cole (Ctrl+V) um print...">Clique aqui e cole (Ctrl+V) um print da tela...</div>
+      <div class="shots">${shotsHtml}</div>
+      <div class="card-footer">
+        <button class="btn-del">Excluir item</button>
+      </div>
+    `;
+
+    card.querySelector('.title').addEventListener('input', e => { it.title = e.target.value; save(items); });
+    card.querySelector('.desc').addEventListener('input', e => { it.desc = e.target.value; save(items); });
+    card.querySelector('.tela-input').addEventListener('input', e => { it.tela = e.target.value; save(items); });
+    card.querySelector('.tipo-sel').addEventListener('change', e => { it.tipo = e.target.value; save(items); });
+    card.querySelector('.status-sel').addEventListener('change', e => { it.status = e.target.value; save(items); render(); });
+    card.querySelector('.btn-del').addEventListener('click', () => {
+      if (confirm('Excluir este item?')) {
+        items = items.filter(x => x.id !== it.id);
+        save(items); render();
+      }
+    });
+
+    const drop = card.querySelector('.drop');
+    drop.addEventListener('focus', () => { if (drop.textContent.startsWith('Clique aqui')) drop.textContent = ''; });
+    drop.addEventListener('blur', () => { if (!drop.textContent.trim()) drop.textContent = 'Clique aqui e cole (Ctrl+V) um print da tela...'; });
+    drop.addEventListener('paste', e => {
+      e.preventDefault();
+      const clip = e.clipboardData;
+      let handled = false;
+      for (const item of clip.items) {
+        if (item.type.indexOf('image') === 0) {
+          handled = true;
+          const file = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = ev => {
+            it.shots.push(ev.target.result);
+            save(items); render();
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+      if (!handled) {
+        const text = clip.getData('text/plain');
+        document.execCommand('insertText', false, text);
+      }
+    });
+
+    card.querySelectorAll('.rm').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.idx, 10);
+        it.shots.splice(i, 1);
+        save(items); render();
+      });
+    });
+    card.querySelectorAll('.shot-img').forEach(img => {
+      img.addEventListener('click', () => {
+        document.getElementById('lightboxImg').src = img.src;
+        document.getElementById('lightbox').classList.add('open');
+      });
+    });
+
+    list.appendChild(card);
+  });
+}
+
+function escapeHtml(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s) { return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+document.getElementById('btnNew').addEventListener('click', () => {
+  items.unshift(newItem());
+  save(items); render();
+});
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('filterTipo').addEventListener('change', render);
+document.getElementById('filterStatus').addEventListener('change', render);
+
+document.getElementById('lightbox').addEventListener('click', () => {
+  document.getElementById('lightbox').classList.remove('open');
+});
+
+document.getElementById('btnExportJson').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pente-fino-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+});
+
+document.getElementById('btnImportJson').addEventListener('click', () => {
+  document.getElementById('fileImport').click();
+});
+document.getElementById('fileImport').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if (Array.isArray(imported)) {
+        items = imported;
+        save(items); render();
+      }
+    } catch { alert('Arquivo inválido.'); }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('btnZerar').addEventListener('click', () => {
+  if (!items.length) return;
+  const ok = confirm(
+    `Isso apaga os ${items.length} item(ns) salvos neste navegador (título, descrição, prints -- tudo). ` +
+    `Não tem como desfazer. Já exportou o backup (.json) se quiser guardar? Continuar mesmo assim?`
+  );
+  if (!ok) return;
+  items = [];
+  save(items);
+  render();
+});
+
+document.getElementById('btnExportHtml').addEventListener('click', () => {
+  const rows = items.map((it, i) => `
+    <div style="border:1px solid #ddd;border-radius:10px;padding:16px;margin-bottom:14px;">
+      <div style="font-size:12px;color:#888;">#${i+1} — ${it.tipo} — ${it.status} — ${escapeHtml(it.tela)}</div>
+      <h3 style="margin:4px 0;">${escapeHtml(it.title) || '(sem título)'}</h3>
+      <p style="white-space:pre-wrap;">${escapeHtml(it.desc)}</p>
+      ${it.shots.map(s => `<img src="${s}" style="max-width:100%;border-radius:8px;margin-top:8px;">`).join('')}
+    </div>
+  `).join('');
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório pente-fino</title></head>
+  <body style="font-family:sans-serif;max-width:900px;margin:30px auto;color:#222;">
+  <h1>Relatório pente-fino — Sistema Mandatos</h1>
+  <p style="color:#888;">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+  ${rows}
+  </body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'relatorio-pente-fino-' + new Date().toISOString().slice(0,10) + '.html';
+  a.click();
+});
+
+render();
+</script>
+</body>
+</html>
