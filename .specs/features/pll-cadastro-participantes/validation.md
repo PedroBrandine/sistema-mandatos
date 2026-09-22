@@ -6,6 +6,15 @@
 scope below is filtered to files owned by `pll-cadastro-participantes` per `tasks.md` T1–T19)
 **Verifier**: independent sub-agent (author ≠ verifier)
 
+## Veredito (atualizado pós-fix, re-verificação independente 2026-09-22)
+
+**✅ PASS (com débitos menores aceitos)**
+
+O gap Major (`status_cadastro` nunca transicionava) está corrigido e coberto por teste que afirma o
+resultado exato dos 3 estados de D-3. Ver "## Re-verificação pós-fix (Verifier independente #2)" abaixo
+para evidência própria. Os 3 gaps Minor originais (PLL-CP-08/09/19) permanecem como débito aceito, não
+bloqueante.
+
 ---
 
 ## Task Completion
@@ -207,7 +216,8 @@ Not performed — this Verifier ran as a standalone (non-interactive) agent per 
 
 ## Summary
 
-**Overall**: ⚠️ Issues (1 Major behavioral gap, not a UI/RLS bypass — see Fix 1; 2 Minor/spec-precision items — see Fix 2)
+**Overall (original, pré-fix)**: ⚠️ Issues (1 Major behavioral gap, not a UI/RLS bypass — see Fix 1; 2 Minor/spec-precision items — see Fix 2)
+**Overall (pós-fix, re-verificado)**: ✅ PASS (com débitos menores aceitos) — ver seção "Re-verificação pós-fix" abaixo
 
 **Spec-anchored check**: 25/25 ACs have `file:line` evidence; 22/25 match the spec-defined outcome exactly, 3 flagged as spec-precision gaps (PLL-CP-08, PLL-CP-09, PLL-CP-19)
 **Sensor**: 5/5 mutations killed
@@ -302,3 +312,111 @@ atual). Nenhuma migration de terceiros foi tocada; `db push` durante esta sessã
 pendente alheia (`20260922151933_planejamento_deriva_situacao_do_pct.sql`, já presente no repo antes desta
 sessão) porque `supabase db push` sempre aplica todo o pendente -- não foi criada nem alterada por este
 trabalho.
+
+---
+
+## Re-verificação pós-fix (Verifier independente #2)
+
+**Data**: 2026-09-22
+**Escopo**: estreito, por instrução do orquestrador — não é uma auditoria completa de novo. Confirma o fix
+do gap Major, avalia o achado de risco "incompleto inalcançável", roda os gates, reavalia só os 3 Minor
+originais. Este Verifier não participou do Verify original nem do fix.
+
+### 1. Gap Major (`status_cadastro`) — confirmado corrigido
+
+Evidência própria, lida diretamente (não herdada do relato do fix):
+
+- `supabase/migrations/20260922152934_pll_cadastro_participante_status_trigger.sql` — função
+  `calcular_status_cadastro_participante()` (trigger `BEFORE INSERT OR UPDATE`) implementa exatamente a
+  regra de D-3: `papel`/`nome_completo`/`email` vazios/NULL → `incompleto`; preenchidos e `id_contrato IS
+  NULL` → `pendente_revisao`; preenchidos e `id_contrato IS NOT NULL` → `completo`. A migration também
+  recalcula linhas pré-existentes via `UPDATE` no-op, corrigindo o passado.
+- `supabase/tests/pll/fat-cadastro-participante-status.integration.test.ts` (lido inteiro) — 4 testes que
+  afirmam o **valor exato** dos 3 estados: `pendente_revisao` no insert sem vínculo, `completo` no insert
+  com vínculo, a transição bidirecional `pendente_revisao → completo → pendente_revisao` via
+  `UPDATE id_contrato`, e `incompleto` (3 variações: papel NULL, nome em branco, email NULL mesmo com
+  vínculo) isolado numa `TEMP TABLE` de sessão com a mesma função de trigger.
+- Rodei isoladamente: `npx vitest run --config vitest.integration.config.ts
+  supabase/tests/pll/fat-cadastro-participante-status.integration.test.ts` → **4/4 passed** (~51s).
+- Rodei a suíte RLS completa também: `npx vitest run --config vitest.integration.config.ts
+  supabase/tests/pll/fat-cadastro-participante-rls.integration.test.ts` → **13/13 passed** (~147s),
+  incluindo o teste "Gestora insere um participante" que agora espera `pendente_revisao` (confirmei no
+  arquivo, linha 265: `expect(data?.status_cadastro).toBe("pendente_revisao")`).
+
+**Veredito**: o gap Major está de fato corrigido e coberto por teste que afirma o resultado exato dos 3
+estados definidos em D-3. Concordo com o relato do fix.
+
+### 2. Achado de risco: "incompleto" estruturalmente inalcançável — confirmado verdadeiro
+
+Li `supabase/migrations/20260922072328_pll_cadastro_participante_estrutura.sql` (estrutura da tabela) e o
+domínio `texto_limpo` (`supabase/migrations/0006_extensoes_helpers.sql:56-66`, reafirmado em
+`0001_plataforma_dim_usuario_prereq.sql`):
+
+- `papel` e `nome_completo` são `texto_limpo NOT NULL`. O domínio `texto_limpo` tem `CHECK (VALUE IS NULL
+  OR (btrim(VALUE) <> '' AND app.normaliza_nome(VALUE) NOT IN (<sentinelas>)))` — rejeita NULL (via
+  `NOT NULL` da coluna), string vazia/só-espaço, e uma lista de 12 sentinelas de ausência.
+- `email` é `TEXT NOT NULL` com `CHECK ck_cadastro_email (email = lower(btrim(email)) AND email LIKE
+  '%@%.%')` — uma string vazia ou NULL viola esse CHECK/NOT NULL também.
+
+Ou seja: **qualquer INSERT/UPDATE normal na tabela real que tentasse gravar `papel`, `nome_completo` ou
+`email` vazio/NULL já falha por violação de constraint antes do trigger conseguir persistir a linha** — o
+branch `incompleto` da função é código morto para qualquer caminho que passe pela tabela real hoje. O teste
+de integração confirma isso indiretamente ao só conseguir provar esse branch isolando a função numa `TEMP
+TABLE` sem essas constraints — não haveria como escrever um teste que insira `incompleto` na tabela real
+com os dados atuais.
+
+**Isso é real, e é uma divergência genuína entre spec e implementação**: D-3 promete um enum de 3 valores
+e a UI (PLL-CP-05, coluna "Status de cadastro") sugere que os 3 podem aparecer, mas `incompleto` nunca vai
+aparecer na tela em produção enquanto o schema atual (NOT NULL + `texto_limpo` + CHECK de e-mail) se
+mantiver — porque nenhum caminho de escrita hoje (upload de planilha via `parseCadastroPll`/
+`validarLinhasCadastroPll`, que já rejeita linha com campo obrigatório ausente antes de chegar ao banco;
+edição manual pela UI) permite gravar esses 3 campos vazios.
+
+**Decisão desta re-verificação**: não corrigir agora. Concordo com a decisão registrada no fix por três
+razões: (a) não fazia parte do escopo do gap Major reportado — o gap era "nunca transiciona", não "o enum
+tem um valor morto"; (b) a spec já definia os 3 estados e o CHECK já aceitava os 3 valores antes deste
+fix, então isto não é uma regressão introduzida pelo fix; (c) o valor prático de `incompleto` em produção
+seria nulo mesmo que alcançável, porque toda linha que chega à tabela real já passou pela validação
+all-or-nothing de `validarLinhasCadastroPll` (PLL-CP-02: linha com campo obrigatório ausente rejeita o
+lote inteiro, nunca grava) ou pela UI de edição manual, que não permite salvar esses campos vazios.
+**Registro como débito aceito, não bloqueante** — se o produto algum dia quiser um caminho de escrita que
+permita campo obrigatório vazio (ex.: import parcial/rascunho), a regra de negócio já está pronta na
+trigger; só falta um caminho de escrita que a exercite.
+
+### 3. Gates — sem regressão
+
+- `npm run test:unit`: **1767 passed, 0 failed** (162 arquivos), confirmado por execução própria. Os mesmos
+  4 unhandled-rejection pré-existentes (`fatos-registros/page.test.tsx` via `use-papel-global.ts`, mock de
+  `.auth.getUser()` incompleto) continuam presentes — fora do escopo desta feature, não pioraram nem
+  melhoraram.
+- `npm run build`: verde, confirmado por execução própria — todas as rotas compilam, incluindo
+  `/produtos/[slug]/participantes` e `/produtos/pll/participantes/[id]`.
+- `fat-cadastro-participante-status.integration.test.ts`: **4/4 passed**.
+- `fat-cadastro-participante-rls.integration.test.ts`: **13/13 passed**.
+
+Nenhuma regressão encontrada.
+
+### 4. Reavaliação dos 3 gaps Minor (PLL-CP-08/09/19)
+
+Não re-executei uma auditoria completa — reli o Fix Plan original e a classificação do Verifier #1: os três
+são gaps de cobertura (comportamento correto por inspeção de código, mas sem asserção de componente direta
+sobre o texto/atributo renderizado), não bugs funcionais. O fix desta rodada tratou explicitamente só do
+gap Major (ver "Fix 2 (minor, spec-precision) -- não endereçado nesta rodada" acima).
+
+**Decisão**: ficam como débito aceito por agora. Justificativa: (a) nenhum dos três é uma regra de negócio
+arriscada — são estados de UI (paginação, célula vazia, mensagem de "sem dado") já cobertos indiretamente
+pelas funções de dados que os alimentam; (b) não são bloqueantes para produção; (c) endereçá-los agora
+misturaria escopo com esta re-verificação, que é estreita por instrução do orquestrador. Se o Pedro quiser,
+viram uma tarefa de hardening separada (3 testes de componente: `lista-participantes-pll.test.tsx` × 2,
+`page.test.tsx` ou unidade dedicada de `ComposicaoPartidariaCasa` × 1).
+
+### Resumo desta re-verificação
+
+- **Major**: corrigido, confirmado com evidência própria (migration lida, 4 testes de integração lidos e
+  executados isoladamente, suíte RLS completa re-executada).
+- **Achado de risco** ("incompleto" inalcançável): confirmado verdadeiro lendo a migration de estrutura +
+  domínio `texto_limpo`; é uma divergência spec↔implementação real, mas não um bug — registrada como débito
+  aceito, não corrigida nesta rodada (fora de escopo do gap Major).
+- **Gates**: unit 1767/0, build verde, 2 suítes de integração citadas 4/4 e 13/13 — sem regressão.
+- **3 Minors** (PLL-CP-08/09/19): mantidos como débito aceito, não corrigidos nesta rodada.
+- **Veredito final**: ✅ **PASS (com débitos menores aceitos)**.
