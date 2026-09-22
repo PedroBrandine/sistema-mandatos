@@ -1,5 +1,12 @@
 # PLL — Dashboard e Agenda Validation
 
+**Status atual**: ✅ PASS (com débitos menores aceitos) — re-verificado em
+2026-09-22 após os 2 fixes de gaps Major (PLL-SH-01, PLL-AG-12); ver
+"## Re-verificação pós-fix" ao final para a evidência independente e o
+veredito atualizado. O corpo abaixo até "## Fixes aplicados (pós-Verifier)" é
+o relatório ORIGINAL do primeiro Verifier (pré-fix) e fica como registro
+histórico — não foi reescrito.
+
 **Date**: 2026-09-22
 **Spec**: `.specs/features/pll-dashboard-agenda/spec.md`
 **Diff range**: `5468221^..db52b41` (feature commits interleaved with sibling feature
@@ -322,3 +329,155 @@ steps" acima.
 - `npm run build` (dentro de `src/frontend/`): `next build` compilou,
   typecheck limpo, todas as rotas geradas, incluindo
   `/produtos/[slug]/agenda`.
+
+---
+
+## Re-verificação pós-fix (2026-09-22)
+
+Verifier independente, sem participação no Verify original nem nos fixes.
+Escopo estreito por instrução: confirmar os 2 gaps Major, rodar o gate geral,
+e reavaliar (não necessariamente corrigir) os 3 gaps Minor. Não é uma nova
+auditoria completa da feature.
+
+### 1. PLL-SH-01 (título literal da área do PLL) — ✅ CONFIRMADO CORRIGIDO
+
+Lido `src/frontend/components/produtos/abas-por-produto.ts:27-31` — novo mapa
+`TITULO_AREA_PRODUTO` com `pll: "PROGRAMA DE LIDERANÇA PARLAMENTAR (PLL)"`,
+`estrategia`/`coalizao: null`. Lido
+`src/frontend/components/produtos/produto-shell.tsx:22` — o `tituloProduto`
+agora resolve `TITULO_AREA_PRODUTO[slug] ?? produto?.nome ?? PRODUTO_SLUGS[slug].label`.
+`PRODUTO_SLUGS`/`ref_produto.nome` não foram tocados (confirmado por leitura,
+sem grep adicional necessário — a mudança está isolada ao mapa novo).
+
+Teste que afirma o resultado exato, lido em
+`src/frontend/components/produtos/produto-shell.test.tsx:110-117`:
+`getByRole("heading", { name: "PROGRAMA DE LIDERANÇA PARLAMENTAR (PLL)" })` e
+`queryByRole("heading", { name: "PLL" })` ausente — a asserção é sobre o texto
+literal exato exigido pelo AC, não uma aproximação. Regressão de
+Estratégia/Coalizão coberta em `produto-shell.test.tsx:119-126`.
+
+Rodado isoladamente nesta sessão:
+`npx vitest run "src/frontend/components/produtos/produto-shell.test.tsx"` →
+**9/9 passed**.
+
+### 2. PLL-AG-12 (Assessor bloqueado da Agenda do PLL, D-14) — ✅ CONFIRMADO CORRIGIDO (gate de UI)
+
+Lido `src/frontend/app/(app)/produtos/[slug]/agenda/page.tsx:103-114` — o
+ramo `slug === "pll"` agora envolve `<PllAgendaPage />` em
+`<GateAssessorPll>`. Lido `GateAssessorPll` (linhas 481-498): usa
+`usePapelGlobal()`, mostra `<CarregandoSkeleton>` durante `carregando`, e
+`<NaoAutorizado titulo="Sem acesso à área do PLL" .../>` quando
+`papel === "assessor"`; caso contrário renderiza `children`.
+
+O comentário acima do componente (linhas 454-480) documenta honestamente que
+é um gate **client-side complementar**, não uma migration de RLS nova — a
+RLS existente (`p_por_contrato`) recorta por vínculo em
+`rel_usuario_contrato`, não por `papel_global` × produto, então um Assessor
+vinculado a um contrato PLL passaria na RLS e só é barrado por este gate de
+UI. Essa é uma limitação residual real (um Assessor lendo `fat_encontro`
+direto via API, fora desta tela, não seria bloqueado), mas está documentada
+explicitamente no código e em `validation.md`, não escondida — aceitável como
+"menor fix correto" dado o risco de migration de RLS em tabela compartilhada
+num banco de dev compartilhado sem certeza suficiente. Concordo com essa
+leitura de risco.
+
+Teste que afirma o resultado exato, lido em
+`src/frontend/app/(app)/produtos/[slug]/agenda/page.test.tsx:775-804`
+(describe `"Gate Assessor no PLL (Fix 2, PLL-AG-12)"`): com
+`papel: "assessor"`, afirma `getByText("Sem acesso à área do PLL")` presente
+e `buscarEncontrosDoMesPll` **nunca chamada** (não é só um teste de texto —
+confirma que a query de dados nem dispara); com `papel: "mentor"`, afirma
+regressão (tela renderiza normalmente). Mock de `usePapelGlobal` tem default
+`papel: "gestora"` em `beforeEach` (linha 237), então os 36 testes
+pré-existentes de Agenda continuam representativos do comportamento comum.
+
+Rodado isoladamente nesta sessão:
+`npx vitest run "src/frontend/app/(app)/produtos/[slug]/agenda/page.test.tsx"`
+→ **38/38 passed**.
+
+Ambos os arquivos rodados juntos nesta sessão: **47/47 passed**.
+
+### 3. Gate geral (repo inteiro, sessão desta re-verificação)
+
+- `npm run test:unit`: **162 arquivos, 1767 testes, 0 falhas**. Os mesmos 4
+  `Unhandled Rejection` (`TypeError: Cannot read properties of undefined
+  (reading 'getUser')`) em
+  `src/frontend/app/(app)/contratos/[id]/fatos-registros/page.test.tsx`
+  reaparecem — confirmado que vêm de `use-papel-global.ts:30`, arquivo fora
+  do diff desta feature; todas as asserções daquele arquivo passam mesmo
+  assim. Consistente com o já documentado acima (linha ~150) como
+  pré-existente/não-regressão. Contagem de testes subiu de 1765→1767 desde o
+  relatório de fixes, coerente com outro trabalho concorrente (commits
+  `pll-cadastro-participantes` visíveis no `git log`), não com esta feature.
+- `npm run build` (em `src/frontend/`): `next build` compilou limpo,
+  typecheck ok, todas as rotas geradas incluindo `/produtos/[slug]/agenda` e
+  `/produtos/[slug]/dashboard`. Sem regressão.
+
+**Nenhuma regressão encontrada nos dois gates.**
+
+### 4. Reavaliação dos 3 gaps Minor (Fix 3, Fix 4, e o terceiro spec-precision gap)
+
+Decisão: **nenhum dos três é corrigido agora — todos ficam como débito
+aceito**, consistente com o escopo desta tarefa ("reavalie... decida se valem
+correção agora ou se ficam registrados como débito aceito (não são
+bloqueantes)") e com o próprio "Next steps" do relatório original, que já os
+classificava como não-bloqueantes.
+
+- **Fix 3 — AD-046 citado fora de escopo em `design.md`/`tasks.md`**:
+  reconfirmado por leitura de `.specs/STATE.md:757-759` — o clause de Scope
+  do AD-046 restringe explicitamente a `redesenho-estrategia-tela-first`,
+  T10-T33, e diz "Não se aplica a nenhuma feature futura sem decisão
+  própria". A citação em `design.md`/`tasks.md` desta feature continua
+  tecnicamente incorreta. É um problema de rastreabilidade documental, não de
+  comportamento: a cobertura de teste real observada (por esta sessão e pela
+  original) não mostra uma lacuna de caminho-feliz-só sistemática — os
+  arquivos de teste amostrados têm AD-005 (empty/null) e branches de erro na
+  maioria dos casos. **Decisão**: registrar como débito aceito; não abrir um
+  AD novo nem reescrever `design.md` agora — isso é uma decisão do Pedro
+  (qual AD passa a valer), não algo que este Verifier deva resolver
+  unilateralmente editando o log de decisões de outra pessoa.
+- **Fix 4 — PLL-DB-01 (propagação de filtro) sem teste end-to-end**:
+  reconfirmado que a implementação está correta por leitura de código
+  (`filtroConsulta` compartilhado entra na `queryKey` das 7 queries do
+  dashboard), mas nenhum teste simula uma troca de filtro e afirma refetch
+  nos 7 blocos juntos. **Decisão**: débito aceito — é hardening de cobertura,
+  não um comportamento quebrado; a implementação já está correta e não há
+  evidência de bug real neste recorte.
+- **ACs não retraçados por time-boxing (PLL-SH-02, PLL-SH-04, PLL-DB-13,
+  PLL-DB-19 sum≈100%, edge cases de `AgendaMes`/legenda embutida)**: esta
+  sessão não teve escopo para retraçá-los (a tarefa pediu explicitamente para
+  não expandir para uma auditoria completa). Continuam como estavam:
+  spec-precision gaps documentados, não confirmados como bugs, prováveis
+  corretos-por-composição (código não alterado / herdado) mas sem asserção
+  direta. **Decisão**: débito aceito, sem mudança de status.
+
+Nenhum destes três é bloqueante para "pronto para produção" — todos são
+lacunas de cobertura de teste ou de rastreabilidade documental sobre um
+comportamento cuja implementação, por leitura de código, está correta.
+
+### Veredito atualizado
+
+**✅ PASS (com débitos menores aceitos)**
+
+- Os 2 gaps Major (PLL-SH-01, PLL-AG-12) estão **de fato corrigidos**, com
+  teste que afirma o resultado exato (texto do título; bloqueio de Assessor
+  com a query nem sendo chamada), confirmados por leitura de código e
+  execução independente dos testes nesta sessão (47/47 nos dois arquivos).
+- Gate geral verde, sem regressão: `test:unit` 1767/1767, `build` limpo.
+- Os 3 gaps Minor remanescentes (AD-046 mal citado, PLL-DB-01 sem teste
+  end-to-end, ACs não retraçados por time-boxing) ficam como **débito aceito,
+  registrado, não bloqueante** — nenhum indica comportamento incorreto em
+  produção, apenas lacunas de cobertura/documentação.
+- Limitação residual aceita e documentada no próprio código: o bloqueio de
+  Assessor no PLL é hoje só de UI (client-side); a proteção de dado real
+  continua sendo a RLS existente por vínculo em `rel_usuario_contrato`, que
+  **não** implementa "Assessor nunca vê PLL" para um Assessor vinculado a um
+  contrato PLL lendo `fat_encontro` fora desta tela. Isso é um risco de
+  segurança de dado residual, não um "Needs Fix" desta re-verificação — está
+  sinalizado explicitamente para decisão do Pedro sobre se vale uma migration
+  de RLS dedicada.
+
+**Requirement Traceability**: `PLL-SH-01` e `PLL-AG-12` passam de "❌ Needs
+Fix" para "✅ Verificado (Fix aplicado e confirmado nesta re-verificação)".
+Os demais status da tabela "Requirement Traceability Update" acima não
+mudam.
