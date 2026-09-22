@@ -234,9 +234,9 @@ GRANTs.
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Busca por qualquer um dos 3 campos; filtro combinável; paginação com total
-- [ ] Campo obrigatório vazio chega como `null` (vira `—` no componente)
-- [ ] `npm run test:unit` verde
+- [x] Busca por qualquer um dos 3 campos; filtro combinável; paginação com total
+- [x] Campo obrigatório vazio chega como `null` (vira `—` no componente)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -256,9 +256,9 @@ GRANTs.
 **Tools**: MCP: `figma`. Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Rótulo "Parlamentar" (D-1), não "Deputado(a)"
-- [ ] Célula ausente = `—`; paginação "Mostrando X–Y de N"
-- [ ] `npm run test:unit` verde
+- [x] Rótulo "Parlamentar" (D-1), não "Deputado(a)"
+- [x] Célula ausente = `—`; paginação "Mostrando X–Y de N"
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -279,8 +279,8 @@ GRANTs.
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Página monta upload + lista, RLS decide o que cada papel vê
-- [ ] `npm run lint:all && npm run build && npm run test:unit` verdes
+- [x] Página monta upload + lista, RLS decide o que cada papel vê
+- [x] `npm run lint:all && npm run build && npm run test:unit` verdes
 
 **Tests**: unit
 **Gate**: build
@@ -303,12 +303,12 @@ forma suficiente para esta chamada — se não, é ajuste pontual nesse arquivo,
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Chama `criarMandato` com `p_candidatura` preenchido, depois `UPDATE` na linha de staging
-- [ ] Troca de vínculo (PLL-CP-12) preserva histórico em `rel_mandato_candidatura` (comportamento já
+- [x] Chama `criarMandato` com `p_candidatura` preenchido, depois `UPDATE` na linha de staging
+- [x] Troca de vínculo (PLL-CP-12) preserva histórico em `rel_mandato_candidatura` (comportamento já
   garantido pela RPC existente — teste confirma que esta função não o quebra)
-- [ ] Vínculo a candidatura já usada por outro contrato do produto propaga o erro de `dim_contratante`
+- [x] Vínculo a candidatura já usada por outro contrato do produto propaga o erro de `dim_contratante`
   `UNIQUE`, mapeado por `mapeiaErroRpc` (mensagem clara, não genérica)
-- [ ] `npm run test:unit` verde
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -329,9 +329,9 @@ encontrado" (PLL-CP-10, PLL-CP-13).
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Busca pré-preenchida com os campos autodeclarados
-- [ ] Fechar sem escolher candidatura nem marcar "não encontrado" é bloqueado (PLL-CP-13)
-- [ ] `npm run test:unit` verde (mesmo padrão de 3 blocos de `tse-match-search.test.tsx`, pelo Popover)
+- [x] Busca pré-preenchida com os campos autodeclarados
+- [x] Fechar sem escolher candidatura nem marcar "não encontrado" é bloqueado (PLL-CP-13)
+- [x] `npm run test:unit` verde (mesmo padrão de 3 blocos de `tse-match-search.test.tsx`, pelo Popover)
 
 **Tests**: unit
 **Gate**: quick
@@ -354,8 +354,8 @@ Estratégia
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Vincular atualiza a linha sem recarregar a lista inteira
-- [ ] `npm run lint:all && npm run build && npm run test:unit` verdes
+- [x] Vincular atualiza a linha sem recarregar a lista inteira
+- [x] `npm run lint:all && npm run build && npm run test:unit` verdes
 
 **Tests**: unit
 **Gate**: build
