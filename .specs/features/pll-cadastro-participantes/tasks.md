@@ -91,9 +91,9 @@ formatos num pacote só; alternativa `papaparse` só cobre `.csv`, exigiria uma 
 **Tools**: MCP: NONE (verificar licença/tamanho do pacote antes de instalar — decisão registrada no commit). Skill: NONE.
 
 **Done when**:
-- [ ] Dependência escolhida e instalada no workspace certo (`src/frontend`, onde o parse roda no browser)
-- [ ] Prova de conceito: 1 arquivo `.xlsx` de teste e 1 `.csv` parseiam para array de objetos
-- [ ] Decisão documentada no commit message (por que essa lib, não a outra)
+- [x] Dependência escolhida e instalada no workspace certo (`src/frontend`, onde o parse roda no browser)
+- [x] Prova de conceito: 1 arquivo `.xlsx` de teste e 1 `.csv` parseiam para array de objetos
+- [x] Decisão documentada no commit message (por que essa lib, não a outra)
 
 **Tests**: none (spike)
 **Gate**: build
@@ -117,13 +117,13 @@ GRANTs.
 **Tools**: MCP: `supabase`. Skill: `supabase`, `supabase-postgres-best-practices`.
 
 **Done when**:
-- [ ] Tabela criada com todos os `CHECK` do design
-- [ ] RLS: Gestora/Admin CRUD completo; Mentor SELECT/UPDATE só onde `id_contrato` está na própria carteira
+- [x] Tabela criada com todos os `CHECK` do design
+- [x] RLS: Gestora/Admin CRUD completo; Mentor SELECT/UPDATE só onde `id_contrato` está na própria carteira
   (`rel_usuario_contrato`); linha com `id_contrato IS NULL` só visível a Gestora/Admin
-- [ ] GRANTs para os 3 papéis, sem abrir para Assessor (Out of Scope da spec)
-- [ ] Teste de integração cobre: Gestora insere; Mentor não vê linha não vinculada; Mentor vê e edita linha
+- [x] GRANTs para os 3 papéis, sem abrir para Assessor (Out of Scope da spec)
+- [x] Teste de integração cobre: Gestora insere; Mentor não vê linha não vinculada; Mentor vê e edita linha
   da própria carteira depois do vínculo; Assessor sem GRANT nenhum
-- [ ] `npm run test:integration` verde
+- [x] `npm run test:integration` verde
 
 **Tests**: integration
 **Gate**: full
@@ -143,10 +143,10 @@ GRANTs.
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Um schema Zod por linha da planilha + uma validação de lote que rejeita e-mail duplicado
-- [ ] Teste: cada campo obrigatório ausente rejeita; nota fora de 1–5 rejeita; e-mail malformado rejeita;
+- [x] Um schema Zod por linha da planilha + uma validação de lote que rejeita e-mail duplicado
+- [x] Teste: cada campo obrigatório ausente rejeita; nota fora de 1–5 rejeita; e-mail malformado rejeita;
   2 linhas com mesmo e-mail no lote rejeitam com os índices das duas linhas na mensagem
-- [ ] `npm run test:unit` verde
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -167,9 +167,9 @@ GRANTs.
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] `.xlsx` e `.csv` de teste (fixtures) parseiam para o mesmo formato de objeto
-- [ ] Cabeçalho de coluna não reconhecido gera erro nomeado (não silencioso)
-- [ ] `npm run test:unit` verde
+- [x] `.xlsx` e `.csv` de teste (fixtures) parseiam para o mesmo formato de objeto
+- [x] Cabeçalho de coluna não reconhecido gera erro nomeado (não silencioso)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -189,9 +189,9 @@ GRANTs.
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Linha nova insere; linha com e-mail já existente no projeto atualiza (nunca duplica)
-- [ ] Reimportação **nunca** limpa `id_contrato`/`id_vinculo_tse` já preenchidos (edge case da spec)
-- [ ] `npm run test:unit` verde
+- [x] Linha nova insere; linha com e-mail já existente no projeto atualiza (nunca duplica)
+- [x] Reimportação **nunca** limpa `id_contrato`/`id_vinculo_tse` já preenchidos (edge case da spec)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -212,9 +212,9 @@ GRANTs.
 **Tools**: MCP: `figma` (conferir `387:4`). Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Upload rejeita arquivo com erro de validação (mostra lista completa, nenhuma linha entra)
-- [ ] Sucesso mostra "Última importação: DD/MM/AAAA por ‹nome›" e atualiza as 3 métricas
-- [ ] `npm run test:unit` verde
+- [x] Upload rejeita arquivo com erro de validação (mostra lista completa, nenhuma linha entra)
+- [x] Sucesso mostra "Última importação: DD/MM/AAAA por ‹nome›" e atualiza as 3 métricas
+- [x] `npm run test:unit` verde
 
 **Tests**: unit (AD-042 — sucesso e cada tipo de erro)
 **Gate**: quick
