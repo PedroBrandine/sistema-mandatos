@@ -438,9 +438,9 @@ na política; 4 pautas + outras) — **depende da tabela existir** (Fase 1 de `p
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Agrega por categoria com contagem/percentual; supressão quando n < 5 (D-13) já no retorno (`suprimido: boolean`)
-- [ ] Se a tabela não existir ainda (bloqueio de dependência), a task fica em espera — não implementar contra tabela fictícia
-- [ ] `npm run test:unit` verde
+- [x] Agrega por categoria com contagem/percentual; supressão quando n < 5 (D-13) já no retorno (`suprimido: boolean`)
+- [x] Se a tabela não existir ainda (bloqueio de dependência), a task fica em espera — não implementar contra tabela fictícia — tabela já existia (migration `20260922072328_pll_cadastro_participante_estrutura.sql`, feature-irmã T1-T12 commitadas), implementado direto
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -461,8 +461,8 @@ anteriores) — sem dependência externa (D-5 da spec-irmã só usada em T16).
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] `ds_raca` nulo entra em "sem resposta"; partido além dos 8 maiores agrupa em "Outros"
-- [ ] `npm run test:unit` verde
+- [x] `ds_raca` nulo entra em "sem resposta"; partido além dos 8 maiores agrupa em "Outros"
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -483,9 +483,11 @@ centro (não "100%"), legenda com percentuais, estado "Dados insuficientes (n < 
 **Tools**: MCP: `figma`. Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Centro da rosca mostra `n`; soma da legenda fecha 100% ±1
-- [ ] `n < 5` mostra o estado de supressão em vez do gráfico
-- [ ] `npm run test:unit` verde
+- [x] Centro da rosca mostra `n`; soma da legenda fecha 100% ±1 — **SPEC_DEVIATION** em "Outras pautas
+  prioritárias" (`PainelAfinidadeAgenda`): campo de múltipla escolha (`outras_pautas TEXT[]`), a soma pode
+  passar de 100% — documentado em `buscarAfinidadeAgendaPll`, não resolvido em silêncio
+- [x] `n < 5` mostra o estado de supressão em vez do gráfico
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -506,8 +508,10 @@ ainda não tenha a tabela (Error Handling do design).
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] 3 painéis aparecem abaixo do feed, na ordem do Figma
-- [ ] `npm run lint:all && npm run build && npm run test:unit` verdes
+- [x] 3 painéis aparecem abaixo do feed, na ordem do Figma
+- [x] `npm run lint:all && npm run build && npm run test:unit` verdes — sem acesso ao MCP Figma nesta sessão
+  (mesma limitação já registrada nos lotes anteriores); T18/T19 implementados fielmente por spec.md/design.md,
+  não confrontados com `get_screenshot` de `44:477`
 
 **Tests**: unit
 **Gate**: build
