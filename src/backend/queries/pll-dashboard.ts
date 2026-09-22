@@ -343,11 +343,18 @@ const PREFIXO_CARGO: Record<string, string> = {
   "Governador(a)": "Gov.",
 };
 
-// PLL-DB-07…11, D-12. Uma linha por (mentorado, contrato): mentorado é o
-// vínculo papel_no_contrato='assessor' ativo (D-12). Um contrato com mais de
-// um assessor ativo gera mais de uma linha -- D-12 registra isso como ponto
-// em aberto a verificar na base, não resolvido aqui. Contrato sem nenhum
-// assessor ativo não aparece na tabela (não há "mentorado" pra mostrar).
+// PLL-DB-07…11, D-12 CORRIGIDO em sessão ao vivo com Pedro (22/09): D-12
+// original definia mentorado como o vínculo papel_no_contrato='assessor' --
+// mas o fluxo real de importação/vínculo TSE (spec irmã
+// pll-cadastro-participantes) nunca cria esse vínculo (não existe
+// dim_usuario/conta de login para um deputado importado por planilha), só o
+// contrato. Mentorado passa a ser lido direto de fat_cadastro_participante
+// via id_contrato -- mesmo padrão que os 3 painéis analíticos (T16-T19,
+// buscarAnaliseParticipantePll etc.) já usavam, corretamente, desde o início.
+// Uma linha por (mentorado, contrato): `UNIQUE (id_edicao, email)` em
+// fat_cadastro_participante não impede duas linhas de edições diferentes
+// apontarem pro mesmo id_contrato (troca de vínculo, PLL-CP-12) -- filtra só
+// as mais recentes por atualizado_em pra não duplicar a linha.
 //
 // busca/ordenação NÃO são parâmetro desta função -- mesmo padrão de
 // ListaMandatos/TabelaPendencias (client-side, no componente T10):
@@ -404,29 +411,42 @@ export async function buscarMentoradosPll(
     .from("rel_usuario_contrato")
     .select("id_contrato, id_usuario, papel_no_contrato")
     .in("id_contrato", idsContrato)
-    .in("papel_no_contrato", ["assessor", "mentor"])
+    .eq("papel_no_contrato", "mentor")
     .is("dt_fim", null);
   if (erroVinculos) throw erroVinculos;
   const vinculos = (vinculosData ?? []) as RowVinculo[];
 
   const mentorPorContrato = new Map<number, number>();
-  const paresMentorado: { idContrato: number; idUsuarioMentorado: number }[] = [];
   for (const v of vinculos) {
-    if (v.papel_no_contrato === "mentor" && !mentorPorContrato.has(v.id_contrato)) {
-      mentorPorContrato.set(v.id_contrato, v.id_usuario);
-    }
-    if (v.papel_no_contrato === "assessor") {
-      paresMentorado.push({ idContrato: v.id_contrato, idUsuarioMentorado: v.id_usuario });
+    if (!mentorPorContrato.has(v.id_contrato)) mentorPorContrato.set(v.id_contrato, v.id_usuario);
+  }
+
+  // Mentorado = fat_cadastro_participante vinculado a este contrato (D-12
+  // corrigido). Mais de uma linha de staging apontando pro mesmo id_contrato
+  // (troca de vínculo, PLL-CP-12) -- mantém só a mais recente por contrato.
+  const { data: cadastrosData, error: erroCadastros } = await client
+    .from("fat_cadastro_participante")
+    .select("id_contrato, nome_completo, atualizado_em")
+    .in("id_contrato", idsContrato);
+  if (erroCadastros) throw erroCadastros;
+  const cadastroPorContrato = new Map<number, { nomeCompleto: string; atualizadoEm: string }>();
+  for (const c of (cadastrosData ?? []) as { id_contrato: number | null; nome_completo: string; atualizado_em: string }[]) {
+    if (c.id_contrato === null) continue;
+    const atual = cadastroPorContrato.get(c.id_contrato);
+    if (!atual || c.atualizado_em > atual.atualizadoEm) {
+      cadastroPorContrato.set(c.id_contrato, { nomeCompleto: c.nome_completo, atualizadoEm: c.atualizado_em });
     }
   }
+  const paresMentorado = Array.from(cadastroPorContrato.entries()).map(([idContrato, c]) => ({
+    idContrato,
+    nomeMentorado: c.nomeCompleto,
+  }));
   if (paresMentorado.length === 0) return [];
 
-  const idsUsuario = Array.from(
-    new Set([...mentorPorContrato.values(), ...paresMentorado.map((p) => p.idUsuarioMentorado)])
-  );
+  const idsMentor = Array.from(new Set(mentorPorContrato.values()));
   const { data: usuariosData, error: erroUsuarios } =
-    idsUsuario.length > 0
-      ? await client.from("dim_usuario").select("id_usuario, nome").in("id_usuario", idsUsuario)
+    idsMentor.length > 0
+      ? await client.from("dim_usuario").select("id_usuario, nome").in("id_usuario", idsMentor)
       : { data: [], error: null };
   if (erroUsuarios) throw erroUsuarios;
   const nomesPorUsuario = new Map(
@@ -531,7 +551,7 @@ export async function buscarMentoradosPll(
 
   const contratoPorId = new Map(contratos.map((c) => [c.id_contrato, c]));
 
-  return paresMentorado.map(({ idContrato, idUsuarioMentorado }) => {
+  return paresMentorado.map(({ idContrato, nomeMentorado }) => {
     const contrato = contratoPorId.get(idContrato) as RowContratoMentorado;
     const mandato = mandatoPorContratante.get(contrato.id_contratante);
     const nomeUrna = mandato?.nm_urna ?? mandato?.nm_civil ?? "";
@@ -541,7 +561,7 @@ export async function buscarMentoradosPll(
 
     return {
       idContrato,
-      nomeMentorado: nomesPorUsuario.get(idUsuarioMentorado) ?? "",
+      nomeMentorado,
       nomeParlamentar: prefixo !== null && nomeUrna ? `${prefixo} ${nomeUrna}` : nomeUrna,
       siglaPartido: contrato.id_partido_no_contrato !== null ? siglaPorPartido.get(contrato.id_partido_no_contrato) ?? null : null,
       siglaUf: ufPorContratante.get(contrato.id_contratante) ?? null,
@@ -558,10 +578,11 @@ export async function buscarMentoradosPll(
 // T7: buscarRegistrosMentores (PLL-DB-12…14)
 // =============================================================================
 
-// D-7: "Mentorado" no feed é o assessor do contrato -- mesmo mapeamento de
-// papel usado em buscarMentoradosPll (T6), sem reaproveitar aquela função
-// porque o recorte de saída é diferente (10 mais recentes do produto
-// inteiro, não uma linha por contrato).
+// D-7 corrigido (22/09, mesmo motivo de buscarMentoradosPll): "Mentorado" no
+// feed vem de fat_cadastro_participante.nome_completo via id_contrato, não de
+// um vínculo 'assessor' que o fluxo de import/TSE nunca cria. Sem reaproveitar
+// buscarMentoradosPll porque o recorte de saída é diferente (10 mais recentes
+// do produto inteiro, não uma linha por contrato).
 export interface RegistroMentor {
   idRegistro: number;
   nomeAutor: string;
@@ -610,37 +631,29 @@ export async function buscarRegistrosMentores(
   );
 
   const idsContratoRegistros = Array.from(new Set(registros.map((r) => r.id_contrato)));
-  const { data: vinculosData, error: erroVinculos } = await client
-    .from("rel_usuario_contrato")
-    .select("id_contrato, id_usuario")
-    .in("id_contrato", idsContratoRegistros)
-    .eq("papel_no_contrato", "assessor")
-    .is("dt_fim", null);
-  if (erroVinculos) throw erroVinculos;
-  const mentoradoPorContrato = new Map<number, number>();
-  for (const v of (vinculosData ?? []) as { id_contrato: number; id_usuario: number }[]) {
-    if (!mentoradoPorContrato.has(v.id_contrato)) mentoradoPorContrato.set(v.id_contrato, v.id_usuario);
+  const { data: cadastrosData, error: erroCadastros } = await client
+    .from("fat_cadastro_participante")
+    .select("id_contrato, nome_completo, atualizado_em")
+    .in("id_contrato", idsContratoRegistros);
+  if (erroCadastros) throw erroCadastros;
+  // Mais de uma linha de staging pro mesmo contrato (troca de vínculo,
+  // PLL-CP-12) -- mantém só a mais recente, mesmo critério de buscarMentoradosPll.
+  const nomeMentoradoPorContrato = new Map<number, { nome: string; atualizadoEm: string }>();
+  for (const c of (cadastrosData ?? []) as { id_contrato: number | null; nome_completo: string; atualizado_em: string }[]) {
+    if (c.id_contrato === null) continue;
+    const atual = nomeMentoradoPorContrato.get(c.id_contrato);
+    if (!atual || c.atualizado_em > atual.atualizadoEm) {
+      nomeMentoradoPorContrato.set(c.id_contrato, { nome: c.nome_completo, atualizadoEm: c.atualizado_em });
+    }
   }
-  const idsMentorado = Array.from(new Set([...mentoradoPorContrato.values()]));
-  const { data: mentoradosData, error: erroMentorados } =
-    idsMentorado.length > 0
-      ? await client.from("dim_usuario").select("id_usuario, nome").in("id_usuario", idsMentorado)
-      : { data: [], error: null };
-  if (erroMentorados) throw erroMentorados;
-  const nomesPorMentorado = new Map(
-    ((mentoradosData ?? []) as { id_usuario: number; nome: string }[]).map((u) => [u.id_usuario, u.nome])
-  );
 
-  return registros.map((r) => {
-    const idMentorado = mentoradoPorContrato.get(r.id_contrato);
-    return {
-      idRegistro: r.id_registro,
-      nomeAutor: nomesPorUsuario.get(r.id_usuario_autor) ?? "",
-      nomeMentorado: idMentorado !== undefined ? nomesPorMentorado.get(idMentorado) ?? null : null,
-      ocorridoEm: r.ocorrido_em,
-      resumo: r.resumo,
-    };
-  });
+  return registros.map((r) => ({
+    idRegistro: r.id_registro,
+    nomeAutor: nomesPorUsuario.get(r.id_usuario_autor) ?? "",
+    nomeMentorado: nomeMentoradoPorContrato.get(r.id_contrato)?.nome ?? null,
+    ocorridoEm: r.ocorrido_em,
+    resumo: r.resumo,
+  }));
 }
 
 // =============================================================================

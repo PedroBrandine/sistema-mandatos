@@ -254,13 +254,16 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
         },
       ],
       rel_usuario_contrato: {
-        data: [
-          { id_contrato: 1, id_usuario: 200, papel_no_contrato: "mentor" },
-          { id_contrato: 1, id_usuario: 300, papel_no_contrato: "assessor" },
-        ],
+        data: [{ id_contrato: 1, id_usuario: 200, papel_no_contrato: "mentor" }],
         ...OK,
       },
-      dim_usuario: { data: [{ id_usuario: 200, nome: "Ana Mentora" }, { id_usuario: 300, nome: "Beto Mentorado" }], ...OK },
+      // D-12 corrigido (22/09): mentorado vem de fat_cadastro_participante, não
+      // de um vínculo 'assessor' -- o fluxo de import/TSE nunca cria esse vínculo.
+      fat_cadastro_participante: {
+        data: [{ id_contrato: 1, nome_completo: "Beto Mentorado", atualizado_em: "2026-09-20T10:00:00Z" }],
+        ...OK,
+      },
+      dim_usuario: { data: [{ id_usuario: 200, nome: "Ana Mentora" }], ...OK },
       dim_mandato: { data: [{ id_contratante: 100, nm_urna: "Carlos Silva", nm_civil: "Carlos da Silva" }], ...OK },
       ref_partido: { data: [{ id_partido: 5, sigla: "PXX" }], ...OK },
       ref_cargo: { data: [{ id_cargo: 6, nome: "Deputado(a) Federal" }], ...OK },
@@ -308,9 +311,12 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
           ...OK,
         },
       ],
-      // Só o vínculo de assessor -- nenhum mentor pareado.
-      rel_usuario_contrato: { data: [{ id_contrato: 1, id_usuario: 300, papel_no_contrato: "assessor" }], ...OK },
-      dim_usuario: { data: [{ id_usuario: 300, nome: "Beto Mentorado" }], ...OK },
+      // Nenhum vínculo de mentor pareado.
+      rel_usuario_contrato: { data: [], ...OK },
+      fat_cadastro_participante: {
+        data: [{ id_contrato: 1, nome_completo: "Beto Mentorado", atualizado_em: "2026-09-20T10:00:00Z" }],
+        ...OK,
+      },
       dim_mandato: { data: [{ id_contratante: 100, nm_urna: "Carlos Silva", nm_civil: null }], ...OK },
       ref_partido: { data: [], ...OK },
       ref_cargo: { data: [], ...OK },
@@ -328,6 +334,52 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
     expect(resultado[0].siglaUf).toBeNull();
     expect(resultado[0].pctAtingimento).toBeNull();
     expect(resultado[0].status).toBe("desistente");
+  });
+
+  // PLL-CP-12 (troca de vínculo): a linha antiga de staging não é limpa ao
+  // trocar o vínculo TSE -- duas linhas podem apontar pro mesmo id_contrato.
+  // A tabela mostra só a mais recente (atualizado_em), nunca duas linhas para
+  // o mesmo contrato.
+  it("duas linhas de staging para o MESMO contrato (troca de vínculo): mantém só a mais recente", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: [
+        { data: [{ id_contrato: 1 }], ...OK },
+        {
+          data: [
+            {
+              id_contrato: 1,
+              id_contratante: 100,
+              status: "ativo",
+              origem_encerramento: null,
+              id_partido_no_contrato: null,
+              id_cargo_no_contrato: null,
+              id_projeto: null,
+            },
+          ],
+          ...OK,
+        },
+      ],
+      rel_usuario_contrato: { data: [], ...OK },
+      fat_cadastro_participante: {
+        data: [
+          { id_contrato: 1, nome_completo: "Nome Antigo", atualizado_em: "2026-09-10T10:00:00Z" },
+          { id_contrato: 1, nome_completo: "Nome Novo", atualizado_em: "2026-09-20T10:00:00Z" },
+        ],
+        ...OK,
+      },
+      dim_mandato: { data: [{ id_contratante: 100, nm_urna: "Carlos Silva", nm_civil: null }], ...OK },
+      ref_partido: { data: [], ...OK },
+      ref_cargo: { data: [], ...OK },
+      dim_contratante: { data: [{ id_contratante: 100, sg_uf: null }], ...OK },
+      ref_projeto: { data: [], ...OK },
+      ref_tipo_registro: { data: null, ...OK },
+      dim_planejamento: { data: [], ...OK },
+    });
+
+    const resultado = await buscarMentoradosPll(client, { idProduto: 9 });
+
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].nomeMentorado).toBe("Nome Novo");
   });
 
   it("recorte sem nenhum contrato devolve [], nunca lança", async () => {
@@ -359,11 +411,13 @@ describe("buscarRegistrosMentores (T7, PLL-DB-12…14, D-7)", () => {
         ],
         ...OK,
       },
-      dim_usuario: [
-        { data: [{ id_usuario: 200, nome: "Ana Mentora" }], ...OK },
-        { data: [{ id_usuario: 300, nome: "Beto Mentorado" }], ...OK },
-      ],
-      rel_usuario_contrato: { data: [{ id_contrato: 1, id_usuario: 300 }], ...OK },
+      dim_usuario: { data: [{ id_usuario: 200, nome: "Ana Mentora" }], ...OK },
+      // D-7 corrigido (22/09): mentorado vem de fat_cadastro_participante, não
+      // de um vínculo 'assessor'.
+      fat_cadastro_participante: {
+        data: [{ id_contrato: 1, nome_completo: "Beto Mentorado", atualizado_em: "2026-09-20T10:00:00Z" }],
+        ...OK,
+      },
     });
 
     const resultado = await buscarRegistrosMentores(client, { idProduto: 9 });
@@ -400,8 +454,8 @@ describe("buscarRegistrosMentores (T7, PLL-DB-12…14, D-7)", () => {
         data: [{ id_registro: 10, id_contrato: 1, ocorrido_em: "2026-09-18T21:30:00Z", resumo: null, id_usuario_autor: 200 }],
         ...OK,
       },
-      dim_usuario: [{ data: [{ id_usuario: 200, nome: "Ana Mentora" }], ...OK }, { data: [], ...OK }],
-      rel_usuario_contrato: { data: [], ...OK },
+      dim_usuario: { data: [{ id_usuario: 200, nome: "Ana Mentora" }], ...OK },
+      fat_cadastro_participante: { data: [], ...OK },
     });
 
     const resultado = await buscarRegistrosMentores(client, { idProduto: 9 });
