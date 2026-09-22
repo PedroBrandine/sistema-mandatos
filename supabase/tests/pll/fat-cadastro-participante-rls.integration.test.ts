@@ -258,7 +258,11 @@ describe("fat_cadastro_participante -- estrutura, RLS e GRANTs (pll-cadastro-par
       .select("id_cadastro_participante, status_cadastro")
       .single();
     expect(error).toBeNull();
-    expect(data?.status_cadastro).toBe("incompleto");
+    // D-3, via trg_calcular_status_cadastro_participante (migration
+    // 20260922152934): papel/nome_completo/email preenchidos (únicos campos
+    // obrigatórios, T3) e sem vínculo TSE (id_contrato IS NULL) => "pendente
+    // de revisão", nunca mais "incompleto" travado no DEFAULT da coluna.
+    expect(data?.status_cadastro).toBe("pendente_revisao");
     if (data) idsCadastroCriados.push(data.id_cadastro_participante);
 
     const [{ total }] = await runSql<{ total: number }>(
