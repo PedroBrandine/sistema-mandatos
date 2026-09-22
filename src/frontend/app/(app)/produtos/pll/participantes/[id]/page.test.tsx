@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { Suspense } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Spec anchor: tasks.md T15 "Done when" (PLL-CP-14…19):
@@ -18,17 +18,27 @@ const mocks = vi.hoisted(() => ({
   buscarTodasCandidaturasPorTitulo: vi.fn(),
   buscarPerfilCandidatura: vi.fn(),
   buscarComposicaoPartidariaCasa: vi.fn(),
+  atualizarCamposEditaveisParticipante: vi.fn(),
   push: vi.fn(),
   respostaCadastro: null as unknown,
   respostaVinculo: null as unknown,
   respostaMandato: null as unknown,
   respostaVigente: null as unknown,
+  papelGlobal: { papel: "mentor" as string | null, idUsuario: 1, carregando: false },
 }));
 
 vi.mock("@backend/queries/tse", () => ({
   buscarTodasCandidaturasPorTitulo: mocks.buscarTodasCandidaturasPorTitulo,
   buscarPerfilCandidatura: mocks.buscarPerfilCandidatura,
   buscarComposicaoPartidariaCasa: mocks.buscarComposicaoPartidariaCasa,
+}));
+
+vi.mock("@backend/queries/pll-cadastro", () => ({
+  atualizarCamposEditaveisParticipante: mocks.atualizarCamposEditaveisParticipante,
+}));
+
+vi.mock("@/hooks/use-papel-global", () => ({
+  usePapelGlobal: () => mocks.papelGlobal,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -82,6 +92,53 @@ vi.mock("@/components/pll/ficha-afinidade-agenda", () => ({
     <div data-testid="ficha-afinidade-agenda">
       <p>Nota Educação: {props.notaEducacao ?? "—"}</p>
       <p>Outras pautas: {props.outrasPautas.join(",")}</p>
+    </div>
+  ),
+}));
+
+vi.mock("@/components/pll/editor-lista-texto", () => ({
+  EditorListaTexto: (props: { titulo: string; itens: string[]; onChange: (i: string[]) => void; readOnly?: boolean }) => (
+    <div data-testid={`editor-lista-${props.titulo}`}>
+      <p>
+        {props.titulo}: {props.itens.length} ({props.readOnly ? "somente leitura" : "editável"})
+      </p>
+      {!props.readOnly && (
+        <button type="button" onClick={() => props.onChange([...props.itens, "Novo item"])}>
+          Simular adicionar em {props.titulo}
+        </button>
+      )}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/pll/editor-ambicao-politica", () => ({
+  EditorAmbicaoPolitica: (props: {
+    texto: string | null;
+    tags: string[];
+    onChangeTexto: (t: string) => void;
+    onChangeTags: (t: string[]) => void;
+    readOnly?: boolean;
+  }) => (
+    <div data-testid="editor-ambicao-politica">
+      <p>Ambição: {props.readOnly ? "somente leitura" : "editável"}</p>
+      {!props.readOnly && (
+        <button type="button" onClick={() => props.onChangeTexto("Novo texto")}>
+          Simular editar texto da ambição
+        </button>
+      )}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/pll/editor-swot", () => ({
+  EditorSwot: (props: { forcas: string[]; readOnly?: boolean; onChangeForcas: (i: string[]) => void }) => (
+    <div data-testid="editor-swot">
+      <p>SWOT: {props.readOnly ? "somente leitura" : "editável"}</p>
+      {!props.readOnly && (
+        <button type="button" onClick={() => props.onChangeForcas([...props.forcas, "Nova força"])}>
+          Simular adicionar força
+        </button>
+      )}
     </div>
   ),
 }));
@@ -166,9 +223,11 @@ beforeEach(() => {
   mocks.buscarComposicaoPartidariaCasa.mockReset().mockResolvedValue([
     { siglaPartido: "PT", quantidade: 10, percentual: 50 },
   ]);
+  mocks.atualizarCamposEditaveisParticipante.mockReset().mockResolvedValue(undefined);
   mocks.respostaCadastro = { data: PARTICIPANTE_VINCULADO, error: null };
   mocks.respostaVinculo = { data: { id_mandato: 9, ano_eleicao: 2022 }, error: null };
   mocks.respostaMandato = { data: { nr_titulo_eleitoral: "123" }, error: null };
+  mocks.papelGlobal = { papel: "mentor", idUsuario: 1, carregando: false };
 });
 
 afterEach(cleanup);
@@ -230,5 +289,68 @@ describe("FichaMentoradoPage — participante inexistente", () => {
     renderizarPagina("999");
 
     expect(await screen.findByText("Participante não encontrado")).toBeInTheDocument();
+  });
+});
+
+// Spec anchor: tasks.md T19 "Done when" (PLL-CP-20…25):
+//  - Mentor/Gestora editam; Assessor não vê botão de editar em nenhum dos 3 blocos
+//  - npm run lint:all && npm run build && npm run test:unit verdes
+describe("FichaMentoradoPage — blocos editáveis (T19)", () => {
+  it("Mentor vê Desafios/Destaques/Ambição/SWOT editáveis", async () => {
+    mocks.papelGlobal = { papel: "mentor", idUsuario: 1, carregando: false };
+    renderizarPagina();
+
+    expect(await screen.findByText("Desafios: 0 (editável)")).toBeInTheDocument();
+    expect(screen.getByText("Destaques: 0 (editável)")).toBeInTheDocument();
+    expect(screen.getByText("Ambição: editável")).toBeInTheDocument();
+    expect(screen.getByText("SWOT: editável")).toBeInTheDocument();
+  });
+
+  // Lado oposto: Assessor não vê nenhum botão de editar nos 3 blocos.
+  it("Assessor vê os 3 blocos somente leitura, sem nenhum botão de editar", async () => {
+    mocks.papelGlobal = { papel: "assessor", idUsuario: 2, carregando: false };
+    renderizarPagina();
+
+    expect(await screen.findByText("Desafios: 0 (somente leitura)")).toBeInTheDocument();
+    expect(screen.getByText("Destaques: 0 (somente leitura)")).toBeInTheDocument();
+    expect(screen.getByText("Ambição: somente leitura")).toBeInTheDocument();
+    expect(screen.getByText("SWOT: somente leitura")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Simular/ })).not.toBeInTheDocument();
+  });
+
+  it("editar Desafios chama atualizarCamposEditaveisParticipante só com a chave 'desafios'", async () => {
+    renderizarPagina();
+
+    (await screen.findByRole("button", { name: "Simular adicionar em Desafios" })).click();
+
+    await waitFor(() =>
+      expect(mocks.atualizarCamposEditaveisParticipante).toHaveBeenCalledWith(expect.anything(), 1, {
+        desafios: ["Novo item"],
+      })
+    );
+  });
+
+  it("editar a Ambição Política chama atualizarCamposEditaveisParticipante só com 'ambicaoTexto'", async () => {
+    renderizarPagina();
+
+    (await screen.findByRole("button", { name: "Simular editar texto da ambição" })).click();
+
+    await waitFor(() =>
+      expect(mocks.atualizarCamposEditaveisParticipante).toHaveBeenCalledWith(expect.anything(), 1, {
+        ambicaoTexto: "Novo texto",
+      })
+    );
+  });
+
+  it("editar o SWOT chama atualizarCamposEditaveisParticipante só com 'swotForcas'", async () => {
+    renderizarPagina();
+
+    (await screen.findByRole("button", { name: "Simular adicionar força" })).click();
+
+    await waitFor(() =>
+      expect(mocks.atualizarCamposEditaveisParticipante).toHaveBeenCalledWith(expect.anything(), 1, {
+        swotForcas: ["Nova força"],
+      })
+    );
   });
 });

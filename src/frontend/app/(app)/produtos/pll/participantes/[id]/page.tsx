@@ -2,11 +2,12 @@
 
 import { use } from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import { atualizarCamposEditaveisParticipante, type CamposEditaveisParticipante } from "@backend/queries/pll-cadastro";
 import {
   buscarComposicaoPartidariaCasa,
   buscarPerfilCandidatura,
@@ -15,6 +16,10 @@ import {
 } from "@backend/queries/tse";
 import { createClient } from "@backend/supabase/client";
 
+import { usePapelGlobal } from "@/hooks/use-papel-global";
+import { EditorAmbicaoPolitica } from "@/components/pll/editor-ambicao-politica";
+import { EditorListaTexto } from "@/components/pll/editor-lista-texto";
+import { EditorSwot } from "@/components/pll/editor-swot";
 import { FichaAfinidadeAgenda } from "@/components/pll/ficha-afinidade-agenda";
 import { FichaDadosTse, type CandidaturaFichaTse } from "@/components/pll/ficha-dados-tse";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +29,11 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 // T15 (design.md "Components" -- FichaMentoradoPage; PLL-CP-14…19). Monta os
 // blocos de LEITURA da Ficha do Mentorado: cabeçalho + Dados TSE (T14) +
 // Afinidade de Agenda (T14) + Composição Partidária da Casa (T13). T19
-// (Lote 3, Fase 6) acrescenta os 3 blocos EDITÁVEIS (Desafios/Destaques/
-// Ambição/SWOT) nesta mesma página -- não recriada aqui.
+// acrescenta os 3 blocos EDITÁVEIS (Desafios/Destaques, Ambição Política,
+// SWOT) nesta mesma página, com a regra de somente-leitura do Assessor
+// (PLL-CP-23) via usePapelGlobal -- mesmo hook já usado por
+// produtos/[slug]/mandatos/page.tsx, nenhum mecanismo novo (tasks.md T19
+// "Reuses").
 //
 // Rota literal `/produtos/pll/participantes/[id]` (não `[slug]`), igual ao
 // href já usado por ListaParticipantesPll (T8/T12, lista-participantes-pll.tsx:254)
@@ -197,6 +205,15 @@ export default function FichaMentoradoPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const idCadastroParticipante = Number(id);
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // PLL-CP-23: Assessor vê os 3 blocos editáveis (Desafios/Destaques,
+  // Ambição, SWOT) só leitura. Enquanto o papel ainda carrega, o padrão é
+  // somente-leitura (nunca mostra um botão de editar que a RLS vai negar
+  // logo em seguida) -- a decisão real de autorização continua sendo da RLS
+  // (AD-002), este `readOnly` é só a UI não oferecer um controle inútil.
+  const { papel, carregando: carregandoPapel } = usePapelGlobal();
+  const somenteLeitura = carregandoPapel || papel === "assessor";
 
   const {
     data: participante,
@@ -213,6 +230,14 @@ export default function FichaMentoradoPage({ params }: { params: Promise<{ id: s
     queryKey: ["pll-ficha-tse", participante?.idVinculoTse],
     queryFn: () => buscarDadosTseFicha(participante!.idVinculoTse!),
     enabled: vinculadoTse,
+  });
+
+  const { mutate: salvarCampos } = useMutation({
+    mutationFn: (campos: CamposEditaveisParticipante) =>
+      atualizarCamposEditaveisParticipante(createClient(), idCadastroParticipante, campos),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pll-ficha-participante", idCadastroParticipante] });
+    },
   });
 
   if (carregandoParticipante) {
@@ -269,6 +294,68 @@ export default function FichaMentoradoPage({ params }: { params: Promise<{ id: s
         />
 
         {vinculadoTse && <ComposicaoPartidariaCasa composicao={dadosTse?.composicao ?? []} />}
+      </div>
+
+      {/* T19: blocos editáveis -- Desafios/Destaques (T17), Ambição Política
+          e SWOT (T18). Assessor vê os 3 sem nenhum botão de editar (PLL-CP-23). */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="border border-border/60 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Desafios</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EditorListaTexto
+              titulo="Desafios"
+              itens={participante.desafios}
+              onChange={(itens) => salvarCampos({ desafios: itens })}
+              readOnly={somenteLeitura}
+              placeholder="Adicionar desafio…"
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border/60 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Destaques</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EditorListaTexto
+              titulo="Destaques"
+              itens={participante.destaques}
+              onChange={(itens) => salvarCampos({ destaques: itens })}
+              readOnly={somenteLeitura}
+              placeholder="Adicionar destaque…"
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border/60 shadow-sm">
+          <CardContent className="pt-6">
+            <EditorAmbicaoPolitica
+              texto={participante.ambicaoTexto}
+              tags={participante.ambicaoTags}
+              onChangeTexto={(texto) => salvarCampos({ ambicaoTexto: texto })}
+              onChangeTags={(tags) => salvarCampos({ ambicaoTags: tags })}
+              readOnly={somenteLeitura}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border/60 shadow-sm">
+          <CardContent className="pt-6">
+            <EditorSwot
+              forcas={participante.swotForcas}
+              fraquezas={participante.swotFraquezas}
+              oportunidades={participante.swotOportunidades}
+              ameacas={participante.swotAmeacas}
+              onChangeForcas={(itens) => salvarCampos({ swotForcas: itens })}
+              onChangeFraquezas={(itens) => salvarCampos({ swotFraquezas: itens })}
+              onChangeOportunidades={(itens) => salvarCampos({ swotOportunidades: itens })}
+              onChangeAmeacas={(itens) => salvarCampos({ swotAmeacas: itens })}
+              readOnly={somenteLeitura}
+            />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
