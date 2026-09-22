@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { PRODUTO_SLUGS, type ProdutoSlug } from "@backend/queries/produto";
 import { RouteTabs } from "@/components/app-shell/route-tabs";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
-import { ABAS_POR_PRODUTO } from "./abas-por-produto";
+import { ABAS_POR_PRODUTO, TITULO_AREA_PRODUTO } from "./abas-por-produto";
 
 interface ProdutoShellProps {
   slug: ProdutoSlug;
@@ -16,7 +16,10 @@ interface ProdutoShellProps {
 export function ProdutoShell({ slug, children }: ProdutoShellProps) {
   const { data: produto } = useProdutoAtual(slug);
   const base = `/produtos/${slug}`;
-  const tituloProduto = produto?.nome ?? PRODUTO_SLUGS[slug].label;
+  // pll-dashboard-agenda Fix 1 (PLL-SH-01): override de título longo só para
+  // o cabeçalho da área -- não mexe em PRODUTO_SLUGS (usado pelo hub, NAV-01)
+  // nem em `ref_produto.nome` (usado em outros lugares como "PLL" curto).
+  const tituloProduto = TITULO_AREA_PRODUTO[slug] ?? produto?.nome ?? PRODUTO_SLUGS[slug].label;
 
   const abas = ABAS_POR_PRODUTO[slug].map((aba) => ({ ...aba, href: `${base}${aba.href}` }));
 

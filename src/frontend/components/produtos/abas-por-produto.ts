@@ -16,6 +16,20 @@ export interface AbaProduto {
   label: string;
 }
 
+// pll-dashboard-agenda Fix 1 (PLL-SH-01): título literal exigido pela spec
+// para o cabeçalho da área do PLL -- "PROGRAMA DE LIDERANÇA PARLAMENTAR
+// (PLL)" -- não existe em `ref_produto.nome` nem em `PRODUTO_SLUGS.pll.label`
+// (ambos só têm "PLL", usado de propósito no hub de produtos, fora desta
+// feature -- ver navegacao-por-produto/spec.md NAV-01). Este mapa é só para
+// o cabeçalho de `ProdutoShell`; Estratégia/Coalizão ficam `null` porque não
+// têm título longo definido em spec, então caem no comportamento de hoje
+// (`produto?.nome ?? PRODUTO_SLUGS[slug].label`).
+export const TITULO_AREA_PRODUTO: Record<ProdutoSlug, string | null> = {
+  estrategia: null,
+  coalizao: null,
+  pll: "PROGRAMA DE LIDERANÇA PARLAMENTAR (PLL)",
+};
+
 export const ABAS_POR_PRODUTO: Record<ProdutoSlug, AbaProduto[]> = {
   estrategia: [
     { href: "/dashboard", label: "Dashboard" },

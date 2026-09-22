@@ -18,8 +18,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => pathnameAtual,
 }));
 
+// Fix 1 (PLL-SH-01): dinâmico por slug para poder testar o título de
+// Estratégia/Coalizão em regressão sem quebrar o fallback `produto?.nome`
+// que ProdutoShell usa quando TITULO_AREA_PRODUTO[slug] é null.
 vi.mock("@/hooks/use-produto-atual", () => ({
-  useProdutoAtual: () => ({ data: { idProduto: 1, nome: "Estratégia" } }),
+  useProdutoAtual: (slug: string) => ({
+    data: { idProduto: 1, nome: slug === "coalizao" ? "Coalizão" : slug === "pll" ? "PLL" : "Estratégia" },
+  }),
 }));
 
 import { ProdutoShell } from "./produto-shell";
@@ -100,6 +105,24 @@ describe("ProdutoShell + ABAS_POR_PRODUTO (pll-dashboard-agenda T2, PLL-SH-01/PL
     ]);
     expect(screen.queryByRole("link", { name: "Mandatos" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Novo Contrato" })).not.toBeInTheDocument();
+  });
+
+  it("PLL-SH-01 (Fix 1): título da área do PLL é o nome por extenso, não 'PLL'", () => {
+    render(<ProdutoShell slug="pll">{null}</ProdutoShell>);
+
+    expect(
+      screen.getByRole("heading", { name: "PROGRAMA DE LIDERANÇA PARLAMENTAR (PLL)" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "PLL" })).not.toBeInTheDocument();
+  });
+
+  it("PLL-SH-01 (Fix 1, regressão): Estratégia e Coalizão continuam com o título de hoje", () => {
+    render(<ProdutoShell slug="estrategia">{null}</ProdutoShell>);
+    expect(screen.getByRole("heading", { name: "Estratégia" })).toBeInTheDocument();
+    cleanup();
+
+    render(<ProdutoShell slug="coalizao">{null}</ProdutoShell>);
+    expect(screen.getByRole("heading", { name: "Coalizão" })).toBeInTheDocument();
   });
 
   it("PLL-SH-01: cada aba do PLL aponta para /produtos/pll/<rota>", () => {
