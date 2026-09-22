@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
 import type { Database } from "../supabase/database.types";
-import { upsertCadastroParticipantes } from "./pll-cadastro";
+import { buscarCadastroParticipantesPll, upsertCadastroParticipantes } from "./pll-cadastro";
 
 // Spec anchor: .specs/features/pll-cadastro-participantes/tasks.md T5 "Done when":
 //  - Linha nova insere; linha com e-mail já existente no projeto atualiza (nunca duplica)
@@ -177,5 +177,213 @@ describe("upsertCadastroParticipantes", () => {
     const payload = getUpsertPayload()?.[0];
     expect(payload?.telefone).toBeUndefined();
     expect(payload?.email).toBe("fulano@teste.com");
+  });
+});
+
+// Spec anchor: tasks.md T7 "Done when" (PLL-CP-05…09):
+//  - Busca por qualquer um dos 3 campos; filtro combinável; paginação com total
+//  - Campo obrigatório vazio chega como null (vira "—" no componente)
+// Mock roteado por tabela, builder encadeável resolvido via `.then()` --
+// mesmo padrão de visao-gerencial-g3-g6.test.ts (buscarPendencias).
+type RespostaTabela = { data: unknown; error: { message: string; code?: string } | null; count?: number };
+
+function criarClienteMockLista(respostasPorTabela: Record<string, RespostaTabela>) {
+  const chamadasPorTabela: Record<string, { metodo: string; args: unknown[] }[]> = {};
+
+  function criarBuilder(tabela: string) {
+    const resposta = respostasPorTabela[tabela] ?? { data: [], error: null };
+    const chamadas = (chamadasPorTabela[tabela] ??= []);
+    const builder: Record<string, unknown> = {
+      select: (...args: unknown[]) => {
+        chamadas.push({ metodo: "select", args });
+        return builder;
+      },
+      eq: (...args: unknown[]) => {
+        chamadas.push({ metodo: "eq", args });
+        return builder;
+      },
+      or: (...args: unknown[]) => {
+        chamadas.push({ metodo: "or", args });
+        return builder;
+      },
+      in: (...args: unknown[]) => {
+        chamadas.push({ metodo: "in", args });
+        return builder;
+      },
+      order: (...args: unknown[]) => {
+        chamadas.push({ metodo: "order", args });
+        return builder;
+      },
+      range: (...args: unknown[]) => {
+        chamadas.push({ metodo: "range", args });
+        return builder;
+      },
+      then: (resolve: (valor: RespostaTabela) => void, reject: (erro: unknown) => void) =>
+        Promise.resolve(resposta).then(resolve, reject),
+    };
+    return builder;
+  }
+
+  const client = { from: (tabela: string) => criarBuilder(tabela) };
+  return {
+    client: client as unknown as SupabaseClient<Database>,
+    chamadasDe: (tabela: string) => chamadasPorTabela[tabela] ?? [],
+  };
+}
+
+function rowCadastro(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id_cadastro_participante: 1,
+    papel: "mentorado",
+    nome_completo: "Fulana de Tal",
+    partido_parlamentar: "PT",
+    estado_eleicao: "SP",
+    nome_parlamentar: "Dep. Fulano",
+    email: "fulana@teste.com",
+    telefone: "11999999999",
+    status_cadastro: "incompleto",
+    id_contrato: null,
+    ...overrides,
+  };
+}
+
+describe("buscarCadastroParticipantesPll (T7)", () => {
+  it("devolve linhas mapeadas e o total real da paginação (não só a página)", async () => {
+    const { client } = criarClienteMockLista({
+      fat_cadastro_participante: {
+        data: [rowCadastro()],
+        error: null,
+        count: 42,
+      },
+    });
+
+    const resultado = await buscarCadastroParticipantesPll(client, { idProduto: 1 });
+
+    expect(resultado.total).toBe(42);
+    expect(resultado.linhas).toEqual([
+      {
+        idCadastroParticipante: 1,
+        papel: "mentorado",
+        nomeCompleto: "Fulana de Tal",
+        siglaPartido: "PT",
+        siglaUf: "SP",
+        nomeParlamentar: "Dep. Fulano",
+        email: "fulana@teste.com",
+        telefone: "11999999999",
+        nomeMentorPareado: null,
+        vinculadoTse: false,
+        statusCadastro: "incompleto",
+        idContrato: null,
+      },
+    ]);
+  });
+
+  // PLL-CP-06: busca por nome, e-mail OU parlamentar -- os 3 campos no MESMO .or().
+  it("busca aplica ilike nos 3 campos (nome, e-mail, parlamentar) num único .or()", async () => {
+    const { client, chamadasDe } = criarClienteMockLista({
+      fat_cadastro_participante: { data: [], error: null, count: 0 },
+    });
+
+    await buscarCadastroParticipantesPll(client, { idProduto: 1, busca: "ped" });
+
+    const chamadaOr = chamadasDe("fat_cadastro_participante").find((c) => c.metodo === "or");
+    expect(chamadaOr?.args[0]).toBe(
+      "nome_completo.ilike.%ped%,email.ilike.%ped%,nome_parlamentar.ilike.%ped%"
+    );
+  });
+
+  // PLL-CP-07: partido e UF são filtros combináveis -- os dois .eq() coexistem.
+  it("filtros de partido e UF são combináveis (os dois aplicados juntos)", async () => {
+    const { client, chamadasDe } = criarClienteMockLista({
+      fat_cadastro_participante: { data: [], error: null, count: 0 },
+    });
+
+    await buscarCadastroParticipantesPll(client, { idProduto: 1, partido: "PT", uf: "SP" });
+
+    const eqs = chamadasDe("fat_cadastro_participante").filter((c) => c.metodo === "eq");
+    expect(eqs).toContainEqual({ metodo: "eq", args: ["partido_parlamentar", "PT"] });
+    expect(eqs).toContainEqual({ metodo: "eq", args: ["estado_eleicao", "SP"] });
+  });
+
+  // PLL-CP-08: paginação real via .range(), nunca a tabela inteira de uma vez.
+  it("pagina via .range() com o tamanho de página informado", async () => {
+    const { client, chamadasDe } = criarClienteMockLista({
+      fat_cadastro_participante: { data: [], error: null, count: 0 },
+    });
+
+    await buscarCadastroParticipantesPll(client, { idProduto: 1, pagina: 3, tamanhoPagina: 10 });
+
+    const chamadaRange = chamadasDe("fat_cadastro_participante").find((c) => c.metodo === "range");
+    // Página 3, tamanho 10 -> registros 20..29 (0-based, inclusive).
+    expect(chamadaRange?.args).toEqual([20, 29]);
+  });
+
+  // PLL-CP-09 (AD-005): campo obrigatório vazio chega como null, nunca sentinela.
+  it("campo ausente na linha (ex.: telefone) chega como null, não como sentinela", async () => {
+    const { client } = criarClienteMockLista({
+      fat_cadastro_participante: {
+        data: [rowCadastro({ telefone: null, nome_parlamentar: null, partido_parlamentar: null, estado_eleicao: null })],
+        error: null,
+        count: 1,
+      },
+    });
+
+    const resultado = await buscarCadastroParticipantesPll(client, { idProduto: 1 });
+
+    expect(resultado.linhas[0].telefone).toBeNull();
+    expect(resultado.linhas[0].nomeParlamentar).toBeNull();
+    expect(resultado.linhas[0].siglaPartido).toBeNull();
+    expect(resultado.linhas[0].siglaUf).toBeNull();
+  });
+
+  // PLL-CP-05: linha vinculada ao TSE (id_contrato preenchido) carrega o
+  // mentor pareado e vinculadoTse: true.
+  it("linha com id_contrato busca o mentor pareado e marca vinculadoTse: true", async () => {
+    const { client } = criarClienteMockLista({
+      fat_cadastro_participante: {
+        data: [rowCadastro({ id_contrato: 99 })],
+        error: null,
+        count: 1,
+      },
+      rel_usuario_contrato: {
+        data: [{ id_contrato: 99, dim_usuario: { nome: "Carla Mentora" } }],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarCadastroParticipantesPll(client, { idProduto: 1 });
+
+    expect(resultado.linhas[0].vinculadoTse).toBe(true);
+    expect(resultado.linhas[0].nomeMentorPareado).toBe("Carla Mentora");
+    expect(resultado.linhas[0].idContrato).toBe(99);
+  });
+
+  // Lado oposto: sem nenhuma linha vinculada, a consulta de mentor pareado
+  // nem é feita (idsContrato vazio) e vinculadoTse é false para todas.
+  it("nenhuma linha vinculada: vinculadoTse false em todas, sem consultar mentor pareado", async () => {
+    const { client, chamadasDe } = criarClienteMockLista({
+      fat_cadastro_participante: {
+        data: [rowCadastro({ id_contrato: null }), rowCadastro({ id_cadastro_participante: 2, id_contrato: null })],
+        error: null,
+        count: 2,
+      },
+    });
+
+    const resultado = await buscarCadastroParticipantesPll(client, { idProduto: 1 });
+
+    expect(resultado.linhas.every((l) => l.vinculadoTse === false && l.nomeMentorPareado === null)).toBe(true);
+    expect(chamadasDe("rel_usuario_contrato")).toEqual([]);
+  });
+
+  // Erro: RLS nega (42501) na consulta principal propaga como throw.
+  it("erro do PostgREST na consulta principal propaga como throw", async () => {
+    const { client } = criarClienteMockLista({
+      fat_cadastro_participante: {
+        data: null,
+        error: { message: "permission denied for table fat_cadastro_participante", code: "42501" },
+      },
+    });
+
+    await expect(buscarCadastroParticipantesPll(client, { idProduto: 1 })).rejects.toMatchObject({ code: "42501" });
   });
 });
