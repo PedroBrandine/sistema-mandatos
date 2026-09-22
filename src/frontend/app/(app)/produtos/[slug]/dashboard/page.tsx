@@ -11,6 +11,9 @@ import { buscarEstrategiaKpi } from "@backend/queries/estrategia-kpi";
 import { buscarProjetosDoProduto } from "@backend/queries/kanban";
 import { buscarLimiares } from "@backend/queries/limiar";
 import {
+  buscarAfinidadeAgendaPll,
+  buscarAnaliseMandatoPll,
+  buscarAnaliseParticipantePll,
   buscarMentoradosPll,
   buscarOpcoesMentorPll,
   buscarPllKpis,
@@ -37,6 +40,9 @@ import { TabelaPendencias } from "@/components/estrategia/tabela-pendencias";
 import { Button } from "@/components/ui/button";
 import { listaOuUndefined, MultiSelectPesquisavel, opcoesDeIdNome } from "@/components/ui/multi-select-pesquisavel";
 import { FeedRegistrosMentores } from "@/components/pll/feed-registros-mentores";
+import { PainelAfinidadeAgenda } from "@/components/pll/painel-afinidade-agenda";
+import { PainelAnaliseMandato } from "@/components/pll/painel-analise-mandato";
+import { PainelAnaliseParticipante } from "@/components/pll/painel-analise-participante";
 import { PllKpiRow } from "@/components/pll/pll-kpi-row";
 import { PllStatusMensalChart } from "@/components/pll/pll-status-mensal-chart";
 import { TabelaMentoradosPll } from "@/components/pll/tabela-mentorados-pll";
@@ -393,6 +399,44 @@ function PllDashboardPage() {
     enabled: idProduto !== undefined,
   });
 
+  // T19 (PLL-DB-15…19, Fase 5): os 3 painéis analíticos, abaixo do feed
+  // (Figma 44:477). Mesmo padrão de erro por bloco dos 4 blocos P1 acima --
+  // uma falha de leitura em `fat_cadastro_participante` (painéis de
+  // participante/afinidade, T16) não derruba o painel de mandato (T17), que
+  // não depende dela.
+  const {
+    data: analiseParticipante,
+    isLoading: carregandoAnaliseParticipante,
+    isError: erroAnaliseParticipante,
+    refetch: refetchAnaliseParticipante,
+  } = useQuery({
+    queryKey: ["pll-analise-participante", filtroConsulta],
+    queryFn: () => buscarAnaliseParticipantePll(createClient(), filtroConsulta),
+    enabled: idProduto !== undefined,
+  });
+
+  const {
+    data: analiseMandato,
+    isLoading: carregandoAnaliseMandato,
+    isError: erroAnaliseMandato,
+    refetch: refetchAnaliseMandato,
+  } = useQuery({
+    queryKey: ["pll-analise-mandato", filtroConsulta],
+    queryFn: () => buscarAnaliseMandatoPll(createClient(), filtroConsulta),
+    enabled: idProduto !== undefined,
+  });
+
+  const {
+    data: afinidadeAgenda,
+    isLoading: carregandoAfinidadeAgenda,
+    isError: erroAfinidadeAgenda,
+    refetch: refetchAfinidadeAgenda,
+  } = useQuery({
+    queryKey: ["pll-afinidade-agenda", filtroConsulta],
+    queryFn: () => buscarAfinidadeAgendaPll(createClient(), filtroConsulta),
+    enabled: idProduto !== undefined,
+  });
+
   if (carregandoProduto) {
     return <CarregandoSkeleton variante="cards" />;
   }
@@ -462,6 +506,38 @@ function PllDashboardPage() {
         <CarregandoSkeleton variante="cards" />
       ) : (
         <FeedRegistrosMentores registros={registros} hoje={hoje} />
+      )}
+
+      {/* T19 (PLL-DB-15…19): 3 painéis analíticos, na ordem do Figma
+          (participante, mandato, afinidade de agenda). */}
+      {erroAnaliseParticipante ? (
+        <ErroInline
+          mensagem="Não foi possível carregar a análise do participante."
+          onRetry={() => refetchAnaliseParticipante()}
+        />
+      ) : carregandoAnaliseParticipante || !analiseParticipante ? (
+        <CarregandoSkeleton variante="cards" />
+      ) : (
+        <PainelAnaliseParticipante analise={analiseParticipante} />
+      )}
+
+      {erroAnaliseMandato ? (
+        <ErroInline mensagem="Não foi possível carregar a análise do mandato." onRetry={() => refetchAnaliseMandato()} />
+      ) : carregandoAnaliseMandato || !analiseMandato ? (
+        <CarregandoSkeleton variante="cards" />
+      ) : (
+        <PainelAnaliseMandato analise={analiseMandato} />
+      )}
+
+      {erroAfinidadeAgenda ? (
+        <ErroInline
+          mensagem="Não foi possível carregar a afinidade de agenda temática."
+          onRetry={() => refetchAfinidadeAgenda()}
+        />
+      ) : carregandoAfinidadeAgenda || !afinidadeAgenda ? (
+        <CarregandoSkeleton variante="cards" />
+      ) : (
+        <PainelAfinidadeAgenda afinidade={afinidadeAgenda} />
       )}
     </div>
   );
