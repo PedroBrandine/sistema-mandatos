@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
 import type { Database } from "../supabase/database.types";
-import { buscarCadastroParticipantesPll, upsertCadastroParticipantes } from "./pll-cadastro";
+import { buscarCadastroParticipantesPll, buscarMetricasCadastroPll, upsertCadastroParticipantes } from "./pll-cadastro";
 
 // Spec anchor: .specs/features/pll-cadastro-participantes/tasks.md T5 "Done when":
 //  - Linha nova insere; linha com e-mail já existente no projeto atualiza (nunca duplica)
@@ -385,5 +385,77 @@ describe("buscarCadastroParticipantesPll (T7)", () => {
     });
 
     await expect(buscarCadastroParticipantesPll(client, { idProduto: 1 })).rejects.toMatchObject({ code: "42501" });
+  });
+});
+
+// Spec anchor: PLL-CP-04 ("Última importação: DD/MM/AAAA por ‹nome›" + as 3
+// métricas) -- fila de respostas por tabela (cada `.from()` consome a
+// próxima da fila): 3 contagens (head) seguidas da consulta de última
+// importação, todas na mesma tabela com filtros diferentes.
+function criarClienteMockMetricas(filaFatCadastro: RespostaTabela[], erroUltima: RespostaTabela["error"] = null) {
+  const fila = [...filaFatCadastro];
+  const builder = (resposta: RespostaTabela): Record<string, unknown> => {
+    const b: Record<string, unknown> = {
+      select: () => b,
+      eq: () => b,
+      not: () => b,
+      order: () => b,
+      limit: () => b,
+      then: (resolve: (v: RespostaTabela) => void, reject: (e: unknown) => void) =>
+        Promise.resolve(resposta).then(resolve, reject),
+    };
+    return b;
+  };
+
+  const client = {
+    from: () => builder(fila.shift() ?? { data: [], error: erroUltima }),
+  };
+  return client as unknown as SupabaseClient<Database>;
+}
+
+describe("buscarMetricasCadastroPll (T9)", () => {
+  it("agrega as 3 contagens e a última importação (data + nome de quem importou)", async () => {
+    const client = criarClienteMockMetricas([
+      { data: null, error: null, count: 42 }, // total
+      { data: null, error: null, count: 3 }, // pendente_revisao
+      { data: null, error: null, count: 2 }, // incompleto
+      {
+        data: [{ importado_em: "2026-09-20T10:00:00Z", dim_usuario: { nome: "Ana Gestora" } }],
+        error: null,
+      }, // última importação
+    ]);
+
+    const resultado = await buscarMetricasCadastroPll(client, { idProduto: 1 });
+
+    expect(resultado).toEqual({
+      participantesCadastrados: 42,
+      pendentesRevisao: 3,
+      comDadosIncompletos: 2,
+      ultimaImportacao: { data: "2026-09-20T10:00:00Z", nomeUsuario: "Ana Gestora" },
+    });
+  });
+
+  // Lado oposto: nenhuma linha importada ainda -- ultimaImportacao é null,
+  // nunca uma data inventada (AD-005).
+  it("sem nenhuma linha importada, ultimaImportacao é null", async () => {
+    const client = criarClienteMockMetricas([
+      { data: null, error: null, count: 0 },
+      { data: null, error: null, count: 0 },
+      { data: null, error: null, count: 0 },
+      { data: [], error: null },
+    ]);
+
+    const resultado = await buscarMetricasCadastroPll(client, { idProduto: 1 });
+
+    expect(resultado.ultimaImportacao).toBeNull();
+    expect(resultado.participantesCadastrados).toBe(0);
+  });
+
+  it("erro do PostgREST em qualquer contagem propaga como throw", async () => {
+    const client = criarClienteMockMetricas([
+      { data: null, error: { message: "permission denied", code: "42501" }, count: undefined },
+    ]);
+
+    await expect(buscarMetricasCadastroPll(client, { idProduto: 1 })).rejects.toMatchObject({ code: "42501" });
   });
 });

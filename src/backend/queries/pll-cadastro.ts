@@ -223,3 +223,80 @@ export async function buscarCadastroParticipantesPll(
 
   return { linhas, total: count ?? 0 };
 }
+
+// -----------------------------------------------------------------------------
+// buscarMetricasCadastroPll (T9) -- as 3 métricas do UploadPlanilhaCard
+// (PLL-CP-04) + "Última importação: DD/MM/AAAA por ‹nome›", derivadas de
+// fat_cadastro_participante. Vive aqui (mesmo arquivo das outras leituras da
+// tabela) porque a página (T9) monta UploadPlanilhaCard com dado real, e não
+// existe tabela de log de importação -- "última importação" é o
+// MAX(importado_em) das próprias linhas de staging, mesmo raciocínio de
+// "head: true" para as contagens (buscarPendencias, hub.ts).
+// -----------------------------------------------------------------------------
+
+export interface MetricasCadastroPll {
+  participantesCadastrados: number;
+  pendentesRevisao: number;
+  comDadosIncompletos: number;
+  ultimaImportacao: { data: string; nomeUsuario: string } | null;
+}
+
+async function contarPorStatus(
+  client: SupabaseClient<Database>,
+  filtro: { idProduto: number; idProjeto?: number },
+  status: string
+): Promise<number> {
+  let query = client
+    .from("fat_cadastro_participante")
+    .select("id_cadastro_participante", { count: "exact", head: true })
+    .eq("id_produto", filtro.idProduto)
+    .eq("status_cadastro", status);
+  if (filtro.idProjeto !== undefined) query = query.eq("id_projeto", filtro.idProjeto);
+  const { error, count } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function buscarMetricasCadastroPll(
+  client: SupabaseClient<Database>,
+  filtro: { idProduto: number; idProjeto?: number }
+): Promise<MetricasCadastroPll> {
+  const [participantesCadastrados, pendentesRevisao, comDadosIncompletos] = await Promise.all([
+    (async () => {
+      let query = client
+        .from("fat_cadastro_participante")
+        .select("id_cadastro_participante", { count: "exact", head: true })
+        .eq("id_produto", filtro.idProduto);
+      if (filtro.idProjeto !== undefined) query = query.eq("id_projeto", filtro.idProjeto);
+      const { error, count } = await query;
+      if (error) throw error;
+      return count ?? 0;
+    })(),
+    contarPorStatus(client, filtro, "pendente_revisao"),
+    contarPorStatus(client, filtro, "incompleto"),
+  ]);
+
+  let queryUltima = client
+    .from("fat_cadastro_participante")
+    .select("importado_em, dim_usuario(nome)")
+    .eq("id_produto", filtro.idProduto)
+    .not("importado_em", "is", null)
+    .order("importado_em", { ascending: false })
+    .limit(1);
+  if (filtro.idProjeto !== undefined) queryUltima = queryUltima.eq("id_projeto", filtro.idProjeto);
+  const { data: ultimaLinha, error: erroUltima } = await queryUltima;
+  if (erroUltima) throw erroUltima;
+
+  const linhaUltima = (ultimaLinha ?? [])[0] as
+    | { importado_em: string; dim_usuario: { nome: string } | null }
+    | undefined;
+
+  return {
+    participantesCadastrados,
+    pendentesRevisao,
+    comDadosIncompletos,
+    ultimaImportacao: linhaUltima
+      ? { data: linhaUltima.importado_em, nomeUsuario: linhaUltima.dim_usuario?.nome ?? "—" }
+      : null,
+  };
+}
