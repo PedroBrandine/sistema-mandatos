@@ -807,6 +807,219 @@ export type Database = {
           },
         ]
       }
+      fat_cadastro_participante: {
+        Row: {
+          ambicao_tags: string[]
+          ambicao_texto: string | null
+          atualizado_em: string
+          cargos_anteriores: string | null
+          conhecia_legisla: boolean | null
+          cor_raca: string | null
+          cor_raca_parlamentar: string | null
+          deficiencias: string | null
+          desafios: string[]
+          destaques: string[]
+          dt_nascimento: string | null
+          email: string
+          especifique_pauta: string | null
+          estado_eleicao: string | null
+          id_cadastro_participante: number
+          id_contrato: number | null
+          id_produto: number
+          id_projeto: number | null
+          id_vinculo_tse: number | null
+          identidade_genero: string | null
+          importado_em: string
+          importado_por: number | null
+          mandatos_anteriores: string | null
+          nome_completo: string
+          nome_parlamentar: string | null
+          nota_clima: number | null
+          nota_educacao: number | null
+          nota_modernizacao_estado: number | null
+          nota_seguranca_publica: number | null
+          orientacao_sexual: string | null
+          outras_pautas: string[] | null
+          papel: string
+          partido_filiado: string | null
+          partido_parlamentar: string | null
+          rede_social: string | null
+          status_cadastro: string
+          swot_ameacas: string[]
+          swot_forcas: string[]
+          swot_fraquezas: string[]
+          swot_oportunidades: string[]
+          telefone: string | null
+          tempo_na_politica: string | null
+        }
+        Insert: {
+          ambicao_tags?: string[]
+          ambicao_texto?: string | null
+          atualizado_em?: string
+          cargos_anteriores?: string | null
+          conhecia_legisla?: boolean | null
+          cor_raca?: string | null
+          cor_raca_parlamentar?: string | null
+          deficiencias?: string | null
+          desafios?: string[]
+          destaques?: string[]
+          dt_nascimento?: string | null
+          email: string
+          especifique_pauta?: string | null
+          estado_eleicao?: string | null
+          id_cadastro_participante?: number
+          id_contrato?: number | null
+          id_produto: number
+          id_projeto?: number | null
+          id_vinculo_tse?: number | null
+          identidade_genero?: string | null
+          importado_em?: string
+          importado_por?: number | null
+          mandatos_anteriores?: string | null
+          nome_completo: string
+          nome_parlamentar?: string | null
+          nota_clima?: number | null
+          nota_educacao?: number | null
+          nota_modernizacao_estado?: number | null
+          nota_seguranca_publica?: number | null
+          orientacao_sexual?: string | null
+          outras_pautas?: string[] | null
+          papel: string
+          partido_filiado?: string | null
+          partido_parlamentar?: string | null
+          rede_social?: string | null
+          status_cadastro?: string
+          swot_ameacas?: string[]
+          swot_forcas?: string[]
+          swot_fraquezas?: string[]
+          swot_oportunidades?: string[]
+          telefone?: string | null
+          tempo_na_politica?: string | null
+        }
+        Update: {
+          ambicao_tags?: string[]
+          ambicao_texto?: string | null
+          atualizado_em?: string
+          cargos_anteriores?: string | null
+          conhecia_legisla?: boolean | null
+          cor_raca?: string | null
+          cor_raca_parlamentar?: string | null
+          deficiencias?: string | null
+          desafios?: string[]
+          destaques?: string[]
+          dt_nascimento?: string | null
+          email?: string
+          especifique_pauta?: string | null
+          estado_eleicao?: string | null
+          id_cadastro_participante?: number
+          id_contrato?: number | null
+          id_produto?: number
+          id_projeto?: number | null
+          id_vinculo_tse?: number | null
+          identidade_genero?: string | null
+          importado_em?: string
+          importado_por?: number | null
+          mandatos_anteriores?: string | null
+          nome_completo?: string
+          nome_parlamentar?: string | null
+          nota_clima?: number | null
+          nota_educacao?: number | null
+          nota_modernizacao_estado?: number | null
+          nota_seguranca_publica?: number | null
+          orientacao_sexual?: string | null
+          outras_pautas?: string[] | null
+          papel?: string
+          partido_filiado?: string | null
+          partido_parlamentar?: string | null
+          rede_social?: string | null
+          status_cadastro?: string
+          swot_ameacas?: string[]
+          swot_forcas?: string[]
+          swot_fraquezas?: string[]
+          swot_oportunidades?: string[]
+          telefone?: string | null
+          tempo_na_politica?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_cadastro_participante_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "fat_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "mv_numeros_impacto"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_carteira_ponderada"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_cobertura_registro_mensal"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_iip_contrato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_contrato_fkey"
+            columns: ["id_contrato"]
+            isOneToOne: false
+            referencedRelation: "vw_visao_mandato"
+            referencedColumns: ["id_contrato"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_projeto_fkey"
+            columns: ["id_projeto"]
+            isOneToOne: false
+            referencedRelation: "ref_projeto"
+            referencedColumns: ["id_projeto"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_id_vinculo_tse_fkey"
+            columns: ["id_vinculo_tse"]
+            isOneToOne: false
+            referencedRelation: "rel_mandato_candidatura"
+            referencedColumns: ["id_vinculo_tse"]
+          },
+          {
+            foreignKeyName: "fat_cadastro_participante_importado_por_fkey"
+            columns: ["importado_por"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
       fat_contrato: {
         Row: {
           atualizado_em: string
