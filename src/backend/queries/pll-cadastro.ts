@@ -386,7 +386,8 @@ export async function atualizarCamposEditaveisParticipante(
   idCadastroParticipante: number,
   campos: CamposEditaveisParticipante
 ): Promise<void> {
-  const payload: Record<string, unknown> = {};
+  type PayloadUpdate = Database["public"]["Tables"]["fat_cadastro_participante"]["Update"];
+  const payload: PayloadUpdate = {};
   if (campos.desafios !== undefined) payload.desafios = campos.desafios;
   if (campos.destaques !== undefined) payload.destaques = campos.destaques;
   if (campos.ambicaoTexto !== undefined) payload.ambicao_texto = campos.ambicaoTexto;
