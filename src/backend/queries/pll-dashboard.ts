@@ -642,3 +642,449 @@ export async function buscarRegistrosMentores(
     };
   });
 }
+
+// =============================================================================
+// Helpers de agregação demográfica compartilhados por T16/T17
+// (PLL-DB-15…19, D-5, D-13).
+// =============================================================================
+
+// PLL-DB-19: o percentual de cada categoria na legenda, arredondado a 1 casa
+// -- a soma "fecha 100% (±1 por arredondamento)" é uma propriedade do
+// arredondamento por categoria, não recalculada à parte.
+function arredondarPercentual(valor: number): number {
+  return Math.round(valor * 10) / 10;
+}
+
+export interface CategoriaDistribuicao {
+  categoria: string;
+  quantidade: number;
+  percentual: number;
+}
+
+// D-5(c): "'Prefere não informar' é categoria própria; ausência de resposta
+// não entra no gráfico e o card mostra 'N sem resposta'." Duas coisas
+// diferentes: um valor de texto real (mesmo que seja literalmente "Prefere
+// não informar", vindo da planilha) é RESPOSTA e vira categoria/fatia da
+// rosca; `null`/vazio é AUSÊNCIA e fica de fora do denominador -- por isso
+// `n` (centro da rosca, PLL-DB-19) é a contagem de respondentes, não do
+// recorte inteiro, e `semResposta` é informado à parte.
+//
+// D-13: `suprimido` quando `n < 5` -- o limiar age sobre o `n` exibido no
+// centro da própria rosca (respondentes), que é exatamente o cenário que a
+// decisão descreve ("um recorte por mentor(a) pode ter 2 participantes").
+export interface DistribuicaoDemografica {
+  n: number;
+  semResposta: number;
+  suprimido: boolean;
+  categorias: CategoriaDistribuicao[];
+}
+
+// Mesma forma de DistribuicaoDemografica, mas para campos sem noção de
+// "ausência de resposta" (ex.: quantidade de candidaturas anteriores é
+// sempre um número conhecido -- 0 é medição real, AD-005 -- não uma
+// pergunta que ficou sem resposta).
+export interface DistribuicaoCategorica {
+  n: number;
+  suprimido: boolean;
+  categorias: CategoriaDistribuicao[];
+}
+
+function agruparCategorias(valores: string[]): CategoriaDistribuicao[] {
+  const contagem = new Map<string, number>();
+  for (const v of valores) contagem.set(v, (contagem.get(v) ?? 0) + 1);
+  const n = valores.length;
+  return [...contagem.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([categoria, quantidade]) => ({
+      categoria,
+      quantidade,
+      percentual: n > 0 ? arredondarPercentual((quantidade / n) * 100) : 0,
+    }));
+}
+
+function distribuicaoComAusencia(valores: (string | null)[]): DistribuicaoDemografica {
+  const respondidos = valores
+    .map((v) => v?.trim())
+    .filter((v): v is string => v !== undefined && v.length > 0);
+  const semResposta = valores.length - respondidos.length;
+  const n = respondidos.length;
+  return { n, semResposta, suprimido: n < 5, categorias: agruparCategorias(respondidos) };
+}
+
+function distribuicaoSemAusencia(valores: string[]): DistribuicaoCategorica {
+  const n = valores.length;
+  return { n, suprimido: n < 5, categorias: agruparCategorias(valores) };
+}
+
+// D-5(f): partido político agrupa além dos 8 maiores em "Outros".
+function agruparComOutros(valores: (string | null)[], topN: number): DistribuicaoDemografica {
+  const base = distribuicaoComAusencia(valores);
+  if (base.categorias.length <= topN) return base;
+  const top = base.categorias.slice(0, topN);
+  const outros = base.categorias.slice(topN);
+  const quantidadeOutros = outros.reduce((soma, c) => soma + c.quantidade, 0);
+  const percentualOutros = base.n > 0 ? arredondarPercentual((quantidadeOutros / base.n) * 100) : 0;
+  return {
+    ...base,
+    categorias: [...top, { categoria: "Outros", quantidade: quantidadeOutros, percentual: percentualOutros }],
+  };
+}
+
+// =============================================================================
+// T16: buscarAnaliseParticipantePll + buscarAfinidadeAgendaPll
+// (PLL-DB-15, PLL-DB-17) -- dependem de fat_cadastro_participante
+// (pll-cadastro-participantes, migration 20260922072328_*).
+// =============================================================================
+
+export interface AnaliseParticipantePll {
+  participantesAtivos: number;
+  identidadeGenero: DistribuicaoDemografica;
+  orientacaoSexual: DistribuicaoDemografica;
+  corRaca: DistribuicaoDemografica;
+  tempoNaPolitica: DistribuicaoDemografica;
+}
+
+const DISTRIBUICAO_VAZIA: DistribuicaoDemografica = { n: 0, semResposta: 0, suprimido: true, categorias: [] };
+
+const ANALISE_PARTICIPANTE_VAZIA: AnaliseParticipantePll = {
+  participantesAtivos: 0,
+  identidadeGenero: DISTRIBUICAO_VAZIA,
+  orientacaoSexual: DISTRIBUICAO_VAZIA,
+  corRaca: DISTRIBUICAO_VAZIA,
+  tempoNaPolitica: DISTRIBUICAO_VAZIA,
+};
+
+interface RowCadastroDemografico {
+  identidade_genero: string | null;
+  orientacao_sexual: string | null;
+  cor_raca: string | null;
+  tempo_na_politica: string | null;
+}
+
+// PLL-DB-15. `fat_cadastro_participante.papel = 'mentorado'` -- o painel é
+// "Análise do PARTICIPANTE" no sentido de D-12 (o mentorado é quem tem
+// mandato/perfil analisado; o mentor não entra nesta leitura, mesmo recorte
+// de pessoa que a tabela de mentorados (T6) usa). "N Participantes Ativos"
+// (selo do painel) é `fat_contrato.status = 'ativo'` do recorte -- não
+// depende da planilha de cadastro estar preenchida.
+export async function buscarAnaliseParticipantePll(
+  client: SupabaseClient<Database>,
+  filtro: FiltroPllDashboard
+): Promise<AnaliseParticipantePll> {
+  const idsContrato = await resolverIdsContratoPll(client, filtro);
+  if (idsContrato.length === 0) return ANALISE_PARTICIPANTE_VAZIA;
+
+  const { count, error: erroAtivos } = await client
+    .from("fat_contrato")
+    .select("*", { count: "exact", head: true })
+    .in("id_contrato", idsContrato)
+    .eq("status", "ativo");
+  if (erroAtivos) throw erroAtivos;
+
+  const { data, error } = await client
+    .from("fat_cadastro_participante")
+    .select("identidade_genero, orientacao_sexual, cor_raca, tempo_na_politica")
+    .in("id_contrato", idsContrato)
+    .eq("papel", "mentorado");
+  if (error) throw error;
+  const linhas = (data ?? []) as RowCadastroDemografico[];
+
+  return {
+    participantesAtivos: count ?? 0,
+    identidadeGenero: distribuicaoComAusencia(linhas.map((l) => l.identidade_genero)),
+    orientacaoSexual: distribuicaoComAusencia(linhas.map((l) => l.orientacao_sexual)),
+    corRaca: distribuicaoComAusencia(linhas.map((l) => l.cor_raca)),
+    tempoNaPolitica: distribuicaoComAusencia(linhas.map((l) => l.tempo_na_politica)),
+  };
+}
+
+export interface DistribuicaoNota {
+  nota: 1 | 2 | 3 | 4 | 5;
+  quantidade: number;
+  percentual: number;
+}
+
+export interface PautaAfinidade {
+  pauta: string;
+  n: number;
+  suprimido: boolean;
+  distribuicaoNotas: DistribuicaoNota[];
+}
+
+export interface CategoriaOutraPauta {
+  pauta: string;
+  quantidade: number;
+  percentual: number;
+}
+
+export interface OutrasPautasAfinidade {
+  n: number;
+  suprimido: boolean;
+  itens: CategoriaOutraPauta[];
+}
+
+export interface AfinidadeAgendaPll {
+  pautas: PautaAfinidade[];
+  outrasPautas: OutrasPautasAfinidade;
+}
+
+interface RowCadastroPautas {
+  nota_educacao: number | null;
+  nota_seguranca_publica: number | null;
+  nota_modernizacao_estado: number | null;
+  nota_clima: number | null;
+  outras_pautas: string[] | null;
+}
+
+// Anexo A / D-3: as 4 pautas fixas do formulário de diagnóstico do PLL, nesta
+// ordem (spec.md Anexo A / PLL-DB-17) -- NÃO é `ref_agenda_tematica` (D-3,
+// resolvida).
+const PAUTAS_FIXAS: {
+  pauta: string;
+  coluna: "nota_educacao" | "nota_seguranca_publica" | "nota_modernizacao_estado" | "nota_clima";
+}[] = [
+  { pauta: "Educação", coluna: "nota_educacao" },
+  { pauta: "Segurança Pública", coluna: "nota_seguranca_publica" },
+  { pauta: "Modernização do Estado", coluna: "nota_modernizacao_estado" },
+  { pauta: "Clima", coluna: "nota_clima" },
+];
+
+function distribuicaoNotas(valores: (number | null)[]): { n: number; suprimido: boolean; distribuicaoNotas: DistribuicaoNota[] } {
+  const validas = valores.filter((v): v is number => v !== null);
+  const n = validas.length;
+  const contagem = new Map<number, number>([
+    [5, 0],
+    [4, 0],
+    [3, 0],
+    [2, 0],
+    [1, 0],
+  ]);
+  for (const v of validas) contagem.set(v, (contagem.get(v) ?? 0) + 1);
+  const distribuicaoNotas: DistribuicaoNota[] = [5, 4, 3, 2, 1].map((nota) => ({
+    nota: nota as DistribuicaoNota["nota"],
+    quantidade: contagem.get(nota) ?? 0,
+    percentual: n > 0 ? arredondarPercentual(((contagem.get(nota) ?? 0) / n) * 100) : 0,
+  }));
+  return { n, suprimido: n < 5, distribuicaoNotas };
+}
+
+const AFINIDADE_VAZIA: AfinidadeAgendaPll = {
+  pautas: PAUTAS_FIXAS.map(({ pauta }) => ({ pauta, n: 0, suprimido: true, distribuicaoNotas: distribuicaoNotas([]).distribuicaoNotas })),
+  outrasPautas: { n: 0, suprimido: true, itens: [] },
+};
+
+// PLL-DB-17. `outras_pautas` é múltipla escolha (TEXT[], Anexo A) -- ao
+// contrário das 4 pautas fixas (1 nota por pessoa), uma pessoa pode marcar
+// mais de um item. SPEC_DEVIATION documentada: o percentual desta lista é
+// sobre quem marcou pelo menos 1 item (`n`), e por ser múltipla escolha a
+// soma das fatias PODE passar de 100% -- PLL-DB-19 pede soma 100% "para
+// qualquer rosca", regra pensada para categoria única (as outras 6 roscas do
+// Dashboard cumprem). Não há como reconciliar as duas sem inventar uma
+// regra de exclusividade que a planilha não tem; sinalizado aqui e no
+// relatório de fechamento da fase, não resolvido em silêncio.
+export async function buscarAfinidadeAgendaPll(
+  client: SupabaseClient<Database>,
+  filtro: FiltroPllDashboard
+): Promise<AfinidadeAgendaPll> {
+  const idsContrato = await resolverIdsContratoPll(client, filtro);
+  if (idsContrato.length === 0) return AFINIDADE_VAZIA;
+
+  const { data, error } = await client
+    .from("fat_cadastro_participante")
+    .select("nota_educacao, nota_seguranca_publica, nota_modernizacao_estado, nota_clima, outras_pautas")
+    .in("id_contrato", idsContrato)
+    .eq("papel", "mentorado");
+  if (error) throw error;
+  const linhas = (data ?? []) as RowCadastroPautas[];
+
+  const pautas: PautaAfinidade[] = PAUTAS_FIXAS.map(({ pauta, coluna }) => {
+    const { n, suprimido, distribuicaoNotas: dn } = distribuicaoNotas(linhas.map((l) => l[coluna]));
+    return { pauta, n, suprimido, distribuicaoNotas: dn };
+  });
+
+  const linhasComOutras = linhas.filter((l) => (l.outras_pautas ?? []).length > 0);
+  const n = linhasComOutras.length;
+  const contagem = new Map<string, number>();
+  for (const l of linhasComOutras) {
+    for (const item of l.outras_pautas ?? []) {
+      contagem.set(item, (contagem.get(item) ?? 0) + 1);
+    }
+  }
+  const itens: CategoriaOutraPauta[] = [...contagem.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([pautaItem, quantidade]) => ({
+      pauta: pautaItem,
+      quantidade,
+      percentual: n > 0 ? arredondarPercentual((quantidade / n) * 100) : 0,
+    }));
+
+  return { pautas, outrasPautas: { n, suprimido: n < 5, itens } };
+}
+
+// =============================================================================
+// T17: buscarAnaliseMandatoPll (PLL-DB-16) -- sem dependência da tabela de
+// staging da spec-irmã; usa dim_mandato/fat_contrato/rel_mandato_candidatura,
+// já existentes.
+// =============================================================================
+
+export interface AnaliseMandatoPll {
+  corRacaParlamentar: DistribuicaoDemografica;
+  partidoPolitico: DistribuicaoDemografica;
+  estadoEleicao: DistribuicaoDemografica;
+  cargosAnteriores: DistribuicaoCategorica;
+  mandatosAnteriores: DistribuicaoCategorica;
+}
+
+const DISTRIBUICAO_CATEGORICA_VAZIA: DistribuicaoCategorica = { n: 0, suprimido: true, categorias: [] };
+
+const ANALISE_MANDATO_VAZIA: AnaliseMandatoPll = {
+  corRacaParlamentar: DISTRIBUICAO_VAZIA,
+  partidoPolitico: DISTRIBUICAO_VAZIA,
+  estadoEleicao: DISTRIBUICAO_VAZIA,
+  cargosAnteriores: DISTRIBUICAO_CATEGORICA_VAZIA,
+  mandatosAnteriores: DISTRIBUICAO_CATEGORICA_VAZIA,
+};
+
+interface RowContratoMandatoPainel {
+  id_contrato: number;
+  id_contratante: number;
+  id_partido_no_contrato: number | null;
+}
+
+interface RowMandatoPainel {
+  id_mandato: number;
+  id_contratante: number;
+  ds_raca: string | null;
+}
+
+interface RowCandidaturaConfirmada {
+  id_mandato: number;
+  ano_eleicao: number;
+  sq_candidato: number;
+  nr_turno: number;
+}
+
+interface RowMvCargo {
+  ano_eleicao: number | null;
+  sq_candidato: number | null;
+  nr_turno: number | null;
+  ds_cargo: string | null;
+}
+
+// D-5(e): "Mandatos anteriores" bucketa em 0/1/2/"3 ou mais" -- 0 é medição
+// real (mandato de primeiro mandato), nunca ausência (AD-005), por isso usa
+// DistribuicaoCategorica (sem semResposta) e não DistribuicaoDemografica.
+function bucketMandatosAnteriores(quantidade: number): string {
+  if (quantidade === 0) return "0";
+  if (quantidade === 1) return "1";
+  if (quantidade === 2) return "2";
+  return "3 ou mais";
+}
+
+// PLL-DB-16, D-5. "Antes do contrato" (D-5e) é lido aqui como "confirmado e
+// NÃO vigente" -- `eh_mandato_vigente` já marca o mandato correspondente ao
+// cargo atual (rel_mandato_candidatura, docs/schema_sistema.sql:768/777);
+// as demais candidaturas confirmadas do mesmo `id_mandato` são,
+// necessariamente, de eleições anteriores. Assunção registrada aqui (Step 5
+// da Knowledge Verification Chain) porque a spec não formaliza "antes do
+// contrato" em termos de coluna: nenhuma tabela associa ano_eleicao a
+// dt_inicio do contrato de forma direta, e `eh_mandato_vigente` é o único
+// marcador de "mandato atual" que o schema já expõe.
+export async function buscarAnaliseMandatoPll(
+  client: SupabaseClient<Database>,
+  filtro: FiltroPllDashboard
+): Promise<AnaliseMandatoPll> {
+  const idsContrato = await resolverIdsContratoPll(client, filtro);
+  if (idsContrato.length === 0) return ANALISE_MANDATO_VAZIA;
+
+  const { data: contratosData, error: erroContratos } = await client
+    .from("fat_contrato")
+    .select("id_contrato, id_contratante, id_partido_no_contrato")
+    .in("id_contrato", idsContrato);
+  if (erroContratos) throw erroContratos;
+  const contratos = (contratosData ?? []) as RowContratoMandatoPainel[];
+  if (contratos.length === 0) return ANALISE_MANDATO_VAZIA;
+
+  const idsContratante = Array.from(new Set(contratos.map((c) => c.id_contratante)));
+
+  const { data: mandatosData, error: erroMandatos } = await client
+    .from("dim_mandato")
+    .select("id_mandato, id_contratante, ds_raca")
+    .in("id_contratante", idsContratante);
+  if (erroMandatos) throw erroMandatos;
+  const mandatos = (mandatosData ?? []) as RowMandatoPainel[];
+
+  const { data: contratantesData, error: erroContratantes } = await client
+    .from("dim_contratante")
+    .select("id_contratante, sg_uf")
+    .in("id_contratante", idsContratante);
+  if (erroContratantes) throw erroContratantes;
+  const ufPorContratante = new Map(
+    ((contratantesData ?? []) as { id_contratante: number; sg_uf: string | null }[]).map((c) => [
+      c.id_contratante,
+      c.sg_uf,
+    ])
+  );
+
+  const idsPartido = Array.from(
+    new Set(contratos.map((c) => c.id_partido_no_contrato).filter((id): id is number => id !== null))
+  );
+  const { data: partidosData, error: erroPartidos } =
+    idsPartido.length > 0
+      ? await client.from("ref_partido").select("id_partido, sigla").in("id_partido", idsPartido)
+      : { data: [], error: null };
+  if (erroPartidos) throw erroPartidos;
+  const siglaPorPartido = new Map(
+    ((partidosData ?? []) as { id_partido: number; sigla: string }[]).map((p) => [p.id_partido, p.sigla])
+  );
+
+  const corRacaParlamentar = distribuicaoComAusencia(mandatos.map((m) => m.ds_raca));
+  const partidoPolitico = agruparComOutros(
+    contratos.map((c) => (c.id_partido_no_contrato !== null ? siglaPorPartido.get(c.id_partido_no_contrato) ?? null : null)),
+    8
+  );
+  const estadoEleicao = distribuicaoComAusencia(contratos.map((c) => ufPorContratante.get(c.id_contratante) ?? null));
+
+  const idsMandato = mandatos.map((m) => m.id_mandato);
+  const { data: candidaturasData, error: erroCandidaturas } =
+    idsMandato.length > 0
+      ? await client
+          .from("rel_mandato_candidatura")
+          .select("id_mandato, ano_eleicao, sq_candidato, nr_turno")
+          .in("id_mandato", idsMandato)
+          .eq("status", "confirmado")
+          .eq("eh_mandato_vigente", false)
+      : { data: [], error: null };
+  if (erroCandidaturas) throw erroCandidaturas;
+  const candidaturas = (candidaturasData ?? []) as RowCandidaturaConfirmada[];
+
+  const idsSqCandidato = Array.from(new Set(candidaturas.map((c) => c.sq_candidato)));
+  const { data: mvData, error: erroMv } =
+    idsSqCandidato.length > 0
+      ? await client
+          .schema("tse")
+          .from("mv_candidatura_resumo")
+          .select("ano_eleicao, sq_candidato, nr_turno, ds_cargo")
+          .in("sq_candidato", idsSqCandidato)
+      : { data: [], error: null };
+  if (erroMv) throw erroMv;
+  const cargoPorChave = new Map(
+    ((mvData ?? []) as RowMvCargo[]).map((r) => [`${r.ano_eleicao}|${r.sq_candidato}|${r.nr_turno}`, r.ds_cargo])
+  );
+
+  const cargosAnteriores = distribuicaoSemAusencia(
+    candidaturas
+      .map((c) => cargoPorChave.get(`${c.ano_eleicao}|${c.sq_candidato}|${c.nr_turno}`))
+      .filter((v): v is string => !!v)
+  );
+
+  const contagemPorMandato = new Map<number, number>(idsMandato.map((id) => [id, 0]));
+  for (const c of candidaturas) {
+    contagemPorMandato.set(c.id_mandato, (contagemPorMandato.get(c.id_mandato) ?? 0) + 1);
+  }
+  const mandatosAnteriores = distribuicaoSemAusencia(
+    [...contagemPorMandato.values()].map(bucketMandatosAnteriores)
+  );
+
+  return { corRacaParlamentar, partidoPolitico, estadoEleicao, cargosAnteriores, mandatosAnteriores };
+}

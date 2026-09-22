@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
 import {
+  buscarAfinidadeAgendaPll,
+  buscarAnaliseMandatoPll,
+  buscarAnaliseParticipantePll,
   buscarMentoradosPll,
   buscarOpcoesMentorPll,
   buscarPllKpis,
@@ -76,6 +79,18 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | Re
     from: (tabela: string) => {
       chamadas.push({ tabela, metodo: "from", args: [tabela] });
       return criarBuilder(tabela);
+    },
+    // T17: buscarAnaliseMandatoPll consulta tse.mv_candidatura_resumo --
+    // mesmo padrão de tse.test.ts, roteado pela mesma fila por nome de
+    // tabela (a chave "mv_candidatura_resumo" no mapa de respostas).
+    schema: (nomeSchema: string) => {
+      chamadas.push({ tabela: nomeSchema, metodo: "schema", args: [nomeSchema] });
+      return {
+        from: (tabela: string) => {
+          chamadas.push({ tabela, metodo: "from", args: [tabela] });
+          return criarBuilder(tabela);
+        },
+      };
     },
   };
   return { client: client as unknown as SupabaseClient<Database>, chamadas };
@@ -445,6 +460,223 @@ describe("buscarOpcoesMentorPll (T12, filtro 'Filtrar por mentor(a)' do Dashboar
     });
 
     await expect(buscarOpcoesMentorPll(client, 9)).rejects.toMatchObject({
+      message: "permission denied for table fat_contrato",
+    });
+  });
+});
+
+// Spec anchor: pll-dashboard-agenda T16 Done-when (tasks.md) -- PLL-DB-15,
+// PLL-DB-17, D-13. Depende de fat_cadastro_participante
+// (pll-cadastro-participantes, migration 20260922072328_*, já commitada).
+describe("buscarAnaliseParticipantePll (T16, PLL-DB-15)", () => {
+  it("caminho feliz: agrega por categoria com contagem/percentual, ausência vira semResposta (D-5c)", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: [{ data: [{ id_contrato: 1 }, { id_contrato: 2 }], ...OK }, { data: null, count: 1, ...OK }],
+      fat_cadastro_participante: {
+        data: [
+          { identidade_genero: "Mulher cis", orientacao_sexual: "Heterossexual", cor_raca: "Parda", tempo_na_politica: "1 a 3 anos" },
+          { identidade_genero: "Mulher cis", orientacao_sexual: "Heterossexual", cor_raca: "Preta", tempo_na_politica: "1 a 3 anos" },
+          { identidade_genero: "Homem cis", orientacao_sexual: null, cor_raca: "Parda", tempo_na_politica: null },
+        ],
+        ...OK,
+      },
+    });
+
+    const resultado = await buscarAnaliseParticipantePll(client, { idProduto: 9 });
+
+    expect(resultado.participantesAtivos).toBe(1);
+    expect(resultado.identidadeGenero).toEqual({
+      n: 3,
+      semResposta: 0,
+      suprimido: true, // n < 5 (D-13) -- amostra pequena de propósito no teste
+      categorias: [
+        { categoria: "Mulher cis", quantidade: 2, percentual: 66.7 },
+        { categoria: "Homem cis", quantidade: 1, percentual: 33.3 },
+      ],
+    });
+    // D-5(c): ausência (null) NÃO entra na legenda -- fica em semResposta, fora do denominador.
+    expect(resultado.orientacaoSexual).toEqual({
+      n: 2,
+      semResposta: 1,
+      suprimido: true,
+      categorias: [{ categoria: "Heterossexual", quantidade: 2, percentual: 100 }],
+    });
+    expect(resultado.tempoNaPolitica.semResposta).toBe(1);
+  });
+
+  it("recorte sem contrato devolve tudo vazio/suprimido, nunca lança", async () => {
+    const { client } = criarClienteMock({ fat_contrato: { data: [], ...OK } });
+
+    const resultado = await buscarAnaliseParticipantePll(client, { idProduto: 9 });
+
+    expect(resultado.participantesAtivos).toBe(0);
+    expect(resultado.corRaca).toEqual({ n: 0, semResposta: 0, suprimido: true, categorias: [] });
+  });
+
+  it("erro do banco propaga", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: null, error: { message: "permission denied for table fat_contrato" } },
+    });
+
+    await expect(buscarAnaliseParticipantePll(client, { idProduto: 9 })).rejects.toMatchObject({
+      message: "permission denied for table fat_contrato",
+    });
+  });
+});
+
+describe("buscarAfinidadeAgendaPll (T16, PLL-DB-17, D-3)", () => {
+  it("caminho feliz: distribuição de notas 5..1 por pauta fixa + outras pautas (múltipla escolha)", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }, { id_contrato: 2 }], ...OK },
+      fat_cadastro_participante: {
+        data: [
+          { nota_educacao: 5, nota_seguranca_publica: 3, nota_modernizacao_estado: null, nota_clima: 2, outras_pautas: ["Saúde", "Infraestrutura"] },
+          { nota_educacao: 4, nota_seguranca_publica: 3, nota_modernizacao_estado: 5, nota_clima: 2, outras_pautas: ["Saúde"] },
+        ],
+        ...OK,
+      },
+    });
+
+    const resultado = await buscarAfinidadeAgendaPll(client, { idProduto: 9 });
+
+    expect(resultado.pautas.map((p) => p.pauta)).toEqual(["Educação", "Segurança Pública", "Modernização do Estado", "Clima"]);
+    const educacao = resultado.pautas.find((p) => p.pauta === "Educação")!;
+    expect(educacao.n).toBe(2);
+    expect(educacao.distribuicaoNotas).toEqual([
+      { nota: 5, quantidade: 1, percentual: 50 },
+      { nota: 4, quantidade: 1, percentual: 50 },
+      { nota: 3, quantidade: 0, percentual: 0 },
+      { nota: 2, quantidade: 0, percentual: 0 },
+      { nota: 1, quantidade: 0, percentual: 0 },
+    ]);
+    const modernizacao = resultado.pautas.find((p) => p.pauta === "Modernização do Estado")!;
+    expect(modernizacao.n).toBe(1); // um dos dois é null -- fora do denominador
+
+    expect(resultado.outrasPautas.n).toBe(2);
+    expect(resultado.outrasPautas.itens).toEqual([
+      { pauta: "Saúde", quantidade: 2, percentual: 100 },
+      { pauta: "Infraestrutura", quantidade: 1, percentual: 50 },
+    ]);
+  });
+
+  it("recorte sem contrato devolve as 4 pautas zeradas/suprimidas, nunca lança", async () => {
+    const { client } = criarClienteMock({ fat_contrato: { data: [], ...OK } });
+
+    const resultado = await buscarAfinidadeAgendaPll(client, { idProduto: 9 });
+
+    expect(resultado.pautas).toHaveLength(4);
+    expect(resultado.pautas.every((p) => p.suprimido)).toBe(true);
+    expect(resultado.outrasPautas).toEqual({ n: 0, suprimido: true, itens: [] });
+  });
+
+  it("erro do banco propaga", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: [{ id_contrato: 1 }], ...OK },
+      fat_cadastro_participante: { data: null, error: { message: "permission denied" } },
+    });
+
+    await expect(buscarAfinidadeAgendaPll(client, { idProduto: 9 })).rejects.toMatchObject({
+      message: "permission denied",
+    });
+  });
+});
+
+// Spec anchor: pll-dashboard-agenda T17 Done-when (tasks.md) -- PLL-DB-16,
+// D-5. Sem dependência de fat_cadastro_participante.
+describe("buscarAnaliseMandatoPll (T17, PLL-DB-16)", () => {
+  it("caminho feliz: ds_raca nulo entra em 'sem resposta' (semResposta), partido além dos 8 maiores agrupa em Outros", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: {
+        data: [
+          { id_contrato: 1, id_contratante: 100, id_partido_no_contrato: 1 },
+          { id_contrato: 2, id_contratante: 101, id_partido_no_contrato: 2 },
+        ],
+        ...OK,
+      },
+      dim_mandato: {
+        data: [
+          { id_mandato: 10, id_contratante: 100, ds_raca: "Parda" },
+          { id_mandato: 11, id_contratante: 101, ds_raca: null },
+        ],
+        ...OK,
+      },
+      dim_contratante: {
+        data: [
+          { id_contratante: 100, sg_uf: "SP" },
+          { id_contratante: 101, sg_uf: "RJ" },
+        ],
+        ...OK,
+      },
+      ref_partido: {
+        data: [
+          { id_partido: 1, sigla: "PA" },
+          { id_partido: 2, sigla: "PB" },
+        ],
+        ...OK,
+      },
+      rel_mandato_candidatura: {
+        data: [
+          { id_mandato: 10, ano_eleicao: 2018, sq_candidato: 555, nr_turno: 1 },
+          { id_mandato: 10, ano_eleicao: 2014, sq_candidato: 556, nr_turno: 1 },
+        ],
+        ...OK,
+      },
+      mv_candidatura_resumo: {
+        data: [
+          { ano_eleicao: 2018, sq_candidato: 555, nr_turno: 1, ds_cargo: "Deputado Estadual" },
+          { ano_eleicao: 2014, sq_candidato: 556, nr_turno: 1, ds_cargo: "Vereador" },
+        ],
+        ...OK,
+      },
+    });
+
+    const resultado = await buscarAnaliseMandatoPll(client, { idProduto: 9 });
+
+    expect(resultado.corRacaParlamentar).toEqual({
+      n: 1,
+      semResposta: 1,
+      suprimido: true,
+      categorias: [{ categoria: "Parda", quantidade: 1, percentual: 100 }],
+    });
+    expect(resultado.estadoEleicao.categorias).toEqual(
+      expect.arrayContaining([
+        { categoria: "SP", quantidade: 1, percentual: 50 },
+        { categoria: "RJ", quantidade: 1, percentual: 50 },
+      ])
+    );
+    expect(resultado.partidoPolitico.n).toBe(2);
+    expect(resultado.cargosAnteriores.n).toBe(2);
+    expect(resultado.cargosAnteriores.categorias).toEqual(
+      expect.arrayContaining([
+        { categoria: "Deputado Estadual", quantidade: 1, percentual: 50 },
+        { categoria: "Vereador", quantidade: 1, percentual: 50 },
+      ])
+    );
+    // Mandato 10 tem 2 candidaturas anteriores confirmadas -> bucket "2"; mandato 11 tem 0 -> bucket "0".
+    expect(resultado.mandatosAnteriores.n).toBe(2);
+    expect(resultado.mandatosAnteriores.categorias).toEqual(
+      expect.arrayContaining([
+        { categoria: "2", quantidade: 1, percentual: 50 },
+        { categoria: "0", quantidade: 1, percentual: 50 },
+      ])
+    );
+  });
+
+  it("recorte sem contrato devolve tudo vazio/suprimido, nunca lança", async () => {
+    const { client } = criarClienteMock({ fat_contrato: { data: [], ...OK } });
+
+    const resultado = await buscarAnaliseMandatoPll(client, { idProduto: 9 });
+
+    expect(resultado.corRacaParlamentar).toEqual({ n: 0, semResposta: 0, suprimido: true, categorias: [] });
+    expect(resultado.mandatosAnteriores).toEqual({ n: 0, suprimido: true, categorias: [] });
+  });
+
+  it("erro do banco propaga", async () => {
+    const { client } = criarClienteMock({
+      fat_contrato: { data: null, error: { message: "permission denied for table fat_contrato" } },
+    });
+
+    await expect(buscarAnaliseMandatoPll(client, { idProduto: 9 })).rejects.toMatchObject({
       message: "permission denied for table fat_contrato",
     });
   });
