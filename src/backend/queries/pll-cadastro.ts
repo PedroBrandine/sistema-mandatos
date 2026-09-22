@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { criarMandato, type CandidaturaParaConfirmar } from "../rpc/mandato";
+import { mapeiaErroRpc } from "../rpc/errors";
 import type { ContratanteInput } from "../schemas/contratante";
 import type { LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
 import type { MandatoInput } from "../schemas/mandato";
@@ -352,4 +353,54 @@ export async function vincularParticipanteAoTse(
   if (error) throw error;
 
   return resultado;
+}
+
+// -----------------------------------------------------------------------------
+// atualizarCamposEditaveisParticipante (T16) -- UPDATE direto (sem RPC, mesma
+// tabela -- design.md Tech Decisions) dos 8 campos editáveis no sistema
+// (PLL-CP-20, PLL-CP-21, PLL-CP-24): desafios, destaques, ambição
+// (texto+tags), SWOT (4 quadrantes). Assessor não tem GRANT nenhum na tabela
+// (T2, fat-cadastro-participante-rls.integration.test.ts): a tentativa de
+// escrita chega aqui como erro 42501, mapeado por mapeiaErroRpc em vez de
+// propagar o objeto cru do PostgREST (mesmo racional de vincularParticipanteAoTse).
+// -----------------------------------------------------------------------------
+
+export interface CamposEditaveisParticipante {
+  desafios?: string[];
+  destaques?: string[];
+  ambicaoTexto?: string | null;
+  ambicaoTags?: string[];
+  swotForcas?: string[];
+  swotFraquezas?: string[];
+  swotOportunidades?: string[];
+  swotAmeacas?: string[];
+}
+
+/**
+ * Atualiza QUALQUER subconjunto dos 8 campos editáveis, sem sobrescrever os
+ * demais: só as chaves presentes em `campos` entram no `.update()` enviado
+ * ao PostgREST -- uma chave ausente do objeto nunca vira `SET coluna = NULL`.
+ */
+export async function atualizarCamposEditaveisParticipante(
+  client: SupabaseClient<Database>,
+  idCadastroParticipante: number,
+  campos: CamposEditaveisParticipante
+): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  if (campos.desafios !== undefined) payload.desafios = campos.desafios;
+  if (campos.destaques !== undefined) payload.destaques = campos.destaques;
+  if (campos.ambicaoTexto !== undefined) payload.ambicao_texto = campos.ambicaoTexto;
+  if (campos.ambicaoTags !== undefined) payload.ambicao_tags = campos.ambicaoTags;
+  if (campos.swotForcas !== undefined) payload.swot_forcas = campos.swotForcas;
+  if (campos.swotFraquezas !== undefined) payload.swot_fraquezas = campos.swotFraquezas;
+  if (campos.swotOportunidades !== undefined) payload.swot_oportunidades = campos.swotOportunidades;
+  if (campos.swotAmeacas !== undefined) payload.swot_ameacas = campos.swotAmeacas;
+
+  if (Object.keys(payload).length === 0) return;
+
+  const { error } = await client
+    .from("fat_cadastro_participante")
+    .update(payload)
+    .eq("id_cadastro_participante", idCadastroParticipante);
+  if (error) throw mapeiaErroRpc(error);
 }

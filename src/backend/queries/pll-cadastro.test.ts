@@ -13,6 +13,7 @@ vi.mock("../rpc/mandato", () => ({
 }));
 
 import {
+  atualizarCamposEditaveisParticipante,
   buscarCadastroParticipantesPll,
   buscarMetricasCadastroPll,
   upsertCadastroParticipantes,
@@ -621,5 +622,103 @@ describe("vincularParticipanteAoTse (T10)", () => {
         contratante: { nome: "Dep. Fulano" },
       })
     ).rejects.toMatchObject({ code: "42501" });
+  });
+});
+
+describe("atualizarCamposEditaveisParticipante (T16)", () => {
+  // Done-when: "Atualiza qualquer subconjunto dos 8 campos TEXT[]/texto sem
+  // sobrescrever os demais" -- só as chaves presentes no objeto entram no
+  // payload enviado ao PostgREST (nenhuma vira SET coluna = NULL).
+  it("envia só as colunas presentes no subconjunto informado (desafios+destaques)", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await atualizarCamposEditaveisParticipante(client, 1, {
+      desafios: ["Agenda apertada"],
+      destaques: ["Aprovou projeto X"],
+    });
+
+    const chamadaUpdate = chamadas.find((c) => c.metodo === "update");
+    expect(chamadaUpdate?.args[0]).toEqual({
+      desafios: ["Agenda apertada"],
+      destaques: ["Aprovou projeto X"],
+    });
+  });
+
+  it("envia só ambicao_texto/ambicao_tags quando só a Ambição Política é editada", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await atualizarCamposEditaveisParticipante(client, 1, {
+      ambicaoTexto: "Concorrer a deputado estadual em 2026",
+      ambicaoTags: ["reeleição", "estadual"],
+    });
+
+    const chamadaUpdate = chamadas.find((c) => c.metodo === "update");
+    expect(chamadaUpdate?.args[0]).toEqual({
+      ambicao_texto: "Concorrer a deputado estadual em 2026",
+      ambicao_tags: ["reeleição", "estadual"],
+    });
+  });
+
+  it("envia só os 4 quadrantes do SWOT quando só o SWOT é editado", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await atualizarCamposEditaveisParticipante(client, 1, {
+      swotForcas: ["Boa oratória"],
+      swotFraquezas: [],
+      swotOportunidades: ["Nova legislatura"],
+      swotAmeacas: [],
+    });
+
+    const chamadaUpdate = chamadas.find((c) => c.metodo === "update");
+    expect(chamadaUpdate?.args[0]).toEqual({
+      swot_forcas: ["Boa oratória"],
+      swot_fraquezas: [],
+      swot_oportunidades: ["Nova legislatura"],
+      swot_ameacas: [],
+    });
+  });
+
+  it("filtra pelo id_cadastro_participante certo", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await atualizarCamposEditaveisParticipante(client, 42, { desafios: ["X"] });
+
+    const chamadaEq = chamadas.find((c) => c.metodo === "eq");
+    expect(chamadaEq?.args).toEqual(["id_cadastro_participante", 42]);
+  });
+
+  it("nenhum campo informado não chama update", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await atualizarCamposEditaveisParticipante(client, 1, {});
+
+    expect(chamadas.find((c) => c.metodo === "update")).toBeUndefined();
+  });
+
+  // Done-when: "Teste: Assessor tenta escrever e recebe erro de RLS
+  // (PLL-CP-23) -- mapeado, não genérico" -- Assessor não tem GRANT (T2),
+  // erro chega como 42501 e é mapeado por mapeiaErroRpc pra
+  // PermissaoNegadaError (mensagem fixa, nunca a mensagem crua do Postgres).
+  it("erro de RLS/GRANT (42501) vira PermissaoNegadaError com mensagem mapeada, não genérica", async () => {
+    const { client } = criarClienteMockUpdate({
+      error: { message: "permission denied for table fat_cadastro_participante", code: "42501" },
+    });
+
+    await expect(
+      atualizarCamposEditaveisParticipante(client, 1, { desafios: ["X"] })
+    ).rejects.toMatchObject({
+      name: "PermissaoNegadaError",
+      message: "Você não tem permissão para realizar esta operação.",
+    });
+  });
+
+  it("lado oposto: erro não mapeado (código desconhecido) vira ErroBancoNaoMapeadoError, não engolido", async () => {
+    const { client } = criarClienteMockUpdate({
+      error: { message: "conexão perdida", code: "08006" },
+    });
+
+    await expect(
+      atualizarCamposEditaveisParticipante(client, 1, { desafios: ["X"] })
+    ).rejects.toMatchObject({ name: "ErroBancoNaoMapeadoError" });
   });
 });
