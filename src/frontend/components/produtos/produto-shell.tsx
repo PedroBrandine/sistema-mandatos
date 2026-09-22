@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { PRODUTO_SLUGS, type ProdutoSlug } from "@backend/queries/produto";
 import { RouteTabs } from "@/components/app-shell/route-tabs";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
+import { ABAS_POR_PRODUTO } from "./abas-por-produto";
 
 interface ProdutoShellProps {
   slug: ProdutoSlug;
@@ -17,12 +18,7 @@ export function ProdutoShell({ slug, children }: ProdutoShellProps) {
   const base = `/produtos/${slug}`;
   const tituloProduto = produto?.nome ?? PRODUTO_SLUGS[slug].label;
 
-  const abas = [
-    { href: `${base}/dashboard`, label: "Dashboard" },
-    { href: `${base}/agenda`, label: "Agenda" },
-    { href: `${base}/mandatos`, label: "Mandatos" },
-    { href: `${base}/novo-contrato`, label: "Novo Contrato" },
-  ];
+  const abas = ABAS_POR_PRODUTO[slug].map((aba) => ({ ...aba, href: `${base}${aba.href}` }));
 
   // O Quadro de Acompanhamento do Dashboard tem colunas de largura fixa
   // (w-72) e rola na horizontal: preso nos ~1152px de `max-w-6xl`, ele
