@@ -72,6 +72,21 @@ export default function ProdutoDashboardPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params) as { slug: ProdutoSlug };
+
+  // pll-dashboard-agenda T3 (PLL-SH-03, PLL-SH-04): o PLL não reaproveita o
+  // Quadro de Acompanhamento/Pendências da Estratégia (D-8, spec.md) -- rota
+  // própria por slug, mesmo padrão do design.md ("Tech Decisions": roteamento
+  // por slug decide o componente). Placeholder aqui; T12 substitui pelo
+  // Dashboard real do PLL. Estratégia e Coalizão seguem pelo componente
+  // existente, sem alteração de comportamento.
+  if (slug === "pll") {
+    return <PllDashboardPagePlaceholder />;
+  }
+
+  return <EstrategiaDashboardPage slug={slug} />;
+}
+
+function EstrategiaDashboardPage({ slug }: { slug: ProdutoSlug }) {
   const { data: produto, isLoading: carregandoProduto } = useProdutoAtual(slug);
   const idProduto = produto?.idProduto;
 
@@ -90,7 +105,7 @@ export default function ProdutoDashboardPage({
     queryFn: () =>
       buscarQuadro(createClient(), {
         idProduto: idProduto as number,
-        filtro: { idGestora: filtro.idGestora, idProjeto: filtro.idProjeto },
+        filtro: { idsGestora: filtro.idsGestora, idsProjeto: filtro.idsProjeto },
       }),
     enabled: idProduto !== undefined,
   });
@@ -107,8 +122,8 @@ export default function ProdutoDashboardPage({
     queryFn: () =>
       buscarEstrategiaKpi(createClient(), {
         idProduto: idProduto as number,
-        idGestora: filtro.idGestora,
-        idProjeto: filtro.idProjeto,
+        idsGestora: filtro.idsGestora,
+        idsProjeto: filtro.idsProjeto,
       }),
     enabled: idProduto !== undefined,
   });
@@ -131,8 +146,8 @@ export default function ProdutoDashboardPage({
     queryFn: () =>
       buscarPendenciasDashboard(createClient(), {
         idProduto: idProduto as number,
-        idGestora: filtro.idGestora,
-        idProjeto: filtro.idProjeto,
+        idsGestora: filtro.idsGestora,
+        idsProjeto: filtro.idsProjeto,
       }),
     enabled: idProduto !== undefined,
   });
@@ -274,5 +289,16 @@ function moverCardOtimista(colunas: ColunaQuadro[], idContrato: number, idEtapaD
     coluna.tipo === "etapa" && coluna.idEtapa === idEtapaDestino
       ? { ...coluna, cards: [...coluna.cards, cardMovido as ColunaEtapaQuadro["cards"][number]] }
       : coluna
+  );
+}
+
+// pll-dashboard-agenda T3: placeholder até T8-T12 montarem os blocos reais
+// (KPIs, gráfico, tabela de mentorados, feed de registros).
+function PllDashboardPagePlaceholder() {
+  return (
+    <EstadoVazio
+      titulo="Dashboard do PLL em construção"
+      mensagem="Os KPIs, o gráfico de status por mês, a tabela de mentorados e o feed de registros chegam nas próximas tasks."
+    />
   );
 }

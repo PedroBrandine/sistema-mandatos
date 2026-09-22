@@ -84,6 +84,19 @@ export default function ProdutoAgendaPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params) as { slug: ProdutoSlug };
+
+  // pll-dashboard-agenda T3 (PLL-SH-03, PLL-SH-04): a Agenda do PLL é rota
+  // própria por slug (D-6/D-4, spec.md) -- mesmo padrão do design.md ("Tech
+  // Decisions"). Placeholder aqui; T15 substitui pela Agenda real do PLL.
+  // Estratégia e Coalizão seguem pelo componente existente, sem alteração.
+  if (slug === "pll") {
+    return <PllAgendaPagePlaceholder />;
+  }
+
+  return <EstrategiaAgendaPage slug={slug} />;
+}
+
+function EstrategiaAgendaPage({ slug }: { slug: ProdutoSlug }) {
   const { data: produto, isLoading: carregandoProduto } = useProdutoAtual(slug);
   const idProduto = produto?.idProduto;
 
@@ -103,8 +116,12 @@ export default function ProdutoAgendaPage({
   // "filter-bar"): os três recortes que `FiltroAgenda` já aceitava, agora com
   // controle na tela. Estado vazio (`{}`) não adiciona nenhuma chave ao
   // filtro passado às queries -- gestora/projeto/contrato continuam
-  // opcionais nelas.
+  // opcionais nelas. Cada recorte aceita várias opções (seleção múltipla).
   const [filtro, setFiltro] = useState<ValorFiltrosAgenda>({});
+
+  // "+ Novo agendamento" precisa de UM contrato: só com exatamente um marcado
+  // no filtro há para onde levar a usuária.
+  const idContratoUnico = filtro.idsContrato?.length === 1 ? filtro.idsContrato[0] : undefined;
 
   const { data: gestoras } = useQuery({
     queryKey: ["agenda-opcoes-gestora"],
@@ -241,12 +258,12 @@ export default function ProdutoAgendaPage({
         onMudarMes={irParaMes}
         onSelecionarEncontro={selecionarEncontro}
         onNovoAgendamento={() => {
-          if (filtro.idContrato !== undefined) {
-            router.push(`/contratos/${filtro.idContrato}/encontros`);
+          if (idContratoUnico !== undefined) {
+            router.push(`/contratos/${idContratoUnico}/encontros`);
           }
         }}
-        novoAgendamentoDesabilitado={filtro.idContrato === undefined}
-        motivoNovoAgendamentoDesabilitado="Selecione um contrato no filtro para agendar um novo encontro."
+        novoAgendamentoDesabilitado={idContratoUnico === undefined}
+        motivoNovoAgendamentoDesabilitado="Selecione um único contrato no filtro para agendar um novo encontro."
       />
 
       {/* EST-12 AC4 / EST-13: o popover existe enquanto há encontro
@@ -290,6 +307,18 @@ export default function ProdutoAgendaPage({
         />
       )}
     </div>
+  );
+}
+
+// pll-dashboard-agenda T3: placeholder até T13-T15 montarem a Agenda real do
+// PLL (grade mensal de Encontros, filtros por mentor(a)/mentorado/edição,
+// lista "Encontros do mês").
+function PllAgendaPagePlaceholder() {
+  return (
+    <EstadoVazio
+      titulo="Agenda do PLL em construção"
+      mensagem="A grade mensal de Encontros e a lista do mês chegam nas próximas tasks."
+    />
   );
 }
 

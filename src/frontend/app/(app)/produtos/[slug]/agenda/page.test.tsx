@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T30b
 // "Done when" (EST-12 AC1/AC3/AC4/AC5, EST-13 AC4; edge case "mês sem
@@ -21,15 +21,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // jsdom, contra segundos do arquivo inteiro sem ele. O que esta página precisa
 // provar é a COMPOSIÇÃO (clicar na grade monta o popover daquele encontro),
 // não o gating open/closed do Radix, que é comportamento de dependência.
+//
+// Só o popover CONTROLADO (o do encontro, que recebe `open`) leva o data-testid:
+// os dropdowns dos filtros (MultiSelectPesquisavel) também usam <Popover>, sem
+// `open`, e não podem competir com ele em findByTestId("popover").
 vi.mock("@/components/ui/popover", () => ({
-  Popover: ({ open, children }: { open?: boolean; children: React.ReactNode }) => (
-    <div data-testid="popover" data-open={open ? "true" : "false"}>
-      {children}
-    </div>
-  ),
+  Popover: ({ open, children }: { open?: boolean; children: React.ReactNode }) =>
+    open === undefined ? (
+      <div>{children}</div>
+    ) : (
+      <div data-testid="popover" data-open={open ? "true" : "false"}>
+        {children}
+      </div>
+    ),
   PopoverTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+
+// Com o Popover stubado o conteúdo dos filtros (MultiSelectPesquisavel, cmdk)
+// fica montado, e o cmdk usa APIs que o jsdom não tem.
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  Element.prototype.scrollIntoView ??= () => {};
+});
 
 const mocks = vi.hoisted(() => ({
   buscarEncontrosDoMes: vi.fn(),
@@ -585,5 +603,39 @@ describe("Agenda — rótulos da lista de Registros (FMC-33)", () => {
 
     expect(screen.queryByText("Descrição")).not.toBeInTheDocument();
     expect(screen.queryByText("Responsável")).not.toBeInTheDocument();
+  });
+});
+
+// pll-dashboard-agenda T3 (PLL-SH-03, PLL-SH-04): roteamento por slug --
+// "pll" renderiza um placeholder próprio (populado em T13-T15); os demais
+// slugs continuam pelo componente existente da Estratégia/Coalizão, sem
+// alteração de comportamento (regressão coberta pelos describes acima, que
+// usam renderizarAgenda() -> slug "estrategia").
+describe("Agenda — roteamento por slug (pll-dashboard-agenda T3)", () => {
+  function renderizarComSlug(slug: string) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <Suspense fallback={<p>carregando</p>}>
+          <ProdutoAgendaPage params={paramsProntos(slug)} />
+        </Suspense>
+      </QueryClientProvider>
+    );
+  }
+
+  it("slug='pll' renderiza o placeholder do PLL, sem tocar nas queries da Estratégia", () => {
+    renderizarComSlug("pll");
+
+    expect(screen.getByText("Agenda do PLL em construção")).toBeInTheDocument();
+    expect(mocks.buscarEncontrosDoMes).not.toHaveBeenCalled();
+  });
+
+  it("slug='coalizao' continua pelo componente existente (grade renderiza como na Estratégia)", async () => {
+    renderizarComSlug("coalizao");
+
+    expect(await aguardarGrade()).toBeInTheDocument();
+    expect(screen.queryByText("Agenda do PLL em construção")).not.toBeInTheDocument();
   });
 });
