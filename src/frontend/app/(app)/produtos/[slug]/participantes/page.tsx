@@ -12,6 +12,12 @@ import {
   vincularParticipanteAoTse,
   type ParticipantePll,
 } from "@backend/queries/pll-cadastro";
+import {
+  buscarEdicoesPll,
+  buscarMentoresDisponiveis,
+  buscarProjetosAtivos,
+  criarEdicaoPll,
+} from "@backend/queries/pll-edicao";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { descreveErroDesconhecido } from "@backend/rpc/errors";
 import type { LinhaCadastroPll } from "@backend/schemas/cadastro-participante-pll";
@@ -19,6 +25,8 @@ import { createClient } from "@backend/supabase/client";
 import type { CandidaturaSugerida } from "@backend/types/fundacao";
 
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
+import { CadastroManualDialog } from "@/components/pll/cadastro-manual-dialog";
+import { CriarEdicaoDialog } from "@/components/pll/criar-edicao-dialog";
 import {
   ListaParticipantesPll,
   type FiltroListaParticipantesPll,
@@ -43,16 +51,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // mostram exatamente o que `fat_cadastro_participante` devolve pra sessão
 // autenticada, e é a RLS de T2 quem decide isso, nunca o cliente.
 const TAMANHO_PAGINA_PARTICIPANTES = 20;
-
-async function buscarEdicoesAtivas(): Promise<{ id: number; nome: string }[]> {
-  const { data, error } = await createClient()
-    .from("ref_projeto")
-    .select("id_projeto, nome")
-    .eq("ativo", true)
-    .order("nome");
-  if (error) throw error;
-  return (data ?? []).map((p) => ({ id: p.id_projeto, nome: p.nome }));
-}
 
 // T12 (PLL-CP-11): mesma resolução partido/cargo -> id que mandato-wizard.tsx
 // já faz antes de chamar criarMandato -- sem ela, dim_mandato.id_partido_atual/
@@ -102,33 +100,52 @@ function ParticipantesPllPage() {
   const queryClient = useQueryClient();
 
   const { data: edicoes, isLoading: carregandoEdicoes } = useQuery({
-    queryKey: ["pll-participantes-edicoes"],
-    queryFn: buscarEdicoesAtivas,
+    queryKey: ["pll-participantes-edicoes", idProduto],
+    queryFn: () => buscarEdicoesPll(createClient(), idProduto as number),
+    enabled: idProduto !== undefined,
   });
 
-  const [idProjetoSelecionado, setIdProjetoSelecionado] = useState<number | undefined>(undefined);
+  const { data: projetos } = useQuery({
+    queryKey: ["ref-projeto-ativos"],
+    queryFn: () => buscarProjetosAtivos(createClient()),
+  });
+  const { data: mentoresDisponiveis } = useQuery({
+    queryKey: ["pll-mentores-disponiveis"],
+    queryFn: () => buscarMentoresDisponiveis(createClient()),
+  });
+
+  const [idEdicaoSelecionada, setIdEdicaoSelecionada] = useState<number | undefined>(undefined);
   const [filtro, setFiltro] = useState<FiltroListaParticipantesPll>({});
   const [pagina, setPagina] = useState(1);
   // T12: linha em processo de vínculo TSE -- presente = VincularTseDialog aberto.
   const [participanteParaVincular, setParticipanteParaVincular] = useState<ParticipantePll | null>(null);
 
   // Edição escolhida define pra onde a importação grava (D-4: o upsert exige
-  // idProjeto). SPEC-PRECISION GAP: nem spec.md nem design.md dizem qual
-  // "edição" recebe uma importação nova -- esta Select torna a escolha
-  // explícita em vez de assumir uma edição implícita; sem nenhuma edição
-  // ativa cadastrada, upload e lista ficam bloqueados (ver estado abaixo).
-  const idProjetoEfetivo = idProjetoSelecionado ?? edicoes?.[0]?.id;
+  // idEdicao). Sem nenhuma edição ativa cadastrada, upload e lista ficam
+  // bloqueados (ver estado abaixo) -- "Criar edição" (sessão 22/09) é o jeito
+  // de sair desse estado.
+  const idEdicaoEfetiva = idEdicaoSelecionada ?? edicoes?.[0]?.idEdicao;
+
+  const { mutateAsync: criarEdicao } = useMutation({
+    mutationFn: (input: { nome: string; dtInicio: string; idProjeto: number; idsMentores: number[] }) =>
+      criarEdicaoPll(createClient(), { idProduto: idProduto as number, ...input }),
+    onSuccess: (resultado) => {
+      void queryClient.invalidateQueries({ queryKey: ["pll-participantes-edicoes"] });
+      setIdEdicaoSelecionada(resultado.idEdicao);
+      setPagina(1);
+    },
+  });
 
   const filtroConsulta = {
     idProduto: idProduto as number,
-    idProjeto: idProjetoEfetivo,
+    idEdicao: idEdicaoEfetiva,
     busca: filtro.busca,
     partido: filtro.partido,
     uf: filtro.uf,
     pagina,
     tamanhoPagina: TAMANHO_PAGINA_PARTICIPANTES,
   };
-  const habilitado = idProduto !== undefined && idProjetoEfetivo !== undefined;
+  const habilitado = idProduto !== undefined && idEdicaoEfetiva !== undefined;
 
   const {
     data: resultado,
@@ -147,11 +164,11 @@ function ParticipantesPllPage() {
   // já pagina, então usar um tamanho de página grande evita nova função só
   // pra isso).
   const { data: resultadoOpcoes } = useQuery({
-    queryKey: ["pll-cadastro-opcoes-filtro", idProduto, idProjetoEfetivo],
+    queryKey: ["pll-cadastro-opcoes-filtro", idProduto, idEdicaoEfetiva],
     queryFn: () =>
       buscarCadastroParticipantesPll(createClient(), {
         idProduto: idProduto as number,
-        idProjeto: idProjetoEfetivo,
+        idEdicao: idEdicaoEfetiva,
         tamanhoPagina: 500,
       }),
     enabled: habilitado,
@@ -164,11 +181,11 @@ function ParticipantesPllPage() {
   ).sort();
 
   const { data: metricas } = useQuery({
-    queryKey: ["pll-cadastro-metricas", idProduto, idProjetoEfetivo],
+    queryKey: ["pll-cadastro-metricas", idProduto, idEdicaoEfetiva],
     queryFn: () =>
       buscarMetricasCadastroPll(createClient(), {
         idProduto: idProduto as number,
-        idProjeto: idProjetoEfetivo,
+        idEdicao: idEdicaoEfetiva,
       }),
     enabled: habilitado,
   });
@@ -177,7 +194,7 @@ function ParticipantesPllPage() {
     mutationFn: (linhas: LinhaCadastroPll[]) =>
       upsertCadastroParticipantes(createClient(), {
         idProduto: idProduto as number,
-        idProjeto: idProjetoEfetivo as number,
+        idEdicao: idEdicaoEfetiva as number,
         linhas,
       }),
     onSuccess: () => {
@@ -201,7 +218,7 @@ function ParticipantesPllPage() {
       return vincularParticipanteAoTse(createClient(), {
         idCadastroParticipante: input.participante.idCadastroParticipante,
         idProduto: idProduto as number,
-        idProjeto: idProjetoEfetivo ?? null,
+        idEdicao: idEdicaoEfetiva ?? null,
         candidatura: {
           ano_eleicao: input.candidatura.anoEleicao,
           sq_candidato: input.candidatura.sqCandidato,
@@ -240,35 +257,56 @@ function ParticipantesPllPage() {
     return <CarregandoSkeleton variante="cards" />;
   }
 
+  const botaoCriarEdicao = (
+    <CriarEdicaoDialog
+      projetos={projetos ?? []}
+      mentores={mentoresDisponiveis ?? []}
+      onCriar={async (input) => {
+        await criarEdicao(input);
+      }}
+    />
+  );
+
   if (!edicoes || edicoes.length === 0) {
     return (
-      <EstadoVazio
-        titulo="Nenhuma edição cadastrada"
-        mensagem="Cadastre uma edição (projeto) do PLL antes de importar participantes."
-      />
+      <div className="grid gap-4">
+        <EstadoVazio
+          titulo="Nenhuma edição cadastrada"
+          mensagem="Crie a primeira edição do PLL para começar a importar participantes."
+        />
+        <div>{botaoCriarEdicao}</div>
+      </div>
     );
   }
 
   return (
     <div className="grid gap-6">
-      <Select
-        value={idProjetoEfetivo !== undefined ? String(idProjetoEfetivo) : undefined}
-        onValueChange={(v) => {
-          setIdProjetoSelecionado(Number(v));
-          setPagina(1);
-        }}
-      >
-        <SelectTrigger aria-label="Edição" className="w-56">
-          <SelectValue placeholder="Selecione a edição" />
-        </SelectTrigger>
-        <SelectContent>
-          {edicoes.map((edicao) => (
-            <SelectItem key={edicao.id} value={String(edicao.id)}>
-              {edicao.nome}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex flex-wrap items-center gap-3">
+        <Select
+          value={idEdicaoEfetiva !== undefined ? String(idEdicaoEfetiva) : undefined}
+          onValueChange={(v) => {
+            setIdEdicaoSelecionada(Number(v));
+            setPagina(1);
+          }}
+        >
+          <SelectTrigger aria-label="Edição" className="w-56">
+            <SelectValue placeholder="Selecione a edição" />
+          </SelectTrigger>
+          <SelectContent>
+            {edicoes.map((edicao) => (
+              <SelectItem key={edicao.idEdicao} value={String(edicao.idEdicao)}>
+                {edicao.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {botaoCriarEdicao}
+        <CadastroManualDialog
+          onCriar={async (linha) => {
+            await importar([linha]);
+          }}
+        />
+      </div>
 
       <UploadPlanilhaCard
         metricas={{

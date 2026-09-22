@@ -28,6 +28,9 @@ export interface CriarMandatoInput {
   contrato?: any; // To be typed later if needed, or use a specific type
   coalizao?: any;
   idContratanteExistente?: number;
+  /** Sessão 22/09: pool de mentores padrão da edição (rel_edicao_mentor),
+   * aplicado a rel_usuario_contrato na mesma transação do contrato novo. */
+  mentoresPadrao?: number[];
 }
 
 interface RetornoCriarMandato {
@@ -52,6 +55,7 @@ export async function criarMandato(
     p_contrato: input.contrato ?? null,
     p_coalizao: input.coalizao ?? null,
     p_id_contratante_existente: input.idContratanteExistente,
+    p_mentores_padrao: input.mentoresPadrao,
   });
 
   if (error) throw mapeiaErroRpc(error);

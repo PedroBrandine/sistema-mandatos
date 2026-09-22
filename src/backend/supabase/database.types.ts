@@ -62,6 +62,16 @@ export type Database = {
         }
         Returns: Json
       }
+      criar_edicao_pll: {
+        Args: {
+          p_dt_inicio: string
+          p_id_produto: number
+          p_id_projeto: number
+          p_mentores?: number[]
+          p_nome: string
+        }
+        Returns: Json
+      }
       criar_encontro: {
         Args: {
           p_dt_fim?: string
@@ -140,6 +150,7 @@ export type Database = {
           p_id_contratante_existente?: number
           p_ignorar_duplicata?: boolean
           p_mandato?: Json
+          p_mentores_padrao?: number[]
         }
         Returns: Json
       }
@@ -825,8 +836,8 @@ export type Database = {
           estado_eleicao: string | null
           id_cadastro_participante: number
           id_contrato: number | null
+          id_edicao: number | null
           id_produto: number
-          id_projeto: number | null
           id_vinculo_tse: number | null
           identidade_genero: string | null
           importado_em: string
@@ -869,8 +880,8 @@ export type Database = {
           estado_eleicao?: string | null
           id_cadastro_participante?: number
           id_contrato?: number | null
+          id_edicao?: number | null
           id_produto: number
-          id_projeto?: number | null
           id_vinculo_tse?: number | null
           identidade_genero?: string | null
           importado_em?: string
@@ -913,8 +924,8 @@ export type Database = {
           estado_eleicao?: string | null
           id_cadastro_participante?: number
           id_contrato?: number | null
+          id_edicao?: number | null
           id_produto?: number
-          id_projeto?: number | null
           id_vinculo_tse?: number | null
           identidade_genero?: string | null
           importado_em?: string
@@ -991,18 +1002,18 @@ export type Database = {
             referencedColumns: ["id_contrato"]
           },
           {
+            foreignKeyName: "fat_cadastro_participante_id_edicao_fkey"
+            columns: ["id_edicao"]
+            isOneToOne: false
+            referencedRelation: "fat_edicao"
+            referencedColumns: ["id_edicao"]
+          },
+          {
             foreignKeyName: "fat_cadastro_participante_id_produto_fkey"
             columns: ["id_produto"]
             isOneToOne: false
             referencedRelation: "ref_produto"
             referencedColumns: ["id_produto"]
-          },
-          {
-            foreignKeyName: "fat_cadastro_participante_id_projeto_fkey"
-            columns: ["id_projeto"]
-            isOneToOne: false
-            referencedRelation: "ref_projeto"
-            referencedColumns: ["id_projeto"]
           },
           {
             foreignKeyName: "fat_cadastro_participante_id_vinculo_tse_fkey"
@@ -1182,6 +1193,67 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "dim_usuario"
             referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
+      fat_edicao: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          criado_em: string
+          criado_por: number | null
+          dt_fim: string | null
+          dt_inicio: string
+          id_edicao: number
+          id_produto: number
+          id_projeto: number
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          criado_por?: number | null
+          dt_fim?: string | null
+          dt_inicio: string
+          id_edicao?: number
+          id_produto: number
+          id_projeto: number
+          nome: string
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          criado_por?: number | null
+          dt_fim?: string | null
+          dt_inicio?: string
+          id_edicao?: number
+          id_produto?: number
+          id_projeto?: number
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fat_edicao_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+          {
+            foreignKeyName: "fat_edicao_id_produto_fkey"
+            columns: ["id_produto"]
+            isOneToOne: false
+            referencedRelation: "ref_produto"
+            referencedColumns: ["id_produto"]
+          },
+          {
+            foreignKeyName: "fat_edicao_id_projeto_fkey"
+            columns: ["id_projeto"]
+            isOneToOne: false
+            referencedRelation: "ref_projeto"
+            referencedColumns: ["id_projeto"]
           },
         ]
       }
@@ -3946,6 +4018,36 @@ export type Database = {
           },
         ]
       }
+      rel_edicao_mentor: {
+        Row: {
+          id_edicao: number
+          id_usuario: number
+        }
+        Insert: {
+          id_edicao: number
+          id_usuario: number
+        }
+        Update: {
+          id_edicao?: number
+          id_usuario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rel_edicao_mentor_id_edicao_fkey"
+            columns: ["id_edicao"]
+            isOneToOne: false
+            referencedRelation: "fat_edicao"
+            referencedColumns: ["id_edicao"]
+          },
+          {
+            foreignKeyName: "rel_edicao_mentor_id_usuario_fkey"
+            columns: ["id_usuario"]
+            isOneToOne: false
+            referencedRelation: "dim_usuario"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
       rel_encontro_participante: {
         Row: {
           id_encontro: number
@@ -5509,51 +5611,29 @@ export type Database = {
     }
     Functions: {
       carrega_tse: { Args: { dados: Json; tabela: string }; Returns: undefined }
-      fn_estrategia_kpi:
-        | {
-            Args: {
-              p_id_produto: number
-              p_ids_contrato?: number[]
-              p_ids_gestora?: number[]
-              p_ids_projeto?: number[]
-            }
-            Returns: {
-              componente_d1_medio: number
-              componente_d2_medio: number
-              componente_d3_medio: number
-              iip_medio: number
-              mandatos_ativos: number
-              mandatos_atraso_atencao: number
-              mandatos_atraso_atrasados: number
-              mandatos_atraso_normal: number
-              nps_medio: number
-              nr_fatos_geradores: number
-              pct_atingimento_medio: number
-            }[]
-          }
-        | {
-            Args: {
-              p_data_fim?: string
-              p_data_inicio?: string
-              p_id_produto: number
-              p_ids_contrato?: number[]
-              p_ids_gestora?: number[]
-              p_ids_projeto?: number[]
-            }
-            Returns: {
-              componente_d1_medio: number
-              componente_d2_medio: number
-              componente_d3_medio: number
-              iip_medio: number
-              mandatos_ativos: number
-              mandatos_atraso_atencao: number
-              mandatos_atraso_atrasados: number
-              mandatos_atraso_normal: number
-              nps_medio: number
-              nr_fatos_geradores: number
-              pct_atingimento_medio: number
-            }[]
-          }
+      fn_estrategia_kpi: {
+        Args: {
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_id_produto: number
+          p_ids_contrato?: number[]
+          p_ids_gestora?: number[]
+          p_ids_projeto?: number[]
+        }
+        Returns: {
+          componente_d1_medio: number
+          componente_d2_medio: number
+          componente_d3_medio: number
+          iip_medio: number
+          mandatos_ativos: number
+          mandatos_atraso_atencao: number
+          mandatos_atraso_atrasados: number
+          mandatos_atraso_normal: number
+          nps_medio: number
+          nr_fatos_geradores: number
+          pct_atingimento_medio: number
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }

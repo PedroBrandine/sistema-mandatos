@@ -82,7 +82,7 @@ function linha(email: string): LinhaCadastroPll {
 describe("upsertCadastroParticipantes", () => {
   it("lote vazio retorna {inseridos: 0, atualizados: 0} sem chamar o banco", async () => {
     const { client, chamadas } = criarClienteMock({ existentes: { data: [], error: null } });
-    const resultado = await upsertCadastroParticipantes(client, { idProduto: 1, idProjeto: 10, linhas: [] });
+    const resultado = await upsertCadastroParticipantes(client, { idProduto: 1, idEdicao: 10, linhas: [] });
     expect(resultado).toEqual({ inseridos: 0, atualizados: 0 });
     expect(chamadas).toEqual([]);
   });
@@ -92,7 +92,7 @@ describe("upsertCadastroParticipantes", () => {
     const { client } = criarClienteMock({ existentes: { data: [], error: null } });
     const resultado = await upsertCadastroParticipantes(client, {
       idProduto: 1,
-      idProjeto: 10,
+      idEdicao: 10,
       linhas: [linha("a@teste.com"), linha("b@teste.com")],
     });
     expect(resultado).toEqual({ inseridos: 2, atualizados: 0 });
@@ -105,35 +105,35 @@ describe("upsertCadastroParticipantes", () => {
     });
     const resultado = await upsertCadastroParticipantes(client, {
       idProduto: 1,
-      idProjeto: 10,
+      idEdicao: 10,
       linhas: [linha("a@teste.com"), linha("b@teste.com")],
     });
     expect(resultado).toEqual({ inseridos: 1, atualizados: 1 });
   });
 
-  it("upsert usa onConflict 'id_projeto,email' (sustenta o upsert por edição, PLL-CP-03)", async () => {
+  it("upsert usa onConflict 'id_edicao,email' (sustenta o upsert por edição, PLL-CP-03)", async () => {
     const { client, chamadas } = criarClienteMock({ existentes: { data: [], error: null } });
-    await upsertCadastroParticipantes(client, { idProduto: 1, idProjeto: 10, linhas: [linha("a@teste.com")] });
+    await upsertCadastroParticipantes(client, { idProduto: 1, idEdicao: 10, linhas: [linha("a@teste.com")] });
     const chamadaUpsert = chamadas.find((c) => c.metodo === "upsert");
-    expect(chamadaUpsert?.args[1]).toEqual({ onConflict: "id_projeto,email" });
+    expect(chamadaUpsert?.args[1]).toEqual({ onConflict: "id_edicao,email" });
   });
 
-  it("payload envia id_produto/id_projeto/importado_por junto de cada linha", async () => {
+  it("payload envia id_produto/id_edicao/importado_por junto de cada linha", async () => {
     const { client, getUpsertPayload } = criarClienteMock({ existentes: { data: [], error: null } });
     await upsertCadastroParticipantes(client, {
       idProduto: 3,
-      idProjeto: 10,
+      idEdicao: 10,
       idUsuarioImportador: 42,
       linhas: [linha("a@teste.com")],
     });
     const payload = getUpsertPayload();
     expect(payload).toHaveLength(1);
-    expect(payload?.[0]).toMatchObject({ id_produto: 3, id_projeto: 10, importado_por: 42, email: "a@teste.com" });
+    expect(payload?.[0]).toMatchObject({ id_produto: 3, id_edicao: 10, importado_por: 42, email: "a@teste.com" });
   });
 
   it("idUsuarioImportador ausente vira importado_por: null", async () => {
     const { client, getUpsertPayload } = criarClienteMock({ existentes: { data: [], error: null } });
-    await upsertCadastroParticipantes(client, { idProduto: 3, idProjeto: 10, linhas: [linha("a@teste.com")] });
+    await upsertCadastroParticipantes(client, { idProduto: 3, idEdicao: 10, linhas: [linha("a@teste.com")] });
     expect(getUpsertPayload()?.[0].importado_por).toBeNull();
   });
 
@@ -142,7 +142,7 @@ describe("upsertCadastroParticipantes", () => {
   // entram no payload, então o PostgREST não os inclui no SET do ON CONFLICT.
   it("o payload do upsert NUNCA inclui id_contrato/id_vinculo_tse nem os campos editáveis no sistema", async () => {
     const { client, getUpsertPayload } = criarClienteMock({ existentes: { data: [], error: null } });
-    await upsertCadastroParticipantes(client, { idProduto: 1, idProjeto: 10, linhas: [linha("a@teste.com")] });
+    await upsertCadastroParticipantes(client, { idProduto: 1, idEdicao: 10, linhas: [linha("a@teste.com")] });
     const linhaPayload = getUpsertPayload()?.[0] ?? {};
     for (const campo of [
       "id_contrato",
@@ -167,7 +167,7 @@ describe("upsertCadastroParticipantes", () => {
       existentes: { data: null, error: { message: "permission denied for table fat_cadastro_participante", code: "42501" } },
     });
     await expect(
-      upsertCadastroParticipantes(client, { idProduto: 1, idProjeto: 10, linhas: [linha("a@teste.com")] })
+      upsertCadastroParticipantes(client, { idProduto: 1, idEdicao: 10, linhas: [linha("a@teste.com")] })
     ).rejects.toMatchObject({ code: "42501" });
   });
 
@@ -178,7 +178,7 @@ describe("upsertCadastroParticipantes", () => {
       upsert: { error: { message: "duplicate key value violates unique constraint", code: "23505" } },
     });
     await expect(
-      upsertCadastroParticipantes(client, { idProduto: 1, idProjeto: 10, linhas: [linha("a@teste.com")] })
+      upsertCadastroParticipantes(client, { idProduto: 1, idEdicao: 10, linhas: [linha("a@teste.com")] })
     ).rejects.toMatchObject({ code: "23505" });
   });
 
@@ -188,7 +188,7 @@ describe("upsertCadastroParticipantes", () => {
   it("campos ausentes da linha validada (AD-005) são repassados como estão, sem sentinela", async () => {
     const { client, getUpsertPayload } = criarClienteMock({ existentes: { data: [], error: null } });
     const linhaMinima: LinhaCadastroPll = { papel: "mentor", nome_completo: "Fulano", email: "fulano@teste.com" };
-    await upsertCadastroParticipantes(client, { idProduto: 1, idProjeto: 10, linhas: [linhaMinima] });
+    await upsertCadastroParticipantes(client, { idProduto: 1, idEdicao: 10, linhas: [linhaMinima] });
     const payload = getUpsertPayload()?.[0];
     expect(payload?.telefone).toBeUndefined();
     expect(payload?.email).toBe("fulano@teste.com");
@@ -502,6 +502,63 @@ function criarClienteMockUpdate(resposta: { error: { message: string; code?: str
   return { client: client as unknown as SupabaseClient<Database>, chamadas };
 }
 
+// Sessão 22/09: quando idEdicao é informado, vincularParticipanteAoTse
+// primeiro resolve fat_edicao.id_projeto (single) e o pool de
+// rel_edicao_mentor (lista), antes do UPDATE de staging -- mock roteado por
+// tabela, cada uma com sua própria resposta.
+function criarClienteMockVinculo(opts: {
+  update: { error: { message: string; code?: string } | null };
+  edicao?: { data: { id_projeto: number } | null; error: unknown };
+  mentores?: { data: { id_usuario: number }[] | null; error: unknown };
+}) {
+  const chamadas: { metodo: string; args: unknown[]; tabela: string }[] = [];
+  const client = {
+    from: (tabela: string) => {
+      chamadas.push({ metodo: "from", args: [tabela], tabela });
+      if (tabela === "fat_edicao") {
+        return {
+          select: (...args: unknown[]) => {
+            chamadas.push({ metodo: "select", args, tabela });
+            return {
+              eq: (...args2: unknown[]) => {
+                chamadas.push({ metodo: "eq", args: args2, tabela });
+                return {
+                  single: () => Promise.resolve(opts.edicao ?? { data: null, error: null }),
+                };
+              },
+            };
+          },
+        };
+      }
+      if (tabela === "rel_edicao_mentor") {
+        return {
+          select: (...args: unknown[]) => {
+            chamadas.push({ metodo: "select", args, tabela });
+            return {
+              eq: (...args2: unknown[]) => {
+                chamadas.push({ metodo: "eq", args: args2, tabela });
+                return Promise.resolve(opts.mentores ?? { data: [], error: null });
+              },
+            };
+          },
+        };
+      }
+      return {
+        update: (payload: unknown) => {
+          chamadas.push({ metodo: "update", args: [payload], tabela });
+          return {
+            eq: (...args2: unknown[]) => {
+              chamadas.push({ metodo: "eq", args: args2, tabela });
+              return Promise.resolve(opts.update);
+            },
+          };
+        },
+      };
+    },
+  };
+  return { client: client as unknown as SupabaseClient<Database>, chamadas };
+}
+
 const CANDIDATURA: import("../rpc/mandato").CandidaturaParaConfirmar = {
   ano_eleicao: 2022,
   sq_candidato: 111,
@@ -522,12 +579,16 @@ describe("vincularParticipanteAoTse (T10)", () => {
       idVinculoTse: 77,
       idContrato: 42,
     });
-    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+    const { client, chamadas } = criarClienteMockVinculo({
+      update: { error: null },
+      edicao: { data: { id_projeto: 10 }, error: null },
+      mentores: { data: [{ id_usuario: 55 }, { id_usuario: 56 }], error: null },
+    });
 
     const resultado = await vincularParticipanteAoTse(client, {
       idCadastroParticipante: 1,
       idProduto: 3,
-      idProjeto: 10,
+      idEdicao: 20,
       candidatura: CANDIDATURA,
       contratante: { nome: "Dep. Fulano" },
     });
@@ -538,14 +599,41 @@ describe("vincularParticipanteAoTse (T10)", () => {
         candidatura: CANDIDATURA,
         contratante: { nome: "Dep. Fulano" },
         contrato: expect.objectContaining({ id_produto: 3, id_projeto: 10 }),
+        // Pool de mentores da edição (rel_edicao_mentor) repassado a
+        // app.criar_mandato(p_mentores_padrao) na mesma chamada.
+        mentoresPadrao: [55, 56],
       })
     );
     expect(resultado).toEqual({ idContratante: 5, idMandato: 9, idVinculoTse: 77, idContrato: 42 });
 
     const chamadaUpdate = chamadas.find((c) => c.metodo === "update");
     expect(chamadaUpdate?.args[0]).toEqual({ id_contrato: 42, id_vinculo_tse: 77 });
-    const chamadaEq = chamadas.find((c) => c.metodo === "eq");
+    const chamadaEq = chamadas.find((c) => c.metodo === "eq" && c.tabela === "fat_cadastro_participante");
     expect(chamadaEq?.args).toEqual(["id_cadastro_participante", 1]);
+  });
+
+  // Lado oposto: sem idEdicao, nenhuma consulta a fat_edicao/rel_edicao_mentor
+  // acontece -- mentoresPadrao vai vazio, id_projeto do contrato vai null.
+  it("sem idEdicao: não consulta fat_edicao/rel_edicao_mentor, mentoresPadrao vazio", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 77, idContrato: 42 });
+    const { client, chamadas } = criarClienteMockVinculo({ update: { error: null } });
+
+    await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      candidatura: CANDIDATURA,
+      contratante: { nome: "Dep. Fulano" },
+    });
+
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({
+        contrato: expect.objectContaining({ id_projeto: null }),
+        mentoresPadrao: [],
+      })
+    );
+    expect(chamadas.some((c) => c.tabela === "fat_edicao")).toBe(false);
+    expect(chamadas.some((c) => c.tabela === "rel_edicao_mentor")).toBe(false);
   });
 
   // PLL-CP-12: trocar vínculo -- idContratanteExistente presente omite

@@ -19,40 +19,41 @@ export interface ResultadoUpsertCadastroPll {
 
 /**
  * Insere/atualiza um lote de linhas já validadas (PLL-CP-01, PLL-CP-03) contra
- * `UNIQUE (id_projeto, email)`: e-mail já existente no projeto atualiza a
+ * `UNIQUE (id_edicao, email)`: e-mail já existente na edição atualiza a
  * linha de staging existente, nunca duplica.
  *
  * Reimportação NUNCA limpa `id_contrato`/`id_vinculo_tse` (edge case da
  * spec.md, "reimportação nunca desfaz um vínculo confirmado"): o payload
  * enviado ao PostgREST só contém os 25 campos autodeclarados do Anexo A +
- * `id_produto`/`id_projeto`/`importado_por` -- colunas ausentes do payload
+ * `id_produto`/`id_edicao`/`importado_por` -- colunas ausentes do payload
  * não entram no `SET` do `ON CONFLICT DO UPDATE` que o PostgREST gera, então
  * `id_contrato`/`id_vinculo_tse`/os campos editáveis no sistema (desafios,
  * destaques, ambição, SWOT) sobrevivem intactos a qualquer reimportação.
  * Verificado contra o dev real antes de escrever este código (Knowledge
  * Verification Chain Step 1): um UPDATE por conflito preserva colunas
- * omitidas do payload; um `id_projeto` NULL nunca gera conflito (semântica de
- * índice único parcial do Postgres para NULL) -- por isso `idProjeto` é
+ * omitidas do payload; um `id_edicao` NULL nunca gera conflito (semântica de
+ * índice único parcial do Postgres para NULL) -- por isso `idEdicao` é
  * obrigatório aqui, ao contrário da coluna (que é anulável no schema para
- * cobrir produtos futuros sem edição).
+ * cobrir produtos futuros sem edição -- migration
+ * 20260922160511_pll_cadastro_participante_id_edicao.sql).
  */
 export async function upsertCadastroParticipantes(
   client: SupabaseClient<Database>,
   params: {
     idProduto: number;
-    idProjeto: number;
+    idEdicao: number;
     idUsuarioImportador?: number | null;
     linhas: LinhaCadastroPll[];
   }
 ): Promise<ResultadoUpsertCadastroPll> {
-  const { idProduto, idProjeto, idUsuarioImportador, linhas } = params;
+  const { idProduto, idEdicao, idUsuarioImportador, linhas } = params;
   if (linhas.length === 0) return { inseridos: 0, atualizados: 0 };
 
   const emails = linhas.map((linha) => linha.email);
   const { data: existentes, error: erroExistentes } = await client
     .from("fat_cadastro_participante")
     .select("email")
-    .eq("id_projeto", idProjeto)
+    .eq("id_edicao", idEdicao)
     .in("email", emails);
   if (erroExistentes) throw erroExistentes;
   const emailsExistentes = new Set((existentes ?? []).map((linha) => linha.email));
@@ -60,13 +61,13 @@ export async function upsertCadastroParticipantes(
   const payload = linhas.map((linha) => ({
     ...linha,
     id_produto: idProduto,
-    id_projeto: idProjeto,
+    id_edicao: idEdicao,
     importado_por: idUsuarioImportador ?? null,
   }));
 
   const { error } = await client
     .from("fat_cadastro_participante")
-    .upsert(payload, { onConflict: "id_projeto,email" });
+    .upsert(payload, { onConflict: "id_edicao,email" });
   if (error) throw error;
 
   const atualizados = linhas.filter((linha) => emailsExistentes.has(linha.email)).length;
@@ -84,7 +85,7 @@ const TAMANHO_PAGINA_PADRAO_CADASTRO_PLL = 20;
 
 export interface FiltroCadastroParticipantesPll {
   idProduto: number;
-  idProjeto?: number;
+  idEdicao?: number;
   /** Busca por nome, e-mail OU parlamentar (PLL-CP-06). */
   busca?: string;
   /** Design.md ParticipantePll: "siglaPartido -- partido_filiado ou partido
@@ -187,7 +188,7 @@ export async function buscarCadastroParticipantesPll(
     )
     .eq("id_produto", filtro.idProduto);
 
-  if (filtro.idProjeto !== undefined) query = query.eq("id_projeto", filtro.idProjeto);
+  if (filtro.idEdicao !== undefined) query = query.eq("id_edicao", filtro.idEdicao);
   if (filtro.partido !== undefined) query = query.eq("partido_parlamentar", filtro.partido);
   if (filtro.uf !== undefined) query = query.eq("estado_eleicao", filtro.uf);
   if (filtro.busca !== undefined && filtro.busca.trim().length > 0) {
@@ -248,7 +249,7 @@ export interface MetricasCadastroPll {
 
 async function contarPorStatus(
   client: SupabaseClient<Database>,
-  filtro: { idProduto: number; idProjeto?: number },
+  filtro: { idProduto: number; idEdicao?: number },
   status: string
 ): Promise<number> {
   let query = client
@@ -256,7 +257,7 @@ async function contarPorStatus(
     .select("id_cadastro_participante", { count: "exact", head: true })
     .eq("id_produto", filtro.idProduto)
     .eq("status_cadastro", status);
-  if (filtro.idProjeto !== undefined) query = query.eq("id_projeto", filtro.idProjeto);
+  if (filtro.idEdicao !== undefined) query = query.eq("id_edicao", filtro.idEdicao);
   const { error, count } = await query;
   if (error) throw error;
   return count ?? 0;
@@ -264,7 +265,7 @@ async function contarPorStatus(
 
 export async function buscarMetricasCadastroPll(
   client: SupabaseClient<Database>,
-  filtro: { idProduto: number; idProjeto?: number }
+  filtro: { idProduto: number; idEdicao?: number }
 ): Promise<MetricasCadastroPll> {
   const [participantesCadastrados, pendentesRevisao, comDadosIncompletos] = await Promise.all([
     (async () => {
@@ -272,7 +273,7 @@ export async function buscarMetricasCadastroPll(
         .from("fat_cadastro_participante")
         .select("id_cadastro_participante", { count: "exact", head: true })
         .eq("id_produto", filtro.idProduto);
-      if (filtro.idProjeto !== undefined) query = query.eq("id_projeto", filtro.idProjeto);
+      if (filtro.idEdicao !== undefined) query = query.eq("id_edicao", filtro.idEdicao);
       const { error, count } = await query;
       if (error) throw error;
       return count ?? 0;
@@ -288,7 +289,7 @@ export async function buscarMetricasCadastroPll(
     .not("importado_em", "is", null)
     .order("importado_em", { ascending: false })
     .limit(1);
-  if (filtro.idProjeto !== undefined) queryUltima = queryUltima.eq("id_projeto", filtro.idProjeto);
+  if (filtro.idEdicao !== undefined) queryUltima = queryUltima.eq("id_edicao", filtro.idEdicao);
   const { data: ultimaLinha, error: erroUltima } = await queryUltima;
   if (erroUltima) throw erroUltima;
 
@@ -319,7 +320,7 @@ export async function buscarMetricasCadastroPll(
 export interface ParametrosVincularParticipanteAoTse {
   idCadastroParticipante: number;
   idProduto: number;
-  idProjeto?: number | null;
+  idEdicao?: number | null;
   candidatura: CandidaturaParaConfirmar;
   contratante?: ContratanteInput;
   mandato?: MandatoInput;
@@ -330,10 +331,29 @@ export interface ParametrosVincularParticipanteAoTse {
   idContratanteExistente?: number;
 }
 
+/** rel_edicao_mentor da edição -- pool de mentores padrão aplicado ao novo
+ * contrato (sessão 22/09, app.criar_mandato(p_mentores_padrao)). */
+async function buscarPoolMentoresDaEdicao(
+  client: SupabaseClient<Database>,
+  idEdicao: number
+): Promise<number[]> {
+  const { data, error } = await client.from("rel_edicao_mentor").select("id_usuario").eq("id_edicao", idEdicao);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.id_usuario);
+}
+
 export async function vincularParticipanteAoTse(
   client: SupabaseClient<Database>,
   params: ParametrosVincularParticipanteAoTse
 ): Promise<MandatoCriado> {
+  const [edicao, mentoresPadrao] = await Promise.all([
+    params.idEdicao
+      ? client.from("fat_edicao").select("id_projeto").eq("id_edicao", params.idEdicao).single()
+      : Promise.resolve({ data: null, error: null }),
+    params.idEdicao ? buscarPoolMentoresDaEdicao(client, params.idEdicao) : Promise.resolve([]),
+  ]);
+  if (edicao.error) throw edicao.error;
+
   const resultado = await criarMandato(client, {
     contratante: params.idContratanteExistente ? undefined : params.contratante,
     mandato: params.idContratanteExistente ? undefined : params.mandato,
@@ -341,9 +361,10 @@ export async function vincularParticipanteAoTse(
     idContratanteExistente: params.idContratanteExistente,
     contrato: {
       id_produto: params.idProduto,
-      id_projeto: params.idProjeto ?? null,
+      id_projeto: edicao.data?.id_projeto ?? null,
       dt_inicio: new Date().toISOString().slice(0, 10),
     },
+    mentoresPadrao,
   });
 
   const { error } = await client
