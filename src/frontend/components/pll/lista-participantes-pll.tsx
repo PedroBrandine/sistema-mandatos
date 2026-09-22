@@ -38,8 +38,10 @@ export interface ListaParticipantesPllProps {
   /** Opções fechadas do filtro (partidos/UFs presentes na base do produto). */
   partidos: string[];
   ufs: string[];
-  /** T12 wire: ausente = botão "Vincular TSE" não aparece (linha sem vínculo
-   * fica só com a ação de ver ficha). */
+  /** T12 wire: ausente = botão "Vincular TSE"/"Editar vínculo" não aparece.
+   * Sessão 22/09: também abre o mesmo VincularTseDialog para uma linha JÁ
+   * vinculada (PLL-CP-12, troca de vínculo já suportada no backend) -- o
+   * rótulo muda para "Editar vínculo" conforme `vinculadoTse`. */
   onVincularTse?: (participante: ParticipantePll) => void;
 }
 
@@ -239,7 +241,7 @@ export function ListaParticipantesPll({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-2">
-                      {!participante.vinculadoTse && onVincularTse && (
+                      {onVincularTse && (
                         <Button
                           type="button"
                           variant="outline"
@@ -247,7 +249,7 @@ export function ListaParticipantesPll({
                           onClick={() => onVincularTse(participante)}
                         >
                           <LinkIcon className="size-3.5" />
-                          Vincular TSE
+                          {participante.vinculadoTse ? "Editar vínculo" : "Vincular TSE"}
                         </Button>
                       )}
                       <Link

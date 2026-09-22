@@ -127,16 +127,21 @@ describe("ListaParticipantesPll — botão Vincular TSE (T12 wire)", () => {
     );
   });
 
-  it("lado oposto: participante já vinculado não mostra o botão, mesmo com onVincularTse presente", () => {
+  // Sessão 22/09: participante já vinculado ganha "Editar vínculo" (mesmo
+  // handler, PLL-CP-12 já suporta troca) em vez de simplesmente sumir.
+  it("lado oposto: participante já vinculado mostra 'Editar vínculo' (não 'Vincular TSE')", () => {
+    const onVincularTse = vi.fn();
     render(
       <ListaParticipantesPll
         {...PROPS_PADRAO}
         participantes={[participante({ vinculadoTse: true })]}
-        onVincularTse={vi.fn()}
+        onVincularTse={onVincularTse}
       />
     );
 
-    expect(screen.queryByRole("button", { name: /vincular tse/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^vincular tse$/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /editar vínculo/i }));
+    expect(onVincularTse).toHaveBeenCalledWith(expect.objectContaining({ vinculadoTse: true }));
   });
 
   it("sem onVincularTse (T8 isolado, antes do wire de T12) o botão nunca aparece, mesmo sem vínculo", () => {

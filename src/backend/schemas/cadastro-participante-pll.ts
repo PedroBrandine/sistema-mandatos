@@ -14,9 +14,20 @@ import { textoLimpoSchema } from "./texto-limpo";
 // dim_mandato.ds_raca (schemas/mandato.ts): o formulário de origem (Google
 // Forms) não usa as mesmas opções, e normalizar aqui seria inventar um
 // mapeamento não pedido pela spec.
+// Sessão ao vivo com Pedro (22/09): Mentor não é cadastrado por este
+// caminho (planilha OU cadastro manual, mesmo schema) -- mentor já existe
+// como usuário do sistema (dim_usuario, papel_global='mentor'), escolhido no
+// pool padrão da edição (CriarEdicaoDialog); não é um registro de staging
+// como o mentorado (que ainda não tem contrato/TSE vinculado). O valor
+// 'mentor' continua no enum do banco (ck_cadastro_papel) por compatibilidade
+// com linhas antigas -- só a ENTRADA nova é barrada aqui.
 export const linhaCadastroPllSchema = z.object({
   // Dados Pessoais (12)
-  papel: z.enum(["mentorado", "mentor"]),
+  papel: z
+    .enum(["mentorado", "mentor"])
+    .refine((valor) => valor === "mentorado", {
+      message: "Mentor não é cadastrado por este formulário -- mentores já existem como usuários do sistema.",
+    }),
   nome_completo: z.string().trim().min(1, "nome_completo é obrigatório"),
   dt_nascimento: z.string().nullable().optional(),
   // ck_cadastro_email: email = lower(btrim(email)) AND email LIKE '%@%.%'

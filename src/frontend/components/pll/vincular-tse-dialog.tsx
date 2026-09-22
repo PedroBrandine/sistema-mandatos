@@ -24,10 +24,14 @@ import { ResultadosBuscaTse, useBuscaTse } from "@/components/fundacao/tse-match
 // componente puro são consumidos diretamente, com um <CommandInput> próprio
 // que já nasce preenchido com o nome autodeclarado (PLL-CP-10).
 //
-// PLL-CP-13: fechar sem decisão (X, ESC, clique fora) é bloqueado -- o Dialog
-// é 100% controlado (`open` só muda por decisão explícita: confirmar
-// candidatura ou marcar "não encontrado"). `onOpenChange(false)` vindo do
-// Radix (ESC/overlay) é ignorado de propósito.
+// PLL-CP-13, revisado em sessão ao vivo com Pedro (22/09): fechar por ESC ou
+// clique fora continua bloqueado (dismiss acidental durante a digitação da
+// busca) -- mas agora existe um X explícito no canto do Dialog, decisão
+// deliberada de sair sem vincular nem marcar "não encontrado" (ex.: revisar
+// esta linha depois, seguir para a próxima da planilha). ESC/overlay são
+// interceptados em DialogContent (onEscapeKeyDown/onPointerDownOutside);
+// o X usa o Radix Dialog.Close padrão, que passa por `onOpenChange(false)`
+// normalmente -- por isso o guard abaixo não filtra mais `false`.
 
 export interface ParticipantePreenchimentoBusca {
   nomeCompleto: string;
@@ -91,20 +95,17 @@ export function VincularTseDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(novoEstado) => {
-        // PLL-CP-13: só propaga a ABERTURA -- fechar só acontece pelas duas
-        // ações explícitas acima (selecionar/marcarNaoEncontrado).
-        if (novoEstado) onOpenChange(true);
-      }}
-    >
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="sm:max-w-md"
+        onEscapeKeyDown={(evento) => evento.preventDefault()}
+        onPointerDownOutside={(evento) => evento.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Vincular {participante.nomeCompleto} ao TSE</DialogTitle>
           <DialogDescription>
-            Confirme a candidatura correta do parlamentar ou marque que não foi encontrado — fechar sem
-            uma dessas duas decisões não é permitido.
+            Confirme a candidatura correta do parlamentar ou marque que não foi encontrado — ou feche (X) para
+            decidir depois.
           </DialogDescription>
         </DialogHeader>
 

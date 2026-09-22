@@ -16,7 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Sessão ao vivo com Pedro (22/09): botão "Cadastrar participante" na tela
 // Participantes -- caminho alternativo ao upload de planilha (UploadPlanilhaCard)
@@ -25,8 +24,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // com um lote de 1 linha) -- nenhuma tabela/validação nova, só uma segunda
 // porta de entrada pros mesmos 25 campos.
 //
-// Só expõe os campos mais usados na prática (papel/nome/e-mail/telefone +
-// dados do mandato autodeclarado); os demais 16 campos do Anexo A (pautas
+// Sempre papel: "mentorado" -- Mentor não é cadastrado por este caminho
+// (mesma decisão de 22/09 que bloqueia 'mentor' em validarLinhasCadastroPll):
+// mentor já existe como usuário do sistema, escolhido no pool padrão da
+// edição (CriarEdicaoDialog), nunca como staging pré-TSE.
+//
+// Só expõe os campos mais usados na prática (nome/e-mail/telefone + dados do
+// mandato autodeclarado); os demais 15 campos do Anexo A (pautas
 // prioritárias, identidade, etc.) ficam null aqui -- AD-005, sem sentinela --
 // e continuam editáveis depois via edição em lista/planilha. Cadastro manual
 // completo dos 25 campos é escopo de formulário maior, fora desta sessão.
@@ -36,7 +40,6 @@ export interface CadastroManualDialogProps {
 }
 
 interface EstadoFormulario {
-  papel: "mentorado" | "mentor";
   nomeCompleto: string;
   email: string;
   telefone: string;
@@ -48,7 +51,6 @@ interface EstadoFormulario {
 }
 
 const FORM_VAZIO: EstadoFormulario = {
-  papel: "mentorado",
   nomeCompleto: "",
   email: "",
   telefone: "",
@@ -73,7 +75,7 @@ export function CadastroManualDialog({ onCriar }: CadastroManualDialogProps) {
     setErro(null);
 
     const bruto = {
-      papel: form.papel,
+      papel: "mentorado" as const,
       nome_completo: form.nomeCompleto.trim(),
       email: form.email.trim(),
       telefone: form.telefone.trim() || null,
@@ -124,25 +126,13 @@ export function CadastroManualDialog({ onCriar }: CadastroManualDialogProps) {
         <DialogHeader>
           <DialogTitle>Cadastrar participante manualmente</DialogTitle>
           <DialogDescription>
-            Alternativa à importação por planilha para um único participante (Anexo A). Nome completo e e-mail são
-            obrigatórios; os demais campos podem ser completados depois.
+            Alternativa à importação por planilha para um único mentorado (Anexo A) -- mentores já são usuários do
+            sistema e não passam por aqui. Nome completo e e-mail são obrigatórios; os demais campos podem ser
+            completados depois.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="manual-papel">Você é um(a) [Mentorado/Mentor]</Label>
-            <Select value={form.papel} onValueChange={(v) => atualizar("papel", v as "mentorado" | "mentor")}>
-              <SelectTrigger id="manual-papel" aria-label="Papel">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mentorado">Mentorado</SelectItem>
-                <SelectItem value="mentor">Mentor</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid gap-1.5">
             <Label htmlFor="manual-nome">Nome completo</Label>
             <Input id="manual-nome" value={form.nomeCompleto} onChange={(e) => atualizar("nomeCompleto", e.target.value)} />

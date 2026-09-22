@@ -43,11 +43,27 @@ describe("linhaCadastroPllSchema", () => {
 
   it("aceita uma linha válida só com os 3 campos obrigatórios (os demais 22 ausentes)", () => {
     const resultado = linhaCadastroPllSchema.safeParse({
-      papel: "mentor",
+      papel: "mentorado",
       nome_completo: "Fulano de Tal",
       email: "fulano@example.com",
     });
     expect(resultado.success).toBe(true);
+  });
+
+  // Sessão ao vivo com Pedro (22/09): Mentor não é cadastrado por este
+  // caminho -- mentor já existe como usuário do sistema (dim_usuario), o
+  // enum do banco (ck_cadastro_papel) segue aceitando 'mentor' só por
+  // compatibilidade com linhas antigas, nunca para entrada nova.
+  it("rejeita papel: 'mentor' -- não é cadastrado por este formulário", () => {
+    const resultado = linhaCadastroPllSchema.safeParse({
+      papel: "mentor",
+      nome_completo: "Fulano de Tal",
+      email: "fulano@example.com",
+    });
+    expect(resultado.success).toBe(false);
+    if (!resultado.success) {
+      expect(resultado.error.issues[0].message).toContain("Mentor não é cadastrado por este formulário");
+    }
   });
 
   // Campos obrigatórios (NOT NULL na tabela): papel, nome_completo, email.

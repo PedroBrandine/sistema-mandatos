@@ -158,7 +158,7 @@ describe("VincularTseDialog — 'Não encontrado'", () => {
   });
 });
 
-describe("VincularTseDialog — PLL-CP-13: fechar sem decisão é bloqueado", () => {
+describe("VincularTseDialog — PLL-CP-13 revisado (22/09): ESC/overlay bloqueados, X permitido", () => {
   it("tecla Escape não fecha o dialog nem chama onOpenChange(false)", async () => {
     buscarCandidaturasMock.mockResolvedValue([]);
     const onOpenChange = vi.fn();
@@ -200,17 +200,27 @@ describe("VincularTseDialog — PLL-CP-13: fechar sem decisão é bloqueado", ()
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
-  it("não existe botão de fechar (X) -- showCloseButton desligado de propósito", () => {
+  // Sessão 22/09: X explícito é a válvula de escape deliberada -- diferente
+  // de ESC/overlay (acidentais), clicar no X é uma ação consciente e agora
+  // fecha o dialog normalmente, sem decidir vínculo nem "não encontrado".
+  it("existe um X e clicar nele chama onOpenChange(false), sem confirmar nem marcar não encontrado", () => {
+    const onOpenChange = vi.fn();
+    const onConfirmar = vi.fn();
+    const onNaoEncontrado = vi.fn();
     render(
       <VincularTseDialog
         open
-        onOpenChange={vi.fn()}
+        onOpenChange={onOpenChange}
         participante={PARTICIPANTE}
-        onConfirmar={vi.fn()}
-        onNaoEncontrado={vi.fn()}
+        onConfirmar={onConfirmar}
+        onNaoEncontrado={onNaoEncontrado}
       />
     );
 
-    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /close/i }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onConfirmar).not.toHaveBeenCalled();
+    expect(onNaoEncontrado).not.toHaveBeenCalled();
   });
 });
