@@ -224,3 +224,101 @@ Scratch mutations applied to committed feature files, run against the real test 
 4. PLL-DB-01's "recorte propaga a todos os blocos" claim is correct by code inspection but has no direct end-to-end test (Fix 4).
 
 **Next steps**: Recommend routing Fix 1 and Fix 2 back to an implementer (both are P1/MVP acceptance criteria with no partial credit), and having Pedro confirm the AD-046 scope question (Fix 3) since it affects how future readers trust this feature's documented test-depth justification. Fix 4 is optional hardening. The pre-existing, already-known merge blocker (`atualizarStatusContrato`/`ContratoForm` not handling `origem_encerramento`, noted at the top of `tasks.md`) remains open and unrelated to this validation pass's scope, but is directly relevant to PLL-DB-03/PLL-DB-07 in production once real "encerrar contrato" flows are exercised — flagging it here per the task instructions, not re-verifying it.
+
+---
+
+## Fixes aplicados (pós-Verifier)
+
+Data: 2026-09-22. Escopo: só os 2 gaps Major (Fix 1, Fix 2). Fix 3 (AD-046
+misapplied) e Fix 4 (PLL-DB-01 end-to-end) não foram tocados — ficam para
+Pedro decidir (Fix 3) ou como hardening opcional (Fix 4), conforme o "Next
+steps" acima.
+
+### Fix 1 (PLL-SH-01, título da área do PLL)
+
+- **O que foi feito**: novo `TITULO_AREA_PRODUTO: Record<ProdutoSlug, string | null>`
+  em `src/frontend/components/produtos/abas-por-produto.ts`, com
+  `pll: "PROGRAMA DE LIDERANÇA PARLAMENTAR (PLL)"` e `estrategia`/`coalizao`
+  em `null`. `src/frontend/components/produtos/produto-shell.tsx` (linha do
+  `tituloProduto`) passou a usar
+  `TITULO_AREA_PRODUTO[slug] ?? produto?.nome ?? PRODUTO_SLUGS[slug].label`.
+  `PRODUTO_SLUGS` (hub de produtos, NAV-01) e `ref_produto.nome` **não foram
+  alterados** — o override vive só no mapa novo, consumido só pelo cabeçalho
+  de `ProdutoShell`.
+- **Evidência nova**: `src/frontend/components/produtos/produto-shell.test.tsx:89-96`
+  (`"PLL-SH-01 (Fix 1): título da área do PLL é o nome por extenso, não 'PLL'"`
+  — assert `getByRole("heading", { name: "PROGRAMA DE LIDERANÇA PARLAMENTAR (PLL)" })`
+  e `queryByRole("heading", { name: "PLL" })` ausente) e
+  `produto-shell.test.tsx:98-105` (regressão: Estratégia continua "Estratégia",
+  Coalizão continua "Coalizão" — exigiu tornar o mock de `useProdutoAtual`
+  dinâmico por slug, linhas 21-26 do mesmo arquivo, porque o mock antigo
+  devolvia sempre `nome: "Estratégia"` independente do slug pedido).
+- **Rodado**: `npx vitest run src/frontend/components/produtos/produto-shell.test.tsx`
+  — 9/9 passed.
+
+### Fix 2 (PLL-AG-12, D-14, Assessor bloqueado da Agenda do PLL)
+
+- **Investigação (Step 1 da Knowledge Verification Chain, antes de qualquer código)**:
+  lida a policy `p_por_contrato` de `fat_encontro`/`fat_contrato`/`fat_registro`
+  em `supabase/migrations/20260813192341_incidencia_encontros_rls.sql` —
+  recorta só por `id_contrato = ANY(app.contratos_do_usuario())`
+  (`app.contratos_do_usuario()`, `supabase/migrations/0011_fundacao_rls.sql:21-26`,
+  lê `rel_usuario_contrato` por vínculo, sem olhar `papel_global` nem produto).
+  `legisla_assessor` tem `GRANT SELECT` em `fat_encontro`
+  (`supabase/migrations/20260813192816_incidencia_encontros_grants.sql:51`).
+  Conclusão: a RLS de hoje implementa "cada papel só vê a própria carteira",
+  **não** "Assessor nunca vê PLL" — um Assessor vinculado como `assessor` a um
+  contrato do PLL em `rel_usuario_contrato` passaria na RLS e veria os
+  Encontros desse contrato pela Agenda. D-14 pede um bloqueio a mais
+  (papel × produto) que nenhuma migration deste repo implementa. Por isso o
+  fix é o gate de UI descrito na spec como "menor fix correto", não uma
+  suposição de que a RLS já resolvia — **nenhuma migration de RLS nova foi
+  escrita** (risco de acerto em tabela compartilhada entre 3 produtos, banco
+  de dev compartilhado, sem certeza suficiente nesta sessão).
+- **O que foi feito**: `GateAssessorPll` (novo componente, wrapper) em
+  `src/frontend/app/(app)/produtos/[slug]/agenda/page.tsx` — lê `usePapelGlobal()`
+  (mesmo hook de `pll-cadastro-participantes`/PLL-CP-23 e de
+  `/visao-gerencial`/GER-01), mostra `<CarregandoSkeleton>` enquanto carrega e
+  `<NaoAutorizado titulo="Sem acesso à área do PLL" .../>` quando
+  `papel === "assessor"`; caso contrário renderiza `<PllAgendaPage />` normalmente.
+  O ramo `slug === "pll"` em `ProdutoAgendaPage` passou a envolver
+  `<PllAgendaPage />` com `<GateAssessorPll>`. Comentário no código documenta
+  explicitamente que é um gate de UI complementar, não uma promessa de RLS
+  nova (ver comentário acima de `GateAssessorPll` no arquivo).
+- **Evidência nova**: `src/frontend/app/(app)/produtos/[slug]/agenda/page.test.tsx`,
+  describe `"Gate Assessor no PLL (Fix 2, PLL-AG-12)"` — teste
+  `"papel Assessor: Agenda do PLL não renderiza, aparece estado de acesso restrito"`
+  (assert texto "Sem acesso à área do PLL", `queryByRole("grid")` ausente,
+  `buscarEncontrosDoMesPll` nunca chamada) e teste
+  `"papel Mentor (não-Assessor): Agenda do PLL renderiza normalmente (regressão)"`
+  (grid aparece, mensagem de bloqueio ausente). Exigiu mockar
+  `@/hooks/use-papel-global` no arquivo de teste (antes não existia mock —
+  sem ele o hook real chamaria `createClient().auth.getUser()` contra o
+  client fake `{}` e quebraria todos os testes de Agenda já existentes);
+  default do mock em `beforeEach` é `papel: "gestora"`, para não alterar o
+  comportamento dos testes pré-existentes.
+- **Rodado**: `npx vitest run "src/frontend/app/(app)/produtos/[slug]/agenda/page.test.tsx"`
+  — 38/38 passed (36 pré-existentes + 2 novos).
+- **Limitação residual, documentada e não corrigida nesta sessão**: o gate é
+  só de UI (client-side). A proteção de dado real continua sendo a RLS
+  existente, que já impede um Assessor de ver contratos fora da própria
+  carteira — mas **não** impede, por si só, um Assessor vinculado a um
+  contrato PLL de ler `fat_encontro` desse contrato via API direta (fora
+  desta tela). Fechar esse caso exigiria uma migration de RLS nova
+  (predicado adicional em `fat_encontro`/`fat_contrato` excluindo
+  `papel_atual() = 'assessor'` quando o contrato é do produto PLL), que este
+  fix **não** escreveu, por falta de certeza suficiente sobre o efeito em
+  tabelas compartilhadas com Estratégia/Coalizão no banco de dev
+  compartilhado — risco marcado explicitamente aqui para decisão do Pedro,
+  em vez de arriscar a migration.
+
+### Gate rodado após os 2 fixes
+
+- `npm run test:unit` (repo inteiro): 162 arquivos, 1765 testes, 0 falhas (4
+  `Unhandled Rejection` pré-existentes em
+  `src/frontend/app/(app)/contratos/[id]/fatos-registros/page.test.tsx`, já
+  documentados acima como fora do diff desta feature — confirmado que
+  persistem inalterados após os 2 fixes).
+- `npm run build` (dentro de `src/frontend/`): `next build` compilou,
+  typecheck limpo, todas as rotas geradas, incluindo
+  `/produtos/[slug]/agenda`.
