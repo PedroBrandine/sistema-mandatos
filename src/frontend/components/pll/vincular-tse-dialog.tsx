@@ -68,6 +68,11 @@ export function VincularTseDialog({
     try {
       await onConfirmar(modoManualAtivo ? { ...candidatura, metodoMatch: "manual" } : candidatura);
       onOpenChange(false);
+    } catch {
+      // Erro já é responsabilidade de quem chama (ex.: toast na página que
+      // usa este Dialog) -- aqui só evita que a rejeição escape como
+      // unhandled. O dialog permanece aberto porque `onOpenChange(false)`
+      // não roda neste caminho (PLL-CP-13: erro nunca é decisão explícita).
     } finally {
       setConfirmando(false);
     }
@@ -78,6 +83,8 @@ export function VincularTseDialog({
     try {
       await onNaoEncontrado();
       onOpenChange(false);
+    } catch {
+      // Mesmo raciocínio de `selecionar` acima.
     } finally {
       setMarcandoNaoEncontrado(false);
     }

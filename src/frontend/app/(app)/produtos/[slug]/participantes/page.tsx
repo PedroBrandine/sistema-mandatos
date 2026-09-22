@@ -3,15 +3,20 @@
 import { use, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import {
   buscarCadastroParticipantesPll,
   buscarMetricasCadastroPll,
   upsertCadastroParticipantes,
+  vincularParticipanteAoTse,
+  type ParticipantePll,
 } from "@backend/queries/pll-cadastro";
 import type { ProdutoSlug } from "@backend/queries/produto";
+import { descreveErroDesconhecido } from "@backend/rpc/errors";
 import type { LinhaCadastroPll } from "@backend/schemas/cadastro-participante-pll";
 import { createClient } from "@backend/supabase/client";
+import type { CandidaturaSugerida } from "@backend/types/fundacao";
 
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
 import {
@@ -19,6 +24,7 @@ import {
   type FiltroListaParticipantesPll,
 } from "@/components/pll/lista-participantes-pll";
 import { UploadPlanilhaCard } from "@/components/pll/upload-planilha-card";
+import { VincularTseDialog } from "@/components/pll/vincular-tse-dialog";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
@@ -46,6 +52,29 @@ async function buscarEdicoesAtivas(): Promise<{ id: number; nome: string }[]> {
     .order("nome");
   if (error) throw error;
   return (data ?? []).map((p) => ({ id: p.id_projeto, nome: p.nome }));
+}
+
+// T12 (PLL-CP-11): mesma resolução partido/cargo -> id que mandato-wizard.tsx
+// já faz antes de chamar criarMandato -- sem ela, dim_mandato.id_partido_atual/
+// id_cargo_atual ficam NULL mesmo com candidatura do TSE escolhida
+// (0014_fn_criar_mandato.sql grava exatamente o que `p_mandato` manda, sem
+// resolver `cd_cargo_tse`/sigla de partido sozinho).
+async function buscarCargosAtivos(): Promise<{ idCargo: number; cdCargoTse: number | undefined }[]> {
+  const { data, error } = await createClient()
+    .from("ref_cargo")
+    .select("id_cargo, cd_cargo_tse")
+    .eq("ativo", true);
+  if (error) throw error;
+  return (data ?? []).map((c) => ({ idCargo: c.id_cargo, cdCargoTse: c.cd_cargo_tse ?? undefined }));
+}
+
+async function buscarPartidosAtivos(): Promise<{ idPartido: number; sigla: string }[]> {
+  const { data, error } = await createClient()
+    .from("ref_partido")
+    .select("id_partido, sigla")
+    .eq("ativo", true);
+  if (error) throw error;
+  return (data ?? []).map((p) => ({ idPartido: p.id_partido, sigla: p.sigla }));
 }
 
 export default function ProdutoParticipantesPage({
@@ -80,6 +109,8 @@ function ParticipantesPllPage() {
   const [idProjetoSelecionado, setIdProjetoSelecionado] = useState<number | undefined>(undefined);
   const [filtro, setFiltro] = useState<FiltroListaParticipantesPll>({});
   const [pagina, setPagina] = useState(1);
+  // T12: linha em processo de vínculo TSE -- presente = VincularTseDialog aberto.
+  const [participanteParaVincular, setParticipanteParaVincular] = useState<ParticipantePll | null>(null);
 
   // Edição escolhida define pra onde a importação grava (D-4: o upsert exige
   // idProjeto). SPEC-PRECISION GAP: nem spec.md nem design.md dizem qual
@@ -156,6 +187,55 @@ function ParticipantesPllPage() {
     },
   });
 
+  const { data: cargos } = useQuery({ queryKey: ["ref-cargo-ativos"], queryFn: buscarCargosAtivos });
+  const { data: partidosRef } = useQuery({ queryKey: ["ref-partido-ativos"], queryFn: buscarPartidosAtivos });
+
+  // T12 (PLL-CP-10, PLL-CP-11, PLL-CP-12): vínculo TSE via vincularParticipanteAoTse
+  // (T10) -- sucesso invalida a MESMA queryKey da lista (["pll-cadastro-lista"]),
+  // então o indicador ✓ chega por refetch normal do react-query, nunca por
+  // reload de página inteira (Done-when de T12).
+  const { mutateAsync: vincularTse } = useMutation({
+    mutationFn: (input: { participante: ParticipantePll; candidatura: CandidaturaSugerida }) => {
+      const idPartido = partidosRef?.find((p) => p.sigla === input.candidatura.sgPartido)?.idPartido ?? null;
+      const idCargo = cargos?.find((c) => c.cdCargoTse === input.candidatura.cdCargo)?.idCargo ?? null;
+      return vincularParticipanteAoTse(createClient(), {
+        idCadastroParticipante: input.participante.idCadastroParticipante,
+        idProduto: idProduto as number,
+        idProjeto: idProjetoEfetivo ?? null,
+        candidatura: {
+          ano_eleicao: input.candidatura.anoEleicao,
+          sq_candidato: input.candidatura.sqCandidato,
+          nr_turno: input.candidatura.nrTurno,
+          metodo_match: input.candidatura.metodoMatch,
+          confianca: input.candidatura.confianca,
+        },
+        contratante: {
+          nome:
+            input.candidatura.nmUrna ??
+            input.candidatura.nmCandidato ??
+            input.participante.nomeParlamentar ??
+            input.participante.nomeCompleto,
+          sg_uf: input.candidatura.sgUf ?? null,
+        },
+        mandato: {
+          nm_civil: input.candidatura.nmCandidato ?? null,
+          nm_urna: input.candidatura.nmUrna ?? null,
+          nr_titulo_eleitoral: input.candidatura.nrTituloEleitoral ?? null,
+          id_partido_atual: idPartido,
+          id_cargo_atual: idCargo,
+        },
+        // PLL-CP-12: já vinculado (troca) -- reaproveita o mesmo contratante,
+        // preservando histórico em rel_mandato_candidatura (T10).
+        idContratanteExistente: input.participante.idContrato ?? undefined,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-lista"] });
+      void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-opcoes-filtro"] });
+      void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-metricas"] });
+    },
+  });
+
   if (carregandoProduto || carregandoEdicoes) {
     return <CarregandoSkeleton variante="cards" />;
   }
@@ -223,6 +303,31 @@ function ParticipantesPllPage() {
           onPaginaChange={setPagina}
           partidos={partidos}
           ufs={ufs}
+          onVincularTse={setParticipanteParaVincular}
+        />
+      )}
+
+      {participanteParaVincular && (
+        <VincularTseDialog
+          open
+          onOpenChange={(aberto) => {
+            if (!aberto) setParticipanteParaVincular(null);
+          }}
+          participante={participanteParaVincular}
+          onConfirmar={async (candidatura) => {
+            try {
+              await vincularTse({ participante: participanteParaVincular, candidatura });
+            } catch (erro) {
+              // PLL-CP-11 edge case: candidatura já vinculada a outro
+              // participante do mesmo contrato (dim_contratante UNIQUE) chega
+              // aqui já mapeada por mapeiaErroRpc (T10) -- nunca uma frase
+              // genérica (AD-005). Relança pra VincularTseDialog NÃO fechar
+              // (PLL-CP-13: erro não é uma decisão explícita).
+              toast.error(descreveErroDesconhecido(erro));
+              throw erro;
+            }
+          }}
+          onNaoEncontrado={() => {}}
         />
       )}
     </div>
