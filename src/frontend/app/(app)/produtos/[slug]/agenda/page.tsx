@@ -13,15 +13,24 @@ import {
   buscarOpcoesProjeto,
   type EncontroAgenda,
 } from "@backend/queries/agenda";
+import {
+  buscarEncontrosDoMesPll,
+  buscarOpcoesEdicaoPll,
+  buscarOpcoesMentoradoPll,
+  buscarOpcoesMentorPll,
+  resolverIdsContratoPorMentorEMentorado,
+  type EncontroAgendaPll,
+} from "@backend/queries/pll-agenda";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { buscarRegistrosDaAgenda, type RegistroAgenda } from "@backend/queries/registros-agenda";
 import { marcarPresenca } from "@backend/rpc/encontro";
 import { descreveErroDesconhecido } from "@backend/rpc/errors";
 import { createClient } from "@backend/supabase/client";
 
-import { AgendaMes, hojeNoFusoDoProduto } from "@/components/estrategia/agenda-mes";
+import { AgendaMes, diaNoFusoDoProduto, hojeNoFusoDoProduto } from "@/components/estrategia/agenda-mes";
 import { EncontroPopover } from "@/components/estrategia/encontro-popover";
 import { FiltrosAgenda, type ValorFiltrosAgenda } from "@/components/estrategia/filtros-agenda";
+import { FiltrosAgendaPll, type ValorFiltrosAgendaPll } from "@/components/pll/filtros-agenda-pll";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
@@ -87,10 +96,10 @@ export default function ProdutoAgendaPage({
 
   // pll-dashboard-agenda T3 (PLL-SH-03, PLL-SH-04): a Agenda do PLL é rota
   // própria por slug (D-6/D-4, spec.md) -- mesmo padrão do design.md ("Tech
-  // Decisions"). Placeholder aqui; T15 substitui pela Agenda real do PLL.
-  // Estratégia e Coalizão seguem pelo componente existente, sem alteração.
+  // Decisions"). T15 monta a Agenda real do PLL. Estratégia e Coalizão seguem
+  // pelo componente existente, sem alteração.
   if (slug === "pll") {
-    return <PllAgendaPagePlaceholder />;
+    return <PllAgendaPage />;
   }
 
   return <EstrategiaAgendaPage slug={slug} />;
@@ -310,15 +319,303 @@ function EstrategiaAgendaPage({ slug }: { slug: ProdutoSlug }) {
   );
 }
 
-// pll-dashboard-agenda T3: placeholder até T13-T15 montarem a Agenda real do
-// PLL (grade mensal de Encontros, filtros por mentor(a)/mentorado/edição,
-// lista "Encontros do mês").
-function PllAgendaPagePlaceholder() {
+// pll-dashboard-agenda T15 (design.md "Existing Components to Leverage",
+// PLL-AG-01…12). Agenda real do PLL: mesma grade (`AgendaMes`) e popover
+// (`EncontroPopover`) da Estratégia, SEM alteração -- só o filtro e a lista
+// abaixo mudam (D-4/D-6).
+//
+// D-6(a): a lista "Encontros do mês" (PLL-AG-09) usa rótulo e colunas
+// próprios (Status/Data/Título/Mentor(a)), diferentes de "Registros de
+// Agenda" (Tipo/Data/Resumo/Autor) -- são leituras diferentes (Encontro vs
+// Registro, mesma distinção que a spec cobra na seção "Vocabulário").
+//
+// SPEC-PRECISION GAP (D-6/PLL-AG-07): `AgendaMes` tem legenda própria
+// embutida (Agendada/Realizada, 2 status, cores diferentes das exigidas por
+// D-6) que este ajuste NÃO altera -- mexer nela mudaria a grade de
+// Estratégia/Coalizão também, fora do "Reuses: AgendaMes sem alteração" do
+// design.md. Esta página renderiza a legenda de 4 status exigida por
+// PLL-AG-07 (Planejado/Realizado/Remarcado/Cancelado, cores de D-6) como
+// elemento PRÓPRIO logo acima da grade -- a legenda embutida de AgendaMes
+// continua visível também, e essa duplicidade visual é o gap registrado
+// aqui para o Pedro decidir (silenciar a de AgendaMes exigiria tocar o
+// componente compartilhado).
+const STATUS_LABEL_PLL: Record<EncontroAgenda["status"], string> = {
+  planejado: "Planejado",
+  realizado: "Realizado",
+  remarcado: "Remarcado",
+  cancelado: "Cancelado",
+};
+
+// D-6(c): paleta única com a Agenda (Planejado vinho, Realizado verde,
+// Remarcado âmbar, Cancelado cinza) -- mesmos tokens de STATUS_CLASS em
+// agenda-mes.tsx, reaproveitados aqui por valor (constantes, não import de
+// símbolo não-exportado).
+const STATUS_BADGE_CLASS_PLL: Record<EncontroAgenda["status"], string> = {
+  planejado: "bg-secondary text-secondary-foreground",
+  realizado: "bg-chart-4 text-foreground",
+  remarcado: "bg-chart-2 text-foreground",
+  cancelado: "bg-muted text-muted-foreground",
+};
+
+const STATUS_DOT_CLASS_PLL: Record<EncontroAgenda["status"], string> = {
+  planejado: "bg-secondary",
+  realizado: "bg-chart-4",
+  remarcado: "bg-chart-2",
+  cancelado: "bg-muted-foreground",
+};
+
+// "DD/mmm" (PLL-AG-09) -- mesmo cuidado de fuso de diaNoFusoDoProduto (o dia
+// exibido é o que conta pro Encontro: dt_realizada se realizado, senão
+// dt_prevista_inicio, mesma regra de AgendaMes/montarCelulas).
+const NOMES_MES_ABREV_PLL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function dataEncontroPll(encontro: EncontroAgendaPll): string {
+  const iso = encontro.status === "realizado" ? encontro.dtRealizada : encontro.dtPrevistaInicio;
+  if (!iso) return "—";
+  const dia = diaNoFusoDoProduto(iso);
+  const [, mes, diaDoMes] = dia.split("-");
+  const indice = Number(mes) - 1;
+  return `${diaDoMes}/${NOMES_MES_ABREV_PLL[indice] ?? mes}`;
+}
+
+function LegendaStatusPll() {
   return (
-    <EstadoVazio
-      titulo="Agenda do PLL em construção"
-      mensagem="A grade mensal de Encontros e a lista do mês chegam nas próximas tasks."
-    />
+    <ul className="flex flex-wrap items-center gap-4">
+      {(Object.keys(STATUS_LABEL_PLL) as EncontroAgenda["status"][]).map((status) => (
+        <li key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span aria-hidden="true" className={cn("size-2 rounded-full", STATUS_DOT_CLASS_PLL[status])} />
+          {STATUS_LABEL_PLL[status]}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// PLL-AG-09: uma linha por Encontro do recorte, Status/Data/Título/Mentor(a),
+// contador "N encontros neste mês". PLL-AG-10: mês sem Encontro no recorte
+// mostra o estado explicativo aqui (a grade continua inteira, AD-005).
+function ListaEncontrosPll({ encontros, mesSemEncontro }: { encontros: EncontroAgendaPll[]; mesSemEncontro: boolean }) {
+  return (
+    <section className="grid gap-3">
+      <div className="grid gap-0.5">
+        <h2 className="font-heading text-xl">Encontros do mês</h2>
+        <p className="text-sm text-muted-foreground">
+          {encontros.length === 1 ? "1 encontro neste mês" : `${encontros.length} encontros neste mês`}
+        </p>
+      </div>
+
+      {encontros.length === 0 ? (
+        <EstadoVazio
+          titulo={mesSemEncontro ? "Nenhum encontro neste mês" : "Nenhum encontro no recorte"}
+          mensagem={
+            mesSemEncontro
+              ? "Este mês não tem encontro agendado, por isso a grade está vazia. Use as setas para navegar até outro mês."
+              : "Os filtros aplicados não correspondem a nenhum encontro deste mês."
+          }
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Status</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Título</TableHead>
+              <TableHead>Mentor(a)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {encontros.map((encontro) => (
+              <TableRow key={encontro.idEncontro}>
+                <TableCell>
+                  <Badge className={cn(STATUS_BADGE_CLASS_PLL[encontro.status], "font-bold")}>
+                    {STATUS_LABEL_PLL[encontro.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell>{dataEncontroPll(encontro)}</TableCell>
+                <TableCell>{encontro.titulo}</TableCell>
+                {/* AD-005: contrato sem mentor pareado mostra "—". */}
+                <TableCell>{encontro.nomeMentor ?? "—"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </section>
+  );
+}
+
+function PllAgendaPage() {
+  const { data: produto, isLoading: carregandoProduto } = useProdutoAtual("pll");
+  const idProduto = produto?.idProduto;
+
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // L-002: o relógio é lido AQUI, uma vez -- mesmo padrão de EstrategiaAgendaPage.
+  const hoje = useMemo(() => hojeNoFusoDoProduto(new Date()), []);
+  const [periodo, setPeriodo] = useState<{ ano: number; mes: number }>(() => mesDoDia(hoje));
+  const [idEncontroSelecionado, setIdEncontroSelecionado] = useState<number | null>(null);
+  const [filtro, setFiltro] = useState<ValorFiltrosAgendaPll>({});
+
+  const { data: mentores } = useQuery({
+    queryKey: ["pll-agenda-opcoes-mentor", idProduto],
+    queryFn: () => buscarOpcoesMentorPll(createClient(), idProduto as number),
+    enabled: idProduto !== undefined,
+  });
+  const { data: mentorados } = useQuery({
+    queryKey: ["pll-agenda-opcoes-mentorado", idProduto],
+    queryFn: () => buscarOpcoesMentoradoPll(createClient(), idProduto as number),
+    enabled: idProduto !== undefined,
+  });
+  const { data: edicoes } = useQuery({
+    queryKey: ["pll-agenda-opcoes-edicao", idProduto],
+    queryFn: () => buscarOpcoesEdicaoPll(createClient(), idProduto as number),
+    enabled: idProduto !== undefined,
+  });
+
+  const chaveEncontros = ["pll-agenda-encontros", idProduto, periodo.ano, periodo.mes, filtro] as const;
+
+  // PLL-AG-06: ano/mes na queryKey -- trocar de mês é consulta nova.
+  const {
+    data: encontros,
+    isLoading: carregandoEncontros,
+    isError: erroEncontros,
+    refetch: refetchEncontros,
+  } = useQuery({
+    queryKey: chaveEncontros,
+    queryFn: () =>
+      buscarEncontrosDoMesPll(createClient(), {
+        idProduto: idProduto as number,
+        ano: periodo.ano,
+        mes: periodo.mes,
+        ...filtro,
+      }),
+    enabled: idProduto !== undefined,
+  });
+
+  // D-10: "Novo agendamento" habilitado só com exatamente 1 mentorado no
+  // filtro -- resolve o id_contrato daquele mentorado (D-12: 1 mentorado ↔ 1
+  // contrato) pra saber pra onde navegar.
+  const idMentoradoUnico = filtro.idsMentorado?.length === 1 ? filtro.idsMentorado[0] : undefined;
+  const { data: idsContratoDoMentoradoUnico } = useQuery({
+    queryKey: ["pll-agenda-contrato-mentorado-unico", idProduto, idMentoradoUnico],
+    queryFn: () =>
+      resolverIdsContratoPorMentorEMentorado(createClient(), idProduto as number, undefined, [
+        idMentoradoUnico as number,
+      ]),
+    enabled: idProduto !== undefined && idMentoradoUnico !== undefined,
+  });
+  const idContratoUnico = idsContratoDoMentoradoUnico?.[0];
+
+  // O popover conta os Registros do Encontro selecionado -- mesma fonte
+  // genérica de EstrategiaAgendaPage (buscarRegistrosDaAgenda, sem alteração
+  // nela), recortada por `idEncontro` -- basta pra alimentar o popover de UM
+  // encontro; o recorte de mentor(a)/mentorado da barra de filtro não precisa
+  // se repetir aqui (o encontro selecionado já é um só, dentro do recorte).
+  const { data: registros } = useQuery({
+    queryKey: ["pll-agenda-registros", idProduto, periodo.ano, periodo.mes, idEncontroSelecionado],
+    queryFn: () =>
+      buscarRegistrosDaAgenda(createClient(), {
+        idProduto: idProduto as number,
+        ano: periodo.ano,
+        mes: periodo.mes,
+        idEncontro: idEncontroSelecionado ?? undefined,
+      }),
+    enabled: idProduto !== undefined && idEncontroSelecionado !== null,
+  });
+
+  const encontroSelecionado = encontros?.find((e) => e.idEncontro === idEncontroSelecionado) ?? null;
+
+  const {
+    mutate: marcarPresencaNoEncontro,
+    isPending: marcandoPresenca,
+    error: erroPresencaBruto,
+    reset: limparErroPresenca,
+  } = useMutation({
+    mutationFn: (input: { idEncontro: number }) => marcarPresenca(createClient(), input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chaveEncontros });
+      void queryClient.invalidateQueries({ queryKey: ["pll-agenda-registros"] });
+    },
+  });
+  const erroPresenca = erroPresencaBruto ? descreveErroDesconhecido(erroPresencaBruto) : null;
+
+  function irParaMes(destino: { ano: number; mes: number }) {
+    setIdEncontroSelecionado(null);
+    limparErroPresenca();
+    setPeriodo(destino);
+  }
+
+  function selecionarEncontro(encontro: EncontroAgenda) {
+    limparErroPresenca();
+    setIdEncontroSelecionado(encontro.idEncontro);
+  }
+
+  if (carregandoProduto || carregandoEncontros) {
+    return <CarregandoSkeleton variante="cards" />;
+  }
+
+  if (erroEncontros) {
+    return (
+      <ErroInline
+        mensagem="Não foi possível carregar os encontros da Agenda."
+        onRetry={() => refetchEncontros()}
+      />
+    );
+  }
+
+  const encontrosDoMes = encontros ?? [];
+
+  return (
+    <div className="grid gap-6">
+      <FiltrosAgendaPll
+        filtro={filtro}
+        onChange={setFiltro}
+        mentores={mentores ?? []}
+        mentorados={mentorados ?? []}
+        edicoes={edicoes ?? []}
+      />
+
+      {/* SPEC-PRECISION GAP documentado acima da PllAgendaPage: legenda
+          própria de 4 status (PLL-AG-07), além da legenda embutida em
+          AgendaMes (2 status, rótulos diferentes). */}
+      <LegendaStatusPll />
+
+      <AgendaMes
+        ano={periodo.ano}
+        mes={periodo.mes}
+        encontros={encontrosDoMes}
+        hoje={hoje}
+        onMudarMes={irParaMes}
+        onSelecionarEncontro={selecionarEncontro}
+        onNovoAgendamento={() => {
+          if (idContratoUnico !== undefined) {
+            router.push(`/contratos/${idContratoUnico}/encontros`);
+          }
+        }}
+        novoAgendamentoDesabilitado={idContratoUnico === undefined}
+        motivoNovoAgendamentoDesabilitado="Selecione um único mentorado no filtro para agendar um novo encontro."
+      />
+
+      {encontroSelecionado && (
+        <EncontroPopover
+          encontro={encontroSelecionado}
+          registros={registros ?? []}
+          hoje={hoje}
+          aberto
+          onAbertoChange={(estaAberto) => {
+            if (!estaAberto) setIdEncontroSelecionado(null);
+          }}
+          onMarcarPresenca={(input) => marcarPresencaNoEncontro(input)}
+          onAdicionarRegistro={(input) => router.push(`/contratos/${input.idContrato}/encontros`)}
+          marcandoPresenca={marcandoPresenca}
+          erroPresenca={erroPresenca}
+        >
+          <span className="sr-only">Detalhe do encontro {encontroSelecionado.titulo}</span>
+        </EncontroPopover>
+      )}
+
+      <ListaEncontrosPll encontros={encontrosDoMes} mesSemEncontro={encontrosDoMes.length === 0} />
+    </div>
   );
 }
 

@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { Suspense } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T30b
@@ -57,6 +57,11 @@ const mocks = vi.hoisted(() => ({
   buscarRegistrosDaAgenda: vi.fn(),
   marcarPresenca: vi.fn(),
   push: vi.fn(),
+  buscarEncontrosDoMesPll: vi.fn(),
+  buscarOpcoesMentorPll: vi.fn(),
+  buscarOpcoesMentoradoPll: vi.fn(),
+  buscarOpcoesEdicaoPll: vi.fn(),
+  resolverIdsContratoPorMentorEMentorado: vi.fn(),
 }));
 
 // importOriginal preserva FUSO_HORARIO_PRODUTO: sem ele o offset lido por
@@ -76,6 +81,16 @@ vi.mock("@backend/queries/agenda", async (importOriginal) => ({
 
 vi.mock("@backend/queries/registros-agenda", () => ({
   buscarRegistrosDaAgenda: mocks.buscarRegistrosDaAgenda,
+}));
+
+// pll-dashboard-agenda T15: as 5 leituras da Agenda real do PLL.
+vi.mock("@backend/queries/pll-agenda", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@backend/queries/pll-agenda")>()),
+  buscarEncontrosDoMesPll: mocks.buscarEncontrosDoMesPll,
+  buscarOpcoesMentorPll: mocks.buscarOpcoesMentorPll,
+  buscarOpcoesMentoradoPll: mocks.buscarOpcoesMentoradoPll,
+  buscarOpcoesEdicaoPll: mocks.buscarOpcoesEdicaoPll,
+  resolverIdsContratoPorMentorEMentorado: mocks.resolverIdsContratoPorMentorEMentorado,
 }));
 
 vi.mock("@backend/rpc/encontro", () => ({
@@ -205,6 +220,11 @@ beforeEach(() => {
   mocks.buscarRegistrosDaAgenda.mockReset().mockResolvedValue([]);
   mocks.marcarPresenca.mockReset().mockResolvedValue(undefined);
   mocks.push.mockReset();
+  mocks.buscarEncontrosDoMesPll.mockReset().mockResolvedValue([]);
+  mocks.buscarOpcoesMentorPll.mockReset().mockResolvedValue([]);
+  mocks.buscarOpcoesMentoradoPll.mockReset().mockResolvedValue([]);
+  mocks.buscarOpcoesEdicaoPll.mockReset().mockResolvedValue([]);
+  mocks.resolverIdsContratoPorMentorEMentorado.mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -606,11 +626,11 @@ describe("Agenda — rótulos da lista de Registros (FMC-33)", () => {
   });
 });
 
-// pll-dashboard-agenda T3 (PLL-SH-03, PLL-SH-04): roteamento por slug --
-// "pll" renderiza um placeholder próprio (populado em T13-T15); os demais
-// slugs continuam pelo componente existente da Estratégia/Coalizão, sem
-// alteração de comportamento (regressão coberta pelos describes acima, que
-// usam renderizarAgenda() -> slug "estrategia").
+// pll-dashboard-agenda T3 (PLL-SH-03, PLL-SH-04): roteamento por slug -- "pll"
+// renderiza a Agenda real do PLL (T15); os demais slugs continuam pelo
+// componente existente da Estratégia/Coalizão, sem alteração de
+// comportamento (regressão coberta pelos describes acima, que usam
+// renderizarAgenda() -> slug "estrategia").
 describe("Agenda — roteamento por slug (pll-dashboard-agenda T3)", () => {
   function renderizarComSlug(slug: string) {
     const queryClient = new QueryClient({
@@ -625,10 +645,10 @@ describe("Agenda — roteamento por slug (pll-dashboard-agenda T3)", () => {
     );
   }
 
-  it("slug='pll' renderiza o placeholder do PLL, sem tocar nas queries da Estratégia", () => {
+  it("slug='pll' renderiza a Agenda real do PLL, sem tocar nas queries da Estratégia", async () => {
     renderizarComSlug("pll");
 
-    expect(screen.getByText("Agenda do PLL em construção")).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Filtrar por mentor(a)" })).toBeInTheDocument();
     expect(mocks.buscarEncontrosDoMes).not.toHaveBeenCalled();
   });
 
@@ -636,6 +656,102 @@ describe("Agenda — roteamento por slug (pll-dashboard-agenda T3)", () => {
     renderizarComSlug("coalizao");
 
     expect(await aguardarGrade()).toBeInTheDocument();
-    expect(screen.queryByText("Agenda do PLL em construção")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Filtrar por mentor(a)" })).not.toBeInTheDocument();
+  });
+});
+
+// pll-dashboard-agenda T15 (PLL-AG-01…12). AD-042 (não AD-046): esta página
+// grava (marcar presença), mesmo raciocínio já registrado no topo do arquivo
+// para EstrategiaAgendaPage -- mas o recorte aqui é o caminho feliz de cada
+// AC novo (grade, filtros, lista, D-10), não uma réplica integral da suíte
+// de EST-12/EST-13 (já coberta acima para o motor compartilhado).
+describe("Agenda do PLL (T15)", () => {
+  const ENCONTRO_PLL: EncontroAgenda & { nomeMentor: string | null } = {
+    idEncontro: 900,
+    idContrato: 50,
+    nomeContratante: "Dep. João Silva",
+    titulo: "Mentoria 2",
+    status: "planejado",
+    dtPrevistaInicio: "2026-09-15T14:00:00-03:00",
+    dtPrevistaFim: null,
+    dtRealizada: null,
+    nomeEtapa: null,
+    nomeTipo: "Mentoria",
+    modalidade: null,
+    local: null,
+    temaPrioritario: null,
+    participantes: [],
+    nomeMentor: "Carla Mentora",
+  };
+
+  function renderizarAgendaPll() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <Suspense fallback={<p>carregando</p>}>
+          <ProdutoAgendaPage params={paramsProntos("pll")} />
+        </Suspense>
+      </QueryClientProvider>
+    );
+  }
+
+  it("monta a grade, os 3 filtros e a lista 'Encontros do mês' (PLL-AG-01/08/09)", async () => {
+    mocks.buscarEncontrosDoMesPll.mockResolvedValue([ENCONTRO_PLL]);
+    mocks.buscarOpcoesMentorPll.mockResolvedValue([{ id: 1, nome: "Carla Mentora" }]);
+    mocks.buscarOpcoesMentoradoPll.mockResolvedValue([{ id: 2, nome: "Ana Souza" }]);
+    mocks.buscarOpcoesEdicaoPll.mockResolvedValue([{ id: 10, nome: "2026.1" }]);
+
+    renderizarAgendaPll();
+
+    expect(await screen.findByRole("grid")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por mentor(a)" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por mentorado" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por edição" })).toBeInTheDocument();
+    expect(screen.getByText("Encontros do mês")).toBeInTheDocument();
+    expect(screen.getByText("1 encontro neste mês")).toBeInTheDocument();
+    // Coluna Mentor(a) da lista (D-6a) -- "Carla Mentora" aparece pelo menos
+    // na linha da lista (pode repetir se também vier no filtro).
+    expect(screen.getAllByText("Carla Mentora").length).toBeGreaterThan(0);
+  });
+
+  it("mês sem Encontro no recorte mostra o estado explicativo na lista (PLL-AG-10)", async () => {
+    mocks.buscarEncontrosDoMesPll.mockResolvedValue([]);
+
+    renderizarAgendaPll();
+    await screen.findByRole("grid");
+
+    expect(screen.getByText("Nenhum encontro neste mês")).toBeInTheDocument();
+  });
+
+  it("'Novo agendamento' fica desabilitado sem exatamente 1 mentorado no filtro (D-10)", async () => {
+    renderizarAgendaPll();
+    await screen.findByRole("grid");
+
+    const botao = screen.getByRole("button", { name: /Novo agendamento/ });
+    expect(botao).toBeDisabled();
+  });
+
+  it("com exatamente 1 mentorado no filtro, o botão habilita e navega pro contrato dele (D-10)", async () => {
+    mocks.buscarOpcoesMentoradoPll.mockResolvedValue([{ id: 2, nome: "Ana Souza" }]);
+    mocks.resolverIdsContratoPorMentorEMentorado.mockResolvedValue([50]);
+
+    renderizarAgendaPll();
+    await screen.findByRole("grid");
+
+    // O Popover é mockado no topo do arquivo para renderizar o conteúdo
+    // direto (sem gating open/closed) quando não recebe `open` -- mesmo
+    // padrão comprovado em multi-select-pesquisavel.test.tsx: a opção já está
+    // acessível por role sem precisar abrir o combobox antes, e a seleção
+    // exige `fireEvent.click` (Radix reage a pointer events, não ao `.click()`
+    // sintético do DOM puro).
+    fireEvent.click(await screen.findByRole("option", { name: "Ana Souza" }));
+
+    const botao = await screen.findByRole("button", { name: /Novo agendamento/ });
+    await waitFor(() => expect(botao).not.toBeDisabled());
+
+    fireEvent.click(botao);
+    expect(mocks.push).toHaveBeenCalledWith("/contratos/50/encontros");
   });
 });
