@@ -15,6 +15,21 @@ for the full flow (per-task cycle, sub-agent delegation, adequacy review, Verifi
 
 ---
 
+## ⚠️ Bloqueio para merge em `master` (achado no T1, 2026-09-22)
+
+A migration de T1 (`fat_contrato.origem_encerramento`) adiciona `ck_contrato_origem_obrigatoria`, que exige
+`origem_encerramento` preenchido sempre que `status = 'nao_concluido'` — **em qualquer produto**, não só
+PLL (a coluna é de `fat_contrato`, compartilhada, AD-012). `atualizarStatusContrato`
+(`src/backend/rpc/contrato.ts`) e `ContratoForm` (`src/frontend/components/fundacao/contrato-form.tsx`)
+ainda gravam `nao_concluido` só com `motivo_encerramento`, sem `origem_encerramento`. Confirmado: nenhum
+teste automatizado hoje exercita esse caminho contra o banco real (só um mock em
+`contrato.test.ts:68-77`), então nada quebrou na suíte — mas qualquer uso real de "encerrar contrato" em
+Estratégia/Coalizão/PLL, a partir de agora, falha com `23514`. **Precisa de correção antes de qualquer PR
+para `master`** — ajustar `atualizarStatusContrato`/`ContratoForm`/`schemas/contrato.ts` para
+exigir/aceitar `origem_encerramento` (ou revisar a constraint), fora do escopo de T1-T19 desta spec.
+
+---
+
 ## Test Coverage Matrix
 
 > Generated from codebase sampling. Guidelines found: `CLAUDE.md` (root — comandos `test:unit`/
@@ -248,9 +263,9 @@ testes correspondentes
 **Tools**: MCP: `figma` (conferir `44:477` antes de fechar). Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] 5 cards em 5 colunas dentro do contêiner (sem estourar margem — corrige o defeito do frame)
-- [ ] Atingimento sem afordância de edição (AD-003); `—` quando não há planejamento
-- [ ] `npm run test:unit` verde
+- [x] 5 cards em 5 colunas dentro do contêiner (sem estourar margem — corrige o defeito do frame)
+- [x] Atingimento sem afordância de edição (AD-003); `—` quando não há planejamento
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -270,8 +285,8 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] 4 séries empilhadas, cores conforme D-6 (paleta única com a Agenda)
-- [ ] `npm run test:unit` verde
+- [x] 4 séries empilhadas, cores conforme D-6 (paleta única com a Agenda)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -291,8 +306,8 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Busca, ordenação por coluna clicável, `—` em célula ausente, clique navega para o contrato
-- [ ] `npm run test:unit` verde
+- [x] Busca, ordenação por coluna clicável, `—` em célula ausente, clique navega para o contrato
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -312,8 +327,8 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] "Hoje às HH:mm" / "Ontem às HH:mm" / "DD Mmm, AAAA" conforme a regra; `—` para `resumo` nulo
-- [ ] `npm run test:unit` verde
+- [x] "Hoje às HH:mm" / "Ontem às HH:mm" / "DD Mmm, AAAA" conforme a regra; `—` para `resumo` nulo
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -333,9 +348,9 @@ testes correspondentes
 **Tools**: MCP: `figma`. Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Filtro por mentor(a)/edição recorta todos os 4 blocos
-- [ ] Falha de 1 bloco não derruba os outros (`ErroInline` local)
-- [ ] `npm run lint:all && npm run build && npm run test:unit` verdes
+- [x] Filtro por mentor(a)/edição recorta todos os 4 blocos
+- [x] Falha de 1 bloco não derruba os outros (`ErroInline` local)
+- [x] `npm run lint:all && npm run build && npm run test:unit` verdes
 
 **Tests**: unit
 **Gate**: build
@@ -355,8 +370,8 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] 3 Selects múltiplos, mesmo padrão visual da Agenda atual
-- [ ] `npm run test:unit` verde
+- [x] 3 Selects múltiplos, mesmo padrão visual da Agenda atual
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -376,8 +391,8 @@ testes correspondentes
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] 3 funções retornam `OpcaoAgenda[]` recortadas a contratos do produto PLL
-- [ ] `npm run test:unit` verde
+- [x] 3 funções retornam `OpcaoAgenda[]` recortadas a contratos do produto PLL
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -399,10 +414,10 @@ testes correspondentes
 **Tools**: MCP: `figma`. Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Grade mostra todas as semanas do mês (corrige o defeito do frame `379:4`)
-- [ ] Lista renomeada para "Encontros do mês", colunas Status/Data/Título/Mentor(a) (D-6)
-- [ ] Botão "Novo agendamento" segue a regra de D-10
-- [ ] `npm run lint:all && npm run build && npm run test:unit` verdes
+- [x] Grade mostra todas as semanas do mês (corrige o defeito do frame `379:4`)
+- [x] Lista renomeada para "Encontros do mês", colunas Status/Data/Título/Mentor(a) (D-6)
+- [x] Botão "Novo agendamento" segue a regra de D-10
+- [x] `npm run lint:all && npm run build && npm run test:unit` verdes
 
 **Tests**: unit
 **Gate**: build
