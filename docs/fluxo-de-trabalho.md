@@ -4,7 +4,7 @@ Como uma mudança sai da sua máquina e chega em produção, sem quebrar nada no
 caminho.
 
 `docs/ambientes.md` responde "onde ficam as chaves" e "qual é o link". Este
-documento responde "o que eu faço agora". Última atualização: 07/08/2026.
+documento responde "o que eu faço agora". Última atualização: 22/09/2026.
 
 ---
 
