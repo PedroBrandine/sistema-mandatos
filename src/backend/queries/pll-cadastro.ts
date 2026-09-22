@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { criarMandato, type CandidaturaParaConfirmar } from "../rpc/mandato";
+import type { ContratanteInput } from "../schemas/contratante";
 import type { LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
+import type { MandatoInput } from "../schemas/mandato";
 import type { Database } from "../supabase/database.types";
+import type { MandatoCriado } from "../types/fundacao";
 
 // Escrita direta em fat_cadastro_participante via `.upsert()` (design.md Tech
 // Decisions): N linhas na MESMA tabela, sem invariante multi-tabela -- AD-024
@@ -299,4 +303,53 @@ export async function buscarMetricasCadastroPll(
       ? { data: linhaUltima.importado_em, nomeUsuario: linhaUltima.dim_usuario?.nome ?? "—" }
       : null,
   };
+}
+
+// -----------------------------------------------------------------------------
+// vincularParticipanteAoTse (T10) -- orquestra app.criar_mandato (existente,
+// sem RPC nova -- AD-024, design.md Tech Decisions) e promove a linha de
+// staging (PLL-CP-11): grava id_contrato/id_vinculo_tse resultantes.
+//
+// RetornoCriarMandato/criarMandato (rpc/mandato.ts:33-38,59-65) JÁ expõe
+// idContrato de forma suficiente para esta chamada -- checado antes de codar
+// (task Tools note); nenhum ajuste em mandato.ts foi necessário.
+// -----------------------------------------------------------------------------
+
+export interface ParametrosVincularParticipanteAoTse {
+  idCadastroParticipante: number;
+  idProduto: number;
+  idProjeto?: number | null;
+  candidatura: CandidaturaParaConfirmar;
+  contratante?: ContratanteInput;
+  mandato?: MandatoInput;
+  /** PLL-CP-12 (trocar vínculo): mesmo contratante já existente -- omite
+   * contratante/mandato da chamada (mesmo padrão de mandato-wizard.tsx
+   * `submeter`), preservando o histórico em rel_mandato_candidatura que
+   * app.criar_mandato já garante para esse caso. */
+  idContratanteExistente?: number;
+}
+
+export async function vincularParticipanteAoTse(
+  client: SupabaseClient<Database>,
+  params: ParametrosVincularParticipanteAoTse
+): Promise<MandatoCriado> {
+  const resultado = await criarMandato(client, {
+    contratante: params.idContratanteExistente ? undefined : params.contratante,
+    mandato: params.idContratanteExistente ? undefined : params.mandato,
+    candidatura: params.candidatura,
+    idContratanteExistente: params.idContratanteExistente,
+    contrato: {
+      id_produto: params.idProduto,
+      id_projeto: params.idProjeto ?? null,
+      dt_inicio: new Date().toISOString().slice(0, 10),
+    },
+  });
+
+  const { error } = await client
+    .from("fat_cadastro_participante")
+    .update({ id_contrato: resultado.idContrato, id_vinculo_tse: resultado.idVinculoTse })
+    .eq("id_cadastro_participante", params.idCadastroParticipante);
+  if (error) throw error;
+
+  return resultado;
 }

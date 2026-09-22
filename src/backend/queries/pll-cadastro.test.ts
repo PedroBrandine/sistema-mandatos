@@ -1,9 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
 import type { Database } from "../supabase/database.types";
-import { buscarCadastroParticipantesPll, buscarMetricasCadastroPll, upsertCadastroParticipantes } from "./pll-cadastro";
+
+// T10: vincularParticipanteAoTse chama a criarMandato REAL de rpc/mandato.ts
+// -- mockada aqui pra isolar a orquestração (chamada + UPDATE de staging) do
+// comportamento interno da RPC, que já tem suíte própria.
+const criarMandatoMock = vi.fn();
+vi.mock("../rpc/mandato", () => ({
+  criarMandato: (...args: unknown[]) => criarMandatoMock(...args),
+}));
+
+import {
+  buscarCadastroParticipantesPll,
+  buscarMetricasCadastroPll,
+  upsertCadastroParticipantes,
+  vincularParticipanteAoTse,
+} from "./pll-cadastro";
 
 // Spec anchor: .specs/features/pll-cadastro-participantes/tasks.md T5 "Done when":
 //  - Linha nova insere; linha com e-mail já existente no projeto atualiza (nunca duplica)
@@ -457,5 +471,155 @@ describe("buscarMetricasCadastroPll (T9)", () => {
     ]);
 
     await expect(buscarMetricasCadastroPll(client, { idProduto: 1 })).rejects.toMatchObject({ code: "42501" });
+  });
+});
+
+// Spec anchor: tasks.md T10 "Done when" (PLL-CP-11, PLL-CP-12, PLL-CP-13):
+//  - Chama criarMandato com p_candidatura preenchido, depois UPDATE na staging
+//  - Troca de vínculo preserva histórico (comportamento da RPC, este teste só
+//    confirma que a função não o quebra)
+//  - Erro de dim_contratante UNIQUE propaga (mapeado por mapeiaErroRpc já
+//    DENTRO de criarMandato -- este teste confirma que não é engolido/reescrito)
+function criarClienteMockUpdate(resposta: { error: { message: string; code?: string } | null }) {
+  const chamadas: { metodo: string; args: unknown[] }[] = [];
+  const client = {
+    from: (tabela: string) => {
+      chamadas.push({ metodo: "from", args: [tabela] });
+      return {
+        update: (payload: unknown) => {
+          chamadas.push({ metodo: "update", args: [payload] });
+          return {
+            eq: (...args: unknown[]) => {
+              chamadas.push({ metodo: "eq", args });
+              return Promise.resolve(resposta);
+            },
+          };
+        },
+      };
+    },
+  };
+  return { client: client as unknown as SupabaseClient<Database>, chamadas };
+}
+
+const CANDIDATURA: import("../rpc/mandato").CandidaturaParaConfirmar = {
+  ano_eleicao: 2022,
+  sq_candidato: 111,
+  nr_turno: 1,
+  metodo_match: "nome_uf_cargo",
+  confianca: "alta",
+};
+
+describe("vincularParticipanteAoTse (T10)", () => {
+  beforeEach(() => {
+    criarMandatoMock.mockReset();
+  });
+
+  it("chama criarMandato com p_candidatura preenchido e depois atualiza a linha de staging", async () => {
+    criarMandatoMock.mockResolvedValue({
+      idContratante: 5,
+      idMandato: 9,
+      idVinculoTse: 77,
+      idContrato: 42,
+    });
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    const resultado = await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      idProjeto: 10,
+      candidatura: CANDIDATURA,
+      contratante: { nome: "Dep. Fulano" },
+    });
+
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({
+        candidatura: CANDIDATURA,
+        contratante: { nome: "Dep. Fulano" },
+        contrato: expect.objectContaining({ id_produto: 3, id_projeto: 10 }),
+      })
+    );
+    expect(resultado).toEqual({ idContratante: 5, idMandato: 9, idVinculoTse: 77, idContrato: 42 });
+
+    const chamadaUpdate = chamadas.find((c) => c.metodo === "update");
+    expect(chamadaUpdate?.args[0]).toEqual({ id_contrato: 42, id_vinculo_tse: 77 });
+    const chamadaEq = chamadas.find((c) => c.metodo === "eq");
+    expect(chamadaEq?.args).toEqual(["id_cadastro_participante", 1]);
+  });
+
+  // PLL-CP-12: trocar vínculo -- idContratanteExistente presente omite
+  // contratante/mandato da chamada (não recria contratante).
+  it("troca de vínculo (idContratanteExistente) não envia contratante/mandato novos", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 88, idContrato: 42 });
+    const { client } = criarClienteMockUpdate({ error: null });
+
+    await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      candidatura: CANDIDATURA,
+      contratante: { nome: "Não deveria ir" },
+      idContratanteExistente: 5,
+    });
+
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({ contratante: undefined, mandato: undefined, idContratanteExistente: 5 })
+    );
+  });
+
+  // Lado oposto: sem idContratanteExistente, contratante/mandato são enviados.
+  it("primeiro vínculo (sem idContratanteExistente) envia contratante/mandato", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 88, idContrato: 42 });
+    const { client } = criarClienteMockUpdate({ error: null });
+
+    await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      candidatura: CANDIDATURA,
+      contratante: { nome: "Dep. Fulano" },
+    });
+
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({ contratante: { nome: "Dep. Fulano" }, idContratanteExistente: undefined })
+    );
+  });
+
+  // Erro de dim_contratante UNIQUE (candidatura já vinculada a outro
+  // participante do mesmo contrato) -- criarMandato já mapeia via
+  // mapeiaErroRpc; esta função nunca reescreve a mensagem por uma genérica.
+  it("erro de unicidade propagado por criarMandato chega intacto, sem UPDATE de staging", async () => {
+    const erroUnico = new Error("Este contratante já tem um mandato cadastrado.");
+    erroUnico.name = "ViolacaoUnicaError";
+    criarMandatoMock.mockRejectedValue(erroUnico);
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await expect(
+      vincularParticipanteAoTse(client, {
+        idCadastroParticipante: 1,
+        idProduto: 3,
+        candidatura: CANDIDATURA,
+        contratante: { nome: "Dep. Fulano" },
+      })
+    ).rejects.toThrow("Este contratante já tem um mandato cadastrado.");
+
+    expect(chamadas.find((c) => c.metodo === "update")).toBeUndefined();
+  });
+
+  // Erro na própria escrita de staging (RLS nega o UPDATE) também propaga.
+  it("erro do PostgREST no UPDATE da linha de staging propaga como throw", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 77, idContrato: 42 });
+    const { client } = criarClienteMockUpdate({
+      error: { message: "permission denied for table fat_cadastro_participante", code: "42501" },
+    });
+
+    await expect(
+      vincularParticipanteAoTse(client, {
+        idCadastroParticipante: 1,
+        idProduto: 3,
+        candidatura: CANDIDATURA,
+        contratante: { nome: "Dep. Fulano" },
+      })
+    ).rejects.toMatchObject({ code: "42501" });
   });
 });
