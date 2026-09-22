@@ -11,7 +11,8 @@ for the full flow (per-task cycle, sub-agent delegation, adequacy review, Verifi
 ---
 
 **Design**: `.specs/features/pll-dashboard-agenda/design.md`
-**Status**: Draft
+**Status**: Validated — ⚠️ Issues (Verifier, `validation.md`, 2026-09-22): PLL-SH-01 título e
+PLL-AG-12 (Assessor) sem evidência de implementação/teste; ver `validation.md` Fix 1/Fix 2.
 
 ---
 
