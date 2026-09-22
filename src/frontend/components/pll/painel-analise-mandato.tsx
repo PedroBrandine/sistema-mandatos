@@ -24,21 +24,18 @@ export function PainelAnaliseMandato({ analise }: PainelAnaliseMandatoProps) {
         <RoscaAnalise
           titulo="Cor/raça do parlamentar"
           n={analise.corRacaParlamentar.n}
-          suprimido={analise.corRacaParlamentar.suprimido}
           categorias={analise.corRacaParlamentar.categorias}
           semResposta={analise.corRacaParlamentar.semResposta}
         />
         <RoscaAnalise
           titulo="Partido político"
           n={analise.partidoPolitico.n}
-          suprimido={analise.partidoPolitico.suprimido}
           categorias={analise.partidoPolitico.categorias}
           semResposta={analise.partidoPolitico.semResposta}
         />
         <RoscaAnalise
           titulo="Estado de eleição"
           n={analise.estadoEleicao.n}
-          suprimido={analise.estadoEleicao.suprimido}
           categorias={analise.estadoEleicao.categorias}
           semResposta={analise.estadoEleicao.semResposta}
         />
@@ -48,13 +45,11 @@ export function PainelAnaliseMandato({ analise }: PainelAnaliseMandatoProps) {
         <RoscaAnalise
           titulo="Cargos anteriores"
           n={analise.cargosAnteriores.n}
-          suprimido={analise.cargosAnteriores.suprimido}
           categorias={analise.cargosAnteriores.categorias}
         />
         <RoscaAnalise
           titulo="Mandatos anteriores"
           n={analise.mandatosAnteriores.n}
-          suprimido={analise.mandatosAnteriores.suprimido}
           categorias={analise.mandatosAnteriores.categorias}
         />
       </CardContent>

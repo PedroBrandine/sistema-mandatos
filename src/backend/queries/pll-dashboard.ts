@@ -658,7 +658,7 @@ export async function buscarRegistrosMentores(
 
 // =============================================================================
 // Helpers de agregação demográfica compartilhados por T16/T17
-// (PLL-DB-15…19, D-5, D-13).
+// (PLL-DB-15…19, D-5; D-13 revogada em 22/09, ver comentário abaixo).
 // =============================================================================
 
 // PLL-DB-19: o percentual de cada categoria na legenda, arredondado a 1 casa
@@ -682,13 +682,16 @@ export interface CategoriaDistribuicao {
 // `n` (centro da rosca, PLL-DB-19) é a contagem de respondentes, não do
 // recorte inteiro, e `semResposta` é informado à parte.
 //
-// D-13: `suprimido` quando `n < 5` -- o limiar age sobre o `n` exibido no
-// centro da própria rosca (respondentes), que é exatamente o cenário que a
-// decisão descreve ("um recorte por mentor(a) pode ter 2 participantes").
+// D-13 REVOGADA em sessão ao vivo com Pedro (22/09): o limiar "n < 5 suprime
+// o gráfico" travava o Dashboard inteiro com qualquer recorte pequeno (ex.:
+// os 3 primeiros participantes vinculados ao TSE em dev) -- Pedro pediu a
+// remoção explícita. O campo `suprimido` e a mensagem "Dados insuficientes"
+// saem por inteiro (não é só desligar a condição): quem quiser reintroduzir
+// um piso de privacidade decide o valor e o lugar certo (ex.: RLS/view, não
+// UI) como uma decisão nova, não reaproveitando este código morto.
 export interface DistribuicaoDemografica {
   n: number;
   semResposta: number;
-  suprimido: boolean;
   categorias: CategoriaDistribuicao[];
 }
 
@@ -698,7 +701,6 @@ export interface DistribuicaoDemografica {
 // pergunta que ficou sem resposta).
 export interface DistribuicaoCategorica {
   n: number;
-  suprimido: boolean;
   categorias: CategoriaDistribuicao[];
 }
 
@@ -721,12 +723,12 @@ function distribuicaoComAusencia(valores: (string | null)[]): DistribuicaoDemogr
     .filter((v): v is string => v !== undefined && v.length > 0);
   const semResposta = valores.length - respondidos.length;
   const n = respondidos.length;
-  return { n, semResposta, suprimido: n < 5, categorias: agruparCategorias(respondidos) };
+  return { n, semResposta, categorias: agruparCategorias(respondidos) };
 }
 
 function distribuicaoSemAusencia(valores: string[]): DistribuicaoCategorica {
   const n = valores.length;
-  return { n, suprimido: n < 5, categorias: agruparCategorias(valores) };
+  return { n, categorias: agruparCategorias(valores) };
 }
 
 // D-5(f): partido político agrupa além dos 8 maiores em "Outros".
@@ -757,7 +759,7 @@ export interface AnaliseParticipantePll {
   tempoNaPolitica: DistribuicaoDemografica;
 }
 
-const DISTRIBUICAO_VAZIA: DistribuicaoDemografica = { n: 0, semResposta: 0, suprimido: true, categorias: [] };
+const DISTRIBUICAO_VAZIA: DistribuicaoDemografica = { n: 0, semResposta: 0, categorias: [] };
 
 const ANALISE_PARTICIPANTE_VAZIA: AnaliseParticipantePll = {
   participantesAtivos: 0,
@@ -820,7 +822,6 @@ export interface DistribuicaoNota {
 export interface PautaAfinidade {
   pauta: string;
   n: number;
-  suprimido: boolean;
   distribuicaoNotas: DistribuicaoNota[];
 }
 
@@ -832,7 +833,6 @@ export interface CategoriaOutraPauta {
 
 export interface OutrasPautasAfinidade {
   n: number;
-  suprimido: boolean;
   itens: CategoriaOutraPauta[];
 }
 
@@ -862,7 +862,7 @@ const PAUTAS_FIXAS: {
   { pauta: "Clima", coluna: "nota_clima" },
 ];
 
-function distribuicaoNotas(valores: (number | null)[]): { n: number; suprimido: boolean; distribuicaoNotas: DistribuicaoNota[] } {
+function distribuicaoNotas(valores: (number | null)[]): { n: number; distribuicaoNotas: DistribuicaoNota[] } {
   const validas = valores.filter((v): v is number => v !== null);
   const n = validas.length;
   const contagem = new Map<number, number>([
@@ -878,12 +878,12 @@ function distribuicaoNotas(valores: (number | null)[]): { n: number; suprimido: 
     quantidade: contagem.get(nota) ?? 0,
     percentual: n > 0 ? arredondarPercentual(((contagem.get(nota) ?? 0) / n) * 100) : 0,
   }));
-  return { n, suprimido: n < 5, distribuicaoNotas };
+  return { n, distribuicaoNotas };
 }
 
 const AFINIDADE_VAZIA: AfinidadeAgendaPll = {
-  pautas: PAUTAS_FIXAS.map(({ pauta }) => ({ pauta, n: 0, suprimido: true, distribuicaoNotas: distribuicaoNotas([]).distribuicaoNotas })),
-  outrasPautas: { n: 0, suprimido: true, itens: [] },
+  pautas: PAUTAS_FIXAS.map(({ pauta }) => ({ pauta, n: 0, distribuicaoNotas: distribuicaoNotas([]).distribuicaoNotas })),
+  outrasPautas: { n: 0, itens: [] },
 };
 
 // PLL-DB-17. `outras_pautas` é múltipla escolha (TEXT[], Anexo A) -- ao
@@ -911,8 +911,8 @@ export async function buscarAfinidadeAgendaPll(
   const linhas = (data ?? []) as RowCadastroPautas[];
 
   const pautas: PautaAfinidade[] = PAUTAS_FIXAS.map(({ pauta, coluna }) => {
-    const { n, suprimido, distribuicaoNotas: dn } = distribuicaoNotas(linhas.map((l) => l[coluna]));
-    return { pauta, n, suprimido, distribuicaoNotas: dn };
+    const { n, distribuicaoNotas: dn } = distribuicaoNotas(linhas.map((l) => l[coluna]));
+    return { pauta, n, distribuicaoNotas: dn };
   });
 
   const linhasComOutras = linhas.filter((l) => (l.outras_pautas ?? []).length > 0);
@@ -931,7 +931,7 @@ export async function buscarAfinidadeAgendaPll(
       percentual: n > 0 ? arredondarPercentual((quantidade / n) * 100) : 0,
     }));
 
-  return { pautas, outrasPautas: { n, suprimido: n < 5, itens } };
+  return { pautas, outrasPautas: { n, itens } };
 }
 
 // =============================================================================
@@ -948,7 +948,7 @@ export interface AnaliseMandatoPll {
   mandatosAnteriores: DistribuicaoCategorica;
 }
 
-const DISTRIBUICAO_CATEGORICA_VAZIA: DistribuicaoCategorica = { n: 0, suprimido: true, categorias: [] };
+const DISTRIBUICAO_CATEGORICA_VAZIA: DistribuicaoCategorica = { n: 0, categorias: [] };
 
 const ANALISE_MANDATO_VAZIA: AnaliseMandatoPll = {
   corRacaParlamentar: DISTRIBUICAO_VAZIA,

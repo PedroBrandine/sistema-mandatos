@@ -520,7 +520,7 @@ describe("buscarOpcoesMentorPll (T12, filtro 'Filtrar por mentor(a)' do Dashboar
 });
 
 // Spec anchor: pll-dashboard-agenda T16 Done-when (tasks.md) -- PLL-DB-15,
-// PLL-DB-17, D-13. Depende de fat_cadastro_participante
+// PLL-DB-17 (D-13 revogada em 22/09). Depende de fat_cadastro_participante
 // (pll-cadastro-participantes, migration 20260922072328_*, já commitada).
 describe("buscarAnaliseParticipantePll (T16, PLL-DB-15)", () => {
   it("caminho feliz: agrega por categoria com contagem/percentual, ausência vira semResposta (D-5c)", async () => {
@@ -539,10 +539,11 @@ describe("buscarAnaliseParticipantePll (T16, PLL-DB-15)", () => {
     const resultado = await buscarAnaliseParticipantePll(client, { idProduto: 9 });
 
     expect(resultado.participantesAtivos).toBe(1);
+    // D-13 revogada (22/09): n=3 (< 5) continua entregando a categoria
+    // normalmente, sem campo `suprimido`.
     expect(resultado.identidadeGenero).toEqual({
       n: 3,
       semResposta: 0,
-      suprimido: true, // n < 5 (D-13) -- amostra pequena de propósito no teste
       categorias: [
         { categoria: "Mulher cis", quantidade: 2, percentual: 66.7 },
         { categoria: "Homem cis", quantidade: 1, percentual: 33.3 },
@@ -552,19 +553,18 @@ describe("buscarAnaliseParticipantePll (T16, PLL-DB-15)", () => {
     expect(resultado.orientacaoSexual).toEqual({
       n: 2,
       semResposta: 1,
-      suprimido: true,
       categorias: [{ categoria: "Heterossexual", quantidade: 2, percentual: 100 }],
     });
     expect(resultado.tempoNaPolitica.semResposta).toBe(1);
   });
 
-  it("recorte sem contrato devolve tudo vazio/suprimido, nunca lança", async () => {
+  it("recorte sem contrato devolve tudo vazio, nunca lança", async () => {
     const { client } = criarClienteMock({ fat_contrato: { data: [], ...OK } });
 
     const resultado = await buscarAnaliseParticipantePll(client, { idProduto: 9 });
 
     expect(resultado.participantesAtivos).toBe(0);
-    expect(resultado.corRaca).toEqual({ n: 0, semResposta: 0, suprimido: true, categorias: [] });
+    expect(resultado.corRaca).toEqual({ n: 0, semResposta: 0, categorias: [] });
   });
 
   it("erro do banco propaga", async () => {
@@ -613,14 +613,14 @@ describe("buscarAfinidadeAgendaPll (T16, PLL-DB-17, D-3)", () => {
     ]);
   });
 
-  it("recorte sem contrato devolve as 4 pautas zeradas/suprimidas, nunca lança", async () => {
+  it("recorte sem contrato devolve as 4 pautas zeradas, nunca lança", async () => {
     const { client } = criarClienteMock({ fat_contrato: { data: [], ...OK } });
 
     const resultado = await buscarAfinidadeAgendaPll(client, { idProduto: 9 });
 
     expect(resultado.pautas).toHaveLength(4);
-    expect(resultado.pautas.every((p) => p.suprimido)).toBe(true);
-    expect(resultado.outrasPautas).toEqual({ n: 0, suprimido: true, itens: [] });
+    expect(resultado.pautas.every((p) => p.n === 0)).toBe(true);
+    expect(resultado.outrasPautas).toEqual({ n: 0, itens: [] });
   });
 
   it("erro do banco propaga", async () => {
@@ -689,7 +689,6 @@ describe("buscarAnaliseMandatoPll (T17, PLL-DB-16)", () => {
     expect(resultado.corRacaParlamentar).toEqual({
       n: 1,
       semResposta: 1,
-      suprimido: true,
       categorias: [{ categoria: "Parda", quantidade: 1, percentual: 100 }],
     });
     expect(resultado.estadoEleicao.categorias).toEqual(
@@ -716,13 +715,13 @@ describe("buscarAnaliseMandatoPll (T17, PLL-DB-16)", () => {
     );
   });
 
-  it("recorte sem contrato devolve tudo vazio/suprimido, nunca lança", async () => {
+  it("recorte sem contrato devolve tudo vazio, nunca lança", async () => {
     const { client } = criarClienteMock({ fat_contrato: { data: [], ...OK } });
 
     const resultado = await buscarAnaliseMandatoPll(client, { idProduto: 9 });
 
-    expect(resultado.corRacaParlamentar).toEqual({ n: 0, semResposta: 0, suprimido: true, categorias: [] });
-    expect(resultado.mandatosAnteriores).toEqual({ n: 0, suprimido: true, categorias: [] });
+    expect(resultado.corRacaParlamentar).toEqual({ n: 0, semResposta: 0, categorias: [] });
+    expect(resultado.mandatosAnteriores).toEqual({ n: 0, categorias: [] });
   });
 
   it("erro do banco propaga", async () => {

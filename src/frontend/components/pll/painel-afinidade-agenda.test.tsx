@@ -25,7 +25,6 @@ const AFINIDADE: AfinidadeAgendaPll = {
     {
       pauta: "Educação",
       n: 8,
-      suprimido: false,
       distribuicaoNotas: [
         { nota: 5, quantidade: 3, percentual: 37.5 },
         { nota: 4, quantidade: 2, percentual: 25 },
@@ -34,10 +33,10 @@ const AFINIDADE: AfinidadeAgendaPll = {
         { nota: 1, quantidade: 0, percentual: 0 },
       ],
     },
+    // n < 5, sem suprimir (D-13 revogada 22/09) -- continua renderizando a rosca normalmente.
     {
       pauta: "Segurança Pública",
       n: 3,
-      suprimido: true,
       distribuicaoNotas: [
         { nota: 5, quantidade: 0, percentual: 0 },
         { nota: 4, quantidade: 0, percentual: 0 },
@@ -49,7 +48,6 @@ const AFINIDADE: AfinidadeAgendaPll = {
     {
       pauta: "Modernização do Estado",
       n: 8,
-      suprimido: false,
       distribuicaoNotas: [
         { nota: 5, quantidade: 8, percentual: 100 },
         { nota: 4, quantidade: 0, percentual: 0 },
@@ -61,7 +59,6 @@ const AFINIDADE: AfinidadeAgendaPll = {
     {
       pauta: "Clima",
       n: 8,
-      suprimido: false,
       distribuicaoNotas: [
         { nota: 5, quantidade: 8, percentual: 100 },
         { nota: 4, quantidade: 0, percentual: 0 },
@@ -73,7 +70,6 @@ const AFINIDADE: AfinidadeAgendaPll = {
   ],
   outrasPautas: {
     n: 5,
-    suprimido: false,
     itens: [
       { pauta: "Saúde", quantidade: 3, percentual: 60 },
       { pauta: "Infraestrutura", quantidade: 2, percentual: 40 },
@@ -100,8 +96,10 @@ describe("PainelAfinidadeAgenda (PLL-DB-17)", () => {
     expect(screen.getByText("Infraestrutura")).toBeInTheDocument();
   });
 
-  it("PLL-DB-18/D-13: pauta com n < 5 mostra 'Dados insuficientes'", () => {
+  // D-13 revogada em sessão ao vivo com Pedro (22/09): "Dados insuficientes"
+  // nunca mais aparece -- o gráfico sempre renderiza, mesmo com n pequeno.
+  it("PLL-DB-18/D-13 (revogada): pauta com n < 5 renderiza o gráfico normalmente, sem suprimir", () => {
     render(<PainelAfinidadeAgenda afinidade={AFINIDADE} />);
-    expect(screen.getByText("Dados insuficientes (n < 5)")).toBeInTheDocument();
+    expect(screen.queryByText(/Dados insuficientes/)).not.toBeInTheDocument();
   });
 });

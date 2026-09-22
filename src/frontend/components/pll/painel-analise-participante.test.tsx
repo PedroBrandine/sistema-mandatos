@@ -27,20 +27,19 @@ const ANALISE: AnaliseParticipantePll = {
   identidadeGenero: {
     n: 8,
     semResposta: 1,
-    suprimido: false,
     categorias: [
       { categoria: "Mulher cis", quantidade: 5, percentual: 62.5 },
       { categoria: "Homem cis", quantidade: 3, percentual: 37.5 },
     ],
   },
-  orientacaoSexual: { n: 2, semResposta: 0, suprimido: true, categorias: [] },
+  // n < 5 / n = 0 (D-13 revogada 22/09) -- continuam renderizando normalmente.
+  orientacaoSexual: { n: 2, semResposta: 0, categorias: [] },
   corRaca: {
     n: 6,
     semResposta: 0,
-    suprimido: false,
     categorias: [{ categoria: "Parda", quantidade: 6, percentual: 100 }],
   },
-  tempoNaPolitica: { n: 0, semResposta: 0, suprimido: true, categorias: [] },
+  tempoNaPolitica: { n: 0, semResposta: 0, categorias: [] },
 };
 
 describe("PainelAnaliseParticipante (PLL-DB-15)", () => {
@@ -63,9 +62,12 @@ describe("PainelAnaliseParticipante (PLL-DB-15)", () => {
     expect(screen.getByText("1 sem resposta")).toBeInTheDocument();
   });
 
-  it("PLL-DB-18/D-13: n < 5 mostra 'Dados insuficientes' em vez do gráfico", () => {
+  // D-13 revogada em sessão ao vivo com Pedro (22/09): "Dados insuficientes"
+  // nunca mais aparece, mesmo com n pequeno ou zerado (orientação n=2, tempo
+  // na política n=0).
+  it("PLL-DB-18/D-13 (revogada): n < 5 renderiza o gráfico normalmente, sem suprimir", () => {
     render(<PainelAnaliseParticipante analise={ANALISE} />);
 
-    expect(screen.getAllByText("Dados insuficientes (n < 5)")).toHaveLength(2); // orientação e tempo na política
+    expect(screen.queryByText(/Dados insuficientes/)).not.toBeInTheDocument();
   });
 });

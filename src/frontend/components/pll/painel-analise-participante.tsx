@@ -29,28 +29,24 @@ export function PainelAnaliseParticipante({ analise }: PainelAnaliseParticipante
         <RoscaAnalise
           titulo="Identidade de gênero"
           n={analise.identidadeGenero.n}
-          suprimido={analise.identidadeGenero.suprimido}
           categorias={analise.identidadeGenero.categorias}
           semResposta={analise.identidadeGenero.semResposta}
         />
         <RoscaAnalise
           titulo="Orientação sexual"
           n={analise.orientacaoSexual.n}
-          suprimido={analise.orientacaoSexual.suprimido}
           categorias={analise.orientacaoSexual.categorias}
           semResposta={analise.orientacaoSexual.semResposta}
         />
         <RoscaAnalise
           titulo="Cor/raça"
           n={analise.corRaca.n}
-          suprimido={analise.corRaca.suprimido}
           categorias={analise.corRaca.categorias}
           semResposta={analise.corRaca.semResposta}
         />
         <RoscaAnalise
           titulo="Tempo na política"
           n={analise.tempoNaPolitica.n}
-          suprimido={analise.tempoNaPolitica.suprimido}
           categorias={analise.tempoNaPolitica.categorias}
           semResposta={analise.tempoNaPolitica.semResposta}
         />

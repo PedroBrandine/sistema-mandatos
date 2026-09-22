@@ -33,7 +33,6 @@ export function PainelAfinidadeAgenda({ afinidade }: PainelAfinidadeAgendaProps)
               key={pauta.pauta}
               titulo={pauta.pauta}
               n={pauta.n}
-              suprimido={pauta.suprimido}
               categorias={categorias}
             />
           );
@@ -46,7 +45,6 @@ export function PainelAfinidadeAgenda({ afinidade }: PainelAfinidadeAgendaProps)
         <RoscaAnalise
           titulo="Outras pautas prioritárias"
           n={afinidade.outrasPautas.n}
-          suprimido={afinidade.outrasPautas.suprimido}
           categorias={afinidade.outrasPautas.itens.map((i) => ({
             categoria: i.pauta,
             quantidade: i.quantidade,

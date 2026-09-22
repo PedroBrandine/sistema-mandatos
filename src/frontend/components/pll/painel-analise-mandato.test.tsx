@@ -24,7 +24,6 @@ const ANALISE: AnaliseMandatoPll = {
   corRacaParlamentar: {
     n: 7,
     semResposta: 1,
-    suprimido: false,
     categorias: [
       { categoria: "Parda", quantidade: 4, percentual: 57.1 },
       { categoria: "Branca", quantidade: 3, percentual: 42.9 },
@@ -33,19 +32,18 @@ const ANALISE: AnaliseMandatoPll = {
   partidoPolitico: {
     n: 9,
     semResposta: 0,
-    suprimido: false,
     categorias: [
       { categoria: "PA", quantidade: 5, percentual: 55.6 },
       { categoria: "Outros", quantidade: 4, percentual: 44.4 },
     ],
   },
-  estadoEleicao: { n: 3, semResposta: 0, suprimido: true, categorias: [] },
+  // n < 5, sem categoria (D-13 revogada 22/09) -- continua renderizando normalmente.
+  estadoEleicao: { n: 3, semResposta: 0, categorias: [] },
   cargosAnteriores: {
     n: 6,
-    suprimido: false,
     categorias: [{ categoria: "Vereador", quantidade: 6, percentual: 100 }],
   },
-  mandatosAnteriores: { n: 2, suprimido: true, categorias: [] },
+  mandatosAnteriores: { n: 2, categorias: [] },
 };
 
 describe("PainelAnaliseMandato (PLL-DB-16)", () => {
@@ -66,8 +64,11 @@ describe("PainelAnaliseMandato (PLL-DB-16)", () => {
     expect(screen.getByText("44.4%")).toBeInTheDocument();
   });
 
-  it("PLL-DB-18/D-13: painel com n < 5 mostra 'Dados insuficientes'", () => {
+  // D-13 revogada em sessão ao vivo com Pedro (22/09): "Dados insuficientes"
+  // nunca mais aparece, mesmo com n pequeno (estado de eleição e mandatos
+  // anteriores, n=3 e n=2 respectivamente).
+  it("PLL-DB-18/D-13 (revogada): painel com n < 5 renderiza normalmente, sem suprimir", () => {
     render(<PainelAnaliseMandato analise={ANALISE} />);
-    expect(screen.getAllByText("Dados insuficientes (n < 5)")).toHaveLength(2); // estado de eleição e mandatos anteriores
+    expect(screen.queryByText(/Dados insuficientes/)).not.toBeInTheDocument();
   });
 });

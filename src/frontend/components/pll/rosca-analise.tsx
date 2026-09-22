@@ -19,8 +19,9 @@ import { cn } from "@/lib/utils";
 // de cada `percentual` já vem arredondada por categoria em
 // buscarAnalise*Pll, não recalculada aqui).
 //
-// D-13: `suprimido` (n < 5) substitui o gráfico por "Dados insuficientes
-// (n < 5)" -- nunca uma rosca com fatia de 1 pessoa.
+// D-13 revogada em sessão ao vivo com Pedro (22/09): o gráfico sempre
+// renderiza, mesmo com poucos respondentes -- o limiar "n < 5 suprime"
+// travava o Dashboard inteiro com qualquer recorte pequeno.
 const PALETA = [
   "var(--chart-1)",
   "var(--chart-4)",
@@ -39,7 +40,6 @@ function corDaCategoria(indice: number): string {
 export interface RoscaAnaliseProps {
   titulo: string;
   n: number;
-  suprimido: boolean;
   categorias: CategoriaDistribuicao[];
   /** D-5(c): ausência de resposta (nulo), fora do denominador da rosca -- só
    * existe em campos com noção de "não respondeu" (DistribuicaoDemografica).
@@ -49,27 +49,8 @@ export interface RoscaAnaliseProps {
   className?: string;
 }
 
-export function RoscaAnalise({ titulo, n, suprimido, categorias, semResposta, className }: RoscaAnaliseProps) {
+export function RoscaAnalise({ titulo, n, categorias, semResposta, className }: RoscaAnaliseProps) {
   const tituloId = useId();
-
-  if (suprimido) {
-    return (
-      <div className={cn("grid gap-2", className)}>
-        <p id={tituloId} className="text-sm font-bold text-secondary">
-          {titulo}
-        </p>
-        {/* D-13: painel sem respondentes suficientes (n < 5) -- privacidade
-            das agregações demográficas, um recorte pequeno identifica
-            indivíduo. */}
-        <div
-          role="status"
-          className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border/60 px-4 text-center text-xs text-muted-foreground"
-        >
-          Dados insuficientes (n &lt; 5)
-        </div>
-      </div>
-    );
-  }
 
   const config: ChartConfig = Object.fromEntries(
     categorias.map((c, i) => [c.categoria, { label: c.categoria, color: corDaCategoria(i) }])
