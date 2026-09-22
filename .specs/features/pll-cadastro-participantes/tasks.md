@@ -11,7 +11,7 @@ for the full flow (per-task cycle, sub-agent delegation, adequacy review, Verifi
 ---
 
 **Design**: `.specs/features/pll-cadastro-participantes/design.md`
-**Status**: Draft
+**Status**: T1-T19 concluídas (Lotes 1-3)
 
 ---
 
@@ -376,10 +376,10 @@ Estratégia
 filtro — Knowledge Verification Chain Step 1, ver Risks do design). Skill: `supabase`.
 
 **Done when**:
-- [ ] Valores reais de `ds_sit_tot_turno` que significam "eleito" confirmados contra a base de dev (documentar no commit quais são)
-- [ ] Partido com < 3% agrupa em "Outros"
-- [ ] Casa/ano sem dado devolve vazio explícito (não erro)
-- [ ] `npm run test:unit` verde
+- [x] Valores reais de `ds_sit_tot_turno` que significam "eleito" confirmados contra a base de dev (documentar no commit quais são)
+- [x] Partido com < 3% agrupa em "Outros"
+- [x] Casa/ano sem dado devolve vazio explícito (não erro)
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -399,9 +399,9 @@ filtro — Knowledge Verification Chain Step 1, ver Risks do design). Skill: `su
 **Tools**: MCP: `figma`. Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Sem Número do Candidato/Classificação na Lista/Despesa de Campanha
-- [ ] Participante não vinculado mostra estado vazio "Ainda não vinculado ao TSE" com atalho
-- [ ] `npm run test:unit` verde (AD-046 — caminho feliz de cada AC)
+- [x] Sem Número do Candidato/Classificação na Lista/Despesa de Campanha
+- [x] Participante não vinculado mostra estado vazio "Ainda não vinculado ao TSE" com atalho
+- [x] `npm run test:unit` verde (AD-046 — caminho feliz de cada AC)
 
 **Tests**: unit
 **Gate**: quick
@@ -421,8 +421,8 @@ filtro — Knowledge Verification Chain Step 1, ver Risks do design). Skill: `su
 **Tools**: MCP: `figma`. Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Página monta cabeçalho + Dados TSE + Composição Partidária + Afinidade
-- [ ] `npm run lint:all && npm run build && npm run test:unit` verdes
+- [x] Página monta cabeçalho + Dados TSE + Composição Partidária + Afinidade
+- [x] `npm run lint:all && npm run build && npm run test:unit` verdes
 
 **Tests**: unit
 **Gate**: build
@@ -442,9 +442,9 @@ filtro — Knowledge Verification Chain Step 1, ver Risks do design). Skill: `su
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Atualiza qualquer subconjunto dos 8 campos `TEXT[]`/texto sem sobrescrever os demais
-- [ ] Teste: Assessor tenta escrever e recebe erro de RLS (PLL-CP-23) — mapeado, não genérico
-- [ ] `npm run test:unit` verde
+- [x] Atualiza qualquer subconjunto dos 8 campos `TEXT[]`/texto sem sobrescrever os demais
+- [x] Teste: Assessor tenta escrever e recebe erro de RLS (PLL-CP-23) — mapeado, não genérico
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -467,8 +467,8 @@ duplicar.
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Adicionar, editar, remover item; estado vazio "Nada registrado ainda" com atalho
-- [ ] `npm run test:unit` verde (AD-042 — os dois lados: com item e sem item)
+- [x] Adicionar, editar, remover item; estado vazio "Nada registrado ainda" com atalho
+- [x] `npm run test:unit` verde (AD-042 — os dois lados: com item e sem item)
 
 **Tests**: unit
 **Gate**: quick
@@ -488,8 +488,8 @@ duplicar.
 **Tools**: MCP: `figma` (conferir `412:3` Análise SWOT). Skill: `figma-dominio-legisla`.
 
 **Done when**:
-- [ ] Ambição limita a 3 tags; SWOT mostra estado vazio por quadrante independentemente dos outros 3
-- [ ] `npm run test:unit` verde
+- [x] Ambição limita a 3 tags; SWOT mostra estado vazio por quadrante independentemente dos outros 3
+- [x] `npm run test:unit` verde
 
 **Tests**: unit
 **Gate**: quick
@@ -511,8 +511,8 @@ controle de papel)
 **Tools**: MCP: NONE. Skill: NONE.
 
 **Done when**:
-- [ ] Mentor/Gestora editam; Assessor não vê botão de editar em nenhum dos 3 blocos
-- [ ] `npm run lint:all && npm run build && npm run test:unit` verdes
+- [x] Mentor/Gestora editam; Assessor não vê botão de editar em nenhum dos 3 blocos
+- [x] `npm run lint:all && npm run build && npm run test:unit` verdes
 
 **Tests**: unit
 **Gate**: build
