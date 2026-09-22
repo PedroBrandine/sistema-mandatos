@@ -27,6 +27,7 @@ import { marcarPresenca } from "@backend/rpc/encontro";
 import { descreveErroDesconhecido } from "@backend/rpc/errors";
 import { createClient } from "@backend/supabase/client";
 
+import { NaoAutorizado } from "@/components/app-shell/nao-autorizado";
 import { AgendaMes, diaNoFusoDoProduto, hojeNoFusoDoProduto } from "@/components/estrategia/agenda-mes";
 import { EncontroPopover } from "@/components/estrategia/encontro-popover";
 import { FiltrosAgenda, type ValorFiltrosAgenda } from "@/components/estrategia/filtros-agenda";
@@ -37,6 +38,7 @@ import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePapelGlobal } from "@/hooks/use-papel-global";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
 import { cn } from "@/lib/utils";
 
@@ -99,7 +101,13 @@ export default function ProdutoAgendaPage({
   // Decisions"). T15 monta a Agenda real do PLL. Estratégia e Coalizão seguem
   // pelo componente existente, sem alteração.
   if (slug === "pll") {
-    return <PllAgendaPage />;
+    // Fix 2 (PLL-AG-12, D-14): ver GateAssessorPll acima -- bloqueio de UI
+    // complementar à RLS, não substituto dela.
+    return (
+      <GateAssessorPll>
+        <PllAgendaPage />
+      </GateAssessorPll>
+    );
   }
 
   return <EstrategiaAgendaPage slug={slug} />;
@@ -441,6 +449,52 @@ function ListaEncontrosPll({ encontros, mesSemEncontro }: { encontros: EncontroA
       )}
     </section>
   );
+}
+
+// pll-dashboard-agenda Fix 2 (PLL-AG-12, D-14, spec.md): "sem acesso à área
+// PLL" para Assessor. Investigação (Verifier + reconfirmada aqui): a RLS de
+// fat_encontro/fat_contrato (p_por_contrato, supabase/migrations/
+// 20260813192341_incidencia_encontros_rls.sql) só recorta por
+// `id_contrato = ANY(app.contratos_do_usuario())` -- ou seja, por VÍNCULO em
+// rel_usuario_contrato, não por papel_global nem por produto. legisla_assessor
+// tem GRANT SELECT em fat_encontro (20260813192816_incidencia_encontros_grants.sql:51),
+// então um Assessor vinculado a um contrato do PLL (rel_usuario_contrato,
+// papel_no_contrato='assessor') PASSARIA na RLS e veria os Encontros desse
+// contrato -- a RLS de hoje não implementa "Assessor nunca vê PLL", só "cada
+// papel vê a própria carteira". D-14 pede um bloqueio a mais, específico de
+// produto+papel, que não existe em nenhuma migration.
+//
+// Fix aplicado é só um GATE DE UI (mesmo padrão de usePapelGlobal usado em
+// pll-cadastro-participantes/PLL-CP-23 e em /visao-gerencial, GER-01):
+// esconde a tela para quem tem papel_global='assessor'. Isso é
+// COMPLEMENTAR, não substitui proteção de dado -- a proteção de dado real
+// continua sendo a RLS acima, que já impede um Assessor de ver contrato fora
+// da própria carteira. Risco residual documentado: um Assessor SEM vínculo
+// nenhum com contrato PLL já não veria nada por RLS; este gate cobre o caso
+// em que ele TEM vínculo (está na equipe de um contrato PLL como assessor) e
+// mesmo assim a spec quer a área inteira fechada para o papel. Nenhuma
+// migration de RLS nova foi escrita aqui -- D-14 fala em "autorização é
+// sempre do RLS, nunca da UI" (AD-002), mas uma migration de RLS específica
+// de produto em fat_encontro/fat_contrato (tabela compartilhada entre 3
+// produtos, banco de dev compartilhado) exigiria certeza que este pass não
+// tem; ver nota em validation.md "Fixes aplicados (pós-Verifier)".
+function GateAssessorPll({ children }: { children: React.ReactNode }) {
+  const { papel, carregando } = usePapelGlobal();
+
+  if (carregando) {
+    return <CarregandoSkeleton variante="cards" />;
+  }
+
+  if (papel === "assessor") {
+    return (
+      <NaoAutorizado
+        titulo="Sem acesso à área do PLL"
+        mensagem="O papel Assessor não tem acesso à Agenda do Programa de Liderança Parlamentar (PLL)."
+      />
+    );
+  }
+
+  return <>{children}</>;
 }
 
 function PllAgendaPage() {

@@ -62,6 +62,7 @@ const mocks = vi.hoisted(() => ({
   buscarOpcoesMentoradoPll: vi.fn(),
   buscarOpcoesEdicaoPll: vi.fn(),
   resolverIdsContratoPorMentorEMentorado: vi.fn(),
+  usePapelGlobal: vi.fn(),
 }));
 
 // importOriginal preserva FUSO_HORARIO_PRODUTO: sem ele o offset lido por
@@ -103,6 +104,14 @@ vi.mock("@backend/supabase/client", () => ({
 
 vi.mock("@/hooks/use-produto-atual", () => ({
   useProdutoAtual: () => ({ data: { idProduto: 1, nome: "Estratégia" }, isLoading: false }),
+}));
+
+// Fix 2 (PLL-AG-12, D-14): mockado como papel não-Assessor por padrão -- os
+// testes já existentes de Estratégia/Coalizão/PLL não são sobre este gate.
+// O describe "Gate Assessor no PLL (Fix 2)" abaixo sobrescreve com
+// `mocks.usePapelGlobal.mockReturnValue(...)`.
+vi.mock("@/hooks/use-papel-global", () => ({
+  usePapelGlobal: mocks.usePapelGlobal,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -225,6 +234,7 @@ beforeEach(() => {
   mocks.buscarOpcoesMentoradoPll.mockReset().mockResolvedValue([]);
   mocks.buscarOpcoesEdicaoPll.mockReset().mockResolvedValue([]);
   mocks.resolverIdsContratoPorMentorEMentorado.mockReset().mockResolvedValue([]);
+  mocks.usePapelGlobal.mockReset().mockReturnValue({ papel: "gestora", idUsuario: 1, carregando: false });
 });
 
 afterEach(() => {
@@ -753,5 +763,46 @@ describe("Agenda do PLL (T15)", () => {
 
     fireEvent.click(botao);
     expect(mocks.push).toHaveBeenCalledWith("/contratos/50/encontros");
+  });
+});
+
+// pll-dashboard-agenda Fix 2 (PLL-AG-12, D-14, pós-Verifier): a RLS de
+// fat_encontro/fat_contrato só recorta por vínculo em rel_usuario_contrato,
+// não por papel_global -- um Assessor vinculado a um contrato do PLL passaria
+// na RLS. Este gate de UI fecha a área inteira para o papel Assessor,
+// independentemente de vínculo; os demais papéis (inclusive Mentor, que só
+// vê a própria carteira por RLS) continuam vendo a tela normalmente.
+describe("Gate Assessor no PLL (Fix 2, PLL-AG-12)", () => {
+  function renderizarAgendaPll() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <Suspense fallback={<p>carregando</p>}>
+          <ProdutoAgendaPage params={paramsProntos("pll")} />
+        </Suspense>
+      </QueryClientProvider>
+    );
+  }
+
+  it("papel Assessor: Agenda do PLL não renderiza, aparece estado de acesso restrito", async () => {
+    mocks.usePapelGlobal.mockReturnValue({ papel: "assessor", idUsuario: 9, carregando: false });
+
+    renderizarAgendaPll();
+
+    expect(await screen.findByText("Sem acesso à área do PLL")).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+    expect(mocks.buscarEncontrosDoMesPll).not.toHaveBeenCalled();
+  });
+
+  it("papel Mentor (não-Assessor): Agenda do PLL renderiza normalmente (regressão)", async () => {
+    mocks.usePapelGlobal.mockReturnValue({ papel: "mentor", idUsuario: 3, carregando: false });
+    mocks.buscarEncontrosDoMesPll.mockResolvedValue([]);
+
+    renderizarAgendaPll();
+
+    expect(await screen.findByRole("grid")).toBeInTheDocument();
+    expect(screen.queryByText("Sem acesso à área do PLL")).not.toBeInTheDocument();
   });
 });
