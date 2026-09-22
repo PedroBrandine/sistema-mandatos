@@ -229,3 +229,76 @@ which had none of the RLS backing).
 
 **Next steps**: Route Fix 1 as a follow-up task (Major) before considering PLL-CP-04/05 fully done; Fix 2 is
 optional hardening, not blocking.
+
+---
+
+## Fixes aplicados (pós-Verifier)
+
+**Data**: 2026-09-22
+
+### Fix 1 (Major): `status_cadastro` nunca saía do `DEFAULT 'incompleto'`
+
+- **Abordagem**: trigger `BEFORE INSERT OR UPDATE` em `fat_cadastro_participante` (não RPC, não cálculo em
+  TypeScript) -- confirma a recomendação do Fix Plan: é recômputo de uma coluna a partir de colunas da MESMA
+  linha, não cruza tabela nem precisa de papel sem GRANT, então nem AD-035 nem AD-024 se aplicam; `SECURITY
+  INVOKER` basta.
+- **Migration**: `supabase/migrations/20260922152934_pll_cadastro_participante_status_trigger.sql` -- função
+  `calcular_status_cadastro_participante()` + trigger `trg_calcular_status_cadastro_participante`, aplicando a
+  regra de D-3:
+  - **completo** = campos obrigatórios da planilha preenchidos **e** `id_contrato IS NOT NULL` (mesmo sinal de
+    vínculo TSE que `buscarCadastroParticipantesPll`/`vincularParticipanteAoTse` já usam em
+    `src/backend/queries/pll-cadastro.ts`)
+  - **pendente_revisao** = campos obrigatórios preenchidos, sem vínculo
+  - **incompleto** = falta `papel`, `nome_completo` ou `email` -- os únicos 3 campos sem
+    `.nullable().optional()` em `src/backend/schemas/cadastro-participante-pll.ts` (T3), confirmados por
+    releitura do arquivo antes de implementar
+  - A migration também recalcula as linhas já existentes na tabela (UPDATE no-op disparando o trigger em
+    todas de uma vez), corrigindo o passado, não só o futuro.
+- **Achado durante a implementação**: `papel`/`nome_completo`/`email` já são `NOT NULL` na própria tabela (T2,
+  `texto_limpo` para os dois primeiros, que também recusa string vazia) -- ou seja, o branch "incompleto" é
+  **estruturalmente inalcançável** por um INSERT/UPDATE normal em `fat_cadastro_participante` hoje: qualquer
+  tentativa de gravar um desses campos vazio já falha por violação de constraint antes do trigger conseguir
+  persistir a linha. Implementado mesmo assim (por completude, e para o caso de a constraint mudar no
+  futuro), mas testado isolando a mesma função de trigger numa `TEMP TABLE` de sessão sem essas constraints
+  -- não é possível provar esse branch tocando a tabela real. Registrado aqui como achado de risco: se a
+  intenção de produto for que "incompleto" apareça de fato na tela hoje, ele nunca vai aparecer com o schema
+  atual -- só `pendente_revisao`/`completo` são estados alcançáveis em produção. Nenhuma mudança de schema foi
+  feita para "abrir" esse estado, porque não fazia parte do escopo do gap reportado (a spec já define os 3
+  estados e o CHECK já aceitava os 3 valores antes deste fix).
+- **Código de aplicação**: nenhuma mudança necessária. `upsertCadastroParticipantes`,
+  `vincularParticipanteAoTse` e `atualizarCamposEditaveisParticipante` (`src/backend/queries/pll-cadastro.ts`)
+  já excluíam `status_cadastro` do payload deliberadamente (comportamento correto, preservado) -- a trigger
+  passa a ser a única fonte da coluna, exatamente como o Fix Plan recomendava.
+- **Testes**:
+  - Novo: `supabase/tests/pll/fat-cadastro-participante-status.integration.test.ts` -- 4 testes cobrindo os 3
+    estados (`pendente_revisao` no insert sem vínculo mesmo com todos os 22 campos opcionais NULL, `completo`
+    no insert com vínculo, transição `pendente_revisao -> completo -> pendente_revisao` via UPDATE de
+    `id_contrato`, e `incompleto` via TEMP TABLE isolada com a mesma função de trigger, 3 variações: papel
+    NULL, nome em branco, email NULL mesmo com vínculo preenchido). **4/4 passed** (`npx vitest run --config
+    vitest.integration.config.ts supabase/tests/pll/fat-cadastro-participante-status.integration.test.ts`,
+    ~55s).
+  - Atualizado: `supabase/tests/pll/fat-cadastro-participante-rls.integration.test.ts` -- o teste "Gestora
+    insere um participante" asserido `status_cadastro === 'incompleto'` (valor correto só porque a coluna
+    nunca saía do DEFAULT); corrigido para `'pendente_revisao'`, o valor real agora que a trigger calcula
+    a partir da linha (papel/nome/email preenchidos, sem `id_contrato`). Suíte completa re-executada: **13/13
+    passed** (~173s).
+  - `npm run test:unit`: **1767 passed, 0 failed** (162 arquivos) -- mesmos 4 unhandled-rejection pré-existentes
+    e fora de escopo já relatados pelo Verifier (`fatos-registros/page.test.tsx`, `use-papel-global.ts`), não
+    afetados por este fix.
+  - `npm run build`: verde, todas as rotas compilam.
+- **Commits**:
+  - `f752bfa` -- `fix(pll): calcula status_cadastro via trigger (D-3, gap Major pós-Verifier)` (migration +
+    teste novo)
+  - `8d32f8e` -- `test(pll): atualiza expectativa de status_cadastro pós-trigger (D-3)` (ajuste do teste RLS
+    existente)
+
+### Fix 2 (minor, spec-precision) -- não endereçado nesta rodada
+
+Fora de escopo desta correção (que tratou só do gap Major listado acima). PLL-CP-08/09/19 continuam com
+implementação correta e sem asserção de componente direta -- ver Fix Plan original.
+
+**Risco novo encontrado**: nenhum além do já registrado acima (estado "incompleto" inalcançável no schema
+atual). Nenhuma migration de terceiros foi tocada; `db push` durante esta sessão também aplicou uma migration
+pendente alheia (`20260922151933_planejamento_deriva_situacao_do_pct.sql`, já presente no repo antes desta
+sessão) porque `supabase db push` sempre aplica todo o pendente -- não foi criada nem alterada por este
+trabalho.
