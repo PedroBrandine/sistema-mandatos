@@ -225,6 +225,86 @@ export async function buscarPerfilEleitoradoCandidatura(
   return perfil;
 }
 
+// pll-cadastro-participantes T13 (design.md "Components" -- buscarComposicaoPartidariaCasa;
+// PLL-CP-17…19). Agrega tse.dim_candidatura por Casa (cd_cargo)/UF/ano de
+// eleição, contando candidatos ELEITOS por partido.
+//
+// Knowledge Verification Chain Step 1 -- valores reais de ds_sit_tot_turno
+// consultados contra a base de dev (`SELECT ds_sit_tot_turno, COUNT(*) FROM
+// tse.dim_candidatura GROUP BY 1`, 22/09/2026): SUPLENTE (39419), NÃO ELEITO
+// (28800), ELEITO POR QP (4395), ELEITO POR MÉDIA (2816), #NULO (2223),
+// ELEITO (1). "Eleito" = união de exatamente estes 3 valores -- SUPLENTE e
+// NÃO ELEITO nunca contam, mesmo que um suplente tenha assumido depois (esse
+// dado não está no espelho, D-2 da spec).
+const VALORES_ELEITO = new Set(["ELEITO", "ELEITO POR QP", "ELEITO POR MÉDIA"]);
+
+// PLL-CP-18: partido com menos de 3% da composição agrupa em "Outros".
+const LIMIAR_OUTROS = 0.03;
+
+export interface FiltroComposicaoPartidariaCasa {
+  anoEleicao: number;
+  cdCargo: number;
+  sgUf: string;
+}
+
+export interface ComposicaoPartido {
+  siglaPartido: string;
+  quantidade: number;
+  /** 0-100. */
+  percentual: number;
+}
+
+/**
+ * Composição partidária da Casa legislativa (Câmara/Assembleia/Senado) por
+ * UF/ano/cargo, contando só candidatos ELEITOS (PLL-CP-17). Devolve `[]`
+ * quando não há candidato eleito pra essa combinação -- "Casa/ano sem dado"
+ * (PLL-CP-19) é decidido pelo chamador (EstadoVazio "Dados indisponíveis
+ * para esta Casa/ano"), esta função nunca lança erro pra ausência de dado.
+ */
+export async function buscarComposicaoPartidariaCasa(
+  client: SupabaseClient<Database>,
+  filtros: FiltroComposicaoPartidariaCasa
+): Promise<ComposicaoPartido[]> {
+  const { data, error } = await client
+    .schema("tse")
+    .from("dim_candidatura")
+    .select("sg_partido, ds_sit_tot_turno")
+    .eq("ano_eleicao", filtros.anoEleicao)
+    .eq("cd_cargo", filtros.cdCargo)
+    .eq("sg_uf", filtros.sgUf);
+
+  if (error) throw error;
+  if (!data) return [];
+
+  const eleitos = data.filter(
+    (linha) => linha.ds_sit_tot_turno != null && VALORES_ELEITO.has(linha.ds_sit_tot_turno)
+  );
+  if (eleitos.length === 0) return [];
+
+  const contagemPorPartido = new Map<string, number>();
+  for (const linha of eleitos) {
+    const partido = linha.sg_partido ?? "—";
+    contagemPorPartido.set(partido, (contagemPorPartido.get(partido) ?? 0) + 1);
+  }
+
+  const total = eleitos.length;
+  const linhas: ComposicaoPartido[] = [];
+  let quantidadeOutros = 0;
+  for (const [siglaPartido, quantidade] of contagemPorPartido) {
+    const fracao = quantidade / total;
+    if (fracao < LIMIAR_OUTROS) {
+      quantidadeOutros += quantidade;
+    } else {
+      linhas.push({ siglaPartido, quantidade, percentual: fracao * 100 });
+    }
+  }
+  if (quantidadeOutros > 0) {
+    linhas.push({ siglaPartido: "Outros", quantidade: quantidadeOutros, percentual: (quantidadeOutros / total) * 100 });
+  }
+
+  return linhas.sort((a, b) => b.quantidade - a.quantidade);
+}
+
 export interface CandidaturaCompletaTse {
   anoEleicao: number;
   sqCandidato: number;

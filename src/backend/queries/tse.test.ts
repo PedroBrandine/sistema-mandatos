@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { buscarCandidaturas, buscarPerfilCandidatura, buscarPerfilEleitoradoCandidatura } from "./tse";
+import {
+  buscarCandidaturas,
+  buscarComposicaoPartidariaCasa,
+  buscarPerfilCandidatura,
+  buscarPerfilEleitoradoCandidatura,
+} from "./tse";
 
 type Chamada = { metodo: string; args: unknown[] };
 type LinhaMv = Database["tse"]["Views"]["mv_candidatura_resumo"]["Row"];
@@ -307,5 +312,92 @@ describe("buscarPerfilEleitoradoCandidatura", () => {
     expect(eqs).toContainEqual(["ano_eleicao", 2020]);
     expect(eqs).toContainEqual(["sq_candidato", 1]);
     expect(eqs).toContainEqual(["nr_turno", 1]);
+  });
+});
+
+describe("buscarComposicaoPartidariaCasa", () => {
+  const FILTRO = { anoEleicao: 2022, cdCargo: 7, sgUf: "SP" };
+  type LinhaComposicao = { sg_partido: string | null; ds_sit_tot_turno: string | null };
+
+  // Done-when: "Casa/ano sem dado devolve vazio explícito (não erro)".
+  it("devolve lista vazia quando não há nenhum candidato pra Casa/UF/ano", async () => {
+    const { client } = criarClienteMock<LinhaComposicao>({ data: [], error: null });
+    const resultado = await buscarComposicaoPartidariaCasa(client, FILTRO);
+    expect(resultado).toEqual([]);
+  });
+
+  // Done-when: "Valores reais de ds_sit_tot_turno que significam 'eleito'
+  // confirmados contra a base de dev" -- SUPLENTE/NÃO ELEITO/#NULO nunca
+  // contam, só ELEITO/ELEITO POR QP/ELEITO POR MÉDIA (valores reais
+  // confirmados em dev, 22/09/2026, ver comentário em tse.ts).
+  it("conta só ELEITO/ELEITO POR QP/ELEITO POR MÉDIA, ignora SUPLENTE/NÃO ELEITO/#NULO", async () => {
+    const { client } = criarClienteMock<LinhaComposicao>({
+      data: [
+        { sg_partido: "PT", ds_sit_tot_turno: "ELEITO POR QP" },
+        { sg_partido: "PT", ds_sit_tot_turno: "ELEITO POR MÉDIA" },
+        { sg_partido: "PSDB", ds_sit_tot_turno: "ELEITO" },
+        { sg_partido: "PT", ds_sit_tot_turno: "SUPLENTE" },
+        { sg_partido: "PSDB", ds_sit_tot_turno: "NÃO ELEITO" },
+        { sg_partido: "MDB", ds_sit_tot_turno: "#NULO" },
+      ],
+      error: null,
+    });
+    const resultado = await buscarComposicaoPartidariaCasa(client, FILTRO);
+
+    // Só 3 linhas contam como eleitas (2 PT + 1 PSDB) -- total = 3.
+    expect(resultado).toEqual([
+      { siglaPartido: "PT", quantidade: 2, percentual: (2 / 3) * 100 },
+      { siglaPartido: "PSDB", quantidade: 1, percentual: (1 / 3) * 100 },
+    ]);
+  });
+
+  // Done-when: "Partido com < 3% agrupa em 'Outros'".
+  it("agrupa partidos com menos de 3% da composição em 'Outros'", async () => {
+    const linhasPT = Array.from({ length: 95 }, () => ({ sg_partido: "PT", ds_sit_tot_turno: "ELEITO" }));
+    const linhasPSDB = Array.from({ length: 2 }, () => ({ sg_partido: "PSDB", ds_sit_tot_turno: "ELEITO" }));
+    const linhasPV = Array.from({ length: 2 }, () => ({ sg_partido: "PV", ds_sit_tot_turno: "ELEITO" }));
+    const linhasMDB = [{ sg_partido: "MDB", ds_sit_tot_turno: "ELEITO" }];
+    const { client } = criarClienteMock<LinhaComposicao>({
+      data: [...linhasPT, ...linhasPSDB, ...linhasPV, ...linhasMDB],
+      error: null,
+    });
+
+    const resultado = await buscarComposicaoPartidariaCasa(client, FILTRO);
+
+    expect(resultado).toEqual([
+      { siglaPartido: "PT", quantidade: 95, percentual: 95 },
+      { siglaPartido: "Outros", quantidade: 5, percentual: 5 },
+    ]);
+  });
+
+  it("ordena os partidos por quantidade de eleitos, decrescente", async () => {
+    const { client } = criarClienteMock<LinhaComposicao>({
+      data: [
+        { sg_partido: "PSDB", ds_sit_tot_turno: "ELEITO" },
+        { sg_partido: "PT", ds_sit_tot_turno: "ELEITO POR QP" },
+        { sg_partido: "PT", ds_sit_tot_turno: "ELEITO POR MÉDIA" },
+      ],
+      error: null,
+    });
+    const resultado = await buscarComposicaoPartidariaCasa(client, FILTRO);
+    expect(resultado.map((r) => r.siglaPartido)).toEqual(["PT", "PSDB"]);
+  });
+
+  it("lança o erro do Supabase em vez de engolir a falha", async () => {
+    const { client } = criarClienteMock<LinhaComposicao>({ data: null, error: { message: "boom" } });
+    await expect(buscarComposicaoPartidariaCasa(client, FILTRO)).rejects.toEqual({ message: "boom" });
+  });
+
+  it("filtra por ano_eleicao, cd_cargo e sg_uf", async () => {
+    const { client, chamadas } = criarClienteMock<LinhaComposicao>({
+      data: [{ sg_partido: "PT", ds_sit_tot_turno: "ELEITO" }],
+      error: null,
+    });
+    await buscarComposicaoPartidariaCasa(client, FILTRO);
+
+    const eqs = chamadas.filter((c) => c.metodo === "eq").map((c) => c.args);
+    expect(eqs).toContainEqual(["ano_eleicao", 2022]);
+    expect(eqs).toContainEqual(["cd_cargo", 7]);
+    expect(eqs).toContainEqual(["sg_uf", "SP"]);
   });
 });
