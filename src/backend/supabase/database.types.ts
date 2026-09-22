@@ -169,6 +169,11 @@ export type Database = {
         }
         Returns: number
       }
+      excluir_contrato: { Args: { p_id_contrato: number }; Returns: Json }
+      excluir_incidencia: {
+        Args: { p_id: number; p_tipo: string }
+        Returns: Json
+      }
       f_unaccent: { Args: { "": string }; Returns: string }
       id_usuario: { Args: never; Returns: number }
       id_usuario_sistema: { Args: never; Returns: number }
@@ -197,6 +202,14 @@ export type Database = {
         Returns: undefined
       }
       recalcula_pendentes: { Args: { p_limite?: number }; Returns: number }
+      resumo_exclusao_contrato: {
+        Args: { p_id_contrato: number }
+        Returns: Json
+      }
+      resumo_exclusao_incidencia: {
+        Args: { p_id: number; p_tipo: string }
+        Returns: Json
+      }
       substitui_preditores_planejamento: {
         Args: { p_id_planejamento: number; p_preditores: Json }
         Returns: undefined
@@ -812,6 +825,7 @@ export type Database = {
           id_usuario_ponto_focal: number | null
           localizador_legado: string | null
           motivo_encerramento: string | null
+          origem_encerramento: string | null
           profundidade_impacto: string | null
           status: string
         }
@@ -832,6 +846,7 @@ export type Database = {
           id_usuario_ponto_focal?: number | null
           localizador_legado?: string | null
           motivo_encerramento?: string | null
+          origem_encerramento?: string | null
           profundidade_impacto?: string | null
           status: string
         }
@@ -852,6 +867,7 @@ export type Database = {
           id_usuario_ponto_focal?: number | null
           localizador_legado?: string | null
           motivo_encerramento?: string | null
+          origem_encerramento?: string | null
           profundidade_impacto?: string | null
           status?: string
         }
@@ -5270,6 +5286,27 @@ export type Database = {
     }
     Functions: {
       carrega_tse: { Args: { dados: Json; tabela: string }; Returns: undefined }
+      fn_estrategia_kpi: {
+        Args: {
+          p_id_produto: number
+          p_ids_contrato?: number[]
+          p_ids_gestora?: number[]
+          p_ids_projeto?: number[]
+        }
+        Returns: {
+          componente_d1_medio: number
+          componente_d2_medio: number
+          componente_d3_medio: number
+          iip_medio: number
+          mandatos_ativos: number
+          mandatos_atraso_atencao: number
+          mandatos_atraso_atrasados: number
+          mandatos_atraso_normal: number
+          nps_medio: number
+          nr_fatos_geradores: number
+          pct_atingimento_medio: number
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
