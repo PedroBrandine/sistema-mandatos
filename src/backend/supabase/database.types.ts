@@ -489,6 +489,7 @@ export type Database = {
       dim_mandato: {
         Row: {
           atualizado_partido_cargo_em: string | null
+          cargos_legislatura: string[] | null
           confianca: string | null
           ds_genero: string | null
           ds_identidade_genero: string | null
@@ -508,12 +509,20 @@ export type Database = {
           nr_titulo_eleitoral: string | null
           origem_partido_cargo: string | null
           potencial_futuro: string | null
+          principais_destaques: string[] | null
+          principais_noticias: Json | null
           principais_pautas: string[] | null
+          principais_pls: string[] | null
           relevancia_politica: string | null
           risco_democratico: string | null
+          swot_ameacas: string[] | null
+          swot_forcas: string[] | null
+          swot_fraquezas: string[] | null
+          swot_oportunidades: string[] | null
         }
         Insert: {
           atualizado_partido_cargo_em?: string | null
+          cargos_legislatura?: string[] | null
           confianca?: string | null
           ds_genero?: string | null
           ds_identidade_genero?: string | null
@@ -533,12 +542,20 @@ export type Database = {
           nr_titulo_eleitoral?: string | null
           origem_partido_cargo?: string | null
           potencial_futuro?: string | null
+          principais_destaques?: string[] | null
+          principais_noticias?: Json | null
           principais_pautas?: string[] | null
+          principais_pls?: string[] | null
           relevancia_politica?: string | null
           risco_democratico?: string | null
+          swot_ameacas?: string[] | null
+          swot_forcas?: string[] | null
+          swot_fraquezas?: string[] | null
+          swot_oportunidades?: string[] | null
         }
         Update: {
           atualizado_partido_cargo_em?: string | null
+          cargos_legislatura?: string[] | null
           confianca?: string | null
           ds_genero?: string | null
           ds_identidade_genero?: string | null
@@ -558,9 +575,16 @@ export type Database = {
           nr_titulo_eleitoral?: string | null
           origem_partido_cargo?: string | null
           potencial_futuro?: string | null
+          principais_destaques?: string[] | null
+          principais_noticias?: Json | null
           principais_pautas?: string[] | null
+          principais_pls?: string[] | null
           relevancia_politica?: string | null
           risco_democratico?: string | null
+          swot_ameacas?: string[] | null
+          swot_forcas?: string[] | null
+          swot_fraquezas?: string[] | null
+          swot_oportunidades?: string[] | null
         }
         Relationships: [
           {
