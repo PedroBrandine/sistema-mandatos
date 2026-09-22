@@ -46,6 +46,23 @@ export interface CoalizaoVinculada {
   nome: string;
 }
 
+export interface NoticiaMandato {
+  titulo: string;
+  url: string;
+}
+
+export interface DiagnosticoMandato {
+  idMandato: number;
+  principaisDestaques: string[] | null;
+  cargosLegislatura: string[] | null;
+  principaisPls: string[] | null;
+  principaisNoticias: NoticiaMandato[] | null;
+  swotForcas: string[] | null;
+  swotFraquezas: string[] | null;
+  swotOportunidades: string[] | null;
+  swotAmeacas: string[] | null;
+}
+
 export interface InformacoesGeraisMandato {
   idMandato: number;
   minibiografia: string | null;
@@ -113,6 +130,47 @@ export async function buscarInformacoesGeraisMandato(
     historicoContratos,
     projeto: projetoEmbed ? { idProjeto: projetoEmbed.id_projeto, nome: projetoEmbed.nome } : null,
     coalizoes,
+  };
+}
+
+// DIAG-10..DIAG-20 (.specs/features/diagnostico-mandato-estrategia/spec.md).
+// Leitura enxuta da aba "Diagnóstico": só os campos novos de dim_mandato,
+// sem os blocos de Informações Gerais (áreas temáticas, contatos, histórico
+// de contratos, projeto/coalizões não fazem parte desta aba). Mesma resolução
+// id_contrato -> id_contratante -> dim_mandato de buscarInformacoesGeraisMandato,
+// devolve null quando o contrato não existe ou não tem dim_mandato associado.
+export async function buscarDiagnosticoMandato(
+  client: SupabaseClient<Database>,
+  idContrato: number
+): Promise<DiagnosticoMandato | null> {
+  const { data: contrato, error: erroContrato } = await client
+    .from("fat_contrato")
+    .select("id_contratante")
+    .eq("id_contrato", idContrato)
+    .maybeSingle();
+  if (erroContrato) throw erroContrato;
+  if (!contrato) return null;
+
+  const { data: mandato, error: erroMandato } = await client
+    .from("dim_mandato")
+    .select(
+      "id_mandato, principais_destaques, cargos_legislatura, principais_pls, principais_noticias, swot_forcas, swot_fraquezas, swot_oportunidades, swot_ameacas"
+    )
+    .eq("id_contratante", contrato.id_contratante)
+    .maybeSingle();
+  if (erroMandato) throw erroMandato;
+  if (!mandato) return null;
+
+  return {
+    idMandato: mandato.id_mandato,
+    principaisDestaques: mandato.principais_destaques,
+    cargosLegislatura: mandato.cargos_legislatura,
+    principaisPls: mandato.principais_pls,
+    principaisNoticias: (mandato.principais_noticias as unknown as NoticiaMandato[] | null) ?? null,
+    swotForcas: mandato.swot_forcas,
+    swotFraquezas: mandato.swot_fraquezas,
+    swotOportunidades: mandato.swot_oportunidades,
+    swotAmeacas: mandato.swot_ameacas,
   };
 }
 

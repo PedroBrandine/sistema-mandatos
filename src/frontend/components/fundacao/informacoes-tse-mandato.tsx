@@ -41,11 +41,13 @@ export interface InformacoesTseMandatoProps {
   idMandato: number;
 }
 
-// Aba "Informações Gerais" da ficha do contrato (só quando tipo_contratante
-// === 'mandato', ver ficha-contrato-chrome.tsx) -- pedido direto de Pedro
-// após o fechamento da feature navegacao-por-produto: "por hora" os dados do
-// TSE (versão completa: accordion por ano + perfil pessoal + gráfico de
-// eleitorado, confirmado por Pedro em vez da versão simples).
+// Aba "Diagnóstico" da ficha do contrato (só quando tipo_contratante ===
+// 'mandato', ver ficha-contrato-chrome.tsx) -- dados do TSE (versão
+// completa: accordion por ano + perfil pessoal + gráfico de eleitorado,
+// confirmado por Pedro em vez da versão simples). Viveu em "Informações
+// Gerais" até DIAG-01/DIAG-02
+// (.specs/features/diagnostico-mandato-estrategia/spec.md), quando foi
+// movido inteiramente para "Diagnóstico" -- o componente em si não mudou.
 //
 // Reproduz o mesmo bloco/lógica que já existe em mandatos/[id]/page.tsx
 // (accordion de candidaturas TSE), mas como componente independente e

@@ -13,7 +13,6 @@ import { CardHistoricoContratos } from "@/components/fundacao/card-historico-con
 import { CardPontoFocal } from "@/components/fundacao/card-ponto-focal";
 import { CardProjetosCoalizoes } from "@/components/fundacao/card-projetos-coalizoes";
 import { CardSobreMandato } from "@/components/fundacao/card-sobre-mandato";
-import { InformacoesTseMandato } from "@/components/fundacao/informacoes-tse-mandato";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
@@ -22,14 +21,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // FMC-05..FMC-13 (.specs/features/ficha-mandato-contrato/spec.md, "P1:
-// Informações Gerais do mandato"). Monta os 4 cards novos de T25-T28 mais a
-// seção TSE já existente (informacoes-tse-mandato.tsx), que DESCE para uma
-// seção própria dentro da mesma aba -- ela não é substituída (design.md,
-// Code Reuse Analysis). Layout de duas colunas conforme o desenho `57:6`:
-// coluna esquerda com a identidade editorial do mandato (Sobre o Mandato +
-// Ponto Focal e Gestoras), coluna direita com o histórico administrativo
-// (Histórico de Contratos + Projetos e Coalizões Vinculados); o TSE ocupa a
-// largura cheia abaixo das duas.
+// Informações Gerais do mandato"). Monta os 4 cards novos de T25-T28. Layout
+// de duas colunas conforme o desenho `57:6`: coluna esquerda com a
+// identidade editorial do mandato (Sobre o Mandato + Ponto Focal e
+// Gestoras), coluna direita com o histórico administrativo (Histórico de
+// Contratos + Projetos e Coalizões Vinculados).
+//
+// DIAG-01/DIAG-02 (.specs/features/diagnostico-mandato-estrategia/spec.md):
+// o bloco de Candidaturas no TSE (informacoes-tse-mandato.tsx) que existia
+// aqui foi movido inteiramente para a aba "Diagnóstico" -- não é mais
+// exibido nesta aba.
 //
 // contrato: undefined=carregando, null=confirmado ausente/coalizão --
 // notFound() só é chamado no corpo do render (nunca dentro do useEffect que
@@ -138,8 +139,6 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
           <CardProjetosCoalizoes projeto={dados.projeto} coalizoes={dados.coalizoes} />
         </div>
       </div>
-
-      <InformacoesTseMandato idMandato={dados.idMandato} />
     </div>
   );
 }

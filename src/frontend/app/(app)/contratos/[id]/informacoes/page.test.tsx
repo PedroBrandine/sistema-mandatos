@@ -94,11 +94,6 @@ vi.mock("@/components/fundacao/card-projetos-coalizoes", () => ({
     <div data-testid="card-projetos-coalizoes">{projeto?.nome ?? "sem-projeto"}</div>
   ),
 }));
-vi.mock("@/components/fundacao/informacoes-tse-mandato", () => ({
-  InformacoesTseMandato: ({ idMandato }: { idMandato: number }) => (
-    <div data-testid="informacoes-tse-mandato">{idMandato}</div>
-  ),
-}));
 
 import InformacoesContratoPage from "./page";
 
@@ -198,8 +193,8 @@ describe("Página Informações Gerais — coalizão responde notFound() (edge c
   });
 });
 
-describe("Página Informações Gerais — montagem dos 4 cards + TSE (FMC-05..FMC-13)", () => {
-  it("passa os dados de cada bloco para o card correspondente e monta o TSE abaixo", async () => {
+describe("Página Informações Gerais — montagem dos 4 cards (FMC-05..FMC-13)", () => {
+  it("passa os dados de cada bloco para o card correspondente", async () => {
     buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
     buscarInformacoesGeraisMandatoMock.mockResolvedValue(DADOS_BASE);
 
@@ -209,7 +204,19 @@ describe("Página Informações Gerais — montagem dos 4 cards + TSE (FMC-05..F
     expect(screen.getByTestId("card-ponto-focal")).toHaveTextContent("Ana Legisla");
     expect(screen.getByTestId("card-historico-contratos")).toHaveTextContent("1");
     expect(screen.getByTestId("card-projetos-coalizoes")).toHaveTextContent("Projeto Alfa");
-    expect(screen.getByTestId("informacoes-tse-mandato")).toHaveTextContent("200");
+  });
+
+  // DIAG-02 (.specs/features/diagnostico-mandato-estrategia/spec.md): o
+  // bloco de Candidaturas no TSE saiu desta aba e não deve mais aparecer
+  // aqui, mesmo que o mandato tenha candidaturas.
+  it("não renderiza mais o bloco de Candidaturas no TSE (DIAG-02)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+    buscarInformacoesGeraisMandatoMock.mockResolvedValue(DADOS_BASE);
+
+    render(<InformacoesContratoPage params={paramsProntos("1")} />);
+
+    await screen.findByTestId("card-sobre-mandato");
+    expect(screen.queryByTestId("informacoes-tse-mandato")).not.toBeInTheDocument();
   });
 
   it("layout de duas colunas: Sobre o Mandato/Ponto Focal e Histórico/Projetos ficam em colunas separadas", async () => {
