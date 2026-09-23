@@ -182,6 +182,41 @@ describe("CardPontoFocal — Ponto Focal (FMC-11, AC7, A-05)", () => {
   });
 });
 
+describe("CardPontoFocal — botão Editar no header (PF2-08, AC1)", () => {
+  it("exibe o botão 'Editar' no header, mesmo padrão do card Sobre o Mandato", () => {
+    ({ client: clienteAtual } = criarClienteMock({}));
+    render(<CardPontoFocal idContrato={1} pontoFocal={null} gestoras={[]} onAtualizado={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
+  });
+
+  it("clicar em 'Editar' abre a edição do Ponto Focal -- mesma ação já existente, sem regressão", async () => {
+    ({ client: clienteAtual } = criarClienteMock({ dim_usuario: USUARIOS_RESP }));
+    render(
+      <CardPontoFocal
+        idContrato={7}
+        pontoFocal={{ idUsuario: 20, nome: "Ana Legisla" }}
+        gestoras={[]}
+        onAtualizado={vi.fn()}
+      />
+    );
+
+    screen.getByRole("button", { name: "Editar" }).click();
+
+    expect(await screen.findByRole("combobox", { name: "Ponto Focal" })).toBeInTheDocument();
+  });
+
+  it("durante a edição, o botão 'Editar' do header desaparece (mesmo padrão de Sobre o Mandato)", async () => {
+    ({ client: clienteAtual } = criarClienteMock({ dim_usuario: USUARIOS_RESP }));
+    render(<CardPontoFocal idContrato={1} pontoFocal={null} gestoras={[]} onAtualizado={vi.fn()} />);
+
+    screen.getByRole("button", { name: "Editar" }).click();
+    await screen.findByRole("combobox", { name: "Ponto Focal" });
+
+    expect(screen.queryByRole("button", { name: "Editar" })).not.toBeInTheDocument();
+  });
+});
+
 describe("CardPontoFocal — Gestoras, em leitura (FMC-11)", () => {
   it("gestoras vinculadas aparecem como badges", () => {
     ({ client: clienteAtual } = criarClienteMock({}));

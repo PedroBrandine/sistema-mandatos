@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pencil } from "lucide-react";
 
 import type { UsuarioResumo } from "@backend/queries/ficha-mandato";
 import { mapeiaErroRpc } from "@backend/rpc/errors";
@@ -8,7 +9,7 @@ import { createClient } from "@backend/supabase/client";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErroInline } from "@/components/ui/erro-inline";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -23,6 +24,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // A lista de usuários Legisla é buscada inline (useEffect + createClient()),
 // mesmo padrão do fetch de dim_usuario em vinculos/page.tsx:49-54 -- só ao
 // entrar em edição, para não pagar a consulta em toda renderização do card.
+//
+// PF2-08 (T9): botão "Editar" no header, mesmo padrão visual/de código do
+// card "Sobre o Mandato" (card-sobre-mandato.tsx) -- CardAction + Pencil,
+// visível só fora de edição. A ação em si (vincular/desvincular usuário) já
+// existia e não muda: o botão só reusa iniciarEdicao(), o mesmo gatilho que
+// "Alterar"/"Vincular usuário" já disparavam.
 
 export interface CardPontoFocalProps {
   idContrato: number;
@@ -137,6 +144,14 @@ export function CardPontoFocal({ idContrato, pontoFocal, gestoras, onAtualizado 
     <Card>
       <CardHeader>
         <CardTitle>Ponto Focal e Gestoras</CardTitle>
+        {!editando && (
+          <CardAction>
+            <Button type="button" variant="outline" size="sm" onClick={iniciarEdicao}>
+              <Pencil className="size-3.5" />
+              Editar
+            </Button>
+          </CardAction>
+        )}
       </CardHeader>
 
       <CardContent className="grid gap-4 text-sm">
