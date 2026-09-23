@@ -86,3 +86,32 @@ describe("FiltrosFatosGeradores", () => {
     expect(screen.getByRole("button", { name: "Limpar filtros" })).toBeDisabled();
   });
 });
+
+// PF3-03 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL não tem
+// gestora -- o rótulo (e placeholder) trocam pra Mentor via prop, sem
+// duplicar o componente.
+describe("FiltrosFatosGeradores — rotuloPessoa (PF3-03)", () => {
+  it("rotuloPessoa='Mentor' troca rótulo, plural e placeholder do primeiro seletor", () => {
+    render(
+      <FiltrosFatosGeradores
+        filtro={{}}
+        onChange={vi.fn()}
+        gestoras={OPCOES}
+        projetos={OPCOES}
+        contratos={OPCOES}
+        rotuloPessoa="Mentor"
+      />
+    );
+
+    expect(screen.getByRole("combobox", { name: "Mentor" })).toHaveTextContent("Todos os mentores");
+    expect(screen.queryByRole("combobox", { name: "Gestora" })).not.toBeInTheDocument();
+  });
+
+  it("lado oposto: sem rotuloPessoa, continua 'Gestora' (default)", () => {
+    render(
+      <FiltrosFatosGeradores filtro={{}} onChange={vi.fn()} gestoras={OPCOES} projetos={OPCOES} contratos={OPCOES} />
+    );
+
+    expect(screen.getByRole("combobox", { name: "Gestora" })).toHaveTextContent("Todas as gestoras");
+  });
+});

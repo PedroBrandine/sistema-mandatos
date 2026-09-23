@@ -7,6 +7,7 @@ import { buscarEstrategiaKpi } from "@backend/queries/estrategia-kpi";
 import { buscarIncidenciaDoProduto } from "@backend/queries/incidencia-produto";
 import { buscarMandatosLista, type ContratoCard } from "@backend/queries/mandatos-lista";
 import { buscarGestorasAtivas, buscarProjetosAtivos } from "@backend/queries/opcoes-filtro";
+import { buscarOpcoesMentorPll } from "@backend/queries/pll-dashboard";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { createClient } from "@backend/supabase/client";
 
@@ -51,9 +52,15 @@ export default function ProdutoFatosGeradoresPage({ params }: { params: Promise<
   const { data: produto } = useProdutoAtual(slug);
   const [filtro, setFiltro] = useState<ValorFiltrosFatosGeradores>({});
 
+  // PF3-03 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL não
+  // tem gestora (papel_global) -- usa o filtro de mentor já validado no
+  // Dashboard PLL (buscarOpcoesMentorPll, D-4), com vínculo por
+  // papel_no_contrato='mentor' em vez de papel_global='gestora'.
+  const ehPll = slug === "pll";
   const { data: gestoras } = useQuery({
-    queryKey: ["fatos-geradores-gestoras"],
-    queryFn: () => buscarGestorasAtivas(createClient()),
+    queryKey: ehPll ? ["fatos-geradores-mentores-pll", produto?.idProduto] : ["fatos-geradores-gestoras"],
+    queryFn: () => (ehPll ? buscarOpcoesMentorPll(createClient(), produto!.idProduto) : buscarGestorasAtivas(createClient())),
+    enabled: ehPll ? produto !== undefined : true,
   });
   const { data: projetos } = useQuery({
     queryKey: ["fatos-geradores-projetos"],
@@ -67,7 +74,8 @@ export default function ProdutoFatosGeradoresPage({ params }: { params: Promise<
     queryFn: () =>
       buscarMandatosLista(createClient(), {
         idProduto: produto!.idProduto,
-        idsGestora: filtro.idsGestora,
+        idsGestora: ehPll ? undefined : filtro.idsGestora,
+        idsMentor: ehPll ? filtro.idsGestora : undefined,
         idsProjeto: filtro.idsProjeto,
       }),
     enabled: produto !== undefined,
@@ -114,13 +122,18 @@ export default function ProdutoFatosGeradoresPage({ params }: { params: Promise<
       filtro.idsGestora,
       filtro.idsProjeto,
       idsContratoEscolhidos,
+      idsContrato,
     ],
     queryFn: () =>
+      // PF3-03: fn_estrategia_kpi só filtra por gestora (p_ids_gestora), sem
+      // equivalente de mentor -- pra PLL, o recorte de mentor já resolvido em
+      // `idsContrato` (via buscarMandatosLista) vai direto como idsContrato,
+      // em vez de reenviar o filtro de pessoa pro RPC (que o ignoraria errado).
       buscarEstrategiaKpi(createClient(), {
         idProduto: produto!.idProduto,
-        idsGestora: filtro.idsGestora,
+        idsGestora: ehPll ? undefined : filtro.idsGestora,
         idsProjeto: filtro.idsProjeto,
-        idsContrato: listaOuUndefined(idsContratoEscolhidos),
+        idsContrato: listaOuUndefined(ehPll ? idsContrato : idsContratoEscolhidos),
       }),
     enabled: produto !== undefined && contratoUnico === undefined,
   });
@@ -154,6 +167,7 @@ export default function ProdutoFatosGeradoresPage({ params }: { params: Promise<
       gestoras={gestoras ?? []}
       projetos={projetos ?? []}
       contratos={opcoesContrato}
+      rotuloPessoa={ehPll ? "Mentor" : "Gestora"}
     />
   );
 
@@ -181,7 +195,10 @@ export default function ProdutoFatosGeradoresPage({ params }: { params: Promise<
     // vazio nomeado, não uma tela de zeros que pareceria "medimos e deu zero".
     if (mandatos.length === 0) {
       return (
-        <EstadoVazio titulo="Nenhum mandato neste recorte" mensagem="Ajuste Gestora ou Projeto para ver os fatos geradores." />
+        <EstadoVazio
+          titulo="Nenhum mandato neste recorte"
+          mensagem={`Ajuste ${ehPll ? "Mentor" : "Gestora"} ou Projeto para ver os fatos geradores.`}
+        />
       );
     }
 

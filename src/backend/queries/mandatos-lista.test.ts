@@ -281,4 +281,25 @@ describe("buscarMandatosLista (EST-09)", () => {
 
     expect(resultado).toEqual([]);
   });
+
+  // PF3-03 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL filtra
+  // por mentor, não gestora -- mesma mecânica, papel diferente.
+  it("filtro de mentor restringe isoladamente -- consulta rel_usuario_contrato por papel mentor (PF3-03)", async () => {
+    const { client, chamadas } = criarClienteMock({
+      ...respostasBase(),
+      rel_usuario_contrato: { data: [{ id_contrato: 2 }], error: null },
+    });
+
+    const resultado = await buscarMandatosLista(client, { idProduto: 7, idsMentor: [77] });
+
+    expect(resultado.map((c) => c.idContrato)).toEqual([2]);
+    const chamadaVinculo = chamadas.find(
+      (c) => c.tabela === "rel_usuario_contrato" && c.metodo === "eq" && c.args[0] === "papel_no_contrato"
+    );
+    expect(chamadaVinculo?.args).toEqual(["papel_no_contrato", "mentor"]);
+    const chamadaMentores = chamadas.find(
+      (c) => c.tabela === "rel_usuario_contrato" && c.metodo === "in" && c.args[0] === "id_usuario"
+    );
+    expect(chamadaMentores?.args).toEqual(["id_usuario", [77]]);
+  });
 });

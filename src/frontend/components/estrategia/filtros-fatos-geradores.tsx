@@ -36,6 +36,10 @@ export interface FiltrosFatosGeradoresProps {
   projetos: OpcaoFiltroFatosGeradores[];
   // Já restritos a Gestora/Projeto escolhidos -- a página filtra antes.
   contratos: OpcaoFiltroFatosGeradores[];
+  // PF3-03 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL não
+  // tem gestora -- a página troca o rótulo (e a fonte de `gestoras`, que
+  // nesse caso já vem com os mentores) sem duplicar este componente.
+  rotuloPessoa?: "Gestora" | "Mentor";
 }
 
 const FILTRO_VAZIO: ValorFiltrosFatosGeradores = {};
@@ -63,18 +67,28 @@ function Seletor({ valores, placeholder, rotulo, rotuloPlural, opcoes, onChange 
   );
 }
 
-export function FiltrosFatosGeradores({ filtro, onChange, gestoras, projetos, contratos }: FiltrosFatosGeradoresProps) {
+export function FiltrosFatosGeradores({
+  filtro,
+  onChange,
+  gestoras,
+  projetos,
+  contratos,
+  rotuloPessoa = "Gestora",
+}: FiltrosFatosGeradoresProps) {
   const temFiltro = [filtro.idsGestora, filtro.idsProjeto, filtro.idsContrato].some(
     (ids) => ids !== undefined && ids.length > 0
   ) || Boolean(filtro.periodoInicio) || Boolean(filtro.periodoFim);
+
+  const rotuloPessoaPlural = rotuloPessoa === "Mentor" ? "mentores" : "gestoras";
+  const placeholderPessoa = rotuloPessoa === "Mentor" ? "Todos os mentores" : "Todas as gestoras";
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 lg:flex-row lg:items-center">
       <Seletor
         valores={filtro.idsGestora}
-        placeholder="Todas as gestoras"
-        rotulo="Gestora"
-        rotuloPlural="gestoras"
+        placeholder={placeholderPessoa}
+        rotulo={rotuloPessoa}
+        rotuloPlural={rotuloPessoaPlural}
         opcoes={gestoras}
         onChange={(idsGestora) => onChange({ ...filtro, idsGestora })}
       />

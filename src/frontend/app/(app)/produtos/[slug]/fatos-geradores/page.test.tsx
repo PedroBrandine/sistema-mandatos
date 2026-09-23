@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   buscarEstrategiaKpi: vi.fn(),
   buscarGestorasAtivas: vi.fn(),
   buscarProjetosAtivos: vi.fn(),
+  buscarOpcoesMentorPll: vi.fn(),
   visao: "linha-do-tempo",
 }));
 
@@ -30,6 +31,9 @@ vi.mock("@backend/queries/opcoes-filtro", () => ({
   buscarGestorasAtivas: mocks.buscarGestorasAtivas,
   buscarProjetosAtivos: mocks.buscarProjetosAtivos,
 }));
+// PF3-03 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL usa o
+// filtro de mentor já validado no Dashboard PLL, em vez de Gestora.
+vi.mock("@backend/queries/pll-dashboard", () => ({ buscarOpcoesMentorPll: mocks.buscarOpcoesMentorPll }));
 vi.mock("@backend/supabase/client", () => ({ createClient: () => ({}) }));
 vi.mock("@/hooks/use-produto-atual", () => ({
   useProdutoAtual: () => ({ data: { idProduto: 1, nome: "Estratégia" }, isLoading: false }),
@@ -52,13 +56,16 @@ vi.mock("@/components/estrategia/filtros-fatos-geradores", () => ({
     filtro,
     onChange,
     contratos,
+    rotuloPessoa,
   }: {
     filtro: Record<string, number[] | undefined>;
     onChange: (f: Record<string, number[] | undefined>) => void;
     contratos: { id: number; nome: string }[];
+    rotuloPessoa?: string;
   }) => (
     <div>
       <p data-testid="opcoes-contrato">{contratos.map((c) => c.nome).join("|")}</p>
+      <p data-testid="rotulo-pessoa">{rotuloPessoa ?? "Gestora"}</p>
       <button type="button" onClick={() => onChange({ ...filtro, idsGestora: [5] })}>
         escolher gestora
       </button>
@@ -122,12 +129,12 @@ function paramsProntos(slug: string): Promise<{ slug: string }> {
   return Object.assign(Promise.resolve(valor), { status: "fulfilled", value: valor });
 }
 
-function renderizar() {
+function renderizar(slug = "estrategia") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <Suspense fallback={<p>carregando</p>}>
-        <ProdutoFatosGeradoresPage params={paramsProntos("estrategia")} />
+        <ProdutoFatosGeradoresPage params={paramsProntos(slug)} />
       </Suspense>
     </QueryClientProvider>
   );
@@ -138,6 +145,7 @@ beforeEach(() => {
   mocks.visao = "linha-do-tempo";
   mocks.buscarGestorasAtivas.mockResolvedValue([]);
   mocks.buscarProjetosAtivos.mockResolvedValue([]);
+  mocks.buscarOpcoesMentorPll.mockResolvedValue([]);
   mocks.buscarMandatosLista.mockResolvedValue([MANDATO_ANA, MANDATO_BRUNO]);
   mocks.buscarIncidenciaDoProduto.mockResolvedValue(INCIDENCIA);
   mocks.buscarEstrategiaKpi.mockResolvedValue({
@@ -302,5 +310,46 @@ describe("Aba Fatos Geradores do produto — Ciclo de Vida", () => {
     fireEvent.click(screen.getByRole("button", { name: "escolher contrato" }));
 
     expect(await screen.findByText("IIP do contrato 8")).toBeInTheDocument();
+  });
+});
+
+// PF3-03 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL não tem
+// gestora -- o filtro de pessoa vira Mentor, com fonte e papel diferentes.
+describe("Aba Fatos Geradores do produto — PLL (PF3-03)", () => {
+  it("mostra 'Mentor' (não 'Gestora') e busca opções via buscarOpcoesMentorPll", async () => {
+    mocks.buscarOpcoesMentorPll.mockResolvedValue([{ id: 9, nome: "Mentor 9" }]);
+    renderizar("pll");
+
+    await waitFor(() => expect(screen.getByTestId("rotulo-pessoa")).toHaveTextContent("Mentor"));
+    expect(mocks.buscarOpcoesMentorPll).toHaveBeenCalledWith({}, 1);
+    expect(mocks.buscarGestorasAtivas).not.toHaveBeenCalled();
+  });
+
+  it("escolher a pessoa filtra buscarMandatosLista por idsMentor, não idsGestora", async () => {
+    renderizar("pll");
+    await screen.findByRole("button", { name: /Insight da Ana/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "escolher gestora" }));
+
+    await waitFor(() =>
+      expect(mocks.buscarMandatosLista).toHaveBeenLastCalledWith(
+        {},
+        { idProduto: 1, idsGestora: undefined, idsMentor: [5], idsProjeto: undefined }
+      )
+    );
+  });
+
+  it("lado oposto: produto que não é PLL continua com idsGestora, sem idsMentor", async () => {
+    renderizar("estrategia");
+    await screen.findByRole("button", { name: /Insight da Ana/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "escolher gestora" }));
+
+    await waitFor(() =>
+      expect(mocks.buscarMandatosLista).toHaveBeenLastCalledWith(
+        {},
+        { idProduto: 1, idsGestora: [5], idsMentor: undefined, idsProjeto: undefined }
+      )
+    );
   });
 });

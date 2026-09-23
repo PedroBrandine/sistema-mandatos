@@ -53,6 +53,11 @@ export interface FiltroMandatosLista {
   dtInicioDe?: string;
   dtInicioAte?: string;
   idsGestora?: number[];
+  // PF3-03 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL não
+  // tem "gestora" -- filtra por vínculo ativo de papel 'mentor' em vez de
+  // 'gestora'. Independente de idsGestora (nenhuma tela usa os dois juntos
+  // hoje), aplicado em AND com os demais filtros se algum dia usar.
+  idsMentor?: number[];
   idsProjeto?: number[];
   idsEtapa?: number[];
   status?: StatusMandato[];
@@ -86,11 +91,13 @@ function filtroVinculoAtivo(): string {
 
 // Restringe idsContrato aos que têm vínculo ativo com QUALQUER um dos
 // idsUsuario naquele papel -- mesmo padrão de idsContratoPorPapelPessoa em
-// queries/kanban.ts.
-async function idsContratoPorGestora(
+// queries/kanban.ts. Generalizado (PF3-03) pra também filtrar por 'mentor',
+// mesma mecânica de gestora.
+async function idsContratoPorPapel(
   client: SupabaseClient<Database>,
   idsContrato: number[],
-  idsUsuario: number[]
+  idsUsuario: number[],
+  papel: "gestora" | "mentor"
 ): Promise<number[]> {
   if (idsContrato.length === 0) return [];
   const { data, error } = await client
@@ -98,7 +105,7 @@ async function idsContratoPorGestora(
     .select("id_contrato")
     .in("id_contrato", idsContrato)
     .in("id_usuario", idsUsuario)
-    .eq("papel_no_contrato", "gestora")
+    .eq("papel_no_contrato", papel)
     .or(filtroVinculoAtivo());
   if (error) throw error;
   return Array.from(new Set((data ?? []).map((v) => v.id_contrato)));
@@ -175,13 +182,27 @@ export async function buscarMandatosLista(
 
   if (temValores(filtro.idsGestora)) {
     const idsGestora = new Set(
-      await idsContratoPorGestora(
+      await idsContratoPorPapel(
         client,
         contratos.map((c) => c.id_contrato),
-        filtro.idsGestora
+        filtro.idsGestora,
+        "gestora"
       )
     );
     contratos = contratos.filter((c) => idsGestora.has(c.id_contrato));
+    if (contratos.length === 0) return [];
+  }
+
+  if (temValores(filtro.idsMentor)) {
+    const idsMentor = new Set(
+      await idsContratoPorPapel(
+        client,
+        contratos.map((c) => c.id_contrato),
+        filtro.idsMentor,
+        "mentor"
+      )
+    );
+    contratos = contratos.filter((c) => idsMentor.has(c.id_contrato));
     if (contratos.length === 0) return [];
   }
 
