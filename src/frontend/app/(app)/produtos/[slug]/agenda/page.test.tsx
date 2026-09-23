@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { Suspense } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T30b
@@ -538,6 +538,57 @@ describe("Agenda — lista de Registros", () => {
 
     expect(await screen.findByText("Nenhum registro no recorte")).toBeInTheDocument();
     expect(screen.queryByText("Nenhum encontro neste mês")).not.toBeInTheDocument();
+  });
+});
+
+describe("Agenda (23/09, pós PF2-07) — sub-aba Encontros do hub", () => {
+  it("abre por padrão na sub-aba Agenda, com a grade visível e Encontros não selecionada", async () => {
+    renderizarAgenda();
+    await aguardarGrade();
+
+    expect(screen.getByRole("tab", { name: "Agenda" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Encontros" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("clicar em Encontros troca para a lista, mantendo a mesma barra de filtros montada", async () => {
+    renderizarAgenda();
+    await aguardarGrade();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Encontros" }));
+
+    expect(await screen.findByText("Encontros do mês")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Encontros" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+    // A barra de filtros (gestora/projeto/contrato) continua montada -- é o
+    // mesmo estado local, não uma nova rota que a reiniciaria.
+    expect(screen.getByText("Filtrar por gestora")).toBeInTheDocument();
+    expect(screen.getByText("Filtrar por projeto")).toBeInTheDocument();
+    expect(screen.getByText("Filtrar por contrato")).toBeInTheDocument();
+  });
+
+  it("lista o mesmo encontro do mês/filtro atual, sem nova consulta", async () => {
+    renderizarAgenda();
+    await aguardarGrade();
+    const chamadasAntesDoClique = mocks.buscarEncontrosDoMes.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("tab", { name: "Encontros" }));
+
+    const tabela = await screen.findByRole("table");
+    expect(within(tabela).getByText("Mentoria 3")).toBeInTheDocument();
+    expect(within(tabela).getByText("Dep. Ana Ribeiro")).toBeInTheDocument();
+    expect(within(tabela).getByText("Planejado")).toBeInTheDocument();
+    expect(mocks.buscarEncontrosDoMes.mock.calls.length).toBe(chamadasAntesDoClique);
+  });
+
+  it("mês sem encontro no recorte mostra o estado explicativo — lado oposto", async () => {
+    mocks.buscarEncontrosDoMes.mockResolvedValue([]);
+    renderizarAgenda();
+    await aguardarGrade();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Encontros" }));
+
+    expect(await screen.findByText("Nenhum encontro neste mês")).toBeInTheDocument();
   });
 });
 

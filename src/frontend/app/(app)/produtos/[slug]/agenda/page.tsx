@@ -136,6 +136,16 @@ function EstrategiaAgendaPage({ slug }: { slug: ProdutoSlug }) {
   // opcionais nelas. Cada recorte aceita várias opções (seleção múltipla).
   const [filtro, setFiltro] = useState<ValorFiltrosAgenda>({});
 
+  // Pedro, 23/09 (pós pente-fino-2026-09-23/PF2-07): a mesma sub-aba
+  // Agenda/Encontros que a ficha do contrato ganhou também entra no hub do
+  // produto. Diferente da ficha (2 ROTAS reais, PF2-07), aqui é estado local
+  // -- não há link externo apontando pra uma URL própria de "Encontros do
+  // produto", e trocar de rota reiniciaria a barra de filtros que este
+  // pedido pede pra manter. A lista da sub-aba Encontros reusa a MESMA
+  // consulta/filtro/mês da grade (nenhuma query nova) -- só apresenta os
+  // mesmos `encontros` já buscados como tabela em vez de calendário.
+  const [subAbaAtiva, setSubAbaAtiva] = useState<"agenda" | "encontros">("agenda");
+
   // "+ Novo agendamento" precisa de UM contrato: só com exatamente um marcado
   // no filtro há para onde levar a usuária.
   const idContratoUnico = filtro.idsContrato?.length === 1 ? filtro.idsContrato[0] : undefined;
@@ -267,61 +277,103 @@ function EstrategiaAgendaPage({ slug }: { slug: ProdutoSlug }) {
         contratos={contratos ?? []}
       />
 
-      <AgendaMes
-        ano={periodo.ano}
-        mes={periodo.mes}
-        encontros={encontrosDoMes}
-        hoje={hoje}
-        onMudarMes={irParaMes}
-        onSelecionarEncontro={selecionarEncontro}
-        onNovoAgendamento={() => {
-          if (idContratoUnico !== undefined) {
-            router.push(`/contratos/${idContratoUnico}/encontros`);
-          }
-        }}
-        novoAgendamentoDesabilitado={idContratoUnico === undefined}
-        motivoNovoAgendamentoDesabilitado="Selecione um único contrato no filtro para agendar um novo encontro."
-      />
-
-      {/* EST-12 AC4 / EST-13: o popover existe enquanto há encontro
-          selecionado, e some quando a seleção é desfeita. O gatilho é um
-          âncora sr-only logo abaixo da grade, não a grade inteira: o contrato
-          de AgendaMes entrega o encontro clicado (`onSelecionarEncontro`), não
-          o elemento DOM dele, e envolver o calendário inteiro num
-          PopoverTrigger faria cada clique numa célula alternar o popover por
-          conta do toggle do Radix (react-popover/dist/index.mjs:96). Ancorar
-          na célula exigiria mudar AgendaMes, que está fora do Where desta
-          task. */}
-      {encontroSelecionado && (
-        <EncontroPopover
-          encontro={encontroSelecionado}
-          registros={registrosDoRecorte}
-          hoje={hoje}
-          aberto
-          onAbertoChange={(estaAberto) => {
-            if (!estaAberto) setIdEncontroSelecionado(null);
-          }}
-          onMarcarPresenca={(input) => marcarPresencaNoEncontro(input)}
-          onAdicionarRegistro={(input) => router.push(`/contratos/${input.idContrato}/encontros`)}
-          marcandoPresenca={marcandoPresenca}
-          erroPresenca={erroPresenca}
+      {/* Sub-abas "Agenda"/"Encontros" (23/09, pós PF2-07) -- mesmo padrão
+          visual da sub-aba da ficha do contrato (ficha-contrato-chrome.tsx),
+          mas com estado local em vez de rota: aqui não há uma segunda URL
+          pra Encontros do hub, e trocar de rota reiniciaria a barra de
+          filtros acima, que este pedido pede pra manter entre as duas. */}
+      <div role="tablist" className="flex gap-3">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={subAbaAtiva === "agenda"}
+          onClick={() => setSubAbaAtiva("agenda")}
+          className={cn(
+            "border-b-[3px] px-1 py-2 text-sm",
+            subAbaAtiva === "agenda"
+              ? "border-secondary font-bold text-secondary"
+              : "border-transparent font-medium text-muted-foreground hover:text-foreground"
+          )}
         >
-          <span className="sr-only">Detalhe do encontro {encontroSelecionado.titulo}</span>
-        </EncontroPopover>
-      )}
+          Agenda
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={subAbaAtiva === "encontros"}
+          onClick={() => setSubAbaAtiva("encontros")}
+          className={cn(
+            "border-b-[3px] px-1 py-2 text-sm",
+            subAbaAtiva === "encontros"
+              ? "border-secondary font-bold text-secondary"
+              : "border-transparent font-medium text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Encontros
+        </button>
+      </div>
 
-      {erroRegistros ? (
-        <ErroInline
-          mensagem="Não foi possível carregar os registros da Agenda."
-          onRetry={() => refetchRegistros()}
-        />
+      {subAbaAtiva === "agenda" ? (
+        <>
+          <AgendaMes
+            ano={periodo.ano}
+            mes={periodo.mes}
+            encontros={encontrosDoMes}
+            hoje={hoje}
+            onMudarMes={irParaMes}
+            onSelecionarEncontro={selecionarEncontro}
+            onNovoAgendamento={() => {
+              if (idContratoUnico !== undefined) {
+                router.push(`/contratos/${idContratoUnico}/encontros`);
+              }
+            }}
+            novoAgendamentoDesabilitado={idContratoUnico === undefined}
+            motivoNovoAgendamentoDesabilitado="Selecione um único contrato no filtro para agendar um novo encontro."
+          />
+
+          {/* EST-12 AC4 / EST-13: o popover existe enquanto há encontro
+              selecionado, e some quando a seleção é desfeita. O gatilho é um
+              âncora sr-only logo abaixo da grade, não a grade inteira: o contrato
+              de AgendaMes entrega o encontro clicado (`onSelecionarEncontro`), não
+              o elemento DOM dele, e envolver o calendário inteiro num
+              PopoverTrigger faria cada clique numa célula alternar o popover por
+              conta do toggle do Radix (react-popover/dist/index.mjs:96). Ancorar
+              na célula exigiria mudar AgendaMes, que está fora do Where desta
+              task. */}
+          {encontroSelecionado && (
+            <EncontroPopover
+              encontro={encontroSelecionado}
+              registros={registrosDoRecorte}
+              hoje={hoje}
+              aberto
+              onAbertoChange={(estaAberto) => {
+                if (!estaAberto) setIdEncontroSelecionado(null);
+              }}
+              onMarcarPresenca={(input) => marcarPresencaNoEncontro(input)}
+              onAdicionarRegistro={(input) => router.push(`/contratos/${input.idContrato}/encontros`)}
+              marcandoPresenca={marcandoPresenca}
+              erroPresenca={erroPresenca}
+            >
+              <span className="sr-only">Detalhe do encontro {encontroSelecionado.titulo}</span>
+            </EncontroPopover>
+          )}
+
+          {erroRegistros ? (
+            <ErroInline
+              mensagem="Não foi possível carregar os registros da Agenda."
+              onRetry={() => refetchRegistros()}
+            />
+          ) : (
+            <ListaRegistros
+              registros={registrosDoRecorte}
+              encontroSelecionado={encontroSelecionado}
+              mesSemEncontro={encontrosDoMes.length === 0}
+              onLimparFiltro={() => setIdEncontroSelecionado(null)}
+            />
+          )}
+        </>
       ) : (
-        <ListaRegistros
-          registros={registrosDoRecorte}
-          encontroSelecionado={encontroSelecionado}
-          mesSemEncontro={encontrosDoMes.length === 0}
-          onLimparFiltro={() => setIdEncontroSelecionado(null)}
-        />
+        <ListaEncontrosProduto encontros={encontrosDoMes} />
       )}
     </div>
   );
@@ -718,6 +770,61 @@ function AvatarResponsavel({ nome }: { nome: string }) {
     >
       {inicial || "?"}
     </span>
+  );
+}
+
+// Sub-aba "Encontros" do hub (23/09, pós PF2-07): mesmo recorte de
+// mês+filtro já usado pela grade (nenhuma query nova) -- só uma tabela em
+// vez de calendário, Status/Data/Título/Contratante. Reusa
+// STATUS_LABEL_PLL/STATUS_BADGE_CLASS_PLL (já definidos acima para o mesmo
+// tipo `EncontroAgenda["status"]`, sem duplicar rótulo/cor).
+function ListaEncontrosProduto({ encontros }: { encontros: EncontroAgenda[] }) {
+  return (
+    <section className="grid gap-3">
+      <div className="grid gap-0.5">
+        <h2 className="font-heading text-xl">Encontros do mês</h2>
+        <p className="text-sm text-muted-foreground">
+          {encontros.length === 1 ? "1 encontro neste mês" : `${encontros.length} encontros neste mês`}
+        </p>
+      </div>
+
+      {encontros.length === 0 ? (
+        <EstadoVazio
+          titulo="Nenhum encontro neste mês"
+          mensagem="Este mês não tem encontro agendado no recorte atual. Use as setas da Agenda para navegar até outro mês, ou ajuste os filtros."
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Status</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Título</TableHead>
+              <TableHead>Contratante</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {encontros.map((encontro) => (
+              <TableRow key={encontro.idEncontro}>
+                <TableCell>
+                  <Badge className={cn(STATUS_BADGE_CLASS_PLL[encontro.status], "font-bold")}>
+                    {STATUS_LABEL_PLL[encontro.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const iso = encontro.status === "realizado" ? encontro.dtRealizada : encontro.dtPrevistaInicio;
+                    return iso ? dataBr(iso) : "—";
+                  })()}
+                </TableCell>
+                <TableCell>{encontro.titulo}</TableCell>
+                <TableCell>{encontro.nomeContratante}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </section>
   );
 }
 
