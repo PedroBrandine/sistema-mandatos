@@ -47,9 +47,14 @@ export interface RoscaAnaliseProps {
    * passam esta prop. */
   semResposta?: number;
   className?: string;
+  /** PF3-02: quando o card em volta já mostra `titulo` no próprio CardTitle
+   * (uma rosca só, sem agrupar várias métricas), evita repetir o texto na
+   * tela -- o nome continua no DOM (sr-only) pra manter o `aria-labelledby`
+   * do gráfico. */
+  ocultarTitulo?: boolean;
 }
 
-export function RoscaAnalise({ titulo, n, categorias, semResposta, className }: RoscaAnaliseProps) {
+export function RoscaAnalise({ titulo, n, categorias, semResposta, className, ocultarTitulo }: RoscaAnaliseProps) {
   const tituloId = useId();
 
   const config: ChartConfig = Object.fromEntries(
@@ -58,7 +63,7 @@ export function RoscaAnalise({ titulo, n, categorias, semResposta, className }: 
 
   return (
     <div className={cn("grid gap-2", className)}>
-      <p id={tituloId} className="text-sm font-bold text-secondary">
+      <p id={tituloId} className={ocultarTitulo ? "sr-only" : "text-sm font-bold text-secondary"}>
         {titulo}
       </p>
       <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center">

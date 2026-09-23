@@ -240,7 +240,10 @@ describe("FichaMentoradoPage — cabeçalho e composição (T15)", () => {
     expect(screen.getByText("Mentorado")).toBeInTheDocument();
     expect(await screen.findByTestId("ficha-dados-tse")).toBeInTheDocument();
     expect(await screen.findByTestId("ficha-afinidade-agenda")).toBeInTheDocument();
-    expect(await screen.findByText("Composição Partidária da Casa")).toBeInTheDocument();
+    // PF3-02: o título aparece 2x no DOM (CardTitle visível + título sr-only
+    // da rosca, usado só pro aria-label do gráfico) -- getAllByText em vez de
+    // getByText, que exige match único.
+    expect((await screen.findAllByText("Composição Partidária da Casa")).length).toBeGreaterThan(0);
   });
 
   it("passa candidaturas resolvidas (situação/coligação/votos) pro bloco Dados TSE", async () => {
@@ -257,11 +260,16 @@ describe("FichaMentoradoPage — cabeçalho e composição (T15)", () => {
     expect(screen.getByText("Outras pautas: Saúde")).toBeInTheDocument();
   });
 
-  it("composição partidária real (do mandato vigente) aparece na tela", async () => {
+  // PF3-02 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): a
+  // Composição Partidária virou gráfico donut (RoscaAnalise) -- sigla e
+  // percentual na legenda, n de respondentes (soma das quantidades) no
+  // centro da rosca.
+  it("composição partidária real (do mandato vigente) aparece na tela como gráfico", async () => {
     renderizarPagina();
 
     expect(await screen.findByText("PT")).toBeInTheDocument();
-    expect(screen.getByText("10 (50.0%)")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
   });
 });
 

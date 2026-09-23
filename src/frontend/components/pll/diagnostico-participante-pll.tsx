@@ -10,6 +10,7 @@ import { atualizarCamposEditaveisParticipante, type CamposEditaveisParticipante 
 import { createClient } from "@backend/supabase/client";
 
 import { usePapelGlobal } from "@/hooks/use-papel-global";
+import { ComposicaoPartidariaCasa } from "@/components/pll/composicao-partidaria-casa";
 import { EditorAmbicaoPolitica } from "@/components/pll/editor-ambicao-politica";
 import { EditorListaTexto } from "@/components/pll/editor-lista-texto";
 import { EditorSwot } from "@/components/pll/editor-swot";
@@ -37,33 +38,6 @@ import { EstadoVazio } from "@/components/ui/estado-vazio";
 export interface DiagnosticoParticipantePllProps {
   idCadastroParticipante: number;
   onVincular?: () => void;
-}
-
-function ComposicaoPartidariaCasa({ composicao }: { composicao: { siglaPartido: string; quantidade: number; percentual: number }[] }) {
-  return (
-    <Card className="border border-border/60 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Composição Partidária da Casa</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {/* PLL-CP-19: nunca gráfico vazio sem explicação. */}
-        {composicao.length === 0 ? (
-          <EstadoVazio titulo="Dados indisponíveis para esta Casa/ano" />
-        ) : (
-          <ul className="grid gap-2">
-            {composicao.map((linha) => (
-              <li key={linha.siglaPartido} className="flex items-center justify-between text-sm">
-                <span className="font-semibold">{linha.siglaPartido}</span>
-                <span className="text-muted-foreground">
-                  {linha.quantidade} ({linha.percentual.toFixed(1)}%)
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
 
 export function DiagnosticoParticipantePll({ idCadastroParticipante, onVincular }: DiagnosticoParticipantePllProps) {
