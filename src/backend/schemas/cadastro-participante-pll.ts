@@ -37,7 +37,17 @@ export const linhaCadastroPllSchema = z.object({
     .min(1, "email é obrigatório")
     .transform((valor) => valor.toLowerCase())
     .refine((valor) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(valor), "email malformado"),
-  telefone: textoLimpoSchema,
+  // PF2-02 (.specs/features/pente-fino-2026-09-23/spec.md): telefone
+  // brasileiro -- após stripar tudo que não é dígito, exige DDD + fixo (10)
+  // ou DDD + celular (11). Formatação (parênteses/traço/espaço) é aceita e
+  // ignorada; qualquer outra contagem de dígitos é rejeitada (ex.: o caso
+  // relatado "191919191919", 12 dígitos). null/ausente continua passando --
+  // o `.refine` roda depois de `textoLimpoSchema`, então só valida quando
+  // há valor.
+  telefone: textoLimpoSchema.refine(
+    (valor) => valor === null || valor === undefined || /^\d{10,11}$/.test(valor.replace(/\D/g, "")),
+    "telefone deve ter 10 ou 11 dígitos (DDD + fixo ou celular)"
+  ),
   identidade_genero: textoLimpoSchema,
   orientacao_sexual: textoLimpoSchema,
   cor_raca: z.string().trim().min(1).nullable().optional(),
@@ -150,7 +160,9 @@ export function validarLinhasCadastroPll(linhas: unknown[]): ResultadoValidacaoL
 // Cabeçalho exato da planilha (Anexo A, frame Figma 387:4) -> campo de
 // fat_cadastro_participante. Comparação por texto exato após trim -- qualquer
 // variação de grafia é cabeçalho "não reconhecido" (ver ErroCabecalhoDesconhecido).
-const MAPA_CABECALHOS: Record<string, string> = {
+// Exportado também para a "cola" de campos na tela de Participantes (legenda
+// cabeçalho da planilha -> coluna da tabela), sem duplicar a lista à mão.
+export const MAPA_CABECALHOS: Record<string, string> = {
   "Você é um(a) [Mentorado/Mentor]": "papel",
   "Nome Completo": "nome_completo",
   "Data de nascimento": "dt_nascimento",

@@ -145,6 +145,54 @@ describe("linhaCadastroPllSchema", () => {
     });
     expect(resultado.success).toBe(true);
   });
+
+  // PF2-02 (.specs/features/pente-fino-2026-09-23/spec.md) AC1/AC2/AC3.
+  describe("telefone", () => {
+    it("rejeita telefone com 12 dígitos (caso relatado: '191919191919')", () => {
+      const resultado = linhaCadastroPllSchema.safeParse({ ...LINHA_VALIDA, telefone: "191919191919" });
+      expect(resultado.success).toBe(false);
+      if (!resultado.success) {
+        expect(resultado.error.issues[0].message).toBe("telefone deve ter 10 ou 11 dígitos (DDD + fixo ou celular)");
+      }
+    });
+
+    it("rejeita telefone com menos de 10 dígitos", () => {
+      const resultado = linhaCadastroPllSchema.safeParse({ ...LINHA_VALIDA, telefone: "119999" });
+      expect(resultado.success).toBe(false);
+    });
+
+    it("aceita telefone com 10 dígitos (DDD + fixo)", () => {
+      const resultado = linhaCadastroPllSchema.safeParse({ ...LINHA_VALIDA, telefone: "1933334444" });
+      expect(resultado.success).toBe(true);
+    });
+
+    it("aceita telefone com 11 dígitos (DDD + celular)", () => {
+      const resultado = linhaCadastroPllSchema.safeParse({ ...LINHA_VALIDA, telefone: "11999999999" });
+      expect(resultado.success).toBe(true);
+    });
+
+    it("aceita telefone formatado com parênteses/traço/espaço, contando só os dígitos", () => {
+      const resultado = linhaCadastroPllSchema.safeParse({ ...LINHA_VALIDA, telefone: "(19) 1919-1919" });
+      expect(resultado.success).toBe(true);
+    });
+
+    it("telefone formatado com contagem de dígitos errada continua rejeitado (edge case: máscara não isenta a regra)", () => {
+      const resultado = linhaCadastroPllSchema.safeParse({ ...LINHA_VALIDA, telefone: "(19) 1919-191919" });
+      expect(resultado.success).toBe(false);
+    });
+
+    it("telefone ausente continua aceito, sem regressão (campo não obrigatório)", () => {
+      const linha = { ...LINHA_VALIDA } as Record<string, unknown>;
+      delete linha.telefone;
+      const resultado = linhaCadastroPllSchema.safeParse(linha);
+      expect(resultado.success).toBe(true);
+    });
+
+    it("telefone null continua aceito, sem regressão", () => {
+      const resultado = linhaCadastroPllSchema.safeParse({ ...LINHA_VALIDA, telefone: null });
+      expect(resultado.success).toBe(true);
+    });
+  });
 });
 
 describe("validarLinhasCadastroPll", () => {
