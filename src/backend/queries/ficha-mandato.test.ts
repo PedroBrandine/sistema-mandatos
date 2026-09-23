@@ -14,7 +14,16 @@ import { buscarInformacoesGeraisMandato } from "./ficha-mandato";
 
 type RespostaTabela = { data: unknown; error: { message: string } | null };
 
-function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | RespostaTabela[]>) {
+type ChamadaTabela = { tabela: string; metodo: string; args: unknown[] };
+
+// `chamadas` é opcional -- só usado pelo teste de PF2-08 (T8) que precisa
+// confirmar QUE filtro foi enviado ao banco (o mock não filtra de verdade,
+// então a única forma de provar ".is('dt_saida', null)" é capturar a
+// chamada). Os demais testes não passam o parâmetro e continuam intactos.
+function criarClienteMock(
+  respostasPorTabela: Record<string, RespostaTabela | RespostaTabela[]>,
+  chamadas?: ChamadaTabela[]
+) {
   const filas = new Map<string, RespostaTabela[]>(
     Object.entries(respostasPorTabela).map(([tabela, resp]) => [tabela, Array.isArray(resp) ? [...resp] : [resp]])
   );
@@ -27,11 +36,30 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | Re
 
   function criarBuilder(tabela: string) {
     const resposta = proximaResposta(tabela);
+    function registrar(metodo: string, args: unknown[]) {
+      chamadas?.push({ tabela, metodo, args });
+    }
     const builder: Record<string, unknown> = {
-      select: () => builder,
-      eq: () => builder,
-      in: () => builder,
-      order: () => builder,
+      select: (...args: unknown[]) => {
+        registrar("select", args);
+        return builder;
+      },
+      eq: (...args: unknown[]) => {
+        registrar("eq", args);
+        return builder;
+      },
+      in: (...args: unknown[]) => {
+        registrar("in", args);
+        return builder;
+      },
+      is: (...args: unknown[]) => {
+        registrar("is", args);
+        return builder;
+      },
+      order: (...args: unknown[]) => {
+        registrar("order", args);
+        return builder;
+      },
       maybeSingle: () => Promise.resolve(resposta),
       then: (resolve: (valor: RespostaTabela) => void, reject: (erro: unknown) => void) =>
         Promise.resolve(resposta).then(resolve, reject),
@@ -408,5 +436,32 @@ describe("buscarInformacoesGeraisMandato", () => {
     const resultado = await buscarInformacoesGeraisMandato(client, 1);
 
     expect(resultado?.coalizoes).toEqual([]);
+  });
+
+  // PF2-08 (T8), Done-when: "buscarCoalizoesVinculadas não retorna mais
+  // membros com dt_saida preenchido". O mock não filtra de verdade (é o
+  // Postgres que faz isso via IS NULL), então a asserção possível aqui é
+  // confirmar que a chamada certa foi enviada ao banco -- mesmo racional de
+  // atualizarStatusContrato.test.ts (afirma os args do UPDATE, não o efeito).
+  it("filtra coalizões ativas: chama rel_coalizao_membro.is('dt_saida', null) (PF2-08)", async () => {
+    const chamadas: ChamadaTabela[] = [];
+    const client = criarClienteMock(
+      {
+        fat_contrato: [
+          { data: CONTRATO_BASE, error: null },
+          { data: [], error: null },
+        ],
+        dim_mandato: { data: MANDATO_BASE, error: null },
+        rel_mandato_agenda_tematica: { data: [], error: null },
+        rel_usuario_contrato: { data: [], error: null },
+        rel_coalizao_membro: { data: [], error: null },
+      },
+      chamadas
+    );
+
+    await buscarInformacoesGeraisMandato(client, 1);
+
+    const chamadaIs = chamadas.find((c) => c.tabela === "rel_coalizao_membro" && c.metodo === "is");
+    expect(chamadaIs?.args).toEqual(["dt_saida", null]);
   });
 });

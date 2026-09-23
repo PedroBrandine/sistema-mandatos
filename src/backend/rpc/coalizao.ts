@@ -35,3 +35,40 @@ export async function criarCoalizao(
   const resultado = data as unknown as RetornoCriarCoalizao;
   return { idContratante: resultado.id_contratante, idCoalizao: resultado.id_coalizao };
 }
+
+// PF2-08 (T8): escrita single-table de rel_coalizao_membro pro dialog de
+// edição de "Projetos e Coalizões Vinculados" (card-projetos-coalizoes.tsx).
+// Mesmo padrão de adicionarMembro em coalizoes/[id]/page.tsx:126-142, mas só
+// papel='membro' (o card não gerencia secretaria_executiva/grupo_trabalho) --
+// respeita uq_coalizao_membro (id_coalizao, id_contrato, papel) e
+// ck_membro_papel.
+export async function adicionarMembroCoalizao(
+  client: SupabaseClient<Database>,
+  idCoalizao: number,
+  idContrato: number
+): Promise<void> {
+  const { error } = await client
+    .from("rel_coalizao_membro")
+    .insert({ id_coalizao: idCoalizao, id_contrato: idContrato, papel: "membro" });
+
+  if (error) throw mapeiaErroRpc(error);
+}
+
+// PF2-08 (T8): soft-exit -- grava dt_saida = CURRENT_DATE, nunca DELETE
+// (mesmo padrão de encerrarMembro em coalizoes/[id]/page.tsx:144-158). Filtra
+// por papel='membro' também, pra não encerrar por engano uma linha de
+// secretaria_executiva/grupo_trabalho do mesmo par coalizão/contrato.
+export async function removerMembroCoalizao(
+  client: SupabaseClient<Database>,
+  idCoalizao: number,
+  idContrato: number
+): Promise<void> {
+  const { error } = await client
+    .from("rel_coalizao_membro")
+    .update({ dt_saida: new Date().toISOString().slice(0, 10) })
+    .eq("id_coalizao", idCoalizao)
+    .eq("id_contrato", idContrato)
+    .eq("papel", "membro");
+
+  if (error) throw mapeiaErroRpc(error);
+}

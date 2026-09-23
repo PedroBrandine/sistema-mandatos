@@ -290,6 +290,11 @@ async function buscarHistoricoContratos(
 // FMC-13: coalizões de rel_coalizao_membro -- o nome exibido vem de
 // dim_contratante (mesmo padrão de buscarContratoParaFicha para o ramo
 // coalizão: dim_coalizao não guarda nome próprio, só dim_contratante).
+//
+// PF2-08 (T8): filtra dt_saida IS NULL -- sem isso, uma coalizão removida
+// pelo dialog de edição (soft-exit via removerMembroCoalizao, rpc/coalizao.ts)
+// nunca desaparece do card, porque a linha de rel_coalizao_membro continua
+// existindo (mesmo índice parcial ix_membro_coalizao já assume isso).
 async function buscarCoalizoesVinculadas(
   client: SupabaseClient<Database>,
   idContrato: number
@@ -297,7 +302,8 @@ async function buscarCoalizoesVinculadas(
   const { data, error } = await client
     .from("rel_coalizao_membro")
     .select("id_coalizao, dim_coalizao(id_contratante, dim_contratante(nome))")
-    .eq("id_contrato", idContrato);
+    .eq("id_contrato", idContrato)
+    .is("dt_saida", null);
   if (error) throw error;
 
   return (data ?? [])

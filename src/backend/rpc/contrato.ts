@@ -32,3 +32,21 @@ export async function atualizarStatusContrato(
 
   if (error) throw mapeiaErroRpc(error);
 }
+
+// PF2-08 (T8): mesmo padrão single-table de atualizarStatusContrato, agora
+// para fat_contrato.id_projeto -- usado pelo dialog de edição de "Projetos e
+// Coalizões Vinculados" (card-projetos-coalizoes.tsx) pra trocar/remover o
+// projeto de origem do contrato. idProjeto null desvincula (a coluna é
+// nullable em fat_contrato -- projeto de origem é opcional).
+export async function atualizarProjetoContrato(
+  client: SupabaseClient<Database>,
+  idContrato: number,
+  idProjeto: number | null
+): Promise<void> {
+  const { error } = await client
+    .from("fat_contrato")
+    .update({ id_projeto: idProjeto })
+    .eq("id_contrato", idContrato);
+
+  if (error) throw mapeiaErroRpc(error);
+}
