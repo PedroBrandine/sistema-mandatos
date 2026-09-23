@@ -27,6 +27,14 @@ interface FichaContratoChromeProps {
   children: React.ReactNode;
 }
 
+// PF2-07: sub-abas da aba "Agenda" -- "Agenda" (conteúdo atual de
+// /contratos/[id]/agenda) e "Encontros" (conteúdo atual de
+// /contratos/[id]/encontros), nenhuma lógica de negócio das duas muda.
+const SUB_ABAS_AGENDA: { id: "agenda" | "encontros"; label: string }[] = [
+  { id: "agenda", label: "Agenda" },
+  { id: "encontros", label: "Encontros" },
+];
+
 // NAV-04/NAV-07/FMC-01..04 (.specs/features/ficha-mandato-contrato):
 // cabeçalho (ramificado por tipo_contratante) + RouteTabs com a barra
 // funcional fixa de 8 abas (mandato) / 7 abas (coalizão, sem "Informações
@@ -63,6 +71,18 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
   }
 
   const base = `/contratos/${idContrato}`;
+  const rotaAgenda = `${base}/agenda`;
+  const rotaEncontros = `${base}/encontros`;
+  // PF2-07 (.specs/features/pente-fino-2026-09-23/spec.md): Encontros passa
+  // a ser alcançável também como sub-aba de Agenda, sem deixar de ser uma
+  // rota própria -- 6 pontos do código (encontro-popover.tsx,
+  // gargalos-tabela.tsx) já navegam direto pra `${base}/encontros`, e
+  // quebrar esses links não é o pedido (o pedido é só reposicionar a
+  // navegação). Por isso a sub-aba é feita com Link/pathname (RouteTabs),
+  // não com querystring como AbaIncidencia (Linha do Tempo/Ciclo de Vida) --
+  // aquele padrão troca de "visão" na MESMA rota, e aqui as duas visões
+  // precisam continuar sendo 2 rotas de verdade.
+  const naAgendaOuEncontros = pathname === rotaAgenda || pathname === rotaEncontros;
   const slugProduto = slugDoProduto(contrato.nomeProduto);
   // A árvore-grade do Planejamento precisa de mais largura que as outras abas
   // (pedido do Pedro, 2026-08-14). Antes só `{children}` escapava do limite e
@@ -82,7 +102,14 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
   // acessível navegando pro mesmo lugar seria redundância, não duas abas.
   const todasAbas: RouteTabItem[] = [
     { href: `${base}/informacoes`, label: "Informações Gerais" },
-    { href: `${base}/agenda`, label: "Agenda" },
+    // PF2-07: "Agenda" fica ativa também em `/encontros` -- a sub-aba mora
+    // dentro da aba-pai, então a aba-pai precisa continuar destacada quando
+    // a sub-aba Encontros é a rota atual.
+    {
+      href: rotaAgenda,
+      label: "Agenda",
+      ativoSe: (p) => p === rotaAgenda || p.startsWith(`${rotaAgenda}/`) || p === rotaEncontros || p.startsWith(`${rotaEncontros}/`),
+    },
     { href: `${base}/diagnostico`, label: "Diagnóstico" },
     { href: `${base}/planejamento`, label: "Planejamento Estratégico" },
     { href: `${base}/gip`, label: "GIP" },
@@ -145,7 +172,38 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
         <RouteTabs items={abas} />
       </div>
 
-      <div className="pt-2">{children}</div>
+      <div className="pt-2 grid gap-4">
+        {/* PF2-07: sub-abas "Agenda"/"Encontros", mesmo padrão visual das
+            sub-abas "Linha do Tempo"/"Ciclo de Vida" de Fatos Geradores e
+            Registros (aba-incidencia.tsx) -- border inferior de destaque +
+            texto em negrito/secondary na sub-aba ativa. */}
+        {naAgendaOuEncontros && (
+          <div role="tablist" className="flex gap-3">
+            {SUB_ABAS_AGENDA.map((subAba) => {
+              const href = subAba.id === "agenda" ? rotaAgenda : rotaEncontros;
+              const ativo = pathname === href;
+              return (
+                <Link
+                  key={subAba.id}
+                  href={href}
+                  role="tab"
+                  aria-selected={ativo}
+                  className={cn(
+                    "border-b-[3px] px-1 py-2 text-sm",
+                    ativo
+                      ? "border-secondary font-bold text-secondary"
+                      : "border-transparent font-medium text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {subAba.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {children}
+      </div>
     </div>
   );
 }

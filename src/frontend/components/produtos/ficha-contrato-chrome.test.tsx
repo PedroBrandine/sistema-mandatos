@@ -189,3 +189,44 @@ describe("FichaContratoChrome — remoção do IIP provisório (PF-11)", () => {
     expect(voltar).toHaveAttribute("href", "/produtos/estrategia/dashboard");
   });
 });
+
+// PF2-07 (.specs/features/pente-fino-2026-09-23/spec.md): Encontros passa a
+// ser alcançável também como sub-aba de Agenda, sem deixar de ser rota
+// própria (links existentes de encontro-popover.tsx/gargalos-tabela.tsx).
+describe("FichaContratoChrome — sub-abas Agenda/Encontros (PF2-07)", () => {
+  it("na rota /agenda, mostra as sub-abas Agenda/Encontros com Agenda selecionada (AC1)", async () => {
+    pathnameAtual = "/contratos/1/agenda";
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+    await screen.findByRole("link", { name: "Informações Gerais" });
+
+    expect(screen.getByRole("tab", { name: "Agenda" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Encontros" })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("acessar /encontros direto (link existente) mostra a sub-aba Encontros selecionada, com a aba-pai Agenda destacada (AC2)", async () => {
+    pathnameAtual = "/contratos/1/encontros";
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+    await screen.findByRole("link", { name: "Informações Gerais" });
+
+    expect(screen.getByRole("tab", { name: "Encontros" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Agenda" })).toHaveAttribute("aria-selected", "false");
+    // A aba-pai "Agenda" (dentro do <nav>) continua destacada -- mesma classe
+    // que RouteTabs usa pra marcar aba ativa (ver route-tabs.tsx).
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).getByRole("link", { name: "Agenda" })).toHaveClass("text-secondary");
+  });
+
+  it("lado oposto: fora de Agenda/Encontros, não mostra a barra de sub-abas", async () => {
+    pathnameAtual = "/contratos/1/informacoes";
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+    await screen.findByRole("link", { name: "Informações Gerais" });
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+});
