@@ -612,6 +612,37 @@ describe("vincularParticipanteAoTse (T10)", () => {
     expect(chamadaEq?.args).toEqual(["id_cadastro_participante", 1]);
   });
 
+  // PF2-03 AC3 (.specs/features/pente-fino-2026-09-23/spec.md): remover o
+  // campo "Mentores padrão" de CriarEdicaoDialog (T3) não apaga nem deixa de
+  // ler vínculos antigos em rel_edicao_mentor -- a mudança só afeta a
+  // CRIAÇÃO de novas edições, nunca a leitura. Fixture simula uma edição
+  // criada antes desta mudança, já com mentores padrão vinculados: o pool
+  // continua vindo intacto por este mesmo caminho de leitura
+  // (buscarPoolMentoresDaEdicao), sem nenhum vínculo perdido.
+  it("edição antiga com mentores já vinculados (rel_edicao_mentor) continua sendo lida intacta (PF2-03 AC3)", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 8, idMandato: 12, idVinculoTse: 90, idContrato: 55 });
+    const { client } = criarClienteMockVinculo({
+      update: { error: null },
+      edicao: { data: { id_projeto: 3 }, error: null },
+      // Edição 7: pool de mentores padrão vinculado antes da remoção do
+      // campo do dialog (histórico, não recriado por esta mudança).
+      mentores: { data: [{ id_usuario: 21 }, { id_usuario: 22 }, { id_usuario: 23 }], error: null },
+    });
+
+    await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 2,
+      idProduto: 3,
+      idEdicao: 7,
+      candidatura: CANDIDATURA,
+      contratante: { nome: "Dep. Antiga" },
+    });
+
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({ mentoresPadrao: [21, 22, 23] })
+    );
+  });
+
   // Lado oposto: sem idEdicao, nenhuma consulta a fat_edicao/rel_edicao_mentor
   // acontece -- mentoresPadrao vai vazio, id_projeto do contrato vai null.
   it("sem idEdicao: não consulta fat_edicao/rel_edicao_mentor, mentoresPadrao vazio", async () => {
