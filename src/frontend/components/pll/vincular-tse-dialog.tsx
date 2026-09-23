@@ -38,6 +38,14 @@ export interface ParticipantePreenchimentoBusca {
   nomeParlamentar: string | null;
   siglaPartido: string | null;
   siglaUf: string | null;
+  // Sessão 23/09 (Pedro): "para fazer o match preciso comparar as
+  // informações" -- opcionais porque VincularTseDialog é reaproveitado a
+  // partir de ParticipantePll (que sempre traz), mas a interface fica solta
+  // de propósito (não acopla este Dialog ao shape completo de ParticipantePll).
+  corRacaParlamentar?: string | null;
+  cargosAnteriores?: string | null;
+  mandatosAnteriores?: string | null;
+  redeSocial?: string | null;
 }
 
 export interface VincularTseDialogProps {
@@ -108,6 +116,19 @@ export function VincularTseDialog({
             decidir depois.
           </DialogDescription>
         </DialogHeader>
+
+        {(participante.cargosAnteriores ||
+          participante.mandatosAnteriores ||
+          participante.corRacaParlamentar ||
+          participante.redeSocial) && (
+          <div className="grid gap-1 rounded-lg border border-border bg-muted/40 p-3 text-xs">
+            <p className="font-bold uppercase text-muted-foreground">Autodeclarado na planilha</p>
+            {participante.corRacaParlamentar && <p>Cor/raça: {participante.corRacaParlamentar}</p>}
+            {participante.cargosAnteriores && <p>Cargos anteriores: {participante.cargosAnteriores}</p>}
+            {participante.mandatosAnteriores && <p>Mandatos anteriores: {participante.mandatosAnteriores}</p>}
+            {participante.redeSocial && <p>Rede social: {participante.redeSocial}</p>}
+          </div>
+        )}
 
         <Command shouldFilter={false}>
           <CommandInput placeholder="Digite o nome..." value={nome} onValueChange={setNome} />

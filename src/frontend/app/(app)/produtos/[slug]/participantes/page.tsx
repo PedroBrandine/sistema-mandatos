@@ -6,7 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
+  atualizarLancamentoCadastroParticipante,
   buscarCadastroParticipantesPll,
+  buscarLinhaCadastroPorId,
   buscarMetricasCadastroPll,
   upsertCadastroParticipantes,
   vincularParticipanteAoTse,
@@ -22,6 +24,7 @@ import type { CandidaturaSugerida } from "@backend/types/fundacao";
 import { useProdutoAtual } from "@/hooks/use-produto-atual";
 import { CadastroManualDialog } from "@/components/pll/cadastro-manual-dialog";
 import { CriarEdicaoDialog } from "@/components/pll/criar-edicao-dialog";
+import { EditarParticipanteDialog } from "@/components/pll/editar-participante-dialog";
 import {
   ListaParticipantesPll,
   type FiltroListaParticipantesPll,
@@ -109,6 +112,8 @@ function ParticipantesPllPage() {
   const [pagina, setPagina] = useState(1);
   // T12: linha em processo de vínculo TSE -- presente = VincularTseDialog aberto.
   const [participanteParaVincular, setParticipanteParaVincular] = useState<ParticipantePll | null>(null);
+  // Sessão 23/09: linha em edição -- presente = EditarParticipanteDialog aberto.
+  const [participanteParaEditar, setParticipanteParaEditar] = useState<ParticipantePll | null>(null);
 
   // Edição escolhida define pra onde a importação grava (D-4: o upsert exige
   // idEdicao). Sem nenhuma edição ativa cadastrada, upload e lista ficam
@@ -245,6 +250,26 @@ function ParticipantesPllPage() {
     },
   });
 
+  const {
+    data: linhaParaEditar,
+    isLoading: carregandoLinhaParaEditar,
+    isError: erroLinhaParaEditar,
+  } = useQuery({
+    queryKey: ["pll-cadastro-linha", participanteParaEditar?.idCadastroParticipante],
+    queryFn: () => buscarLinhaCadastroPorId(createClient(), participanteParaEditar!.idCadastroParticipante),
+    enabled: participanteParaEditar !== null,
+  });
+
+  const { mutateAsync: salvarEdicaoParticipante } = useMutation({
+    mutationFn: (input: { idCadastroParticipante: number; linha: Parameters<typeof atualizarLancamentoCadastroParticipante>[2] }) =>
+      atualizarLancamentoCadastroParticipante(createClient(), input.idCadastroParticipante, input.linha),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-lista"] });
+      void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-opcoes-filtro"] });
+      void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-metricas"] });
+    },
+  });
+
   if (carregandoProduto || carregandoEdicoes) {
     return <CarregandoSkeleton variante="cards" />;
   }
@@ -333,6 +358,26 @@ function ParticipantesPllPage() {
           partidos={partidos}
           ufs={ufs}
           onVincularTse={setParticipanteParaVincular}
+          onEditar={setParticipanteParaEditar}
+        />
+      )}
+
+      {participanteParaEditar && (
+        <EditarParticipanteDialog
+          open
+          onOpenChange={(aberto) => {
+            if (!aberto) setParticipanteParaEditar(null);
+          }}
+          nomeCompleto={participanteParaEditar.nomeCompleto}
+          linha={linhaParaEditar}
+          carregando={carregandoLinhaParaEditar}
+          erroCarregar={erroLinhaParaEditar}
+          onSalvar={(linha) =>
+            salvarEdicaoParticipante({
+              idCadastroParticipante: participanteParaEditar.idCadastroParticipante,
+              linha,
+            })
+          }
         />
       )}
 

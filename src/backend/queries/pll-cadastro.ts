@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { criarMandato, type CandidaturaParaConfirmar } from "../rpc/mandato";
 import { mapeiaErroRpc } from "../rpc/errors";
 import type { ContratanteInput } from "../schemas/contratante";
-import type { LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
+import { linhaCadastroPllSchema, type LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
 import type { MandatoInput } from "../schemas/mandato";
 import type { Database } from "../supabase/database.types";
 import type { MandatoCriado } from "../types/fundacao";
@@ -113,6 +113,15 @@ export interface ParticipantePll {
   vinculadoTse: boolean;
   statusCadastro: "completo" | "incompleto" | "pendente_revisao";
   idContrato: number | null;
+  // Dados autodeclarados do mentorado (assessor) e do mandato -- não têm
+  // coluna própria na tabela (só "Parlamentar"/"Partido"/"UF"), mas são o que
+  // a pessoa usa pra COMPARAR com a candidatura do TSE na hora do match
+  // (Pedro, 23/09): sem eles visíveis, "Vincular TSE" vira busca às cegas.
+  partidoFiliado: string | null;
+  corRacaParlamentar: string | null;
+  cargosAnteriores: string | null;
+  mandatosAnteriores: string | null;
+  redeSocial: string | null;
 }
 
 export interface ResultadoBuscaCadastroParticipantesPll {
@@ -131,6 +140,11 @@ interface RowCadastroParticipante {
   telefone: string | null;
   status_cadastro: string;
   id_contrato: number | null;
+  partido_filiado: string | null;
+  cor_raca_parlamentar: string | null;
+  cargos_anteriores: string | null;
+  mandatos_anteriores: string | null;
+  rede_social: string | null;
 }
 
 // "Mentor(a) pareado" (PLL-CP-05) é o vínculo ATIVO de papel 'mentor' em
@@ -183,7 +197,7 @@ export async function buscarCadastroParticipantesPll(
   let query = client
     .from("fat_cadastro_participante")
     .select(
-      "id_cadastro_participante, papel, nome_completo, partido_parlamentar, estado_eleicao, nome_parlamentar, email, telefone, status_cadastro, id_contrato",
+      "id_cadastro_participante, papel, nome_completo, partido_parlamentar, estado_eleicao, nome_parlamentar, email, telefone, status_cadastro, id_contrato, partido_filiado, cor_raca_parlamentar, cargos_anteriores, mandatos_anteriores, rede_social",
       { count: "exact" }
     )
     .eq("id_produto", filtro.idProduto);
@@ -225,6 +239,11 @@ export async function buscarCadastroParticipantesPll(
     vinculadoTse: r.id_contrato !== null,
     statusCadastro: r.status_cadastro as "completo" | "incompleto" | "pendente_revisao",
     idContrato: r.id_contrato,
+    partidoFiliado: r.partido_filiado,
+    corRacaParlamentar: r.cor_raca_parlamentar,
+    cargosAnteriores: r.cargos_anteriores,
+    mandatosAnteriores: r.mandatos_anteriores,
+    redeSocial: r.rede_social,
   }));
 
   return { linhas, total: count ?? 0 };
@@ -423,6 +442,114 @@ export async function atualizarCamposEditaveisParticipante(
   const { error } = await client
     .from("fat_cadastro_participante")
     .update(payload)
+    .eq("id_cadastro_participante", idCadastroParticipante);
+  if (error) throw mapeiaErroRpc(error);
+}
+
+// -----------------------------------------------------------------------------
+// buscarLinhaCadastroPorId / atualizarLancamentoCadastroParticipante --
+// CRUD que faltava na linha de lançamento (Pedro, 23/09): até aqui só existia
+// Create (planilha/CadastroManualDialog, ambos via upsertCadastroParticipantes)
+// e um Update restrito aos 8 campos "editáveis no sistema" (acima). Corrigir um
+// erro de digitação nos campos autodeclarados do Anexo A (ex.: nome do
+// parlamentar errado, impedindo o match com o TSE) exigia reimportar a
+// planilha inteira. Exclusão continua fora de escopo (spec.md, seção "Out of
+// Scope": "fica para quando houver caso de uso real").
+// -----------------------------------------------------------------------------
+
+/** Só os campos do Anexo A usados na prática pela edição em lista (mesmo recorte de CadastroManualDialog, T13, + os 4 campos do mandato que ajudam a comparar com o TSE). */
+export interface LinhaCadastroParticipanteParaEdicao {
+  nomeCompleto: string;
+  email: string;
+  telefone: string | null;
+  corRaca: string | null;
+  partidoFiliado: string | null;
+  nomeParlamentar: string | null;
+  corRacaParlamentar: string | null;
+  partidoParlamentar: string | null;
+  estadoEleicao: string | null;
+  cargosAnteriores: string | null;
+  mandatosAnteriores: string | null;
+  redeSocial: string | null;
+}
+
+/** Busca uma linha de staging por id para pré-preencher o formulário de edição. */
+export async function buscarLinhaCadastroPorId(
+  client: SupabaseClient<Database>,
+  idCadastroParticipante: number
+): Promise<LinhaCadastroParticipanteParaEdicao> {
+  const { data, error } = await client
+    .from("fat_cadastro_participante")
+    .select(
+      "nome_completo, email, telefone, cor_raca, partido_filiado, nome_parlamentar, cor_raca_parlamentar, partido_parlamentar, estado_eleicao, cargos_anteriores, mandatos_anteriores, rede_social"
+    )
+    .eq("id_cadastro_participante", idCadastroParticipante)
+    .single();
+  if (error) throw error;
+
+  return {
+    nomeCompleto: data.nome_completo,
+    email: data.email,
+    telefone: data.telefone,
+    corRaca: data.cor_raca,
+    partidoFiliado: data.partido_filiado,
+    nomeParlamentar: data.nome_parlamentar,
+    corRacaParlamentar: data.cor_raca_parlamentar,
+    partidoParlamentar: data.partido_parlamentar,
+    estadoEleicao: data.estado_eleicao,
+    cargosAnteriores: data.cargos_anteriores,
+    mandatosAnteriores: data.mandatos_anteriores,
+    redeSocial: data.rede_social,
+  };
+}
+
+/**
+ * Corrige os campos autodeclarados (Anexo A) de uma linha JÁ importada, sem
+ * passar pela reimportação de planilha inteira. Valida com o MESMO
+ * `linhaCadastroPllSchema` (parcial: só os campos deste formulário), então
+ * uma correção nunca entra mais frouxa do que uma importação nova entraria.
+ * Nunca toca `id_contrato`/`id_vinculo_tse`/status/campos editáveis no
+ * sistema -- só os 12 campos do Anexo A cobertos por
+ * `LinhaCadastroParticipanteParaEdicao`.
+ */
+export async function atualizarLancamentoCadastroParticipante(
+  client: SupabaseClient<Database>,
+  idCadastroParticipante: number,
+  linha: LinhaCadastroParticipanteParaEdicao
+): Promise<void> {
+  const resultado = linhaCadastroPllSchema
+    .pick({
+      nome_completo: true,
+      email: true,
+      telefone: true,
+      cor_raca: true,
+      partido_filiado: true,
+      nome_parlamentar: true,
+      cor_raca_parlamentar: true,
+      partido_parlamentar: true,
+      estado_eleicao: true,
+      cargos_anteriores: true,
+      mandatos_anteriores: true,
+      rede_social: true,
+    })
+    .parse({
+      nome_completo: linha.nomeCompleto,
+      email: linha.email,
+      telefone: linha.telefone,
+      cor_raca: linha.corRaca,
+      partido_filiado: linha.partidoFiliado,
+      nome_parlamentar: linha.nomeParlamentar,
+      cor_raca_parlamentar: linha.corRacaParlamentar,
+      partido_parlamentar: linha.partidoParlamentar,
+      estado_eleicao: linha.estadoEleicao,
+      cargos_anteriores: linha.cargosAnteriores,
+      mandatos_anteriores: linha.mandatosAnteriores,
+      rede_social: linha.redeSocial,
+    });
+
+  const { error } = await client
+    .from("fat_cadastro_participante")
+    .update(resultado)
     .eq("id_cadastro_participante", idCadastroParticipante);
   if (error) throw mapeiaErroRpc(error);
 }

@@ -14,7 +14,9 @@ vi.mock("../rpc/mandato", () => ({
 
 import {
   atualizarCamposEditaveisParticipante,
+  atualizarLancamentoCadastroParticipante,
   buscarCadastroParticipantesPll,
+  buscarLinhaCadastroPorId,
   buscarMetricasCadastroPll,
   upsertCadastroParticipantes,
   vincularParticipanteAoTse,
@@ -839,5 +841,139 @@ describe("atualizarCamposEditaveisParticipante (T16)", () => {
     await expect(
       atualizarCamposEditaveisParticipante(client, 1, { desafios: ["X"] })
     ).rejects.toMatchObject({ name: "ErroBancoNaoMapeadoError" });
+  });
+});
+
+// Sessão 23/09 (Pedro): "não tem crud no lançamento da tabela" -- corrigir os
+// campos autodeclarados do Anexo A já importados sem reimportar a planilha
+// inteira. Mesmo racional de teste de atualizarCamposEditaveisParticipante
+// (mock roteado por método), aplicado às 12 colunas do formulário de edição.
+
+function criarClienteMockBuscaPorId(resposta: { data: Record<string, unknown> | null; error: unknown }) {
+  const chamadas: { metodo: string; args: unknown[] }[] = [];
+  const client = {
+    from: (tabela: string) => {
+      chamadas.push({ metodo: "from", args: [tabela] });
+      return {
+        select: (...args: unknown[]) => {
+          chamadas.push({ metodo: "select", args });
+          return {
+            eq: (...args2: unknown[]) => {
+              chamadas.push({ metodo: "eq", args: args2 });
+              return { single: () => Promise.resolve(resposta) };
+            },
+          };
+        },
+      };
+    },
+  };
+  return { client: client as unknown as SupabaseClient<Database>, chamadas };
+}
+
+const LINHA_EDICAO = {
+  nomeCompleto: "Marina Aparecida Villela",
+  email: "marina.villela@teste.legisla.org",
+  telefone: "11999990001",
+  corRaca: "Parda",
+  partidoFiliado: "PSOL",
+  nomeParlamentar: "Paula da Bancada Feminista",
+  corRacaParlamentar: "Parda",
+  partidoParlamentar: "Psol",
+  estadoEleicao: "SP",
+  cargosAnteriores: "Vereadora em Sorocaba (2016-2020)",
+  mandatosAnteriores: "1º mandato como deputada estadual",
+  redeSocial: "@pauladabancadafeminista",
+};
+
+describe("buscarLinhaCadastroPorId", () => {
+  it("mapeia as 12 colunas do banco (snake_case) para o shape de edição (camelCase)", async () => {
+    const { client, chamadas } = criarClienteMockBuscaPorId({
+      data: {
+        nome_completo: LINHA_EDICAO.nomeCompleto,
+        email: LINHA_EDICAO.email,
+        telefone: LINHA_EDICAO.telefone,
+        cor_raca: LINHA_EDICAO.corRaca,
+        partido_filiado: LINHA_EDICAO.partidoFiliado,
+        nome_parlamentar: LINHA_EDICAO.nomeParlamentar,
+        cor_raca_parlamentar: LINHA_EDICAO.corRacaParlamentar,
+        partido_parlamentar: LINHA_EDICAO.partidoParlamentar,
+        estado_eleicao: LINHA_EDICAO.estadoEleicao,
+        cargos_anteriores: LINHA_EDICAO.cargosAnteriores,
+        mandatos_anteriores: LINHA_EDICAO.mandatosAnteriores,
+        rede_social: LINHA_EDICAO.redeSocial,
+      },
+      error: null,
+    });
+
+    const resultado = await buscarLinhaCadastroPorId(client, 1);
+
+    expect(resultado).toEqual(LINHA_EDICAO);
+    expect(chamadas.find((c) => c.metodo === "eq")?.args).toEqual(["id_cadastro_participante", 1]);
+  });
+
+  it("erro do banco propaga (sem mapeamento -- leitura simples)", async () => {
+    const { client } = criarClienteMockBuscaPorId({
+      data: null,
+      error: { message: "linha não encontrada", code: "PGRST116" },
+    });
+
+    await expect(buscarLinhaCadastroPorId(client, 999)).rejects.toMatchObject({
+      code: "PGRST116",
+    });
+  });
+});
+
+describe("atualizarLancamentoCadastroParticipante", () => {
+  it("envia as 12 colunas do Anexo A validadas pelo mesmo schema Zod da importação", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await atualizarLancamentoCadastroParticipante(client, 1, LINHA_EDICAO);
+
+    const chamadaUpdate = chamadas.find((c) => c.metodo === "update");
+    expect(chamadaUpdate?.args[0]).toEqual({
+      nome_completo: LINHA_EDICAO.nomeCompleto,
+      email: LINHA_EDICAO.email,
+      telefone: LINHA_EDICAO.telefone,
+      cor_raca: LINHA_EDICAO.corRaca,
+      partido_filiado: LINHA_EDICAO.partidoFiliado,
+      nome_parlamentar: LINHA_EDICAO.nomeParlamentar,
+      cor_raca_parlamentar: LINHA_EDICAO.corRacaParlamentar,
+      partido_parlamentar: LINHA_EDICAO.partidoParlamentar,
+      estado_eleicao: LINHA_EDICAO.estadoEleicao,
+      cargos_anteriores: LINHA_EDICAO.cargosAnteriores,
+      mandatos_anteriores: LINHA_EDICAO.mandatosAnteriores,
+      rede_social: LINHA_EDICAO.redeSocial,
+    });
+  });
+
+  it("filtra pelo id_cadastro_participante certo", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await atualizarLancamentoCadastroParticipante(client, 42, LINHA_EDICAO);
+
+    const chamadaEq = chamadas.find((c) => c.metodo === "eq");
+    expect(chamadaEq?.args).toEqual(["id_cadastro_participante", 42]);
+  });
+
+  it("estado_eleicao inválido (não são 2 letras) rejeita antes de chamar o banco", async () => {
+    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+
+    await expect(
+      atualizarLancamentoCadastroParticipante(client, 1, { ...LINHA_EDICAO, estadoEleicao: "São Paulo" })
+    ).rejects.toThrow();
+    expect(chamadas.find((c) => c.metodo === "update")).toBeUndefined();
+  });
+
+  it("erro de RLS/GRANT (42501) vira PermissaoNegadaError com mensagem mapeada, não genérica", async () => {
+    const { client } = criarClienteMockUpdate({
+      error: { message: "permission denied for table fat_cadastro_participante", code: "42501" },
+    });
+
+    await expect(
+      atualizarLancamentoCadastroParticipante(client, 1, LINHA_EDICAO)
+    ).rejects.toMatchObject({
+      name: "PermissaoNegadaError",
+      message: "Você não tem permissão para realizar esta operação.",
+    });
   });
 });

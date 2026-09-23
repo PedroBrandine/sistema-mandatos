@@ -23,11 +23,16 @@ const mocks = vi.hoisted(() => ({
   buscarMetricasCadastroPll: vi.fn(),
   upsertCadastroParticipantes: vi.fn(),
   vincularParticipanteAoTse: vi.fn(),
+  buscarLinhaCadastroPorId: vi.fn(),
+  atualizarLancamentoCadastroParticipante: vi.fn(),
+  // pll-edicao.ts: entidade própria (fat_edicao, migration 20260922160505),
+  // não mais ref_projeto -- mock desatualizado aqui travava a lista pra
+  // sempre (idEdicao undefined -> habilitado nunca fica true), achado ao
+  // investigar os 15 testes falhando desta suíte (Pedro, 23/09).
+  buscarEdicoesPll: vi.fn(),
+  buscarProjetosAtivosPll: vi.fn(),
+  criarEdicaoPll: vi.fn(),
   toastError: vi.fn(),
-  respostaEdicoes: { data: [{ id_projeto: 10, nome: "2026.1" }], error: null } as {
-    data: { id_projeto: number; nome: string }[] | null;
-    error: null;
-  },
   respostaCargos: { data: [], error: null } as { data: { id_cargo: number; cd_cargo_tse: number | null }[] | null; error: null },
   respostaPartidos: { data: [], error: null } as { data: { id_partido: number; sigla: string }[] | null; error: null },
 }));
@@ -37,28 +42,30 @@ vi.mock("@backend/queries/pll-cadastro", () => ({
   buscarMetricasCadastroPll: mocks.buscarMetricasCadastroPll,
   upsertCadastroParticipantes: mocks.upsertCadastroParticipantes,
   vincularParticipanteAoTse: mocks.vincularParticipanteAoTse,
+  buscarLinhaCadastroPorId: mocks.buscarLinhaCadastroPorId,
+  atualizarLancamentoCadastroParticipante: mocks.atualizarLancamentoCadastroParticipante,
+}));
+
+vi.mock("@backend/queries/pll-edicao", () => ({
+  buscarEdicoesPll: mocks.buscarEdicoesPll,
+  buscarProjetosAtivos: mocks.buscarProjetosAtivosPll,
+  criarEdicaoPll: mocks.criarEdicaoPll,
 }));
 
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
-// Builder encadeável (select/eq/order, todos retornando o mesmo objeto, que
-// também é `.then()`-ável) roteado por nome de tabela -- ref_projeto usa
-// `.order()`, ref_cargo/ref_partido não (buscarCargosAtivos/buscarPartidosAtivos
-// terminam em `.eq()`), então o builder precisa resolver em QUALQUER ponto da
-// cadeia, não só no fim fixo de um método.
+// Builder encadeável (select/eq, retornando o mesmo objeto, que também é
+// `.then()`-ável) roteado por nome de tabela -- só ref_cargo/ref_partido
+// ainda passam pelo client bruto aqui (buscarCargosAtivos/
+// buscarPartidosAtivos, funções locais de page.tsx); edições vêm de
+// buscarEdicoesPll (pll-edicao.ts), mockada acima no nível de módulo.
 vi.mock("@backend/supabase/client", () => ({
   createClient: () => ({
     from: (tabela: string) => {
-      const resposta =
-        tabela === "ref_cargo"
-          ? mocks.respostaCargos
-          : tabela === "ref_partido"
-            ? mocks.respostaPartidos
-            : mocks.respostaEdicoes;
+      const resposta = tabela === "ref_cargo" ? mocks.respostaCargos : mocks.respostaPartidos;
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: () => builder,
-        order: () => builder,
         then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) =>
           Promise.resolve(resposta).then(resolve, reject),
       };
@@ -98,6 +105,7 @@ vi.mock("@/components/pll/lista-participantes-pll", () => ({
     onFiltroChange: (f: { busca?: string }) => void;
     onPaginaChange: (p: number) => void;
     onVincularTse?: (p: unknown) => void;
+    onEditar?: (p: unknown) => void;
   }) => (
     <div data-testid="lista-participantes-pll">
       <p>Total: {props.total}</p>
@@ -116,6 +124,9 @@ vi.mock("@/components/pll/lista-participantes-pll", () => ({
       </button>
       <button type="button" onClick={() => props.onVincularTse?.(props.participantes[0])}>
         Simular vincular TSE
+      </button>
+      <button type="button" onClick={() => props.onEditar?.(props.participantes[0])}>
+        Simular editar
       </button>
     </div>
   ),
@@ -147,6 +158,32 @@ vi.mock("@/components/pll/vincular-tse-dialog", () => ({
         }}
       >
         Simular não encontrado
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("@/components/pll/editar-participante-dialog", () => ({
+  EditarParticipanteDialog: (props: {
+    open: boolean;
+    nomeCompleto: string;
+    linha: { nomeCompleto: string } | undefined;
+    carregando: boolean;
+    erroCarregar: boolean;
+    onSalvar: (linha: unknown) => void | Promise<void>;
+  }) => (
+    <div data-testid="editar-participante-dialog">
+      <p>Editar: {props.nomeCompleto}</p>
+      <p>Carregando: {String(props.carregando)}</p>
+      <p>Erro: {String(props.erroCarregar)}</p>
+      <p>Linha: {props.linha?.nomeCompleto ?? "—"}</p>
+      <button
+        type="button"
+        onClick={() => {
+          Promise.resolve(props.onSalvar({ nomeCompleto: "Fulana Corrigida" })).catch(() => {});
+        }}
+      >
+        Simular salvar edição
       </button>
     </div>
   ),
@@ -209,8 +246,27 @@ beforeEach(() => {
     idVinculoTse: 77,
     idContrato: 42,
   });
+  mocks.buscarLinhaCadastroPorId.mockReset().mockResolvedValue({
+    nomeCompleto: "Fulana de Tal",
+    email: "fulana@teste.com",
+    telefone: null,
+    corRaca: null,
+    partidoFiliado: null,
+    nomeParlamentar: "Dep. Fulano",
+    corRacaParlamentar: null,
+    partidoParlamentar: "PT",
+    estadoEleicao: "SP",
+    cargosAnteriores: null,
+    mandatosAnteriores: null,
+    redeSocial: null,
+  });
+  mocks.atualizarLancamentoCadastroParticipante.mockReset().mockResolvedValue(undefined);
+  mocks.buscarEdicoesPll.mockReset().mockResolvedValue([
+    { idEdicao: 5, nome: "PLL 2026.1", dtInicio: "2026-01-01", idProjeto: 10, nomeProjeto: "Bancada do Clima" },
+  ]);
+  mocks.buscarProjetosAtivosPll.mockReset().mockResolvedValue([{ id: 10, nome: "Bancada do Clima" }]);
+  mocks.criarEdicaoPll.mockReset().mockResolvedValue({ idEdicao: 6 });
   mocks.toastError.mockReset();
-  mocks.respostaEdicoes = { data: [{ id_projeto: 10, nome: "2026.1" }], error: null };
   mocks.respostaCargos = { data: [{ id_cargo: 1, cd_cargo_tse: 7 }], error: null };
   mocks.respostaPartidos = { data: [{ id_partido: 2, sigla: "PT" }], error: null };
 });
@@ -260,7 +316,7 @@ describe("ProdutoParticipantesPage — composição com dado real", () => {
 });
 
 describe("ProdutoParticipantesPage — wiring de importação", () => {
-  it("onImportar do UploadPlanilhaCard chama upsertCadastroParticipantes com idProduto/idProjeto certos", async () => {
+  it("onImportar do UploadPlanilhaCard chama upsertCadastroParticipantes com idProduto/idEdicao certos", async () => {
     renderizarPagina();
 
     fireEvent.click(await screen.findByRole("button", { name: "Simular importação" }));
@@ -268,7 +324,7 @@ describe("ProdutoParticipantesPage — wiring de importação", () => {
     await waitFor(() =>
       expect(mocks.upsertCadastroParticipantes).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ idProduto: 7, idProjeto: 10, linhas: [{ papel: "mentorado" }] })
+        expect.objectContaining({ idProduto: 7, idEdicao: 5, linhas: [{ papel: "mentorado" }] })
       )
     );
   });
@@ -340,7 +396,7 @@ describe("ProdutoParticipantesPage — falha ao carregar a lista", () => {
 
 describe("ProdutoParticipantesPage — sem edição ativa cadastrada", () => {
   it("mostra o estado explicativo e não monta upload/lista", async () => {
-    mocks.respostaEdicoes = { data: [], error: null };
+    mocks.buscarEdicoesPll.mockResolvedValue([]);
 
     renderizarPagina();
 
@@ -371,7 +427,7 @@ describe("ProdutoParticipantesPage — wiring do vínculo TSE (T12)", () => {
     expect(screen.getByText("Vincular: Fulana de Tal")).toBeInTheDocument();
   });
 
-  it("confirmar candidatura chama vincularParticipanteAoTse com idProduto/idProjeto/candidatura resolvidos e recarrega a lista sem reload de página", async () => {
+  it("confirmar candidatura chama vincularParticipanteAoTse com idProduto/idEdicao/candidatura resolvidos e recarrega a lista sem reload de página", async () => {
     renderizarPagina();
     await screen.findByTestId("lista-participantes-pll");
     fireEvent.click(screen.getByRole("button", { name: "Simular vincular TSE" }));
@@ -386,7 +442,7 @@ describe("ProdutoParticipantesPage — wiring do vínculo TSE (T12)", () => {
         expect.objectContaining({
           idCadastroParticipante: 1,
           idProduto: 7,
-          idProjeto: 10,
+          idEdicao: 5,
           // Partido "PT" -> id_partido 2, cargo TSE 7 -> id_cargo 1 (ref mockada).
           mandato: expect.objectContaining({ id_partido_atual: 2, id_cargo_atual: 1 }),
         })
@@ -429,5 +485,63 @@ describe("ProdutoParticipantesPage — wiring do vínculo TSE (T12)", () => {
     await screen.findByTestId("lista-participantes-pll");
 
     expect(screen.queryByTestId("vincular-tse-dialog")).not.toBeInTheDocument();
+  });
+});
+
+// Sessão 23/09 (Pedro): "não tem crud no lançamento da tabela" -- botão
+// "Editar" na lista abre EditarParticipanteDialog, que lê a linha real
+// (buscarLinhaCadastroPorId) e salva com atualizarLancamentoCadastroParticipante,
+// recarregando lista/opções/métricas sem reload de página (mesmo padrão do
+// vínculo TSE acima).
+describe("ProdutoParticipantesPage — wiring de edição do lançamento (Sessão 23/09)", () => {
+  it("clicar em 'editar' na lista abre o EditarParticipanteDialog do participante certo, buscando a linha real", async () => {
+    renderizarPagina();
+    await screen.findByTestId("lista-participantes-pll");
+
+    fireEvent.click(screen.getByRole("button", { name: "Simular editar" }));
+
+    expect(await screen.findByTestId("editar-participante-dialog")).toBeInTheDocument();
+    expect(screen.getByText("Editar: Fulana de Tal")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.buscarLinhaCadastroPorId).toHaveBeenCalledWith(expect.anything(), 1));
+    expect(await screen.findByText("Linha: Fulana de Tal")).toBeInTheDocument();
+  });
+
+  it("salvar chama atualizarLancamentoCadastroParticipante com o id certo e recarrega lista/opções/métricas sem reload de página", async () => {
+    renderizarPagina();
+    await screen.findByTestId("lista-participantes-pll");
+    fireEvent.click(screen.getByRole("button", { name: "Simular editar" }));
+    await screen.findByTestId("editar-participante-dialog");
+    const chamadasAntes = mocks.buscarCadastroParticipantesPll.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Simular salvar edição" }));
+
+    await waitFor(() =>
+      expect(mocks.atualizarLancamentoCadastroParticipante).toHaveBeenCalledWith(
+        expect.anything(),
+        1,
+        expect.objectContaining({ nomeCompleto: "Fulana Corrigida" })
+      )
+    );
+    // Mesma queryKey da lista é invalidada -- refetch, nunca reload de página.
+    await waitFor(() =>
+      expect(mocks.buscarCadastroParticipantesPll.mock.calls.length).toBeGreaterThan(chamadasAntes)
+    );
+  });
+
+  it("lado oposto: sem nenhuma linha selecionada pra editar, o dialog não é montado", async () => {
+    renderizarPagina();
+    await screen.findByTestId("lista-participantes-pll");
+
+    expect(screen.queryByTestId("editar-participante-dialog")).not.toBeInTheDocument();
+  });
+
+  it("erro ao carregar a linha real repassa erroCarregar=true pro dialog", async () => {
+    mocks.buscarLinhaCadastroPorId.mockRejectedValue(new Error("timeout"));
+    renderizarPagina();
+    await screen.findByTestId("lista-participantes-pll");
+
+    fireEvent.click(screen.getByRole("button", { name: "Simular editar" }));
+
+    expect(await screen.findByText("Erro: true")).toBeInTheDocument();
   });
 });
