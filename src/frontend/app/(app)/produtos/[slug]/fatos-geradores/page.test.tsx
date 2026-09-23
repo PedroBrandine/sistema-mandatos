@@ -352,4 +352,40 @@ describe("Aba Fatos Geradores do produto — PLL (PF3-03)", () => {
       )
     );
   });
+
+  it("filtro de mentor sem nenhum vínculo ativo mostra a barra sem opções, sem quebrar a tela", async () => {
+    mocks.buscarOpcoesMentorPll.mockResolvedValue([]);
+    renderizar("pll");
+
+    await screen.findByRole("button", { name: /Insight da Ana/ });
+
+    expect(screen.getByTestId("rotulo-pessoa")).toHaveTextContent("Mentor");
+  });
+});
+
+// PF3-03: fn_estrategia_kpi (buscarEstrategiaKpi) não tem parâmetro de
+// mentor -- pro PLL, o IIP médio usa o recorte já resolvido via
+// buscarMandatosLista (idsContrato), não o filtro de pessoa (Out of Scope
+// da spec, decisão documentada em fatos-geradores/page.tsx).
+describe("Aba Fatos Geradores do produto — PLL, IIP médio (PF3-03)", () => {
+  beforeEach(() => {
+    mocks.visao = "ciclo-de-vida";
+  });
+
+  it("sem contrato escolhido, IIP médio usa idsContrato do recorte de mentor, não idsGestora", async () => {
+    mocks.buscarMandatosLista.mockImplementation(async (_client: unknown, filtro: { idsMentor?: number[] }) =>
+      filtro.idsMentor ? [MANDATO_ANA] : [MANDATO_ANA, MANDATO_BRUNO]
+    );
+    renderizar("pll");
+    await screen.findByRole("group", { name: /IIP médio/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "escolher gestora" }));
+
+    await waitFor(() =>
+      expect(mocks.buscarEstrategiaKpi).toHaveBeenLastCalledWith(
+        {},
+        { idProduto: 1, idsGestora: undefined, idsProjeto: undefined, idsContrato: [7] }
+      )
+    );
+  });
 });
