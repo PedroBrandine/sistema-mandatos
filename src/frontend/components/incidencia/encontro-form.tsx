@@ -64,7 +64,6 @@ export function EncontroForm({ idContrato, idProduto, onConcluido, onCancelar }:
   const [idTipoRegistro, setIdTipoRegistro] = useState<number | null>(null);
   const [dtInicio, setDtInicio] = useState("");
   const [dtFim, setDtFim] = useState("");
-  const [modalidade, setModalidade] = useState<"presencial" | "online" | "">("");
   const [local, setLocal] = useState("");
   const [tema, setTema] = useState("");
 
@@ -199,8 +198,12 @@ export function EncontroForm({ idContrato, idProduto, onConcluido, onCancelar }:
         idTipoRegistro,
         dtInicio,
         dtFim: dtFim || null,
-        modalidade: modalidade || null,
-        local: modalidade === "presencial" ? local || null : null,
+        // PF2-06 (.specs/features/pente-fino-2026-09-23/spec.md): campo
+        // Modalidade removido do formulário -- para de enviar o valor
+        // (coluna aceita NULL, dado histórico de encontros antigos
+        // permanece intocado).
+        modalidade: null,
+        local: local || null,
         tema: tema || null,
         participantes: entrada,
       });
@@ -283,31 +286,9 @@ export function EncontroForm({ idContrato, idProduto, onConcluido, onCancelar }:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="grid gap-1.5">
-          <Label htmlFor="encontro-modalidade">Modalidade (opcional)</Label>
-          <Select
-            value={modalidade || SEM_VINCULO}
-            onValueChange={(v) => setModalidade(v === SEM_VINCULO ? "" : (v as "presencial" | "online"))}
-          >
-            <SelectTrigger id="encontro-modalidade" className="w-full">
-              <SelectValue placeholder="Nenhuma" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={SEM_VINCULO}>Nenhuma</SelectItem>
-              <SelectItem value="presencial">Presencial</SelectItem>
-              <SelectItem value="online">Online</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* FMC-31 (AC5): Presencial mostra Local; Online (ou nenhuma) esconde. */}
-        {modalidade === "presencial" && (
-          <div className="grid gap-1.5">
-            <Label htmlFor="encontro-local">Local</Label>
-            <Input id="encontro-local" value={local} onChange={(e) => setLocal(e.target.value)} />
-          </div>
-        )}
+      <div className="grid gap-1.5">
+        <Label htmlFor="encontro-local">Local (opcional)</Label>
+        <Input id="encontro-local" value={local} onChange={(e) => setLocal(e.target.value)} />
       </div>
 
       <div className="grid gap-1.5">

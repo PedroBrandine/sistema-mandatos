@@ -19,10 +19,14 @@ if (!Element.prototype.hasPointerCapture) {
 // tasks.md T38 Done-when:
 //  - Etapa lista só ref_etapa do produto; escolher Etapa filtra os Tipos
 //    daquela etapa -- os dois lados
-//  - Modalidade Presencial mostra Local; Online esconde -- os dois lados
 //  - Participante externo grava nome_livre + origem='externo'; usuário grava
 //    id_usuario
 //  - Erro do RPC renderiza <ErroInline>
+//
+// PF2-06 (.specs/features/pente-fino-2026-09-23/spec.md): campo Modalidade
+// removido do formulário -- a suíte de "Presencial mostra Local; Online
+// esconde" (FMC-31 AC5) deixou de existir junto com o campo que a
+// condicionava; Local passa a ser sempre visível.
 //
 // AD-042 integral: cada condicional citada acima tem os dois lados testados.
 // Interação com <Select> segue o mesmo padrão comprovado de objetivo-form.test.tsx:
@@ -172,21 +176,18 @@ describe("EncontroForm (FMC-31 AC4) — Etapa lista só as do produto; escolher 
   });
 });
 
-describe("EncontroForm (FMC-31 AC5) — Modalidade Presencial mostra Local; Online esconde", () => {
-  it("Presencial oferece o campo Local", async () => {
+// PF2-06 AC1: dialog "Novo Agendamento" não exibe mais o campo Modalidade.
+describe("EncontroForm (PF2-06 AC1) — campo Modalidade removido", () => {
+  it("não exibe o combobox de Modalidade", () => {
     renderizar();
-    fireEvent.click(screen.getByRole("combobox", { name: "Modalidade (opcional)" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Presencial" }));
-
-    expect(screen.getByLabelText("Local")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Modalidade (opcional)" })).not.toBeInTheDocument();
   });
 
-  it("Online -- lado oposto -- não oferece o campo Local", async () => {
+  // Lado oposto: Local (que antes dependia de Modalidade='presencial') passa
+  // a ser sempre visível.
+  it("Local fica sempre visível, sem depender de nenhuma seleção anterior", () => {
     renderizar();
-    fireEvent.click(screen.getByRole("combobox", { name: "Modalidade (opcional)" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Online" }));
-
-    expect(screen.queryByLabelText("Local")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Local (opcional)")).toBeInTheDocument();
   });
 });
 
@@ -231,14 +232,12 @@ describe("EncontroForm (FMC-32 AC6) — participante externo vs usuário do sist
 });
 
 describe("EncontroForm — submissão (FMC-30 AC2/AC3)", () => {
-  it("envia titulo/etapa/tipo/datas/modalidade/local/tema e conclui com o idEncontro criado", async () => {
+  it("envia titulo/etapa/tipo/datas/local/tema (sem modalidade, PF2-06 AC2) e conclui com o idEncontro criado", async () => {
     renderizar();
     await preencherCamposObrigatorios();
 
     fireEvent.change(screen.getByLabelText("Fim (opcional)"), { target: { value: "2026-09-20T15:00" } });
-    fireEvent.click(screen.getByRole("combobox", { name: "Modalidade (opcional)" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Presencial" }));
-    fireEvent.change(screen.getByLabelText("Local"), { target: { value: "Sala 2" } });
+    fireEvent.change(screen.getByLabelText("Local (opcional)"), { target: { value: "Sala 2" } });
     fireEvent.change(screen.getByLabelText("Tema Prioritário (opcional)"), { target: { value: "Orçamento" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Criar Encontro" }));
@@ -252,7 +251,7 @@ describe("EncontroForm — submissão (FMC-30 AC2/AC3)", () => {
       idTipoRegistro: 61,
       dtInicio: "2026-09-20T14:00",
       dtFim: "2026-09-20T15:00",
-      modalidade: "presencial",
+      modalidade: null,
       local: "Sala 2",
       tema: "Orçamento",
     });
