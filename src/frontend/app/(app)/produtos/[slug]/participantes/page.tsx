@@ -12,12 +12,7 @@ import {
   vincularParticipanteAoTse,
   type ParticipantePll,
 } from "@backend/queries/pll-cadastro";
-import {
-  buscarEdicoesPll,
-  buscarMentoresDisponiveis,
-  buscarProjetosAtivos,
-  criarEdicaoPll,
-} from "@backend/queries/pll-edicao";
+import { buscarEdicoesPll, buscarProjetosAtivos, criarEdicaoPll } from "@backend/queries/pll-edicao";
 import type { ProdutoSlug } from "@backend/queries/produto";
 import { descreveErroDesconhecido } from "@backend/rpc/errors";
 import type { LinhaCadastroPll } from "@backend/schemas/cadastro-participante-pll";
@@ -109,11 +104,6 @@ function ParticipantesPllPage() {
     queryKey: ["ref-projeto-ativos"],
     queryFn: () => buscarProjetosAtivos(createClient()),
   });
-  const { data: mentoresDisponiveis } = useQuery({
-    queryKey: ["pll-mentores-disponiveis"],
-    queryFn: () => buscarMentoresDisponiveis(createClient()),
-  });
-
   const [idEdicaoSelecionada, setIdEdicaoSelecionada] = useState<number | undefined>(undefined);
   const [filtro, setFiltro] = useState<FiltroListaParticipantesPll>({});
   const [pagina, setPagina] = useState(1);
@@ -127,8 +117,10 @@ function ParticipantesPllPage() {
   const idEdicaoEfetiva = idEdicaoSelecionada ?? edicoes?.[0]?.idEdicao;
 
   const { mutateAsync: criarEdicao } = useMutation({
-    mutationFn: (input: { nome: string; dtInicio: string; idProjeto: number; idsMentores: number[] }) =>
-      criarEdicaoPll(createClient(), { idProduto: idProduto as number, ...input }),
+    // PF2-03: idsMentores não vem mais do dialog -- vai sempre [] pro RPC,
+    // que já trata pool vazio como "sem mentor padrão" (criarEdicaoPll).
+    mutationFn: (input: { nome: string; dtInicio: string; idProjeto: number }) =>
+      criarEdicaoPll(createClient(), { idProduto: idProduto as number, idsMentores: [], ...input }),
     onSuccess: (resultado) => {
       void queryClient.invalidateQueries({ queryKey: ["pll-participantes-edicoes"] });
       setIdEdicaoSelecionada(resultado.idEdicao);
@@ -260,7 +252,6 @@ function ParticipantesPllPage() {
   const botaoCriarEdicao = (
     <CriarEdicaoDialog
       projetos={projetos ?? []}
-      mentores={mentoresDisponiveis ?? []}
       onCriar={async (input) => {
         await criarEdicao(input);
       }}

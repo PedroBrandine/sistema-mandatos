@@ -15,31 +15,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MultiSelectPesquisavel, opcoesDeIdNome } from "@/components/ui/multi-select-pesquisavel";
 
 // Sessão ao vivo com Pedro (22/09): botão "Criar edição" na tela
-// Participantes do PLL -- nome, data de início, projeto/temática de origem
-// (ref_projeto) e o pool de mentores padrão (rel_edicao_mentor), aplicado a
-// cada contrato criado sob a edição no momento do vínculo TSE
-// (vincularParticipanteAoTse -> app.criar_mandato p_mentores_padrao).
+// Participantes do PLL -- nome, data de início e projeto/temática de origem
+// (ref_projeto).
+//
+// PF2-03 (.specs/features/pente-fino-2026-09-23/spec.md, AD-065): o campo
+// "Mentores padrão" foi removido -- decisão confirmada com Pedro, supersede
+// parcial de AD-042 (que descrevia este dialog com o pool de mentores). O
+// conceito de pool padrão por edição não faz mais parte do fluxo; mentores
+// continuam existindo como usuários do sistema (dim_usuario,
+// papel_global='mentor'), fora deste formulário.
 //
 // AD-042 (tela de escrita, os dois lados de todo condicional): nome/data/
-// projeto são obrigatórios (submit desabilitado sem os três); mentores são
-// opcionais (pool vazio é caso válido -- edição sem mentor padrão definido
-// ainda).
+// projeto são obrigatórios -- submit desabilitado sem os três.
 
 export interface CriarEdicaoDialogProps {
   projetos: { id: number; nome: string }[];
-  mentores: { id: number; nome: string }[];
-  onCriar: (input: { nome: string; dtInicio: string; idProjeto: number; idsMentores: number[] }) => Promise<void>;
+  onCriar: (input: { nome: string; dtInicio: string; idProjeto: number }) => Promise<void>;
 }
 
-export function CriarEdicaoDialog({ projetos, mentores, onCriar }: CriarEdicaoDialogProps) {
+export function CriarEdicaoDialog({ projetos, onCriar }: CriarEdicaoDialogProps) {
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [dtInicio, setDtInicio] = useState("");
   const [idProjeto, setIdProjeto] = useState<number | undefined>(undefined);
-  const [idsMentores, setIdsMentores] = useState<number[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -49,7 +49,6 @@ export function CriarEdicaoDialog({ projetos, mentores, onCriar }: CriarEdicaoDi
     setNome("");
     setDtInicio("");
     setIdProjeto(undefined);
-    setIdsMentores([]);
     setErro(null);
   }
 
@@ -58,7 +57,7 @@ export function CriarEdicaoDialog({ projetos, mentores, onCriar }: CriarEdicaoDi
     setSalvando(true);
     setErro(null);
     try {
-      await onCriar({ nome: nome.trim(), dtInicio, idProjeto, idsMentores });
+      await onCriar({ nome: nome.trim(), dtInicio, idProjeto });
       limpar();
       setOpen(false);
     } catch (erroCaptura) {
@@ -85,8 +84,7 @@ export function CriarEdicaoDialog({ projetos, mentores, onCriar }: CriarEdicaoDi
         <DialogHeader>
           <DialogTitle>Criar edição</DialogTitle>
           <DialogDescription>
-            Uma edição organiza uma turma do PLL: nome, período, projeto/temática de origem e o pool de mentores
-            padrão aplicado a cada participante vinculado ao TSE.
+            Uma edição organiza uma turma do PLL: nome, período e projeto/temática de origem.
           </DialogDescription>
         </DialogHeader>
 
@@ -128,19 +126,6 @@ export function CriarEdicaoDialog({ projetos, mentores, onCriar }: CriarEdicaoDi
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label>Mentores padrão</Label>
-            <MultiSelectPesquisavel
-              opcoes={opcoesDeIdNome(mentores)}
-              valores={idsMentores}
-              onChange={setIdsMentores}
-              placeholder="Nenhum mentor padrão"
-              rotulo="Mentores padrão"
-              rotuloPlural="mentores"
-              placeholderBusca="Buscar mentor..."
-            />
           </div>
         </div>
 

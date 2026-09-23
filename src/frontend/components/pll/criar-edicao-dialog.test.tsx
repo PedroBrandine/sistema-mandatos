@@ -3,16 +3,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Mesmos stubs de jsdom que os demais diálogos com <Command>/<Popover> exigem
-// (MultiSelectPesquisavel usa Command internamente) -- mesmo racional de
+// Select (Radix) precisa desses stubs em jsdom -- mesmo racional de
 // vincular-tse-dialog.test.tsx.
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver =
-  (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver ?? ResizeObserverStub;
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoViewStub() {};
 }
@@ -25,12 +17,23 @@ import { CriarEdicaoDialog } from "./criar-edicao-dialog";
 afterEach(() => cleanup());
 
 const PROJETOS = [{ id: 25, nome: "Bancada do Clima" }];
-const MENTORES = [{ id: 55, nome: "Carla Mentora" }];
 
 describe("CriarEdicaoDialog", () => {
+  // PF2-03 (.specs/features/pente-fino-2026-09-23/spec.md) AC1: dialog exibe
+  // só Nome/Data de início/Projeto -- sem nenhum campo de mentores.
+  it("não exibe nenhum campo de mentores (PF2-03 AC1)", async () => {
+    const onCriar = vi.fn().mockResolvedValue(undefined);
+    render(<CriarEdicaoDialog projetos={PROJETOS} onCriar={onCriar} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Criar edição" }));
+    await screen.findByLabelText("Nome da edição");
+
+    expect(screen.queryByText(/mentor/i)).not.toBeInTheDocument();
+  });
+
   it("submit fica desabilitado até nome + data + projeto estarem preenchidos", async () => {
     const onCriar = vi.fn().mockResolvedValue(undefined);
-    render(<CriarEdicaoDialog projetos={PROJETOS} mentores={MENTORES} onCriar={onCriar} />);
+    render(<CriarEdicaoDialog projetos={PROJETOS} onCriar={onCriar} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Criar edição" }));
     const botaoSubmit = await screen.findByRole("button", { name: "Criar edição" });
@@ -44,11 +47,11 @@ describe("CriarEdicaoDialog", () => {
     expect(botaoSubmit).toBeDisabled();
   });
 
-  // Lado oposto: com os 3 obrigatórios preenchidos (mentores fica vazio, caso
-  // válido), onCriar recebe o payload certo e o diálogo fecha.
-  it("com nome/data/projeto preenchidos, onCriar recebe o payload e o diálogo fecha", async () => {
+  // PF2-03 AC2: com os 3 obrigatórios preenchidos, onCriar recebe o payload
+  // SEM idsMentores/p_mentores_padrao, e o diálogo fecha.
+  it("com nome/data/projeto preenchidos, onCriar recebe o payload sem idsMentores e o diálogo fecha", async () => {
     const onCriar = vi.fn().mockResolvedValue(undefined);
-    render(<CriarEdicaoDialog projetos={PROJETOS} mentores={MENTORES} onCriar={onCriar} />);
+    render(<CriarEdicaoDialog projetos={PROJETOS} onCriar={onCriar} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Criar edição" }));
     fireEvent.change(await screen.findByLabelText("Nome da edição"), { target: { value: "PLL 2026.1" } });
@@ -67,9 +70,9 @@ describe("CriarEdicaoDialog", () => {
         nome: "PLL 2026.1",
         dtInicio: "2026-02-01",
         idProjeto: 25,
-        idsMentores: [],
       })
     );
+    expect(onCriar).not.toHaveBeenCalledWith(expect.objectContaining({ idsMentores: expect.anything() }));
     await waitFor(() => expect(screen.queryByLabelText("Nome da edição")).not.toBeInTheDocument());
   });
 
@@ -77,7 +80,7 @@ describe("CriarEdicaoDialog", () => {
   // engole a falha (mesmo racional de PLL-CP-13 nos outros diálogos do PLL).
   it("erro em onCriar mantém o diálogo aberto e mostra a mensagem", async () => {
     const onCriar = vi.fn().mockRejectedValue(new Error("Edição duplicada"));
-    render(<CriarEdicaoDialog projetos={PROJETOS} mentores={MENTORES} onCriar={onCriar} />);
+    render(<CriarEdicaoDialog projetos={PROJETOS} onCriar={onCriar} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Criar edição" }));
     fireEvent.change(await screen.findByLabelText("Nome da edição"), { target: { value: "PLL 2026.1" } });

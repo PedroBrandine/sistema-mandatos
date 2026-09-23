@@ -2301,3 +2301,37 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   `ref_tipologia` nem o formulário de cadastro de Fato Gerador.
 - **Date**: 2026-09-20
 - **Status**: active
+
+### AD-065
+- **Decision**: **Supersede parcial** de AD-042 no que descrevia
+  `CriarEdicaoDialog`: o campo "Mentores padrão" (prop `mentores`, estado
+  `idsMentores`, `MultiSelectPesquisavel`) é **removido** do dialog "Criar
+  edição" do PLL. O dialog passa a coletar só Nome, Data de início e
+  Projeto/temática; `onCriar` não envia mais `idsMentores` (o consumidor
+  passa `idsMentores: []` direto pro RPC `criar_edicao_pll`, que já trata
+  pool vazio como "sem mentor padrão"). O restante de AD-042 — harness de
+  teste de componente obrigatório, `.test.tsx` coletado, AC de UI só conta
+  como pronta com teste de render passando — permanece integral; esta
+  entrada altera só a leitura de UM componente específico (o exemplo que
+  AD-042 usava para "os dois lados de todo condicional" em telas de
+  escrita), não a regra de cobertura em si.
+- **Reason**: Pedro, pente-fino 23/09
+  (`.specs/features/pente-fino-2026-09-23/spec.md`, PF2-03) — pergunta
+  direta, resposta confirmada: o conceito de pool de mentores padrão por
+  edição não faz mais parte do fluxo. Mentores continuam existindo como
+  usuários do sistema (`dim_usuario`, `papel_global='mentor'`, decisão da
+  sessão de 22/09, "mentor fora da planilha"), escolhidos em outro ponto do
+  fluxo — não mais num pool aplicado a toda a edição no momento da criação.
+- **Trade-off**: Edições criadas a partir de agora nascem sem nenhum
+  mentor padrão pré-associado — cada vínculo mentor/mentorado passa a
+  depender de um caminho fora deste dialog (fora do escopo desta rodada,
+  já resolvido na sessão de 22/09). Vínculos de `rel_edicao_mentor` já
+  gravados em edições anteriores a esta mudança continuam intocados e
+  visíveis normalmente; a coluna/tabela não foi alterada, nenhuma migration
+  nesta rodada.
+- **Scope**: `src/frontend/components/pll/criar-edicao-dialog.tsx` e seu
+  consumidor (`src/frontend/app/(app)/produtos/[slug]/participantes/page.tsx`).
+  Não altera `criarEdicaoPll`/`rel_edicao_mentor` nem o restante do fluxo de
+  mentor do PLL.
+- **Date**: 2026-09-23
+- **Status**: active
