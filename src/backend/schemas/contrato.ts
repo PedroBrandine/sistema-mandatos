@@ -17,8 +17,9 @@ export const contratoSchema = z
     dt_inicio: z.string("dt_inicio é obrigatório"),
     dt_fim_prevista: z.string().nullable().optional(),
     dt_fim: z.string().nullable().optional(),
-    // espelha ck_contrato_status
-    status: z.enum(["ativo", "concluido", "nao_concluido"]),
+    // espelha ck_contrato_status (AD-066: 'desistente'/'desligado' são status
+    // de participação do PLL, mesma coluna)
+    status: z.enum(["ativo", "concluido", "nao_concluido", "desistente", "desligado"]),
     // espelha domínio texto_limpo
     motivo_encerramento: textoLimpoSchema,
     // espelha ck_contrato_profundidade
@@ -37,10 +38,14 @@ export const contratoSchema = z
   })
   // espelha ck_contrato_motivo: status <> 'nao_concluido' OR motivo_encerramento IS NOT NULL
   // (spec.md FND-CTR AC3: "SHALL exigir motivo_encerramento não vazio")
-  .refine((valor) => valor.status !== "nao_concluido" || valor.motivo_encerramento != null, {
-    message: "motivo_encerramento é obrigatório quando status='nao_concluido'",
-    path: ["motivo_encerramento"],
-  });
+  .refine(
+    (valor) =>
+      !["nao_concluido", "desistente", "desligado"].includes(valor.status) || valor.motivo_encerramento != null,
+    {
+      message: "motivo_encerramento é obrigatório quando status='nao_concluido'/'desistente'/'desligado'",
+      path: ["motivo_encerramento"],
+    }
+  );
 
 export type ContratoInput = z.infer<typeof contratoSchema>;
 

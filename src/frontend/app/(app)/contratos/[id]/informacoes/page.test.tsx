@@ -53,6 +53,7 @@ vi.mock("@backend/supabase/client", () => ({
 
 const buscarContratoParaFichaMock = vi.fn();
 const buscarInformacoesGeraisMandatoMock = vi.fn();
+const buscarInformacoesGeraisPllMock = vi.fn();
 const buscarEtapasDoProdutoMock = vi.fn();
 const atualizarStatusContratoMock = vi.fn();
 const moverEtapaKanbanMock = vi.fn();
@@ -64,6 +65,21 @@ vi.mock("@backend/queries/contrato", () => ({
 
 vi.mock("@backend/queries/ficha-mandato", () => ({
   buscarInformacoesGeraisMandato: (...args: unknown[]) => buscarInformacoesGeraisMandatoMock(...args),
+}));
+
+vi.mock("@backend/queries/pll-informacoes", () => ({
+  buscarInformacoesGeraisPll: (...args: unknown[]) => buscarInformacoesGeraisPllMock(...args),
+}));
+
+// diagnostico-participante-pll: a página só precisa provar o WIRING (produto
+// PLL -> monta InformacoesGeraisPllPainel com os dados certos) -- o
+// comportamento interno do painel tem suíte própria.
+vi.mock("@/components/pll/informacoes-gerais-pll", () => ({
+  InformacoesGeraisPllPainel: ({ idContrato, info }: { idContrato: number; info: { nomeMentor: string | null } }) => (
+    <div data-testid="informacoes-gerais-pll-painel">
+      idContrato:{idContrato} nomeMentor:{info.nomeMentor ?? "—"}
+    </div>
+  ),
 }));
 
 vi.mock("@backend/rpc/contrato", () => ({
@@ -109,6 +125,18 @@ const CONTRATO_MANDATO = {
   idEtapaAtual: 11,
 };
 
+const CONTRATO_PLL = {
+  idContrato: 43,
+  idProduto: 2,
+  nomeProduto: "PLL",
+  idContratante: 8,
+  nomeContratante: "Mentorado Fulano",
+  tipoContratante: "mandato",
+  idMandato: 300,
+  status: "ativo" as const,
+  idEtapaAtual: null,
+};
+
 const CONTRATO_COALIZAO = {
   idContrato: 2,
   idProduto: 10,
@@ -147,6 +175,7 @@ function paramsProntos(id: string): Promise<{ id: string }> {
 beforeEach(() => {
   buscarContratoParaFichaMock.mockReset();
   buscarInformacoesGeraisMandatoMock.mockReset();
+  buscarInformacoesGeraisPllMock.mockReset();
   buscarEtapasDoProdutoMock.mockReset();
   atualizarStatusContratoMock.mockReset();
   moverEtapaKanbanMock.mockReset();
@@ -304,5 +333,48 @@ describe("Página Informações Gerais — Status e Etapa do contrato (PF-04)", 
     expect(
       await screen.findByText("Não é possível pular etapas — mova o card para a coluna adjacente.")
     ).toBeInTheDocument();
+  });
+});
+
+// diagnostico-participante-pll (Informações Gerais PLL).
+describe("Página Informações Gerais — contrato do PLL", () => {
+  it("monta InformacoesGeraisPllPainel com os dados certos, sem os cards genéricos de mandato", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_PLL);
+    buscarInformacoesGeraisPllMock.mockResolvedValue({
+      idCadastroParticipante: 1,
+      identidadeGenero: null,
+      orientacaoSexual: null,
+      corRaca: null,
+      tempoNaPolitica: null,
+      idade: null,
+      escolaridade: null,
+      mandatosAnteriores: null,
+      cargosAnteriores: null,
+      nomeMentor: "Carlos Mendes",
+      origemCadastro: null,
+      edicaoAtual: null,
+      historico: [],
+    });
+
+    render(<InformacoesContratoPage params={paramsProntos("43")} />);
+
+    expect(await screen.findByTestId("informacoes-gerais-pll-painel")).toHaveTextContent(
+      "idContrato:43 nomeMentor:Carlos Mendes"
+    );
+    expect(buscarInformacoesGeraisMandatoMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("card-sobre-mandato")).not.toBeInTheDocument();
+    expect(screen.queryByText("Status e Etapa")).not.toBeInTheDocument();
+  });
+
+  it("sem linha de cadastro correspondente, mostra ErroInline explicativo (nunca o conteúdo de Estratégia)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_PLL);
+    buscarInformacoesGeraisPllMock.mockResolvedValue(null);
+
+    render(<InformacoesContratoPage params={paramsProntos("43")} />);
+
+    expect(
+      await screen.findByText("Este contrato não tem um registro de cadastro do PLL correspondente.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("informacoes-gerais-pll-painel")).not.toBeInTheDocument();
   });
 });

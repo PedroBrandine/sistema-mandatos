@@ -44,6 +44,19 @@ const CONTRATO_MANDATO = {
   sgUf: "SP",
 };
 
+const CONTRATO_MANDATO_PLL = {
+  idContrato: 3,
+  idProduto: 11,
+  nomeProduto: "PLL",
+  idContratante: 102,
+  nomeContratante: "Mentorado Fulano",
+  tipoContratante: "mandato",
+  idMandato: 201,
+  cargoAtual: "Deputado Estadual",
+  partidoAtual: "PT",
+  sgUf: "RJ",
+};
+
 const CONTRATO_COALIZAO = {
   idContrato: 2,
   idProduto: 10,
@@ -141,6 +154,34 @@ describe("FichaContratoChrome (FMC-01..04)", () => {
 
     expect(screen.queryByRole("button", { name: "Registrar Insight" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Registrar Fato Gerador" })).not.toBeInTheDocument();
+  });
+
+  it("contrato do PLL não mostra GIP/Formulários/Gestão da equipe (Pedro, 23/09)", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO_PLL);
+
+    render(<FichaContratoChrome idContrato={3}>{null}</FichaContratoChrome>);
+
+    await screen.findByRole("link", { name: "Informações Gerais" });
+    const nav = screen.getByRole("navigation");
+    const links = within(nav).getAllByRole("link").map((el) => el.textContent);
+    expect(links).toEqual([
+      "Informações Gerais",
+      "Agenda",
+      "Diagnóstico",
+      "Planejamento Estratégico",
+      "Fatos Geradores e Registros",
+    ]);
+  });
+
+  it("lado oposto: contrato de Estratégia continua mostrando GIP/Formulários/Gestão da equipe", async () => {
+    buscarContratoParaFichaMock.mockResolvedValue(CONTRATO_MANDATO);
+
+    render(<FichaContratoChrome idContrato={1}>{null}</FichaContratoChrome>);
+
+    const nav = await screen.findByRole("navigation");
+    expect(within(nav).getByRole("link", { name: "GIP" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Formulários" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Gestão da equipe" })).toBeInTheDocument();
   });
 
   it("enquanto o contrato carrega, não renderiza a barra de abas (estado de carregamento)", () => {

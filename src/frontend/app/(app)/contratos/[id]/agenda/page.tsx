@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { buscarEncontrosDoMes, type EncontroAgenda } from "@backend/queries/agenda";
 import { buscarContratoParaFicha } from "@backend/queries/contrato";
+import { buscarAgendaMentoriasPll } from "@backend/queries/pll-mentorias";
 import { buscarRegistrosDaAgenda, type RegistroAgenda } from "@backend/queries/registros-agenda";
 import { marcarPresenca } from "@backend/rpc/encontro";
 import { descreveErroDesconhecido } from "@backend/rpc/errors";
@@ -14,6 +15,7 @@ import { createClient } from "@backend/supabase/client";
 import { AgendaMes, hojeNoFusoDoProduto } from "@/components/estrategia/agenda-mes";
 import { EncontroPopover } from "@/components/estrategia/encontro-popover";
 import { EncontroForm } from "@/components/incidencia/encontro-form";
+import { TabelaMentoriasPll } from "@/components/pll/tabela-mentorias-pll";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErroInline } from "@/components/ui/erro-inline";
@@ -76,6 +78,22 @@ export default function ContratoAgendaPage({ params }: { params: Promise<{ id: s
   });
 
   const idProduto = contrato?.idProduto;
+  // Pedro, 23/09 (.specs/features/diagnostico-participante-pll): a Agenda do
+  // PLL não é o calendário genérico -- é a grade fixa de Mentorias (Figma
+  // 328:1262), TabelaMentoriasPll abaixo. As 2 queries do calendário ficam
+  // desligadas pra contrato PLL (`enabled`), evitando round-trip inútil.
+  const ehPll = contrato?.nomeProduto === "PLL";
+
+  const {
+    data: agendaMentorias,
+    isLoading: carregandoMentorias,
+    isError: erroMentorias,
+    refetch: refetchMentorias,
+  } = useQuery({
+    queryKey: ["pll-agenda-mentorias", idContrato],
+    queryFn: () => buscarAgendaMentoriasPll(createClient(), idContrato),
+    enabled: ehPll,
+  });
 
   const chaveEncontros = ["ficha-agenda-encontros", idContrato, periodo.ano, periodo.mes] as const;
 
@@ -93,7 +111,7 @@ export default function ContratoAgendaPage({ params }: { params: Promise<{ id: s
         mes: periodo.mes,
         idsContrato: [idContrato],
       }),
-    enabled: idProduto !== undefined,
+    enabled: idProduto !== undefined && !ehPll,
   });
 
   const {
@@ -110,7 +128,7 @@ export default function ContratoAgendaPage({ params }: { params: Promise<{ id: s
         idsContrato: [idContrato],
         idEncontro: idEncontroSelecionado ?? undefined,
       }),
-    enabled: idProduto !== undefined,
+    enabled: idProduto !== undefined && !ehPll,
   });
 
   const encontroSelecionado = encontros?.find((e) => e.idEncontro === idEncontroSelecionado) ?? null;
@@ -141,12 +159,41 @@ export default function ContratoAgendaPage({ params }: { params: Promise<{ id: s
     setIdEncontroSelecionado(encontro.idEncontro);
   }
 
-  if (carregandoContrato || carregandoEncontros) {
+  if (carregandoContrato) {
     return <CarregandoSkeleton variante="cards" />;
   }
 
   if (erroContrato) {
     return <ErroInline mensagem="Não foi possível carregar o contrato desta ficha." />;
+  }
+
+  if (ehPll) {
+    if (carregandoMentorias) {
+      return <CarregandoSkeleton variante="cards" />;
+    }
+    if (erroMentorias) {
+      return (
+        <ErroInline
+          mensagem="Não foi possível carregar a Agenda de Mentorias."
+          onRetry={() => refetchMentorias()}
+        />
+      );
+    }
+    if (!agendaMentorias) {
+      return (
+        <EstadoVazio
+          titulo="Agenda indisponível"
+          mensagem="Este contrato não tem a etapa/tipo de registro de Mentoria provisionados."
+        />
+      );
+    }
+    return (
+      <TabelaMentoriasPll idContrato={idContrato} agenda={agendaMentorias} onAtualizado={() => void refetchMentorias()} />
+    );
+  }
+
+  if (carregandoEncontros) {
+    return <CarregandoSkeleton variante="cards" />;
   }
 
   if (erroEncontros) {

@@ -14,7 +14,8 @@ export interface ContratoParaFicha {
   // PF-04: status/etapa atuais do contrato -- mesmas colunas que o Kanban lê
   // (fat_contrato.status/id_etapa_atual, ver src/backend/queries/kanban.ts),
   // expostas aqui pra edição na página de informações gerais (T4).
-  status: "ativo" | "concluido" | "nao_concluido";
+  // 'desistente'/'desligado' (AD-066): status de participação do PLL, mesma coluna.
+  status: "ativo" | "concluido" | "nao_concluido" | "desistente" | "desligado";
   idEtapaAtual: number | null;
   // presentes só quando tipoContratante === 'mandato':
   idMandato?: number | null;

@@ -8,11 +8,13 @@ import { moverEtapaKanban } from "@backend/rpc/kanban";
 import { createClient } from "@backend/supabase/client";
 import { buscarContratoParaFicha, buscarEtapasDoProduto, type ContratoParaFicha, type EtapaResumo } from "@backend/queries/contrato";
 import { buscarInformacoesGeraisMandato, type InformacoesGeraisMandato } from "@backend/queries/ficha-mandato";
+import { buscarInformacoesGeraisPll, type InformacoesGeraisPll } from "@backend/queries/pll-informacoes";
 
 import { CardHistoricoContratos } from "@/components/fundacao/card-historico-contratos";
 import { CardPontoFocal } from "@/components/fundacao/card-ponto-focal";
 import { CardProjetosCoalizoes } from "@/components/fundacao/card-projetos-coalizoes";
 import { CardSobreMandato } from "@/components/fundacao/card-sobre-mandato";
+import { InformacoesGeraisPllPainel } from "@/components/pll/informacoes-gerais-pll";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarregandoSkeleton } from "@/components/ui/carregando-skeleton";
@@ -45,10 +47,28 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
 
   const [contrato, setContrato] = useState<ContratoParaFicha | null | undefined>(undefined);
   const [dados, setDados] = useState<InformacoesGeraisMandato | null | undefined>(undefined);
+  const [dadosPll, setDadosPll] = useState<InformacoesGeraisPll | null | undefined>(undefined);
   const [erro, setErro] = useState<string | null>(null);
   // PF-04 (T4): etapas do produto do contrato, pra montar o Select de Etapa
   // -- mesma leitura que a Ficha já usa pras abas (buscarEtapasDoProduto).
   const [etapas, setEtapas] = useState<EtapaResumo[]>([]);
+
+  const ehPll = contrato?.nomeProduto === "PLL";
+
+  // diagnostico-participante-pll (Informações Gerais PLL, Figma 449:4):
+  // contrato do PLL usa um painel PRÓPRIO (InformacoesGeraisPllPainel, com
+  // seu próprio controle de Status/Motivo) -- os cards genéricos de mandato
+  // abaixo (Sobre o Mandato, Ponto Focal, Status e Etapa etc.) nunca chegam
+  // a renderizar pra PLL.
+  const carregarDadosPll = useCallback(async () => {
+    setErro(null);
+    try {
+      const resultado = await buscarInformacoesGeraisPll(createClient(), idContrato);
+      setDadosPll(resultado);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro ao carregar as informações gerais do participante.");
+    }
+  }, [idContrato]);
 
   const carregarDados = useCallback(async () => {
     setErro(null);
@@ -81,14 +101,40 @@ export default function InformacoesContratoPage({ params }: { params: Promise<{ 
   }, [carregarContrato]);
 
   useEffect(() => {
-    void carregarDados();
-  }, [carregarDados]);
+    if (contrato === undefined) return;
+    if (ehPll) void carregarDadosPll();
+    else void carregarDados();
+  }, [contrato, ehPll, carregarDados, carregarDadosPll]);
 
   if (contrato === null) {
     notFound();
   }
 
-  if (contrato === undefined || dados === undefined) {
+  if (contrato === undefined) {
+    return erro ? <ErroInline mensagem={erro} onRetry={ehPll ? carregarDadosPll : carregarDados} /> : <CarregandoSkeleton />;
+  }
+
+  if (ehPll) {
+    if (dadosPll === undefined) {
+      return erro ? <ErroInline mensagem={erro} onRetry={carregarDadosPll} /> : <CarregandoSkeleton />;
+    }
+    if (erro) {
+      return <ErroInline mensagem={erro} onRetry={carregarDadosPll} />;
+    }
+    if (!dadosPll) {
+      return (
+        <ErroInline
+          mensagem="Este contrato não tem um registro de cadastro do PLL correspondente."
+          onRetry={carregarDadosPll}
+        />
+      );
+    }
+    return (
+      <InformacoesGeraisPllPainel idContrato={idContrato} contrato={contrato} info={dadosPll} onAtualizado={carregarDadosPll} />
+    );
+  }
+
+  if (dados === undefined) {
     return erro ? <ErroInline mensagem={erro} onRetry={carregarDados} /> : <CarregandoSkeleton />;
   }
 

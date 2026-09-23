@@ -27,6 +27,10 @@ export interface CriarEncontroInput {
   local?: string | null;
   tema?: string | null;
   participantes: ParticipanteEncontroInput[];
+  /** diagnostico-participante-pll (Agenda PLL): slot fixo de Mentoria N
+   * (1..5, ver ref_tipo_registro.qtd_prevista) -- mesma coluna que
+   * Sprint/Monitoramento já usam pro mesmo fim (uq_encontro_sequencia). */
+  nrSequencia?: number | null;
 }
 
 // FMC-30 (spec.md P2 Agenda AC2/AC3; design.md tabela de RPCs). Único ponto de
@@ -56,6 +60,7 @@ export async function criarEncontro(
       nome_livre: participante.nomeLivre ?? null,
       origem: participante.origem,
     })),
+    p_nr_sequencia: input.nrSequencia ?? undefined,
   });
 
   if (error) throw mapeiaErroRpc(error);
@@ -78,6 +83,23 @@ export async function marcarPresenca(
   const { error } = await client.schema("app").rpc("marcar_presenca", {
     p_id_encontro: input.idEncontro,
   });
+
+  if (error) throw mapeiaErroRpc(error);
+}
+
+// diagnostico-participante-pll (Agenda PLL, Figma 328:1262, ações "Remarcar"/
+// "Cancelar" da tabela de Mentorias). MESMO padrão de `alterarStatus` já
+// usado por `encontros-lista.tsx` (incidencia): UPDATE direto de
+// `fat_encontro.status`, sem RPC -- fat_encontro tem RLS FOR ALL
+// (p_por_contrato), então a escrita já é coberta; nenhuma tabela nova nem
+// invariante entre tabelas está envolvida. 'realizado' exige dt_realizada
+// (ck_encontro_realizado) -- por isso não é uma opção aqui: essa transição já
+// tem seu próprio caminho sancionado (marcarPresenca, acima).
+export async function atualizarStatusEncontro(
+  client: SupabaseClient<Database>,
+  input: { idEncontro: number; status: "planejado" | "cancelado" | "remarcado" }
+): Promise<void> {
+  const { error } = await client.from("fat_encontro").update({ status: input.status }).eq("id_encontro", input.idEncontro);
 
   if (error) throw mapeiaErroRpc(error);
 }

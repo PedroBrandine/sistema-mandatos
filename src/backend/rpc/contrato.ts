@@ -11,18 +11,24 @@ import { mapeiaErroRpc } from "./errors";
 // UPDATE para ser reutilizável pela página de informações gerais (T4), sem
 // duplicar a leitura de dt_fim/motivo que só a tela de encerramento precisa.
 //
-// Espelha ck_contrato_motivo (status <> 'nao_concluido' OR motivo_encerramento
-// IS NOT NULL) -- mesma regra e mesma mensagem que contratoSchema.refine já
-// usa (src/backend/schemas/contrato.ts), checada aqui antes do round-trip ao
-// banco para não depender de mapear 23514 pra um texto amigável.
+// Espelha ck_contrato_motivo (status NOT IN ('nao_concluido','desistente',
+// 'desligado') OR motivo_encerramento IS NOT NULL) -- mesma regra e mesma
+// mensagem que contratoSchema.refine já usa (src/backend/schemas/contrato.ts),
+// checada aqui antes do round-trip ao banco para não depender de mapear
+// 23514 pra um texto amigável.
+//
+// 'desistente'/'desligado' (AD-066, migration 20260923185553): status de
+// participação do PLL -- mesma coluna, ampliada pro Pedro poder registrar
+// as 2 razões que hoje só existiam juntas como 'nao_concluido' genérico.
 export async function atualizarStatusContrato(
   client: SupabaseClient<Database>,
   idContrato: number,
-  status: "ativo" | "concluido" | "nao_concluido",
+  status: "ativo" | "concluido" | "nao_concluido" | "desistente" | "desligado",
   motivoEncerramento?: string | null
 ): Promise<void> {
-  if (status === "nao_concluido" && !motivoEncerramento) {
-    throw new Error("motivo_encerramento é obrigatório quando status='nao_concluido'");
+  const exigeMotivo = status === "nao_concluido" || status === "desistente" || status === "desligado";
+  if (exigeMotivo && !motivoEncerramento) {
+    throw new Error("motivo_encerramento é obrigatório quando status='nao_concluido'/'desistente'/'desligado'");
   }
 
   const { error } = await client

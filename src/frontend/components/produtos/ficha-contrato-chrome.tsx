@@ -117,10 +117,18 @@ export function FichaContratoChrome({ idContrato, children }: FichaContratoChrom
     { href: `${base}/vinculos`, label: "Gestão da equipe" },
     { href: `${base}/fatos-registros`, label: "Fatos Geradores e Registros" },
   ];
-  const abas: RouteTabItem[] =
-    contrato.tipoContratante === "mandato"
-      ? todasAbas
-      : todasAbas.filter((aba) => aba.label !== "Informações Gerais");
+  // Pedro, 23/09: GIP, Formulários e Gestão da equipe não existem no PLL --
+  // o mentorado não tem GIP (é da Estratégia), Formulários do PLL acontecem
+  // dentro do fluxo de Mentoria (aba Agenda), e a equipe do PLL é o
+  // mentor/mentorado já mostrado em Informações Gerais, não um vínculo N:N
+  // como Assessores/CG.
+  const ABAS_OCULTAS_PLL = new Set(["GIP", "Formulários", "Gestão da equipe"]);
+  const ehPll = contrato.nomeProduto === "PLL";
+  const abas: RouteTabItem[] = todasAbas.filter((aba) => {
+    if (aba.label === "Informações Gerais" && contrato.tipoContratante !== "mandato") return false;
+    if (ehPll && ABAS_OCULTAS_PLL.has(aba.label)) return false;
+    return true;
+  });
 
   return (
     <div

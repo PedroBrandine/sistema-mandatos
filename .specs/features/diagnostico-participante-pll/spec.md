@@ -22,22 +22,30 @@ PLL, em vez de duplicar uma segunda ficha paralela.
 
 ## Goals
 
-- [ ] `/contratos/[id]/diagnostico` mostra o Diagnóstico do Mentorado (Dados
+- [x] `/contratos/[id]/diagnostico` mostra o Diagnóstico do Mentorado (Dados
       TSE, Composição Partidária da Casa, Afinidade de Agenda, Desafios,
       Destaques, Ambição Política, SWOT) quando `contrato.nomeProduto ===
       "PLL"`, sem alterar o comportamento existente para Estratégia/Coalizão.
-- [ ] Nenhuma duplicação de query: a lógica de busca já escrita para a página
+- [x] Nenhuma duplicação de query: a lógica de busca já escrita para a página
       standalone é extraída para `src/backend/queries/pll-ficha.ts` e
       reaproveitada pelas duas rotas.
+- [x] `/contratos/[id]/agenda` mostra a grade fixa de Mentorias (Figma
+      328:1262) quando o contrato é do PLL — decisão do Pedro, 23/09:
+      substitui inteiramente o calendário genérico (não convive com ele).
+- [x] `/contratos/[id]/informacoes` mostra o painel de Informações Gerais do
+      PLL (Figma 449:4, restilizado pra Anton/Commissioner/paleta oficial)
+      quando o contrato é do PLL, com Status de participação ampliado
+      (AD-066: Ativo/Desistente/Desligado/Concluído).
 
 ## Out of Scope
 
 | Item | Motivo |
 | --- | --- |
 | Aposentar/redirecionar `/produtos/pll/participantes/[id]` | Ela continua sendo o único caminho de ficha para um registro de staging AINDA sem `id_contrato` (antes do vínculo TSE) — não pode sumir. Ficam as duas rotas coexistindo; decisão de unificação de navegação é de produto, não desta task. |
-| Aba "Agenda" com grade fixa de 5 Mentorias (Figma 328:1262) | `/contratos/[id]/agenda` já é genérica por contrato (calendário + registros, `buscarEncontrosDoMes`/`buscarRegistrosDaAgenda` com `idsContrato=[idContrato]`) e cobre o mesmo dado real (`ref_tipo_registro` PLL/mentorias, `qtd_prevista=5`). Redesenhar essa aba como tabela de 5 linhas fixas é mudança de UI própria, não decorre de nenhum campo/tabela faltando — fica para quando Pedro confirmar que quer esse layout especificamente. |
-| Aba "Informações Gerais" com Dados Pessoais/Mandato/Mentor Responsável/Vínculo de Acesso/Edição Vinculada/Histórico de Participação/Status (Figma 449:4) | Vários campos aparentes no frame 449:4 (Status Ativo/Desistente/Desligado + Motivo) não têm coluna correspondente hoje em `fat_cadastro_participante` nem em `fat_contrato` — é decisão de schema (regra invionável nº1 da skill `figma-dominio-legisla`), fica registrada como pergunta em aberto, não implementada em silêncio. |
+| "Registro do Mentor"/"Registro do Mandato" como 2 caixas de texto por Mentoria (Figma 328:1262) | `fat_registro` só permite 1 registro por (contrato, tipo_registro, nr_sequencia) — decisão do Pedro (23/09): mostra o registro real único, sem inventar a 2ª caixa. |
 | Editar Análise SWOT/Desafios/Destaques/Ambição pelo Assessor | Já decidido fora de escopo em `pll-cadastro-participantes/spec.md` (Out of Scope) — mantido aqui. |
+| "Base Eleitoral" em Dados do Mandato (Figma 449:4) | Não existe coluna correspondente em `dim_mandato` nem em `fat_cadastro_participante` — omitida (regra nº1 de `figma-dominio-legisla`), não implementada por invenção. |
+| "Parear mentor" (ação) e "Ver visão agregada da edição" (link) do Figma 449:4 | O painel de Informações Gerais mostra o mentor/edição atuais só leitura; construir os 2 fluxos de escrita/navegação é aumento de escopo não pedido nesta rodada. |
 
 ---
 
@@ -92,6 +100,69 @@ rotas.
 
 ---
 
+### P2: Agenda do PLL como grade fixa de Mentorias
+
+**User Story**: Como Mentor/Gestora, quero ver as 5 Mentorias do contrato PLL
+numa tabela fixa (status, data, mentor, ações), em vez do calendário
+genérico, e poder agendar, marcar presença, remarcar ou cancelar cada uma.
+
+**Why P2**: Pedro pediu explicitamente o modelo do Figma 328:1262 — a Agenda
+genérica não expressa o conceito de "5 slots fixos" que já existe no schema
+(`ref_tipo_registro.qtd_prevista=5`).
+
+**Acceptance Criteria**:
+
+1. WHEN o contrato é do PLL THEN `/contratos/[id]/agenda` SHALL mostrar a
+   tabela de Mentorias (`TabelaMentoriasPll`) no lugar do calendário —
+   nenhuma chamada a `buscarEncontrosDoMes`/`buscarRegistrosDaAgenda`.
+2. WHEN um slot não tem encontro THEN a linha SHALL mostrar "Não preenchido"
+   e só o botão "Agendar".
+3. WHEN um slot está planejado THEN a linha SHALL mostrar "Marcar
+   presença"/"Remarcar"/"Cancelar" (via `atualizarStatusEncontro`, UPDATE
+   direto — mesmo padrão de `encontros-lista.tsx`, sem RPC nova).
+4. WHEN "Agendar" é confirmado THEN `criarEncontro` SHALL gravar
+   `nr_sequencia` (parâmetro novo `p_nr_sequencia` de `app.criar_encontro`,
+   migration `20260923185944`) igual ao slot clicado.
+5. WHEN existe mais de um `fat_encontro` pro mesmo slot (ex.: um cancelado e
+   um novo planejado) THEN o slot SHALL mostrar o "vivo" (planejado/
+   realizado), nunca o cancelado.
+
+**Independent Test**: Abrir a Agenda de um contrato PLL; agendar a Mentoria 3;
+marcar presença; conferir que a Mentoria 1 (com registro real) mostra o texto
+do registro, não uma segunda caixa inventada.
+
+---
+
+### P3: Informações Gerais do PLL
+
+**User Story**: Como Mentor/Gestora, quero ver Dados Pessoais, Dados do
+Mandato, Mentor Responsável, Vínculo de Acesso, Edição Vinculada, Histórico
+de Participação e controlar o Status (Ativo/Desistente/Desligado/Concluído)
+do mentorado na aba Informações Gerais.
+
+**Why P3**: Completa o Figma 449:4 — é a única aba que ainda mostrava (ou
+nem tinha) conteúdo específico do PLL.
+
+**Acceptance Criteria**:
+
+1. WHEN o contrato é do PLL THEN `/contratos/[id]/informacoes` SHALL
+   renderizar `InformacoesGeraisPllPainel`, nunca os cards genéricos de
+   mandato (`CardSobreMandato`, `CardStatusEtapa` etc.).
+2. WHEN a Gestora troca o Status para "Desistente" ou "Desligado" THEN o
+   Motivo SHALL ser obrigatório antes de habilitar "Salvar status" (mesma
+   regra de `nao_concluido`, AD-066).
+3. WHEN o contrato PLL não tem linha correspondente em
+   `fat_cadastro_participante` THEN a aba SHALL mostrar erro explicativo,
+   nunca o conteúdo de Estratégia.
+4. WHEN o mesmo e-mail aparece em mais de uma edição THEN o Histórico de
+   Participação SHALL listar todas, mais recente primeiro.
+
+**Independent Test**: Abrir Informações Gerais de um contrato PLL; trocar o
+Status para Desligado sem motivo (botão desabilitado); preencher motivo e
+salvar; conferir que Estratégia continua com "Status e Etapa" inalterado.
+
+---
+
 ## Edge Cases
 
 - WHEN `id_vinculo_tse` da linha de staging é `null` (participante ainda não
@@ -109,20 +180,32 @@ rotas.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| DPP-01 | P1 | Implementing | Pending |
-| DPP-02 | P1 | Implementing | Pending |
-| DPP-03 | P1 | Implementing | Pending |
-| DPP-04 | P1 | Implementing | Pending |
+| DPP-01 | P1 | Implementing | Verified |
+| DPP-02 | P1 | Implementing | Verified |
+| DPP-03 | P1 | Implementing | Verified |
+| DPP-04 | P1 | Implementing | Verified |
+| DPP-05..09 | P2 (Agenda) | Implementing | Verified |
+| DPP-10..13 | P3 (Informações Gerais) | Implementing | Verified |
 
-**Coverage:** 4 total, 4 mapped (execução inline, sem `tasks.md` formal — escopo Medium, <10 passos).
+**Coverage:** 13 total, 13 mapped (execução inline, sem `tasks.md` formal — escopo Medium por incremento, <10 passos cada).
 
 ---
 
 ## Success Criteria
 
-- [ ] `/contratos/[id]/diagnostico` de um contrato PLL mostra o mesmo
+- [x] `/contratos/[id]/diagnostico` de um contrato PLL mostra o mesmo
       conteúdo (com o mesmo dado) que `/produtos/pll/participantes/[id]`.
-- [ ] Nenhuma regressão nos testes existentes de
-      `diagnostico/page.test.tsx` (Estratégia/Coalizão) nem de
-      `produtos/pll/participantes/[id]/page.test.tsx`.
-- [ ] `npm run lint:all && npm run test:unit` verdes.
+- [x] `/contratos/[id]/agenda` de um contrato PLL mostra a grade fixa de
+      Mentorias, com Agendar/Marcar presença/Remarcar/Cancelar funcionais.
+- [x] `/contratos/[id]/informacoes` de um contrato PLL mostra o painel de
+      Informações Gerais do PLL, com Status ampliado (AD-066) editável.
+- [x] GIP/Formulários/Gestão da equipe não aparecem na navegação de um
+      contrato PLL (`FichaContratoChrome`).
+- [x] Nenhuma regressão nos testes existentes (Estratégia/Coalizão
+      inalterados em todas as abas tocadas).
+- [x] `npm run test:unit` verde (1890 testes, 15 falhas pré-existentes e não
+      relacionadas em `fatos-registros/page.test.tsx`, confirmadas via
+      `git stash` antes desta sessão). Lint dos arquivos desta feature limpo
+      (1 erro pré-existente de `react-hooks/set-state-in-effect`, mesmo
+      padrão já presente em `informacoes/page.tsx` antes desta sessão, não
+      introduzido por ela).

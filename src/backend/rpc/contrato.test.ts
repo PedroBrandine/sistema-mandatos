@@ -81,6 +81,28 @@ describe("atualizarStatusContrato", () => {
 
     await expect(atualizarStatusContrato(client, 7, "ativo")).rejects.toThrow(PermissaoNegadaError);
   });
+
+  // AD-066 (diagnostico-participante-pll): 'desistente'/'desligado' exigem
+  // motivo_encerramento igual a 'nao_concluido' -- mesma regra, valores novos.
+  it("rejeita status='desistente' sem motivo_encerramento", async () => {
+    const { client, chamadas } = criarClienteMock({ error: null });
+
+    await expect(atualizarStatusContrato(client, 7, "desistente")).rejects.toThrow(
+      "motivo_encerramento é obrigatório"
+    );
+    expect(chamadas.some((c) => c.metodo === "update")).toBe(false);
+  });
+
+  it("aceita status='desligado' quando motivo_encerramento é informado", async () => {
+    const { client, chamadas } = criarClienteMock({ error: null });
+
+    await atualizarStatusContrato(client, 7, "desligado", "Não correspondeu ao esperado");
+
+    expect(chamadas.find((c) => c.metodo === "update")?.args[0]).toEqual({
+      status: "desligado",
+      motivo_encerramento: "Não correspondeu ao esperado",
+    });
+  });
 });
 
 // PF2-08 (T8), Done-when: "atualizarProjetoContrato faz o UPDATE correto e

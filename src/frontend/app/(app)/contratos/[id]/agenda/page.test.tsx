@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   buscarContratoParaFicha: vi.fn(),
   buscarEncontrosDoMes: vi.fn(),
   buscarRegistrosDaAgenda: vi.fn(),
+  buscarAgendaMentoriasPll: vi.fn(),
   marcarPresenca: vi.fn(),
 }));
 
@@ -49,6 +50,21 @@ vi.mock("@backend/queries/agenda", async (importOriginal) => ({
 
 vi.mock("@backend/queries/registros-agenda", () => ({
   buscarRegistrosDaAgenda: mocks.buscarRegistrosDaAgenda,
+}));
+
+vi.mock("@backend/queries/pll-mentorias", () => ({
+  buscarAgendaMentoriasPll: mocks.buscarAgendaMentoriasPll,
+}));
+
+// diagnostico-participante-pll: a página só precisa provar o WIRING (produto
+// PLL -> monta TabelaMentoriasPll com os dados certos, sem tocar no
+// calendário) -- o comportamento interno da tabela tem suíte própria.
+vi.mock("@/components/pll/tabela-mentorias-pll", () => ({
+  TabelaMentoriasPll: ({ idContrato, agenda }: { idContrato: number; agenda: { qtdPrevista: number } }) => (
+    <div data-testid="tabela-mentorias-pll">
+      idContrato:{idContrato} qtdPrevista:{agenda.qtdPrevista}
+    </div>
+  ),
 }));
 
 vi.mock("@backend/rpc/encontro", () => ({
@@ -72,6 +88,17 @@ const CONTRATO: ContratoParaFicha = {
   idContratante: 7,
   nomeContratante: "Dep. Ana Ribeiro",
   tipoContratante: "mandato",
+};
+
+const CONTRATO_PLL: ContratoParaFicha = {
+  idContrato: 43,
+  idProduto: 2,
+  nomeProduto: "PLL",
+  idContratante: 8,
+  nomeContratante: "Mentorado Fulano",
+  tipoContratante: "mandato",
+  status: "ativo",
+  idEtapaAtual: null,
 };
 
 const ENCONTRO_SETEMBRO: EncontroAgenda = {
@@ -137,6 +164,7 @@ beforeEach(() => {
   mocks.buscarContratoParaFicha.mockReset().mockResolvedValue(CONTRATO);
   mocks.buscarEncontrosDoMes.mockReset().mockResolvedValue([ENCONTRO_SETEMBRO]);
   mocks.buscarRegistrosDaAgenda.mockReset().mockResolvedValue([]);
+  mocks.buscarAgendaMentoriasPll.mockReset();
   mocks.marcarPresenca.mockReset().mockResolvedValue(undefined);
 });
 
@@ -296,5 +324,46 @@ describe("ContratoAgendaPage — rótulos da lista de Registros (FMC-33)", () =>
 
     expect(screen.queryByText("Descrição")).not.toBeInTheDocument();
     expect(screen.queryByText("Responsável")).not.toBeInTheDocument();
+  });
+});
+
+// diagnostico-participante-pll (Agenda PLL, Figma 328:1262 + decisão do
+// Pedro, 23/09): contrato PLL substitui o calendário pela grade fixa de
+// Mentorias -- TabelaMentoriasPll, sem buscarEncontrosDoMes/buscarRegistrosDaAgenda.
+describe("ContratoAgendaPage — contrato do PLL (grade fixa de Mentorias)", () => {
+  it("monta TabelaMentoriasPll com os dados resolvidos, sem chamar buscarEncontrosDoMes/buscarRegistrosDaAgenda", async () => {
+    mocks.buscarContratoParaFicha.mockResolvedValue(CONTRATO_PLL);
+    mocks.buscarAgendaMentoriasPll.mockResolvedValue({
+      idEtapa: 900,
+      idTipoRegistro: 901,
+      qtdPrevista: 5,
+      nomeMentor: "Carlos Mendes",
+      slots: [],
+    });
+
+    renderizarAgenda("43");
+
+    expect(await screen.findByTestId("tabela-mentorias-pll")).toHaveTextContent("idContrato:43 qtdPrevista:5");
+    expect(mocks.buscarEncontrosDoMes).not.toHaveBeenCalled();
+    expect(mocks.buscarRegistrosDaAgenda).not.toHaveBeenCalled();
+  });
+
+  it("sem etapa/tipo de registro de Mentoria provisionados, mostra estado vazio explicativo", async () => {
+    mocks.buscarContratoParaFicha.mockResolvedValue(CONTRATO_PLL);
+    mocks.buscarAgendaMentoriasPll.mockResolvedValue(null);
+
+    renderizarAgenda("43");
+
+    expect(await screen.findByText("Agenda indisponível")).toBeInTheDocument();
+    expect(screen.queryByTestId("tabela-mentorias-pll")).not.toBeInTheDocument();
+  });
+
+  it("falha ao carregar a Agenda de Mentorias mostra ErroInline com retry", async () => {
+    mocks.buscarContratoParaFicha.mockResolvedValue(CONTRATO_PLL);
+    mocks.buscarAgendaMentoriasPll.mockRejectedValue(new Error("RLS negou a leitura"));
+
+    renderizarAgenda("43");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível carregar a Agenda de Mentorias.");
   });
 });

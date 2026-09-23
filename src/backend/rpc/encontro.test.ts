@@ -2,7 +2,7 @@ import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { Database } from "../supabase/database.types";
-import { criarEncontro, marcarPresenca } from "./encontro";
+import { atualizarStatusEncontro, criarEncontro, marcarPresenca } from "./encontro";
 import { ErroBancoNaoMapeadoError, PermissaoNegadaError, ViolacaoChaveEstrangeiraError } from "./errors";
 
 // Spec anchor: .specs/features/redesenho-estrategia-tela-first/tasks.md, T29
@@ -244,5 +244,82 @@ describe("criarEncontro (FMC-30)", () => {
     expect((capturado as ErroBancoNaoMapeadoError).codigo).toBe(erroOriginal.code);
     expect((capturado as Error).message).toContain(erroOriginal.code);
     expect((capturado as Error).message).toContain(erroOriginal.message);
+  });
+
+  // diagnostico-participante-pll (Agenda PLL): p_nr_sequencia é o elo entre
+  // o encontro criado e o slot fixo de Mentoria N.
+  it("nrSequencia é repassado como p_nr_sequencia (Agenda PLL)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: 77, error: null });
+
+    await criarEncontro(client, {
+      idContrato: 1,
+      titulo: "Mentoria 3",
+      idEtapa: 2,
+      idTipoRegistro: 3,
+      dtInicio: "2026-09-20T13:00:00Z",
+      participantes: [],
+      nrSequencia: 3,
+    });
+
+    expect((chamadas[0].params as { p_nr_sequencia?: unknown }).p_nr_sequencia).toBe(3);
+  });
+
+  it("sem nrSequencia, p_nr_sequencia chega como undefined (encontros que não são slot fixo)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: 77, error: null });
+
+    await criarEncontro(client, {
+      idContrato: 1,
+      titulo: "x",
+      idEtapa: 2,
+      idTipoRegistro: 3,
+      dtInicio: "2026-09-20T13:00:00Z",
+      participantes: [],
+    });
+
+    expect((chamadas[0].params as { p_nr_sequencia?: unknown }).p_nr_sequencia).toBeUndefined();
+  });
+});
+
+// diagnostico-participante-pll (Agenda PLL, ações "Remarcar"/"Cancelar").
+// UPDATE direto (sem RPC) -- mesmo padrão de teste de rpc/contrato.ts
+// (atualizarStatusContrato): mock de `.from().update().eq()`.
+describe("atualizarStatusEncontro (Agenda PLL)", () => {
+  function criarClienteUpdateMock(erro: Partial<PostgrestError> | null) {
+    const chamadas: { payload: unknown; idEncontro: unknown }[] = [];
+    const client = {
+      from: () => ({
+        update: (payload: unknown) => ({
+          eq: (_coluna: string, idEncontro: unknown) => {
+            chamadas.push({ payload, idEncontro });
+            return Promise.resolve({ error: erro });
+          },
+        }),
+      }),
+    };
+    return { client: client as unknown as SupabaseClient<Database>, chamadas };
+  }
+
+  it("sucesso: envia { status } pro id_encontro certo", async () => {
+    const { client, chamadas } = criarClienteUpdateMock(null);
+
+    await atualizarStatusEncontro(client, { idEncontro: 501, status: "cancelado" });
+
+    expect(chamadas[0]).toEqual({ payload: { status: "cancelado" }, idEncontro: 501 });
+  });
+
+  it("remarcado: mesmo caminho, só muda o valor de status", async () => {
+    const { client, chamadas } = criarClienteUpdateMock(null);
+
+    await atualizarStatusEncontro(client, { idEncontro: 502, status: "remarcado" });
+
+    expect(chamadas[0]).toEqual({ payload: { status: "remarcado" }, idEncontro: 502 });
+  });
+
+  it("42501 (RLS negou): lança PermissaoNegadaError", async () => {
+    const { client } = criarClienteUpdateMock({ code: "42501", message: "permission denied" });
+
+    await expect(atualizarStatusEncontro(client, { idEncontro: 501, status: "cancelado" })).rejects.toBeInstanceOf(
+      PermissaoNegadaError
+    );
   });
 });
