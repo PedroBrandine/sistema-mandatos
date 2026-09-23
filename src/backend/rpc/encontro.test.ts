@@ -161,6 +161,32 @@ describe("criarEncontro (FMC-30)", () => {
     expect(resultado).toEqual({ idEncontro: 5 });
   });
 
+  // PF2-06 AC2 (.specs/features/pente-fino-2026-09-23/spec.md, validation.md
+  // Fix 3): EncontroForm (T6) sempre envia modalidade: null (o campo foi
+  // removido da UI, mas o form ainda manda a chave explicitamente); os
+  // testes existentes cobriam separadamente o form isolado e um payload que
+  // já OMITE a chave, sem nenhum caso amarrando as duas pontas com o valor
+  // real (null) que o form emite. `input.modalidade ?? undefined` (encontro.ts:51)
+  // faz `null` chegar como `undefined` no params do RPC -- confirmado lendo
+  // o código antes deste teste.
+  it("modalidade: null (valor real enviado por EncontroForm) chega como p_modalidade undefined no RPC (PF2-06 AC2)", async () => {
+    const { client, chamadas } = criarClienteMock({ data: 8, error: null });
+
+    await criarEncontro(client, {
+      idContrato: 1,
+      titulo: "Reunião sem modalidade",
+      idEtapa: 2,
+      idTipoRegistro: 3,
+      dtInicio: "2026-09-20T13:00:00Z",
+      modalidade: null,
+      participantes: [],
+    });
+
+    const params = chamadas[0].params as { p_modalidade?: unknown };
+    expect(params.p_modalidade).toBeUndefined();
+    expect("p_modalidade" in (params as object)).toBe(true);
+  });
+
   it("42501: lança PermissaoNegadaError", async () => {
     const { client } = criarClienteMock({
       data: null,
