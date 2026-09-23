@@ -91,6 +91,8 @@ function paraCandidaturaSugerida(
     nmMunicipioPrincipal: linha.nm_municipio_principal,
     sgPartido: linha.sg_partido,
     cdCargo: linha.cd_cargo,
+    dsCargo: linha.ds_cargo,
+    dsSitTotTurno: linha.ds_sit_tot_turno,
     dsGenero: null, // Fetched later if needed, or left null
     qtVotosTotal: linha.qt_votos_total ?? 0,
     // esta função só faz busca por nome/UF/cargo/ano sobre a MV -- nunca por

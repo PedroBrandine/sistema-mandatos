@@ -158,6 +158,19 @@ export function ResultadosBuscaTse({ buscando, erro, resultados, onSelecionar }:
                   {candidatura.confianca}
                 </Badge>
               </div>
+              {/* PF2-05: cargo e situação da candidatura -- diferenciam
+                  candidaturas duplicadas do mesmo nome em anos diferentes
+                  sem abrir cada uma. Linha própria (em vez de entrar na de
+                  cima) porque nem todo resultado tem os 2 dados (linha
+                  antiga/incompleta da carga, AC3) -- omitida por completo
+                  quando ambos faltam, nunca "null" na tela. */}
+              {(candidatura.dsCargo || candidatura.dsSitTotTurno) && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                  {candidatura.dsCargo && <span>{candidatura.dsCargo}</span>}
+                  {candidatura.dsCargo && candidatura.dsSitTotTurno && <span>•</span>}
+                  {candidatura.dsSitTotTurno && <span>{candidatura.dsSitTotTurno}</span>}
+                </div>
+              )}
             </CommandItem>
           ))}
         </CommandGroup>

@@ -14,6 +14,16 @@ export interface CandidaturaSugerida {
   nmUe?: string | null;
   sgPartido: string | null;
   cdCargo: number | null;
+  // PF2-05 (.specs/features/pente-fino-2026-09-23/spec.md): cargo e situação
+  // da candidatura (eleito/suplente/não eleito/etc.), já expostos por
+  // tse.mv_candidatura_resumo (ds_cargo/ds_sit_tot_turno, migration 0010) --
+  // só faltava mapear até a UI, sem migration nova. Opcional (em vez de
+  // `string | null`) para não obrigar os demais construtores de
+  // CandidaturaSugerida no codebase (fora do escopo desta task) a declarar
+  // os 2 campos -- ausência e null recebem o mesmo tratamento "omite
+  // graciosamente" na UI (AC3).
+  dsCargo?: string | null;
+  dsSitTotTurno?: string | null;
   dsGenero: string | null;
   qtVotosTotal: number;
   metodoMatch: "titulo_eleitoral" | "nome_uf_cargo" | "manual";

@@ -201,6 +201,41 @@ describe("ResultadosBuscaTse (EST-10) — os 4 estados da lista", () => {
     // sabe se há resultados.
     expect(screen.queryByText("Nenhuma candidatura encontrada.")).not.toBeInTheDocument();
   });
+
+  // PF2-05 (.specs/features/pente-fino-2026-09-23/spec.md) AC1: cargo e
+  // situação da candidatura visíveis em cada card, além do já exibido.
+  it("mostra cargo e situação da candidatura quando presentes (PF2-05 AC1)", () => {
+    renderizar({
+      resultados: [{ ...CANDIDATURA_ALTA, dsCargo: "Deputado(a) Estadual", dsSitTotTurno: "Eleito por QP" }],
+    });
+
+    expect(screen.getByText("Deputado(a) Estadual")).toBeInTheDocument();
+    expect(screen.getByText("Eleito por QP")).toBeInTheDocument();
+  });
+
+  // PF2-05 AC3: linha antiga/incompleta da carga -- sem os 2 dados, o card
+  // renderiza normalmente, sem "null" nem quebrar.
+  it("omite graciosamente cargo/situação quando ambos vêm nulos (PF2-05 AC3)", () => {
+    renderizar({ resultados: [{ ...CANDIDATURA_ALTA, dsCargo: null, dsSitTotTurno: null }] });
+
+    expect(screen.getByText("PEDRO BIGARDI")).toBeInTheDocument();
+    expect(screen.queryByText("null")).not.toBeInTheDocument();
+  });
+
+  // PF2-05 AC2: 2 candidaturas do mesmo nome em anos diferentes continuam
+  // aparecendo como 2 resultados, cada um com seu próprio cargo/situação.
+  it("2 candidaturas do mesmo nome em anos diferentes mostram cargo/situação cada uma (PF2-05 AC2)", () => {
+    renderizar({
+      resultados: [
+        { ...CANDIDATURA_ALTA, sqCandidato: 1, anoEleicao: 2020, dsSitTotTurno: "Suplente" },
+        { ...CANDIDATURA_ALTA, sqCandidato: 2, anoEleicao: 2024, dsSitTotTurno: "Eleito" },
+      ],
+    });
+
+    expect(screen.getAllByText("PEDRO BIGARDI")).toHaveLength(2);
+    expect(screen.getByText("Suplente")).toBeInTheDocument();
+    expect(screen.getByText("Eleito")).toBeInTheDocument();
+  });
 });
 
 describe("TseMatchSearch (EST-10) — composição estática", () => {

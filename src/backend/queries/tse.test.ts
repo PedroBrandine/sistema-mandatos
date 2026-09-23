@@ -167,6 +167,49 @@ describe("buscarCandidaturas", () => {
     });
   });
 
+  // PF2-05 (.specs/features/pente-fino-2026-09-23/spec.md) AC1: cargo/
+  // situação da candidatura mapeados de mv_candidatura_resumo, já expostos
+  // pela MV (migration 0010) -- sem migration nova.
+  it("mapeia ds_cargo/ds_sit_tot_turno para dsCargo/dsSitTotTurno", async () => {
+    const { client } = criarClienteMock({
+      data: [linha({ ds_cargo: "Deputado(a) Estadual", ds_sit_tot_turno: "Suplente" })],
+      error: null,
+    });
+    const resultado = await buscarCandidaturas(client, { nome: "Fulano" });
+
+    expect(resultado[0].dsCargo).toBe("Deputado(a) Estadual");
+    expect(resultado[0].dsSitTotTurno).toBe("Suplente");
+  });
+
+  // PF2-05 AC3: linha antiga/incompleta da carga -- nulo passa nulo, sem
+  // sentinela nem erro.
+  it("ds_cargo/ds_sit_tot_turno nulos mapeiam para null, sem quebrar", async () => {
+    const { client } = criarClienteMock({
+      data: [linha({ ds_cargo: null, ds_sit_tot_turno: null })],
+      error: null,
+    });
+    const resultado = await buscarCandidaturas(client, { nome: "Fulano" });
+
+    expect(resultado[0].dsCargo).toBeNull();
+    expect(resultado[0].dsSitTotTurno).toBeNull();
+  });
+
+  // PF2-05 AC2: candidatura duplicada do mesmo nome em anos diferentes --
+  // nenhuma deduplicação, os 2 resultados continuam distintos.
+  it("candidaturas do mesmo nome/UF/partido em anos diferentes continuam como 2 resultados distintos", async () => {
+    const { client } = criarClienteMock({
+      data: [
+        linha({ sq_candidato: 1, ano_eleicao: 2020, ds_sit_tot_turno: "Suplente" }),
+        linha({ sq_candidato: 2, ano_eleicao: 2024, ds_sit_tot_turno: "Eleito" }),
+      ],
+      error: null,
+    });
+    const resultado = await buscarCandidaturas(client, { nome: "Fulano" });
+
+    expect(resultado).toHaveLength(2);
+    expect(resultado.map((c) => c.anoEleicao).sort()).toEqual([2020, 2024]);
+  });
+
   // Done-when: "múltiplos resultados ordenados por confiança"
   it("ordena múltiplos resultados por confiança (alta antes de média antes de baixa)", async () => {
     const { client } = criarClienteMock({
