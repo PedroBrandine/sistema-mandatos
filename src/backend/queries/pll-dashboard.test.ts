@@ -259,8 +259,11 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
       },
       // D-12 corrigido (22/09): mentorado vem de fat_cadastro_participante, não
       // de um vínculo 'assessor' -- o fluxo de import/TSE nunca cria esse vínculo.
+      // PF3-05: id_edicao é a fonte real da coluna "Edição" -- ref_projeto (nome
+      // "Bancada do Clima", propositalmente diferente de "PLL 2026.1") NÃO deve
+      // aparecer no resultado.
       fat_cadastro_participante: {
-        data: [{ id_contrato: 1, nome_completo: "Beto Mentorado", atualizado_em: "2026-09-20T10:00:00Z" }],
+        data: [{ id_contrato: 1, nome_completo: "Beto Mentorado", id_edicao: 55, atualizado_em: "2026-09-20T10:00:00Z" }],
         ...OK,
       },
       dim_usuario: { data: [{ id_usuario: 200, nome: "Ana Mentora" }], ...OK },
@@ -268,7 +271,8 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
       ref_partido: { data: [{ id_partido: 5, sigla: "PXX" }], ...OK },
       ref_cargo: { data: [{ id_cargo: 6, nome: "Deputado(a) Federal" }], ...OK },
       dim_contratante: { data: [{ id_contratante: 100, sg_uf: "SP" }], ...OK },
-      ref_projeto: { data: [{ id_projeto: 7, nome: "PLL 2026.1" }], ...OK },
+      ref_projeto: { data: [{ id_projeto: 7, nome: "Bancada do Clima" }], ...OK },
+      fat_edicao: { data: [{ id_edicao: 55, nome: "PLL 2026.1" }], ...OK },
       ref_tipo_registro: { data: { id_tipo_registro: 42 }, ...OK },
       fat_encontro: { data: [{ id_contrato: 1 }, { id_contrato: 1 }], ...OK },
       dim_planejamento: { data: [{ id_contrato: 1, pct_atingimento: 80 }], ...OK },
@@ -314,14 +318,14 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
       // Nenhum vínculo de mentor pareado.
       rel_usuario_contrato: { data: [], ...OK },
       fat_cadastro_participante: {
-        data: [{ id_contrato: 1, nome_completo: "Beto Mentorado", atualizado_em: "2026-09-20T10:00:00Z" }],
+        data: [{ id_contrato: 1, nome_completo: "Beto Mentorado", id_edicao: null, atualizado_em: "2026-09-20T10:00:00Z" }],
         ...OK,
       },
       dim_mandato: { data: [{ id_contratante: 100, nm_urna: "Carlos Silva", nm_civil: null }], ...OK },
       ref_partido: { data: [], ...OK },
       ref_cargo: { data: [], ...OK },
       dim_contratante: { data: [{ id_contratante: 100, sg_uf: null }], ...OK },
-      ref_projeto: { data: [], ...OK },
+      fat_edicao: { data: [], ...OK },
       ref_tipo_registro: { data: null, ...OK },
       dim_planejamento: { data: [], ...OK },
     });
@@ -334,6 +338,9 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
     expect(resultado[0].siglaUf).toBeNull();
     expect(resultado[0].pctAtingimento).toBeNull();
     expect(resultado[0].status).toBe("desistente");
+    // PF3-05: id_edicao ausente -- "—" na UI, nunca reaparece o nome do
+    // projeto como fallback silencioso.
+    expect(resultado[0].nomeEdicao).toBeNull();
   });
 
   // PLL-CP-12 (troca de vínculo): a linha antiga de staging não é limpa ao
@@ -362,8 +369,8 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
       rel_usuario_contrato: { data: [], ...OK },
       fat_cadastro_participante: {
         data: [
-          { id_contrato: 1, nome_completo: "Nome Antigo", atualizado_em: "2026-09-10T10:00:00Z" },
-          { id_contrato: 1, nome_completo: "Nome Novo", atualizado_em: "2026-09-20T10:00:00Z" },
+          { id_contrato: 1, nome_completo: "Nome Antigo", id_edicao: 1, atualizado_em: "2026-09-10T10:00:00Z" },
+          { id_contrato: 1, nome_completo: "Nome Novo", id_edicao: 2, atualizado_em: "2026-09-20T10:00:00Z" },
         ],
         ...OK,
       },
@@ -371,7 +378,7 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
       ref_partido: { data: [], ...OK },
       ref_cargo: { data: [], ...OK },
       dim_contratante: { data: [{ id_contratante: 100, sg_uf: null }], ...OK },
-      ref_projeto: { data: [], ...OK },
+      fat_edicao: { data: [{ id_edicao: 1, nome: "Edição antiga" }, { id_edicao: 2, nome: "Edição nova" }], ...OK },
       ref_tipo_registro: { data: null, ...OK },
       dim_planejamento: { data: [], ...OK },
     });
@@ -379,6 +386,8 @@ describe("buscarMentoradosPll (T6, PLL-DB-07…10)", () => {
     const resultado = await buscarMentoradosPll(client, { idProduto: 9 });
 
     expect(resultado).toHaveLength(1);
+    // PF3-05: id_edicao segue a mesma linha "mais recente" já escolhida pra nomeMentorado.
+    expect(resultado[0].nomeEdicao).toBe("Edição nova");
     expect(resultado[0].nomeMentorado).toBe("Nome Novo");
   });
 

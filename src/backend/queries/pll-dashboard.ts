@@ -382,7 +382,6 @@ interface RowContratoMentorado {
   origem_encerramento: string | null;
   id_partido_no_contrato: number | null;
   id_cargo_no_contrato: number | null;
-  id_projeto: number | null;
 }
 
 function statusMentoradoPll(status: string, origemEncerramento: string | null): MentoradoPll["status"] {
@@ -401,7 +400,7 @@ export async function buscarMentoradosPll(
 
   const { data: contratosData, error: erroContratos } = await client
     .from("fat_contrato")
-    .select("id_contrato, id_contratante, status, origem_encerramento, id_partido_no_contrato, id_cargo_no_contrato, id_projeto")
+    .select("id_contrato, id_contratante, status, origem_encerramento, id_partido_no_contrato, id_cargo_no_contrato")
     .in("id_contrato", idsContrato);
   if (erroContratos) throw erroContratos;
   const contratos = (contratosData ?? []) as RowContratoMentorado[];
@@ -426,20 +425,30 @@ export async function buscarMentoradosPll(
   // (troca de vínculo, PLL-CP-12) -- mantém só a mais recente por contrato.
   const { data: cadastrosData, error: erroCadastros } = await client
     .from("fat_cadastro_participante")
-    .select("id_contrato, nome_completo, atualizado_em")
+    .select("id_contrato, nome_completo, id_edicao, atualizado_em")
     .in("id_contrato", idsContrato);
   if (erroCadastros) throw erroCadastros;
-  const cadastroPorContrato = new Map<number, { nomeCompleto: string; atualizadoEm: string }>();
-  for (const c of (cadastrosData ?? []) as { id_contrato: number | null; nome_completo: string; atualizado_em: string }[]) {
+  const cadastroPorContrato = new Map<number, { nomeCompleto: string; idEdicao: number | null; atualizadoEm: string }>();
+  for (const c of (cadastrosData ?? []) as {
+    id_contrato: number | null;
+    nome_completo: string;
+    id_edicao: number | null;
+    atualizado_em: string;
+  }[]) {
     if (c.id_contrato === null) continue;
     const atual = cadastroPorContrato.get(c.id_contrato);
     if (!atual || c.atualizado_em > atual.atualizadoEm) {
-      cadastroPorContrato.set(c.id_contrato, { nomeCompleto: c.nome_completo, atualizadoEm: c.atualizado_em });
+      cadastroPorContrato.set(c.id_contrato, {
+        nomeCompleto: c.nome_completo,
+        idEdicao: c.id_edicao,
+        atualizadoEm: c.atualizado_em,
+      });
     }
   }
   const paresMentorado = Array.from(cadastroPorContrato.entries()).map(([idContrato, c]) => ({
     idContrato,
     nomeMentorado: c.nomeCompleto,
+    idEdicao: c.idEdicao,
   }));
   if (paresMentorado.length === 0) return [];
 
@@ -501,16 +510,20 @@ export async function buscarMentoradosPll(
     ])
   );
 
-  const idsProjeto = Array.from(
-    new Set(contratos.map((c) => c.id_projeto).filter((id): id is number => id !== null))
+  // PF3-05 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): "Edição"
+  // é o código real da edição do PLL (fat_edicao.nome, ex. "PLL 2026.1"),
+  // via fat_cadastro_participante.id_edicao -- não o nome do PROJETO
+  // (ref_projeto) vinculado ao contrato, que é uma entidade diferente.
+  const idsEdicao = Array.from(
+    new Set(paresMentorado.map((p) => p.idEdicao).filter((id): id is number => id !== null))
   );
-  const { data: projetosData, error: erroProjetos } =
-    idsProjeto.length > 0
-      ? await client.from("ref_projeto").select("id_projeto, nome").in("id_projeto", idsProjeto)
+  const { data: edicoesData, error: erroEdicoes } =
+    idsEdicao.length > 0
+      ? await client.from("fat_edicao").select("id_edicao, nome").in("id_edicao", idsEdicao)
       : { data: [], error: null };
-  if (erroProjetos) throw erroProjetos;
-  const nomePorProjeto = new Map(
-    ((projetosData ?? []) as { id_projeto: number; nome: string }[]).map((p) => [p.id_projeto, p.nome])
+  if (erroEdicoes) throw erroEdicoes;
+  const nomePorEdicao = new Map(
+    ((edicoesData ?? []) as { id_edicao: number; nome: string }[]).map((e) => [e.id_edicao, e.nome])
   );
 
   // D-11: "Mentorias" (tabela) = Encontros realizado do TIPO Mentoria no
@@ -551,7 +564,7 @@ export async function buscarMentoradosPll(
 
   const contratoPorId = new Map(contratos.map((c) => [c.id_contrato, c]));
 
-  return paresMentorado.map(({ idContrato, nomeMentorado }) => {
+  return paresMentorado.map(({ idContrato, nomeMentorado, idEdicao }) => {
     const contrato = contratoPorId.get(idContrato) as RowContratoMentorado;
     const mandato = mandatoPorContratante.get(contrato.id_contratante);
     const nomeUrna = mandato?.nm_urna ?? mandato?.nm_civil ?? "";
@@ -569,7 +582,7 @@ export async function buscarMentoradosPll(
       mentoriasRealizadas: mentoriasPorContrato.get(idContrato) ?? 0,
       pctAtingimento: pctPorContrato.get(idContrato) ?? null,
       status: statusMentoradoPll(contrato.status, contrato.origem_encerramento),
-      nomeEdicao: contrato.id_projeto !== null ? nomePorProjeto.get(contrato.id_projeto) ?? null : null,
+      nomeEdicao: idEdicao !== null ? nomePorEdicao.get(idEdicao) ?? null : null,
     };
   });
 }
