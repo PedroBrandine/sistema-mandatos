@@ -39,6 +39,11 @@ function participante(overrides: Partial<ParticipantePll> = {}): ParticipantePll
     vinculadoTse: true,
     statusCadastro: "completo",
     idContrato: 42,
+    partidoFiliado: null,
+    corRacaParlamentar: null,
+    cargosAnteriores: null,
+    mandatosAnteriores: null,
+    redeSocial: null,
     ...overrides,
   };
 }
@@ -107,6 +112,28 @@ describe("ListaParticipantesPll — indicador de vínculo TSE", () => {
     );
 
     expect(screen.getByLabelText("Não vinculado ao TSE")).toHaveTextContent("✕");
+  });
+});
+
+describe("ListaParticipantesPll — link 'Ver ficha' (PF3-01)", () => {
+  it("participante com id_contrato leva pra ficha do contrato", () => {
+    render(<ListaParticipantesPll {...PROPS_PADRAO} participantes={[participante({ idContrato: 42 })]} />);
+
+    expect(screen.getByRole("link", { name: "Ver ficha" })).toHaveAttribute("href", "/contratos/42/informacoes");
+  });
+
+  it("lado oposto: participante sem id_contrato continua na página standalone", () => {
+    render(
+      <ListaParticipantesPll
+        {...PROPS_PADRAO}
+        participantes={[participante({ idContrato: null, idCadastroParticipante: 7 })]}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: "Ver ficha" })).toHaveAttribute(
+      "href",
+      "/produtos/pll/participantes/7"
+    );
   });
 });
 
