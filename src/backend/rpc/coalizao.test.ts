@@ -131,6 +131,40 @@ describe("adicionarMembroCoalizao", () => {
 
     await expect(adicionarMembroCoalizao(client, 6, 7)).rejects.toThrow(PermissaoNegadaError);
   });
+
+  // PF2-08 (T14, validation.md Fix 5): só o erro genérico 42501 era
+  // exercitado -- as duas constraints que o comentário de coalizao.ts:43-44
+  // promete respeitar (ck_membro_papel, docs/schema_sistema.sql:537; e
+  // uq_coalizao_membro, docs/schema_sistema.sql:536) nunca tinham teste de
+  // violação. 23514 = check_violation (ck_membro_papel), 23505 =
+  // unique_violation (uq_coalizao_membro) -- mapeiaErroRpc (rpc/errors.ts)
+  // trata os dois; nenhum dos dois nomes está em MENSAGENS_CHECK/
+  // MENSAGENS_UNICA, então cai no fallback genérico de cada tipo -- ainda
+  // assim uma mensagem tratada, nunca o erro bruto do Postgres.
+  it("23514 (ck_membro_papel): lança ViolacaoConstraintError com mensagem tratada, não o erro bruto", async () => {
+    const { client } = criarClienteMockTabela({
+      error: { code: "23514", message: 'new row for relation "rel_coalizao_membro" violates check constraint "ck_membro_papel"' },
+    });
+
+    const capturado = await adicionarMembroCoalizao(client, 6, 7).catch((e: unknown) => e);
+
+    expect(capturado).toBeInstanceOf(ViolacaoConstraintError);
+    expect((capturado as ViolacaoConstraintError).message).toBe("Valor informado viola uma regra do campo.");
+  });
+
+  it("23505 (uq_coalizao_membro): lança ViolacaoUnicaError com mensagem tratada, não o erro bruto", async () => {
+    const { client } = criarClienteMockTabela({
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "uq_coalizao_membro"',
+      },
+    });
+
+    const capturado = await adicionarMembroCoalizao(client, 6, 7).catch((e: unknown) => e);
+
+    expect(capturado).toBeInstanceOf(ViolacaoUnicaError);
+    expect((capturado as ViolacaoUnicaError).message).toBe("Já existe um registro conflitante.");
+  });
 });
 
 describe("removerMembroCoalizao", () => {

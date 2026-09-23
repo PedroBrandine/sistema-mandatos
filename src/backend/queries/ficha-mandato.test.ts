@@ -39,6 +39,13 @@ function criarClienteMock(
     function registrar(metodo: string, args: unknown[]) {
       chamadas?.push({ tabela, metodo, args });
     }
+    // PF2-08 (T14, validation.md Fix 4): `.is(campo, valor)` agora filtra a
+    // fixture de verdade (em vez de só registrar a chamada), pra provar o
+    // EFEITO da exclusão -- uma linha com o campo preenchido some do
+    // resultado -- não só a intenção da query. Linhas sem o campo na
+    // fixture (todos os outros testes deste arquivo) continuam passando,
+    // porque `undefined` é tratado como `null` na comparação.
+    let dadosFiltrados = resposta.data;
     const builder: Record<string, unknown> = {
       select: (...args: unknown[]) => {
         registrar("select", args);
@@ -52,17 +59,23 @@ function criarClienteMock(
         registrar("in", args);
         return builder;
       },
-      is: (...args: unknown[]) => {
-        registrar("is", args);
+      is: (campo: string, valor: unknown, ...restoArgs: unknown[]) => {
+        registrar("is", [campo, valor, ...restoArgs]);
+        if (Array.isArray(dadosFiltrados)) {
+          dadosFiltrados = dadosFiltrados.filter((linha) => {
+            const valorCampo = (linha as Record<string, unknown>)[campo] ?? null;
+            return valorCampo === valor;
+          });
+        }
         return builder;
       },
       order: (...args: unknown[]) => {
         registrar("order", args);
         return builder;
       },
-      maybeSingle: () => Promise.resolve(resposta),
+      maybeSingle: () => Promise.resolve({ ...resposta, data: dadosFiltrados }),
       then: (resolve: (valor: RespostaTabela) => void, reject: (erro: unknown) => void) =>
-        Promise.resolve(resposta).then(resolve, reject),
+        Promise.resolve({ ...resposta, data: dadosFiltrados }).then(resolve, reject),
     };
     return builder;
   }
@@ -438,11 +451,8 @@ describe("buscarInformacoesGeraisMandato", () => {
     expect(resultado?.coalizoes).toEqual([]);
   });
 
-  // PF2-08 (T8), Done-when: "buscarCoalizoesVinculadas não retorna mais
-  // membros com dt_saida preenchido". O mock não filtra de verdade (é o
-  // Postgres que faz isso via IS NULL), então a asserção possível aqui é
-  // confirmar que a chamada certa foi enviada ao banco -- mesmo racional de
-  // atualizarStatusContrato.test.ts (afirma os args do UPDATE, não o efeito).
+  // PF2-08 (T8/T14), Done-when: "buscarCoalizoesVinculadas não retorna mais
+  // membros com dt_saida preenchido". Confirma a CHAMADA certa ao banco.
   it("filtra coalizões ativas: chama rel_coalizao_membro.is('dt_saida', null) (PF2-08)", async () => {
     const chamadas: ChamadaTabela[] = [];
     const client = criarClienteMock(
@@ -463,5 +473,41 @@ describe("buscarInformacoesGeraisMandato", () => {
 
     const chamadaIs = chamadas.find((c) => c.tabela === "rel_coalizao_membro" && c.metodo === "is");
     expect(chamadaIs?.args).toEqual(["dt_saida", null]);
+  });
+
+  // PF2-08 (T14, validation.md Fix 4): o teste acima só prova a chamada, não
+  // o EFEITO -- uma coalizão com dt_saida preenchido (membro que já saiu)
+  // precisa de fato desaparecer do resultado mapeado. Fixture com 2 linhas
+  // (uma ativa, dt_saida null; outra encerrada, dt_saida preenchido) contra
+  // o mock que agora filtra de verdade (criarBuilder acima).
+  it("exclui de verdade coalizão com dt_saida preenchido, mantendo só a ativa (PF2-08)", async () => {
+    const client = criarClienteMock({
+      fat_contrato: [
+        { data: CONTRATO_BASE, error: null },
+        { data: [], error: null },
+      ],
+      dim_mandato: { data: MANDATO_BASE, error: null },
+      rel_mandato_agenda_tematica: { data: [], error: null },
+      rel_usuario_contrato: { data: [], error: null },
+      rel_coalizao_membro: {
+        data: [
+          {
+            id_coalizao: 7,
+            dt_saida: null,
+            dim_coalizao: { id_contratante: 70, dim_contratante: { nome: "Coalizão Ativa" } },
+          },
+          {
+            id_coalizao: 8,
+            dt_saida: "2026-01-15",
+            dim_coalizao: { id_contratante: 80, dim_contratante: { nome: "Coalizão Encerrada" } },
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const resultado = await buscarInformacoesGeraisMandato(client, 1);
+
+    expect(resultado?.coalizoes).toEqual([{ idCoalizao: 7, nome: "Coalizão Ativa" }]);
   });
 });
