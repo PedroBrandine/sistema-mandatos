@@ -80,6 +80,8 @@ export function NumerosImpactoDashboard({ linhas }: NumerosImpactoDashboardProps
             gestoras={opcoes.gestoras}
             projetos={opcoes.projetos}
             anos={opcoes.anos}
+            contratantes={opcoes.contratantes}
+            produtos={opcoes.produtos}
           />
         </div>
         {/* Exportar relatório: em desenvolvimento (pedido do Pedro). Sem

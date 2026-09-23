@@ -85,6 +85,9 @@ describe("NumerosImpactoDashboard", () => {
     expect(screen.getByRole("combobox", { name: "Filtrar por gestora" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Filtrar por projeto" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Filtrar por ano de início" })).toBeInTheDocument();
+    // PF2-04 AC1: contratante e produto na mesma barra de filtros.
+    expect(screen.getByRole("combobox", { name: "Filtrar por contratante" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por produto" })).toBeInTheDocument();
 
     // Botão de exportar, desabilitado (em desenvolvimento).
     expect(screen.getByRole("button", { name: /Exportar relatório \(em desenvolvimento\)/ })).toBeDisabled();

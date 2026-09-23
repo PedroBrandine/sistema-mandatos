@@ -132,6 +132,13 @@ export interface FiltroNumerosImpacto {
   idsGestora?: number[];
   idsProjeto?: number[];
   anos?: number[];
+  // PF2-04 (.specs/features/pente-fino-2026-09-23/spec.md): idContratante/
+  // nomeProduto já existem em cada LinhaNumerosImpacto -- filtro 100%
+  // client-side, mesmo padrão de idsGestora/idsProjeto/anos, sem RPC/view
+  // nova. nomeProduto não tem id próprio na MV (só o nome), então o filtro
+  // usa o próprio nome como valor -- mesmo padrão já usado por `anos`.
+  idsContratante?: number[];
+  produtos?: string[];
 }
 
 function temValores<T>(lista: T[] | undefined): lista is T[] {
@@ -152,6 +159,12 @@ export function filtraNumerosImpacto(
     if (temValores(filtro.anos) && !filtro.anos.includes(l.anoInicio)) {
       return false;
     }
+    if (temValores(filtro.idsContratante) && !filtro.idsContratante.includes(l.idContratante)) {
+      return false;
+    }
+    if (temValores(filtro.produtos) && !filtro.produtos.includes(l.nomeProduto)) {
+      return false;
+    }
     return true;
   });
 }
@@ -165,20 +178,28 @@ export interface OpcoesFiltroNumerosImpacto {
   gestoras: OpcaoNumerosImpacto[];
   projetos: OpcaoNumerosImpacto[];
   anos: number[];
+  // PF2-04: mesmo racional de gestoras/projetos (derivado do conjunto já
+  // carregado); produtos é lista de nomes (sem id próprio na MV).
+  contratantes: OpcaoNumerosImpacto[];
+  produtos: string[];
 }
 
-// Opções derivadas do próprio conjunto carregado -- só gestora/projeto/ano
-// que de fato aparecem em algum contrato de mv_numeros_impacto entram na
-// lista (sem 2ª consulta a dim_usuario/ref_projeto).
+// Opções derivadas do próprio conjunto carregado -- só gestora/projeto/ano/
+// contratante/produto que de fato aparecem em algum contrato de
+// mv_numeros_impacto entram na lista (sem 2ª consulta a dim_usuario/ref_projeto).
 export function opcoesFiltroNumerosImpacto(linhas: LinhaNumerosImpacto[]): OpcoesFiltroNumerosImpacto {
   const gestoras = new Map<number, string>();
   const projetos = new Map<number, string>();
   const anos = new Set<number>();
+  const contratantes = new Map<number, string>();
+  const produtos = new Set<string>();
 
   for (const l of linhas) {
     if (l.idGestora !== null && l.nomeGestora !== null) gestoras.set(l.idGestora, l.nomeGestora);
     if (l.idProjeto !== null && l.nomeProjeto !== null) projetos.set(l.idProjeto, l.nomeProjeto);
     anos.add(l.anoInicio);
+    contratantes.set(l.idContratante, l.nomeContratante);
+    produtos.add(l.nomeProduto);
   }
 
   const porNome = (a: OpcaoNumerosImpacto, b: OpcaoNumerosImpacto) => a.nome.localeCompare(b.nome);
@@ -187,6 +208,8 @@ export function opcoesFiltroNumerosImpacto(linhas: LinhaNumerosImpacto[]): Opcoe
     gestoras: [...gestoras].map(([id, nome]) => ({ id, nome })).sort(porNome),
     projetos: [...projetos].map(([id, nome]) => ({ id, nome })).sort(porNome),
     anos: [...anos].sort((a, b) => a - b),
+    contratantes: [...contratantes].map(([id, nome]) => ({ id, nome })).sort(porNome),
+    produtos: [...produtos].sort((a, b) => a.localeCompare(b)),
   };
 }
 

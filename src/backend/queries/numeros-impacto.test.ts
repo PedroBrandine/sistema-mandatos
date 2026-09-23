@@ -349,6 +349,22 @@ describe("filtraNumerosImpacto / opcoesFiltroNumerosImpacto / resumoNumerosImpac
     expect(resultado.map((l) => l.idContrato)).toEqual([1]);
   });
 
+  // PF2-04 (.specs/features/pente-fino-2026-09-23/spec.md) AC2.
+  it("filtraNumerosImpacto por idsContratante recorta só as linhas do(s) contratante(s) escolhido(s)", () => {
+    const resultado = filtraNumerosImpacto(LINHAS, { idsContratante: [200] });
+    expect(resultado.map((l) => l.idContrato)).toEqual([3]);
+  });
+
+  it("filtraNumerosImpacto por produtos recorta só as linhas do(s) produto(s) escolhido(s)", () => {
+    const resultado = filtraNumerosImpacto(LINHAS, { produtos: ["Coalizão"] });
+    expect(resultado.map((l) => l.idContrato)).toEqual([4]);
+  });
+
+  it("filtraNumerosImpacto combina idsContratante/produtos com os demais filtros como E, não OU", () => {
+    const resultado = filtraNumerosImpacto(LINHAS, { idsContratante: [100], anos: [2025] });
+    expect(resultado.map((l) => l.idContrato)).toEqual([1, 2]);
+  });
+
   it("opcoesFiltroNumerosImpacto deriva listas distintas e ordenadas do próprio conjunto", () => {
     const opcoes = opcoesFiltroNumerosImpacto(LINHAS);
     expect(opcoes.gestoras).toEqual([
@@ -360,6 +376,13 @@ describe("filtraNumerosImpacto / opcoesFiltroNumerosImpacto / resumoNumerosImpac
       { id: 6, nome: "Projeto Y" },
     ]);
     expect(opcoes.anos).toEqual([2025, 2026]);
+    // PF2-04: contratantes/produtos derivados do mesmo conjunto carregado.
+    expect(opcoes.contratantes).toEqual([
+      { id: 300, nome: "Coalizão C" },
+      { id: 100, nome: "Contratante A" },
+      { id: 200, nome: "Contratante B" },
+    ]);
+    expect(opcoes.produtos).toEqual(["Coalizão", "Estratégia"]);
   });
 
   it("resumoNumerosImpacto conta contratos, mandatos e coalizões (contratantes distintos por tipo)", () => {

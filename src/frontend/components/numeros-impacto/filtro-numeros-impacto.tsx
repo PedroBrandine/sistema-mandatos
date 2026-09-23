@@ -16,17 +16,47 @@ export interface FiltroNumerosImpactoProps {
   gestoras: OpcaoNumerosImpacto[];
   projetos: OpcaoNumerosImpacto[];
   anos: number[];
+  // PF2-04 (.specs/features/pente-fino-2026-09-23/spec.md).
+  contratantes: OpcaoNumerosImpacto[];
+  produtos: string[];
 }
 
-export function FiltroNumerosImpactoBar({ filtro, onChange, gestoras, projetos, anos }: FiltroNumerosImpactoProps) {
+export function FiltroNumerosImpactoBar({
+  filtro,
+  onChange,
+  gestoras,
+  projetos,
+  anos,
+  contratantes,
+  produtos,
+}: FiltroNumerosImpactoProps) {
   function atualizar(patch: Partial<FiltroNumerosImpacto>) {
     onChange({ ...filtro, ...patch });
   }
 
   const opcoesAno = anos.map((ano) => ({ valor: ano, rotulo: String(ano) }));
+  const opcoesProduto = produtos.map((produto) => ({ valor: produto, rotulo: produto }));
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center">
+      <MultiSelectPesquisavel
+        className="flex-1"
+        opcoes={opcoesDeIdNome(contratantes)}
+        valores={filtro.idsContratante ?? []}
+        onChange={(v) => atualizar({ idsContratante: listaOuUndefined(v) })}
+        placeholder="Filtrar por contratante"
+        rotuloPlural="contratantes"
+      />
+
+      <MultiSelectPesquisavel
+        className="flex-1"
+        opcoes={opcoesProduto}
+        valores={filtro.produtos ?? []}
+        onChange={(v) => atualizar({ produtos: listaOuUndefined(v) })}
+        placeholder="Filtrar por produto"
+        rotuloPlural="produtos"
+      />
+
       <MultiSelectPesquisavel
         className="flex-1"
         opcoes={opcoesDeIdNome(gestoras)}
