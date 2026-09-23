@@ -74,6 +74,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("InformacoesGeraisPllPainel", () => {
+  // PF3-04 (.specs/features/pente-fino-2026-09-23-lote2/spec.md): PLL não
+  // tem "Etapa do produto" nessa aba -- o painel próprio do PLL nunca monta
+  // o card genérico "Status e Etapa" (CardStatusEtapa), que é quem tinha
+  // esse campo.
+  it("não mostra 'Etapa do produto' -- PLL não usa esse campo na Informações Gerais", () => {
+    render(<InformacoesGeraisPllPainel idContrato={43} contrato={CONTRATO} info={INFO} onAtualizado={() => {}} />);
+
+    expect(screen.queryByText("Etapa do produto")).not.toBeInTheDocument();
+  });
+
   it("mostra os Dados Pessoais e Dados do Mandato reais (Cargo/Partido/Estado vêm do contrato, não inventados)", () => {
     render(<InformacoesGeraisPllPainel idContrato={43} contrato={CONTRATO} info={INFO} onAtualizado={() => {}} />);
 
