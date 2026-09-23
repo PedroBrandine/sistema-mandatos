@@ -2335,3 +2335,129 @@ Decisões aqui são **project-level**: valem para todas as features. Decisão qu
   mentor do PLL.
 - **Date**: 2026-09-23
 - **Status**: active
+
+### AD-066
+- **Decision**: A aba "Diagnóstico" da ficha de contrato (`/contratos/[id]/
+  diagnostico`) ramifica por `contrato.nomeProduto` **antes** de decidir
+  qualquer outra coisa. Contrato do produto PLL renderiza
+  `DiagnosticoParticipantePll` (Dados TSE, Composição Partidária da Casa,
+  Afinidade de Agenda, Desafios/Destaques/Ambição Política/SWOT — lidos de
+  `fat_cadastro_participante`, feature `pll-cadastro-participantes` T14/T15/
+  T19). Todos os demais produtos continuam no fluxo existente
+  (`CardDiagnosticoMandato`/`CardSwotMandato`/`InformacoesTseMandato`, que lê
+  `dim_mandato.principais_destaques`/`dim_mandato.swot_*`).
+- **Reason**: `.specs/features/diagnostico-participante-pll/spec.md`. Achado
+  real de auditoria: um contrato do PLL, depois de vinculado ao TSE
+  (`vincularParticipanteAoTse` → `app.criar_mandato`), GANHA uma linha em
+  `dim_mandato` como qualquer mandato de Estratégia — então, sem esta
+  ramificação, a aba Diagnóstico de um mentorado mostrava (e permitia editar)
+  os campos genéricos de `dim_mandato`, que **nenhuma tela do PLL preenche**,
+  em vez dos campos de `fat_cadastro_participante` que a Ficha do Mentorado
+  standalone (`/produtos/pll/participantes/[id]`) já usa e testa desde T19.
+  As duas tabelas nunca estiveram sincronizadas — é uma duplicação de fato
+  no modelo de dados, não desta feature.
+- **Trade-off**: `dim_mandato.principais_destaques`/`cargos_legislatura`/
+  `principais_pls`/`principais_noticias`/`swot_*` de um contrato PLL ficam
+  **inacessíveis por esta tela** a partir de agora (a aba nunca mais
+  renderiza `CardDiagnosticoMandato`/`CardSwotMandato` para produto PLL) —
+  se alguma dessas colunas já tinha dado gravado por um contrato PLL antes
+  desta mudança (nenhum caminho de UI do PLL escrevia lá, mas o campo é de
+  texto livre e pode ter sido editado manualmente por alguém que abriu a
+  aba antes desta ramificação existir), esse dado fica orfão, visível só por
+  acesso direto ao banco. Não migrado nem apagado — decisão de dado é fora
+  de escopo desta task; **flag para o Pedro confirmar se algum contrato PLL
+  real tem esse campo preenchido antes de considerar dropar/migrar.**
+- **Scope**: `/contratos/[id]/diagnostico` (`ContratoDiagnosticoPage`). Não
+  altera `dim_mandato`, `fat_cadastro_participante`, nem as demais abas da
+  ficha de contrato (Agenda/Planejamento/GIP/Formulários/Vínculos/Fatos —
+  todas já genéricas por `idContrato`, sem necessidade de ramificação por
+  produto).
+- **Date**: 2026-09-23
+- **Status**: active
+
+---
+
+## Handoff (Diagnóstico do Participante PLL na ficha de contrato — CONCLUÍDA, sem verificação independente)
+
+- **Feature**: `.specs/features/diagnostico-participante-pll/`. Escopo
+  Medium (spec.md direto, sem design.md/tasks.md formais — 4 ACs, execução
+  inline). Fecha o gap real entre a Ficha do Mentorado standalone
+  (`/produtos/pll/participantes/[id]`, já validada em
+  `pll-cadastro-participantes`) e a aba Diagnóstico da ficha de contrato
+  compartilhada (`/contratos/[id]/diagnostico`), que até aqui mostrava
+  conteúdo de Estratégia para contratos do PLL (ver AD-066).
+- **Completed** (working tree, ainda não commitado nesta sessão — commit
+  virá logo em seguida): `src/backend/queries/pll-ficha.ts` (novo — extrai
+  `buscarCadastroParticipanteFicha`/`buscarDadosTseFicha` de
+  `produtos/pll/participantes/[id]/page.tsx` e acrescenta
+  `buscarCadastroParticipanteFichaPorContrato`, o elo contrato→staging);
+  `src/frontend/components/pll/diagnostico-participante-pll.tsx` (novo —
+  corpo presentational+fetch reaproveitado pelas duas rotas);
+  `produtos/pll/participantes/[id]/page.tsx` refatorada pra delegar o corpo a
+  esse componente (cabeçalho continua próprio); `/contratos/[id]/diagnostico/
+  page.tsx` ramifica por `contrato.nomeProduto` (branch novo, mandato/
+  coalizão intocados) + `page.test.tsx` com 3 casos novos do ramo PLL e
+  mock de `buscarContratoParaFicha` adicionado aos 4 casos existentes
+  (nenhuma regressão — `npm run test:unit` local: 19/19 verde nos arquivos
+  tocados; suíte completa tem 1 arquivo pré-existente falhando,
+  `produtos/[slug]/participantes/page.test.tsx`, confirmado idêntico em
+  `git stash` antes desta sessão — não é regressão desta feature).
+- **Verificação**: rodada **sem** Verifier independente (sessão sem usuário
+  presente pra confirmar a oferta de sub-agente/UAT — escopo Medium, ≤5
+  passos, dispensa formal de `tasks.md`, mas a spec pede confirmação
+  humana que ainda não aconteceu). Pedro: revisar antes de considerar
+  "validada" — em particular o trade-off do AD-066 (dado órfão em
+  `dim_mandato` de contratos PLL pré-existentes) e o par de decisões de
+  Out of Scope abaixo.
+- **Fora desta rodada, registrado em Out of Scope do spec.md** (Figma
+  328:1262 "Agenda" com grade fixa de 5 Mentorias; Figma 449:4 "Informações
+  Gerais" com Status Ativo/Desistente/Desligado — sem coluna correspondente
+  hoje, decisão de schema pendente): ambos ficam para quando Pedro confirmar
+  o desenho específico — não implementados em silêncio.
+- **Branch**: `develop`. Sem PR aberto.
+
+## Handoff (Pente-Fino 2026-09-23 Lote 2 — CONCLUÍDA e validada por Verifier independente)
+
+- **Feature**: `.specs/features/pente-fino-2026-09-23-lote2/`. 5 bugs do
+  PLL reportados por Pedro em `docs/pente-fino-backup-2026-09-23.json`
+  (lote distinto do `pente-fino-2026-09-23`, já concluído antes). Escopo
+  Medium, spec.md direto, execução inline (7 commits atômicos).
+- **Completed** (`git log --oneline f461c69^..662cb51`): PF3-01 —
+  `lista-participantes-pll.tsx`: "Ver ficha" vai pra
+  `/contratos/[idContrato]/informacoes` quando o participante já tem
+  `id_contrato`, mantém a rota standalone só como fallback pra quem ainda
+  não vinculou ao TSE. PF3-05 — `pll-dashboard.ts`: coluna "Edição" do
+  Dashboard PLL passa a ler `fat_cadastro_participante.id_edicao` →
+  `fat_edicao.nome`, não mais `fat_contrato.id_projeto` → `ref_projeto.nome`
+  (o dado errado que o bug relatava). PF3-03 — `mandatos-lista.ts` ganha
+  `idsMentor` (generaliza `idsContratoPorGestora` → `idsContratoPorPapel`);
+  `/produtos/pll/fatos-geradores` troca o filtro "Gestora" por "Mentor" pro
+  PLL (`buscarOpcoesMentorPll`, já validado no Dashboard); `IIP médio`
+  contorna a falta de parâmetro de mentor em `fn_estrategia_kpi` passando
+  `idsContrato` já resolvido. PF3-02 — `Composição Partidária da Casa`
+  (era lista de texto crua, o "gráfico feio" do bug) extraída pra
+  `composicao-partidaria-casa.tsx` e reaproveita o donut `RoscaAnalise`
+  (ganhou prop `ocultarTitulo` pra não duplicar o CardTitle). PF3-04 —
+  confirmado que "Etapa do produto" já não aparece na Informações Gerais
+  do PLL (resolvido pela feature `diagnostico-participante-pll` — o
+  screenshot do bug foi tirado antes desse deploy propagar); só teste
+  novo, zero diff de produção.
+- **Verificação**: Verifier independente rodou (author ≠ verifier),
+  achou 3 gaps de cobertura (nenhum de comportamento errado — sensor de
+  mutação 5/5 killed) + 1 observação de processo. Os 3 gaps de teste foram
+  fechados no commit `662cb51`. Relatório completo em
+  `.specs/features/pente-fino-2026-09-23-lote2/validation.md`.
+- **Observação de processo (não corrigida — decisão do Pedro)**: o commit
+  `f461c69` (PF3-01) mistura o fix do "Ver ficha" com trabalho já em
+  andamento e não commitado quando a sessão começou (`InfoComparacaoTse`,
+  botão `onEditar`, `LegendaCamposPlanilhaPll` em
+  `lista-participantes-pll.tsx`, de uma "Sessão 23/09" anterior). Pedro
+  optou explicitamente por deixar como está em vez de separar os commits.
+- **Gates**: `npm run test:unit` local (suíte completa): 1894/1909 verde;
+  as 15 falhas são as mesmas pré-existentes de
+  `fatos-registros/page.test.tsx` (erro de `use-papel-global.ts`,
+  confirmado idêntico antes desta sessão) — nenhum dos arquivos tocados
+  por este lote está na lista de falhas. `npm run build` verde (rodado 2x,
+  antes e depois dos fixes do Verifier).
+- **Branch**: `develop`. Sem PR aberto. Nenhum dos 7 commits foi enviado
+  pro `origin/develop`.

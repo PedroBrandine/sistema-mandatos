@@ -302,6 +302,48 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: PLL-CP-08/PLL-CP-09/PLL-CP-19 — src/frontend/components/pll/lista-participantes-pll.tsx:120-164,218-223; produtos/pll/participantes/[id]/page.tsx:184-198 (frontend-components)
 - last seen: 2026-09-22T15:14:41Z
 
+### L-051 — Quando uma task remove um campo de escrita e promete preservar vinculos historicos ja existentes, adicione um teste de leitura com fixture que prove a preservacao -- ausencia de migration nao e evidencia de teste.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `backend-queries` · harmful: 0
+- features: pente-fino-2026-09-23
+- evidence: PF2-03 AC3 -- validation.md (backend-queries)
+- last seen: 2026-09-23T13:44:54Z
+
+### L-052 — Toda acao de 'Limpar filtros' que precisa zerar campos novos de filtro deve ter um teste que clica no botao e verifica o estado pos-clique, nao so a presenca dos novos controles na tela.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `frontend-components` · harmful: 0
+- features: pente-fino-2026-09-23
+- evidence: PF2-04 AC3 -- validation.md (frontend-components)
+- last seen: 2026-09-23T13:44:54Z
+
+### L-053 — Quando um campo removido do formulario ainda passa por uma conversao entre camadas (ex.: null vira undefined num nivel inferior) antes de deixar de ser enviado, escreva um teste que amarre as duas camadas com o valor real emitido pelo form, nao um teste por camada com valores diferentes.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `rpc-layer` · harmful: 0
+- features: pente-fino-2026-09-23
+- evidence: PF2-06 AC2 -- validation.md (rpc-layer)
+- last seen: 2026-09-23T13:44:54Z
+
+### L-054 — Teste de query que filtra por coluna (ex.: dt_saida IS NULL) deve simular a filtragem no mock e incluir uma fixture que seria excluida, provando o efeito -- assinar apenas que o metodo de filtro foi chamado nao prova a exclusao real.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `backend-queries` · harmful: 0
+- features: pente-fino-2026-09-23
+- evidence: PF2-08/T8 buscarCoalizoesVinculadas -- validation.md (backend-queries)
+- last seen: 2026-09-23T13:44:54Z
+
+### L-055 — Quando um comentário no código documenta um contorno de RPC (ex.: passar idsContrato já resolvido em vez de reenviar um filtro que o RPC não suporta), escreva um teste que afirme o valor exato passado no caminho que usa o contorno, não só nos caminhos que não o usam.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `src/frontend/app/(app)/produtos/[slug]/fatos-geradores` · harmful: 0
+- features: pente-fino-2026-09-23-lote2
+- evidence: PF3-03 AC2 — .specs/features/pente-fino-2026-09-23-lote2/spec.md Out of Scope; validation.md fix 1 (src/frontend/app/(app)/produtos/[slug]/fatos-geradores)
+- last seen: 2026-09-23T20:13:00Z
+
+### L-056 — Quando um AC exige o mesmo comportamento em duas rotas que reaproveitam o mesmo componente, escreva (ou confirme que já existe) um teste próprio para cada rota citada, não só para a primeira testada.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `src/frontend/components/pll` · harmful: 0
+- features: pente-fino-2026-09-23-lote2
+- evidence: PF3-02 AC3 — validation.md fix 2 (src/frontend/components/pll)
+- last seen: 2026-09-23T20:13:05Z
+
+### L-057 — Um edge case listado na spec (lista vazia sem erro) só está coberto se houver teste na camada de UI que consome a query vazia, não apenas na query de origem isolada.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `src/frontend` · harmful: 0
+- features: pente-fino-2026-09-23-lote2
+- evidence: Edge case 'nenhum mentor com vínculo ativo' — spec.md Edge Cases; validation.md fix 3 (src/frontend)
+- last seen: 2026-09-23T20:13:10Z
+
 ## Quarantined (failed when applied — ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

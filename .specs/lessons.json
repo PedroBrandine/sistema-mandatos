@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 51,
+  "next_id": 58,
   "lessons": [
     {
       "id": "L-003",
@@ -868,6 +868,132 @@
       ],
       "created": "2026-09-22T15:14:41Z",
       "last_seen": "2026-09-22T15:14:41Z"
+    },
+    {
+      "id": "L-051",
+      "key": "ac_gap::quando uma task remove um campo de escrita e promete preservar vinculos historicos ja existentes adicione um teste de leitura com fixture que prove a preservacao ausencia de migration nao e evidencia de teste",
+      "text": "Quando uma task remove um campo de escrita e promete preservar vinculos historicos ja existentes, adicione um teste de leitura com fixture que prove a preservacao -- ausencia de migration nao e evidencia de teste.",
+      "signal": "ac_gap",
+      "scope": "backend-queries",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09-23"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "PF2-03 AC3 -- validation.md (backend-queries)"
+      ],
+      "created": "2026-09-23T13:44:54Z",
+      "last_seen": "2026-09-23T13:44:54Z"
+    },
+    {
+      "id": "L-052",
+      "key": "ac_gap::toda acao de limpar filtros que precisa zerar campos novos de filtro deve ter um teste que clica no botao e verifica o estado pos clique nao so a presenca dos novos controles na tela",
+      "text": "Toda acao de 'Limpar filtros' que precisa zerar campos novos de filtro deve ter um teste que clica no botao e verifica o estado pos-clique, nao so a presenca dos novos controles na tela.",
+      "signal": "ac_gap",
+      "scope": "frontend-components",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09-23"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "PF2-04 AC3 -- validation.md (frontend-components)"
+      ],
+      "created": "2026-09-23T13:44:54Z",
+      "last_seen": "2026-09-23T13:44:54Z"
+    },
+    {
+      "id": "L-053",
+      "key": "spec_precision_gap::quando um campo removido do formulario ainda passa por uma conversao entre camadas ex null vira undefined num nivel inferior antes de deixar de ser enviado escreva um teste que amarre as duas camadas com o valor real emitido pelo form nao um teste por camada com valores diferentes",
+      "text": "Quando um campo removido do formulario ainda passa por uma conversao entre camadas (ex.: null vira undefined num nivel inferior) antes de deixar de ser enviado, escreva um teste que amarre as duas camadas com o valor real emitido pelo form, nao um teste por camada com valores diferentes.",
+      "signal": "spec_precision_gap",
+      "scope": "rpc-layer",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09-23"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "PF2-06 AC2 -- validation.md (rpc-layer)"
+      ],
+      "created": "2026-09-23T13:44:54Z",
+      "last_seen": "2026-09-23T13:44:54Z"
+    },
+    {
+      "id": "L-054",
+      "key": "ac_gap::teste de query que filtra por coluna ex dt saida is null deve simular a filtragem no mock e incluir uma fixture que seria excluida provando o efeito assinar apenas que o metodo de filtro foi chamado nao prova a exclusao real",
+      "text": "Teste de query que filtra por coluna (ex.: dt_saida IS NULL) deve simular a filtragem no mock e incluir uma fixture que seria excluida, provando o efeito -- assinar apenas que o metodo de filtro foi chamado nao prova a exclusao real.",
+      "signal": "ac_gap",
+      "scope": "backend-queries",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09-23"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "PF2-08/T8 buscarCoalizoesVinculadas -- validation.md (backend-queries)"
+      ],
+      "created": "2026-09-23T13:44:54Z",
+      "last_seen": "2026-09-23T13:44:54Z"
+    },
+    {
+      "id": "L-055",
+      "key": "ac_gap::quando um coment rio no c digo documenta um contorno de rpc ex passar idscontrato j resolvido em vez de reenviar um filtro que o rpc n o suporta escreva um teste que afirme o valor exato passado no caminho que usa o contorno n o s nos caminhos que n o o usam",
+      "text": "Quando um comentário no código documenta um contorno de RPC (ex.: passar idsContrato já resolvido em vez de reenviar um filtro que o RPC não suporta), escreva um teste que afirme o valor exato passado no caminho que usa o contorno, não só nos caminhos que não o usam.",
+      "signal": "ac_gap",
+      "scope": "src/frontend/app/(app)/produtos/[slug]/fatos-geradores",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09-23-lote2"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "PF3-03 AC2 — .specs/features/pente-fino-2026-09-23-lote2/spec.md Out of Scope; validation.md fix 1 (src/frontend/app/(app)/produtos/[slug]/fatos-geradores)"
+      ],
+      "created": "2026-09-23T20:13:00Z",
+      "last_seen": "2026-09-23T20:13:00Z"
+    },
+    {
+      "id": "L-056",
+      "key": "spec_precision_gap::quando um ac exige o mesmo comportamento em duas rotas que reaproveitam o mesmo componente escreva ou confirme que j existe um teste pr prio para cada rota citada n o s para a primeira testada",
+      "text": "Quando um AC exige o mesmo comportamento em duas rotas que reaproveitam o mesmo componente, escreva (ou confirme que já existe) um teste próprio para cada rota citada, não só para a primeira testada.",
+      "signal": "spec_precision_gap",
+      "scope": "src/frontend/components/pll",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09-23-lote2"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "PF3-02 AC3 — validation.md fix 2 (src/frontend/components/pll)"
+      ],
+      "created": "2026-09-23T20:13:05Z",
+      "last_seen": "2026-09-23T20:13:05Z"
+    },
+    {
+      "id": "L-057",
+      "key": "ac_gap::um edge case listado na spec lista vazia sem erro s est coberto se houver teste na camada de ui que consome a query vazia n o apenas na query de origem isolada",
+      "text": "Um edge case listado na spec (lista vazia sem erro) só está coberto se houver teste na camada de UI que consome a query vazia, não apenas na query de origem isolada.",
+      "signal": "ac_gap",
+      "scope": "src/frontend",
+      "status": "candidate",
+      "features": [
+        "pente-fino-2026-09-23-lote2"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "Edge case 'nenhum mentor com vínculo ativo' — spec.md Edge Cases; validation.md fix 3 (src/frontend)"
+      ],
+      "created": "2026-09-23T20:13:10Z",
+      "last_seen": "2026-09-23T20:13:10Z"
     }
   ]
 }
