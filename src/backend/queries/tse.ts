@@ -243,6 +243,14 @@ const VALORES_ELEITO = new Set(["ELEITO", "ELEITO POR QP", "ELEITO POR MÉDIA"])
 // PLL-CP-18: partido com menos de 3% da composição agrupa em "Outros".
 const LIMIAR_OUTROS = 0.03;
 
+// Achado 24/09 (ficha do PLL, contrato 3322): `percentual` saía sem
+// arredondar (ex.: 22.448979591836736), poluindo a legenda da rosca. As
+// outras análises em pll-dashboard.ts já arredondam a 1 casa
+// (arredondarPercentual) -- replica o mesmo padrão aqui.
+function arredondarPercentual(valor: number): number {
+  return Math.round(valor * 10) / 10;
+}
+
 export interface FiltroComposicaoPartidariaCasa {
   anoEleicao: number;
   cdCargo: number;
@@ -297,11 +305,15 @@ export async function buscarComposicaoPartidariaCasa(
     if (fracao < LIMIAR_OUTROS) {
       quantidadeOutros += quantidade;
     } else {
-      linhas.push({ siglaPartido, quantidade, percentual: fracao * 100 });
+      linhas.push({ siglaPartido, quantidade, percentual: arredondarPercentual(fracao * 100) });
     }
   }
   if (quantidadeOutros > 0) {
-    linhas.push({ siglaPartido: "Outros", quantidade: quantidadeOutros, percentual: (quantidadeOutros / total) * 100 });
+    linhas.push({
+      siglaPartido: "Outros",
+      quantidade: quantidadeOutros,
+      percentual: arredondarPercentual((quantidadeOutros / total) * 100),
+    });
   }
 
   return linhas.sort((a, b) => b.quantidade - a.quantidade);

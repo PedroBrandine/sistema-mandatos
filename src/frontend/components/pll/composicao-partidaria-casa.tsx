@@ -33,7 +33,13 @@ export function ComposicaoPartidariaCasa({ composicao }: ComposicaoPartidariaCas
         {composicao.length === 0 ? (
           <EstadoVazio titulo="Dados indisponíveis para esta Casa/ano" />
         ) : (
-          <RoscaAnalise titulo="Composição Partidária da Casa" n={n} categorias={categorias} ocultarTitulo />
+          <RoscaAnalise
+            titulo="Composição Partidária da Casa"
+            n={n}
+            categorias={categorias}
+            ocultarTitulo
+            rotuloCentro="eleitos"
+          />
         )}
       </CardContent>
     </Card>

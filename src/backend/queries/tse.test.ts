@@ -389,8 +389,8 @@ describe("buscarComposicaoPartidariaCasa", () => {
 
     // Só 3 linhas contam como eleitas (2 PT + 1 PSDB) -- total = 3.
     expect(resultado).toEqual([
-      { siglaPartido: "PT", quantidade: 2, percentual: (2 / 3) * 100 },
-      { siglaPartido: "PSDB", quantidade: 1, percentual: (1 / 3) * 100 },
+      { siglaPartido: "PT", quantidade: 2, percentual: 66.7 },
+      { siglaPartido: "PSDB", quantidade: 1, percentual: 33.3 },
     ]);
   });
 
@@ -410,6 +410,24 @@ describe("buscarComposicaoPartidariaCasa", () => {
     expect(resultado).toEqual([
       { siglaPartido: "PT", quantidade: 95, percentual: 95 },
       { siglaPartido: "Outros", quantidade: 5, percentual: 5 },
+    ]);
+  });
+
+  // Achado 24/09 (ficha do PLL, contrato 3322 em dev): a legenda da rosca
+  // mostrava percentuais crus tipo "22.448979591836736%" -- arredonda a 1
+  // casa, igual às outras análises de pll-dashboard.ts.
+  it("arredonda percentual a 1 casa decimal", async () => {
+    const linhas = [
+      ...Array.from({ length: 22 }, () => ({ sg_partido: "PL", ds_sit_tot_turno: "ELEITO" })),
+      ...Array.from({ length: 27 }, () => ({ sg_partido: "PSDB", ds_sit_tot_turno: "ELEITO" })),
+    ];
+    const { client } = criarClienteMock<LinhaComposicao>({ data: linhas, error: null });
+
+    const resultado = await buscarComposicaoPartidariaCasa(client, FILTRO);
+
+    expect(resultado).toEqual([
+      { siglaPartido: "PSDB", quantidade: 27, percentual: 55.1 },
+      { siglaPartido: "PL", quantidade: 22, percentual: 44.9 },
     ]);
   });
 

@@ -52,9 +52,22 @@ export interface RoscaAnaliseProps {
    * tela -- o nome continua no DOM (sr-only) pra manter o `aria-labelledby`
    * do gráfico. */
   ocultarTitulo?: boolean;
+  /** Achado 24/09: "respondentes" só faz sentido nas 3 roscas de pesquisa
+   * (Participante/Mandato/Afinidade de agenda). Composição Partidária da
+   * Casa conta candidatos ELEITOS, não respostas de formulário -- sem esta
+   * prop o rótulo do centro saía errado por reaproveitar o default. */
+  rotuloCentro?: string;
 }
 
-export function RoscaAnalise({ titulo, n, categorias, semResposta, className, ocultarTitulo }: RoscaAnaliseProps) {
+export function RoscaAnalise({
+  titulo,
+  n,
+  categorias,
+  semResposta,
+  className,
+  ocultarTitulo,
+  rotuloCentro = "respondentes",
+}: RoscaAnaliseProps) {
   const tituloId = useId();
 
   const config: ChartConfig = Object.fromEntries(
@@ -93,7 +106,7 @@ export function RoscaAnalise({ titulo, n, categorias, semResposta, className, oc
           </ChartContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <span className="font-heading text-xl text-secondary">{n}</span>
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">respondentes</span>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{rotuloCentro}</span>
           </div>
         </div>
 
