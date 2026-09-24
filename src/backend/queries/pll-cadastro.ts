@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { criarMandato, type CandidaturaParaConfirmar } from "../rpc/mandato";
 import { mapeiaErroRpc } from "../rpc/errors";
+import { excluirContrato, resumoExclusaoContrato, type ResumoExclusaoContrato } from "../rpc/exclusao";
 import type { ContratanteInput } from "../schemas/contratante";
 import { linhaCadastroPllSchema, type LinhaCadastroPll } from "../schemas/cadastro-participante-pll";
 import type { MandatoInput } from "../schemas/mandato";
@@ -343,11 +344,53 @@ export interface ParametrosVincularParticipanteAoTse {
   candidatura: CandidaturaParaConfirmar;
   contratante?: ContratanteInput;
   mandato?: MandatoInput;
-  /** PLL-CP-12 (trocar vínculo): mesmo contratante já existente -- omite
-   * contratante/mandato da chamada (mesmo padrão de mandato-wizard.tsx
-   * `submeter`), preservando o histórico em rel_mandato_candidatura que
-   * app.criar_mandato já garante para esse caso. */
-  idContratanteExistente?: number;
+  /** PLL-CP-12 (trocar vínculo): contrato que a linha já tem. Se a
+   * candidatura escolhida é do mesmo mandato, o contrato é reaproveitado em
+   * vez de abrir outro. */
+  idContratoAtual?: number | null;
+  /** Troca para OUTRO parlamentar exclui o contrato atual com tudo que há
+   * nele (Pedro, 24/09: vínculo errado não pode contar nos KPIs). Só
+   * acontece com esta confirmação explícita, dada depois de a tela mostrar
+   * `previaTrocaVinculoPll`. */
+  confirmouExclusaoContratoAtual?: boolean;
+}
+
+export class ExclusaoNaoConfirmadaError extends Error {
+  constructor() {
+    super("A troca de vínculo exclui o contrato atual e precisa ser confirmada.");
+    this.name = "ExclusaoNaoConfirmadaError";
+  }
+}
+
+/** Bug 24/09 (Pedro): parlamentar que já tem mandato no sistema (contrato em
+ * outro produto) não pode ganhar um dim_mandato novo -- bate em
+ * dim_mandato_nr_titulo_eleitoral_key. Procura pelo título eleitoral e, sem
+ * título, por um mandato já ligado à mesma candidatura. */
+async function buscarIdContratanteExistente(
+  client: SupabaseClient<Database>,
+  nrTituloEleitoral: string | null | undefined,
+  candidatura: CandidaturaParaConfirmar
+): Promise<number | null> {
+  if (nrTituloEleitoral && nrTituloEleitoral.trim().length > 0) {
+    const { data, error } = await client
+      .from("dim_mandato")
+      .select("id_contratante")
+      .eq("nr_titulo_eleitoral", nrTituloEleitoral)
+      .maybeSingle();
+    if (error) throw mapeiaErroRpc(error);
+    if (data) return data.id_contratante;
+  }
+
+  const { data, error } = await client
+    .from("rel_mandato_candidatura")
+    .select("dim_mandato!inner (id_contratante)")
+    .eq("ano_eleicao", candidatura.ano_eleicao)
+    .eq("sq_candidato", candidatura.sq_candidato)
+    .eq("nr_turno", candidatura.nr_turno)
+    .limit(1);
+  if (error) throw mapeiaErroRpc(error);
+  const mandato = data?.[0]?.dim_mandato as { id_contratante: number } | undefined;
+  return mandato?.id_contratante ?? null;
 }
 
 /** rel_edicao_mentor da edição -- pool de mentores padrão aplicado ao novo
@@ -361,38 +404,92 @@ async function buscarPoolMentoresDaEdicao(
   return (data ?? []).map((r) => r.id_usuario);
 }
 
+interface TrocaVinculo {
+  idContratanteExistente: number | null;
+  /** Mesma pessoa: o contrato atual continua, só o vínculo TSE muda. */
+  reaproveitaContrato: boolean;
+  /** Outra pessoa: o contrato atual (vinculado errado) é excluído. */
+  excluiContratoAtual: boolean;
+}
+
+async function resolverTrocaVinculo(
+  client: SupabaseClient<Database>,
+  params: Pick<ParametrosVincularParticipanteAoTse, "candidatura" | "mandato" | "idContratoAtual">
+): Promise<TrocaVinculo> {
+  const [idContratanteExistente, contratoAtual] = await Promise.all([
+    buscarIdContratanteExistente(client, params.mandato?.nr_titulo_eleitoral, params.candidatura),
+    params.idContratoAtual
+      ? client.from("fat_contrato").select("id_contratante").eq("id_contrato", params.idContratoAtual).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+  if (contratoAtual.error) throw mapeiaErroRpc(contratoAtual.error);
+
+  const idContratanteAtual = contratoAtual.data?.id_contratante ?? null;
+  const reaproveitaContrato = idContratanteAtual !== null && idContratanteAtual === idContratanteExistente;
+  return {
+    idContratanteExistente,
+    reaproveitaContrato,
+    excluiContratoAtual: idContratanteAtual !== null && !reaproveitaContrato,
+  };
+}
+
+/** O que a troca de vínculo vai apagar, para a tela avisar ANTES de
+ * confirmar. `null` = nada é excluído (primeiro vínculo, ou outra candidatura
+ * do mesmo parlamentar). */
+export async function previaTrocaVinculoPll(
+  client: SupabaseClient<Database>,
+  params: Pick<ParametrosVincularParticipanteAoTse, "candidatura" | "mandato" | "idContratoAtual">
+): Promise<ResumoExclusaoContrato | null> {
+  if (!params.idContratoAtual) return null;
+  const { excluiContratoAtual } = await resolverTrocaVinculo(client, params);
+  return excluiContratoAtual ? resumoExclusaoContrato(client, params.idContratoAtual) : null;
+}
+
 export async function vincularParticipanteAoTse(
   client: SupabaseClient<Database>,
   params: ParametrosVincularParticipanteAoTse
 ): Promise<MandatoCriado> {
-  const [edicao, mentoresPadrao] = await Promise.all([
+  const [edicao, mentoresPadrao, troca] = await Promise.all([
     params.idEdicao
       ? client.from("fat_edicao").select("id_projeto").eq("id_edicao", params.idEdicao).single()
       : Promise.resolve({ data: null, error: null }),
     params.idEdicao ? buscarPoolMentoresDaEdicao(client, params.idEdicao) : Promise.resolve([]),
+    resolverTrocaVinculo(client, params),
   ]);
   if (edicao.error) throw edicao.error;
+  const { idContratanteExistente, reaproveitaContrato, excluiContratoAtual } = troca;
+
+  // Exclui ANTES de criar: se a criação falhar depois, a linha fica
+  // desvinculada (estado coerente, dá pra vincular de novo), nunca com dois
+  // contratos contando nos KPIs. excluir_contrato já desvincula a linha.
+  if (excluiContratoAtual) {
+    if (!params.confirmouExclusaoContratoAtual) throw new ExclusaoNaoConfirmadaError();
+    await excluirContrato(client, params.idContratoAtual as number);
+  }
 
   const resultado = await criarMandato(client, {
-    contratante: params.idContratanteExistente ? undefined : params.contratante,
-    mandato: params.idContratanteExistente ? undefined : params.mandato,
+    contratante: idContratanteExistente ? undefined : params.contratante,
+    mandato: idContratanteExistente ? undefined : params.mandato,
     candidatura: params.candidatura,
-    idContratanteExistente: params.idContratanteExistente,
-    contrato: {
-      id_produto: params.idProduto,
-      id_projeto: edicao.data?.id_projeto ?? null,
-      dt_inicio: new Date().toISOString().slice(0, 10),
-    },
-    mentoresPadrao,
+    idContratanteExistente: idContratanteExistente ?? undefined,
+    contrato: reaproveitaContrato
+      ? undefined
+      : {
+          id_produto: params.idProduto,
+          id_projeto: edicao.data?.id_projeto ?? null,
+          dt_inicio: new Date().toISOString().slice(0, 10),
+        },
+    mentoresPadrao: reaproveitaContrato ? undefined : mentoresPadrao,
   });
+  const idContrato = reaproveitaContrato ? (params.idContratoAtual as number) : resultado.idContrato;
 
   const { error } = await client
     .from("fat_cadastro_participante")
-    .update({ id_contrato: resultado.idContrato, id_vinculo_tse: resultado.idVinculoTse })
+    .update({ id_contrato: idContrato, id_vinculo_tse: resultado.idVinculoTse })
     .eq("id_cadastro_participante", params.idCadastroParticipante);
   if (error) throw error;
 
-  return resultado;
+  return { ...resultado, idContrato };
 }
 
 // -----------------------------------------------------------------------------

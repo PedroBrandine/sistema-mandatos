@@ -11,6 +11,12 @@ const criarMandatoMock = vi.fn();
 vi.mock("../rpc/mandato", () => ({
   criarMandato: (...args: unknown[]) => criarMandatoMock(...args),
 }));
+const excluirContratoMock = vi.fn();
+const resumoExclusaoContratoMock = vi.fn();
+vi.mock("../rpc/exclusao", () => ({
+  excluirContrato: (...args: unknown[]) => excluirContratoMock(...args),
+  resumoExclusaoContrato: (...args: unknown[]) => resumoExclusaoContratoMock(...args),
+}));
 
 import {
   atualizarCamposEditaveisParticipante,
@@ -18,6 +24,8 @@ import {
   buscarCadastroParticipantesPll,
   buscarLinhaCadastroPorId,
   buscarMetricasCadastroPll,
+  ExclusaoNaoConfirmadaError,
+  previaTrocaVinculoPll,
   upsertCadastroParticipantes,
   vincularParticipanteAoTse,
 } from "./pll-cadastro";
@@ -512,11 +520,40 @@ function criarClienteMockVinculo(opts: {
   update: { error: { message: string; code?: string } | null };
   edicao?: { data: { id_projeto: number } | null; error: unknown };
   mentores?: { data: { id_usuario: number }[] | null; error: unknown };
+  /** Bug 24/09: mandato já existente (outro produto) achado pelo título. */
+  mandatoPorTitulo?: { data: { id_contratante: number } | null; error: unknown };
+  /** Sem título: mandato já ligado à mesma candidatura. */
+  mandatoPorCandidatura?: { data: { dim_mandato: { id_contratante: number } }[] | null; error: unknown };
+  contratoAtual?: { data: { id_contratante: number } | null; error: unknown };
 }) {
   const chamadas: { metodo: string; args: unknown[]; tabela: string }[] = [];
+  // Leitura encadeável (eq/limit) que termina em maybeSingle/single ou em
+  // `await` direto -- cobre as três consultas de resolução de mandato.
+  function leitura(tabela: string, resposta: { data: unknown; error: unknown }) {
+    const builder = {
+      eq: (...args: unknown[]) => {
+        chamadas.push({ metodo: "eq", args, tabela });
+        return builder;
+      },
+      limit: () => builder,
+      maybeSingle: () => Promise.resolve(resposta),
+      single: () => Promise.resolve(resposta),
+      then: (resolve: (v: unknown) => unknown) => Promise.resolve(resposta).then(resolve),
+    };
+    return {
+      select: (...args: unknown[]) => {
+        chamadas.push({ metodo: "select", args, tabela });
+        return builder;
+      },
+    };
+  }
   const client = {
     from: (tabela: string) => {
       chamadas.push({ metodo: "from", args: [tabela], tabela });
+      if (tabela === "dim_mandato") return leitura(tabela, opts.mandatoPorTitulo ?? { data: null, error: null });
+      if (tabela === "rel_mandato_candidatura")
+        return leitura(tabela, opts.mandatoPorCandidatura ?? { data: [], error: null });
+      if (tabela === "fat_contrato") return leitura(tabela, opts.contratoAtual ?? { data: null, error: null });
       if (tabela === "fat_edicao") {
         return {
           select: (...args: unknown[]) => {
@@ -572,6 +609,8 @@ const CANDIDATURA: import("../rpc/mandato").CandidaturaParaConfirmar = {
 describe("vincularParticipanteAoTse (T10)", () => {
   beforeEach(() => {
     criarMandatoMock.mockReset();
+    excluirContratoMock.mockReset();
+    resumoExclusaoContratoMock.mockReset();
   });
 
   it("chama criarMandato com p_candidatura preenchido e depois atualiza a linha de staging", async () => {
@@ -669,30 +708,167 @@ describe("vincularParticipanteAoTse (T10)", () => {
     expect(chamadas.some((c) => c.tabela === "rel_edicao_mentor")).toBe(false);
   });
 
-  // PLL-CP-12: trocar vínculo -- idContratanteExistente presente omite
-  // contratante/mandato da chamada (não recria contratante).
-  it("troca de vínculo (idContratanteExistente) não envia contratante/mandato novos", async () => {
+  // Bug 24/09 (Pedro): parlamentar que já tem mandato por outro contrato.
+  // Antes, o PLL pedia um dim_mandato novo e estourava
+  // dim_mandato_nr_titulo_eleitoral_key ("Já existe um mandato cadastrado
+  // com este título eleitoral").
+  it("mandato já existente pelo título: reaproveita o contratante e abre só o contrato do PLL", async () => {
     criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 88, idContrato: 42 });
-    const { client } = criarClienteMockUpdate({ error: null });
+    const { client, chamadas } = criarClienteMockVinculo({
+      update: { error: null },
+      mandatoPorTitulo: { data: { id_contratante: 5 }, error: null },
+    });
 
     await vincularParticipanteAoTse(client, {
       idCadastroParticipante: 1,
       idProduto: 3,
       candidatura: CANDIDATURA,
       contratante: { nome: "Não deveria ir" },
-      idContratanteExistente: 5,
+      mandato: { nr_titulo_eleitoral: "123456789012" } as never,
+    });
+
+    expect(chamadas.find((c) => c.tabela === "dim_mandato" && c.metodo === "eq")?.args).toEqual([
+      "nr_titulo_eleitoral",
+      "123456789012",
+    ]);
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({
+        contratante: undefined,
+        mandato: undefined,
+        idContratanteExistente: 5,
+        candidatura: CANDIDATURA,
+        contrato: expect.objectContaining({ id_produto: 3 }),
+      })
+    );
+    const chamadaUpdate = chamadas.find((c) => c.metodo === "update");
+    expect(chamadaUpdate?.args[0]).toEqual({ id_contrato: 42, id_vinculo_tse: 88 });
+  });
+
+  it("sem título eleitoral: acha o mandato existente pela candidatura já vinculada", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 6, idMandato: 9, idVinculoTse: 88, idContrato: 42 });
+    const { client } = criarClienteMockVinculo({
+      update: { error: null },
+      mandatoPorCandidatura: { data: [{ dim_mandato: { id_contratante: 6 } }], error: null },
+    });
+
+    await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      candidatura: CANDIDATURA,
+      contratante: { nome: "Dep. Fulano" },
     });
 
     expect(criarMandatoMock).toHaveBeenCalledWith(
       client,
-      expect.objectContaining({ contratante: undefined, mandato: undefined, idContratanteExistente: 5 })
+      expect.objectContaining({ contratante: undefined, idContratanteExistente: 6 })
     );
   });
 
-  // Lado oposto: sem idContratanteExistente, contratante/mandato são enviados.
-  it("primeiro vínculo (sem idContratanteExistente) envia contratante/mandato", async () => {
+  // PLL-CP-12: trocar para outra candidatura do MESMO mandato não abre um
+  // segundo contrato do PLL -- só o vínculo TSE muda.
+  it("troca de vínculo no mesmo mandato reaproveita o contrato atual", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 91, idContrato: null });
+    const { client, chamadas } = criarClienteMockVinculo({
+      update: { error: null },
+      mandatoPorTitulo: { data: { id_contratante: 5 }, error: null },
+      contratoAtual: { data: { id_contratante: 5 }, error: null },
+    });
+
+    const resultado = await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      candidatura: CANDIDATURA,
+      mandato: { nr_titulo_eleitoral: "123456789012" } as never,
+      idContratoAtual: 42,
+    });
+
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({ idContratanteExistente: 5, contrato: undefined })
+    );
+    expect(chamadas.find((c) => c.metodo === "update")?.args[0]).toEqual({ id_contrato: 42, id_vinculo_tse: 91 });
+    expect(resultado.idContrato).toBe(42);
+  });
+
+  // Pedro, 24/09: troca para OUTRO parlamentar exclui o contrato vinculado
+  // errado (não pode contar nos KPIs), ANTES de criar o novo.
+  it("troca para outro parlamentar exclui o contrato atual antes de criar o novo", async () => {
+    const ordem: string[] = [];
+    excluirContratoMock.mockImplementation(async () => ordem.push("excluir"));
+    criarMandatoMock.mockImplementation(async () => {
+      ordem.push("criar");
+      return { idContratante: 7, idMandato: 10, idVinculoTse: 92, idContrato: 60 };
+    });
+    const { client, chamadas } = criarClienteMockVinculo({
+      update: { error: null },
+      mandatoPorTitulo: { data: { id_contratante: 7 }, error: null },
+      contratoAtual: { data: { id_contratante: 5 }, error: null },
+    });
+
+    await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      candidatura: CANDIDATURA,
+      mandato: { nr_titulo_eleitoral: "999999999999" } as never,
+      idContratoAtual: 42,
+      confirmouExclusaoContratoAtual: true,
+    });
+
+    expect(excluirContratoMock).toHaveBeenCalledWith(client, 42);
+    expect(ordem).toEqual(["excluir", "criar"]);
+    expect(criarMandatoMock).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({ idContratanteExistente: 7, contrato: expect.objectContaining({ id_produto: 3 }) })
+    );
+    expect(chamadas.find((c) => c.metodo === "update")?.args[0]).toEqual({ id_contrato: 60, id_vinculo_tse: 92 });
+  });
+
+  it("troca para outro parlamentar SEM confirmação não exclui nem cria nada", async () => {
+    const { client, chamadas } = criarClienteMockVinculo({
+      update: { error: null },
+      contratoAtual: { data: { id_contratante: 5 }, error: null },
+    });
+
+    await expect(
+      vincularParticipanteAoTse(client, {
+        idCadastroParticipante: 1,
+        idProduto: 3,
+        candidatura: CANDIDATURA,
+        contratante: { nome: "Outro" },
+        idContratoAtual: 42,
+      })
+    ).rejects.toBeInstanceOf(ExclusaoNaoConfirmadaError);
+
+    expect(excluirContratoMock).not.toHaveBeenCalled();
+    expect(criarMandatoMock).not.toHaveBeenCalled();
+    expect(chamadas.find((c) => c.metodo === "update")).toBeUndefined();
+  });
+
+  it("troca no mesmo mandato nunca exclui, mesmo com confirmação", async () => {
+    criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 91, idContrato: null });
+    const { client } = criarClienteMockVinculo({
+      update: { error: null },
+      mandatoPorTitulo: { data: { id_contratante: 5 }, error: null },
+      contratoAtual: { data: { id_contratante: 5 }, error: null },
+    });
+
+    await vincularParticipanteAoTse(client, {
+      idCadastroParticipante: 1,
+      idProduto: 3,
+      candidatura: CANDIDATURA,
+      mandato: { nr_titulo_eleitoral: "123456789012" } as never,
+      idContratoAtual: 42,
+      confirmouExclusaoContratoAtual: true,
+    });
+
+    expect(excluirContratoMock).not.toHaveBeenCalled();
+  });
+
+  // Lado oposto: mandato inexistente -- contratante/mandato novos são enviados.
+  it("primeiro vínculo de mandato inexistente envia contratante/mandato", async () => {
     criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 88, idContrato: 42 });
-    const { client } = criarClienteMockUpdate({ error: null });
+    const { client } = criarClienteMockVinculo({ update: { error: null } });
 
     await vincularParticipanteAoTse(client, {
       idCadastroParticipante: 1,
@@ -714,7 +890,7 @@ describe("vincularParticipanteAoTse (T10)", () => {
     const erroUnico = new Error("Este contratante já tem um mandato cadastrado.");
     erroUnico.name = "ViolacaoUnicaError";
     criarMandatoMock.mockRejectedValue(erroUnico);
-    const { client, chamadas } = criarClienteMockUpdate({ error: null });
+    const { client, chamadas } = criarClienteMockVinculo({ update: { error: null } });
 
     await expect(
       vincularParticipanteAoTse(client, {
@@ -731,8 +907,8 @@ describe("vincularParticipanteAoTse (T10)", () => {
   // Erro na própria escrita de staging (RLS nega o UPDATE) também propaga.
   it("erro do PostgREST no UPDATE da linha de staging propaga como throw", async () => {
     criarMandatoMock.mockResolvedValue({ idContratante: 5, idMandato: 9, idVinculoTse: 77, idContrato: 42 });
-    const { client } = criarClienteMockUpdate({
-      error: { message: "permission denied for table fat_cadastro_participante", code: "42501" },
+    const { client } = criarClienteMockVinculo({
+      update: { error: { message: "permission denied for table fat_cadastro_participante", code: "42501" } },
     });
 
     await expect(
@@ -975,5 +1151,44 @@ describe("atualizarLancamentoCadastroParticipante", () => {
       name: "PermissaoNegadaError",
       message: "Você não tem permissão para realizar esta operação.",
     });
+  });
+});
+
+describe("previaTrocaVinculoPll (24/09)", () => {
+  beforeEach(() => resumoExclusaoContratoMock.mockReset());
+
+  it("outro parlamentar: devolve o resumo do que será apagado", async () => {
+    const resumo = { idContrato: 42, nomeContratante: "X", tipoContratante: "mandato", apagaContratante: true, contagens: {} };
+    resumoExclusaoContratoMock.mockResolvedValue(resumo);
+    const { client } = criarClienteMockVinculo({
+      update: { error: null },
+      contratoAtual: { data: { id_contratante: 5 }, error: null },
+    });
+
+    expect(await previaTrocaVinculoPll(client, { candidatura: CANDIDATURA, idContratoAtual: 42 })).toBe(resumo);
+    expect(resumoExclusaoContratoMock).toHaveBeenCalledWith(client, 42);
+  });
+
+  it("mesmo parlamentar: null, nada é apagado", async () => {
+    const { client } = criarClienteMockVinculo({
+      update: { error: null },
+      mandatoPorTitulo: { data: { id_contratante: 5 }, error: null },
+      contratoAtual: { data: { id_contratante: 5 }, error: null },
+    });
+
+    expect(
+      await previaTrocaVinculoPll(client, {
+        candidatura: CANDIDATURA,
+        mandato: { nr_titulo_eleitoral: "123456789012" } as never,
+        idContratoAtual: 42,
+      })
+    ).toBeNull();
+    expect(resumoExclusaoContratoMock).not.toHaveBeenCalled();
+  });
+
+  it("primeiro vínculo (sem contrato atual): null sem consultar nada", async () => {
+    const { client, chamadas } = criarClienteMockVinculo({ update: { error: null } });
+    expect(await previaTrocaVinculoPll(client, { candidatura: CANDIDATURA, idContratoAtual: null })).toBeNull();
+    expect(chamadas).toHaveLength(0);
   });
 });

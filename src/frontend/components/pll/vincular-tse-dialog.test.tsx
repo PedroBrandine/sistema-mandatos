@@ -112,7 +112,9 @@ describe("VincularTseDialog — confirmar candidatura", () => {
 
     fireEvent.click(await screen.findByText("PEDRO BIGARDI"));
 
-    await waitFor(() => expect(onConfirmar).toHaveBeenCalledWith(CANDIDATURA));
+    await waitFor(() =>
+      expect(onConfirmar).toHaveBeenCalledWith(CANDIDATURA, { confirmouExclusaoContratoAtual: false })
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -222,5 +224,92 @@ describe("VincularTseDialog — PLL-CP-13 revisado (22/09): ESC/overlay bloquead
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onConfirmar).not.toHaveBeenCalled();
     expect(onNaoEncontrado).not.toHaveBeenCalled();
+  });
+});
+
+// Pedro, 24/09: "Editar vínculo" para outro parlamentar exclui o contrato
+// atual -- o aviso com tudo que será apagado aparece ANTES de confirmar.
+const RESUMO_EXCLUSAO = {
+  idContrato: 42,
+  nomeContratante: "RENATA ERRADA",
+  tipoContratante: "mandato",
+  apagaContratante: true,
+  contagens: { registros: 3, vinculos_usuarios: 1 },
+};
+
+describe("VincularTseDialog — troca de vínculo para outro parlamentar (24/09)", () => {
+  it("mostra o que será apagado e só confirma com exclusão depois do clique explícito", async () => {
+    buscarCandidaturasMock.mockResolvedValue([CANDIDATURA]);
+    const onConfirmar = vi.fn();
+    const previaTroca = vi.fn().mockResolvedValue(RESUMO_EXCLUSAO);
+    render(
+      <VincularTseDialog
+        open
+        onOpenChange={vi.fn()}
+        participante={PARTICIPANTE}
+        onConfirmar={onConfirmar}
+        onNaoEncontrado={vi.fn()}
+        previaTroca={previaTroca}
+      />
+    );
+
+    fireEvent.click(await screen.findByText("PEDRO BIGARDI"));
+
+    expect(await screen.findByText(/Trocar para PEDRO BIGARDI exclui o contrato atual/)).toBeInTheDocument();
+    expect(screen.getByText("O contrato de RENATA ERRADA")).toBeInTheDocument();
+    expect(screen.getByText("3 registros")).toBeInTheDocument();
+    expect(screen.getByText("O cadastro do parlamentar (contratante e mandato)")).toBeInTheDocument();
+    expect(previaTroca).toHaveBeenCalledWith(CANDIDATURA);
+    expect(onConfirmar).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Excluir contrato e trocar/ }));
+    await waitFor(() =>
+      expect(onConfirmar).toHaveBeenCalledWith(CANDIDATURA, { confirmouExclusaoContratoAtual: true })
+    );
+  });
+
+  it("Voltar desiste da troca sem confirmar e devolve a busca", async () => {
+    buscarCandidaturasMock.mockResolvedValue([CANDIDATURA]);
+    const onConfirmar = vi.fn();
+    render(
+      <VincularTseDialog
+        open
+        onOpenChange={vi.fn()}
+        participante={PARTICIPANTE}
+        onConfirmar={onConfirmar}
+        onNaoEncontrado={vi.fn()}
+        previaTroca={vi.fn().mockResolvedValue(RESUMO_EXCLUSAO)}
+      />
+    );
+
+    fireEvent.click(await screen.findByText("PEDRO BIGARDI"));
+    fireEvent.click(await screen.findByRole("button", { name: "Voltar" }));
+
+    expect(await screen.findByText("PEDRO BIGARDI")).toBeInTheDocument();
+    expect(onConfirmar).not.toHaveBeenCalled();
+  });
+
+  // Lado oposto: mesmo parlamentar (prévia null) -- nada é apagado, confirma
+  // direto sem aviso.
+  it("mesma pessoa: sem aviso, confirma direto sem exclusão", async () => {
+    buscarCandidaturasMock.mockResolvedValue([CANDIDATURA]);
+    const onConfirmar = vi.fn();
+    render(
+      <VincularTseDialog
+        open
+        onOpenChange={vi.fn()}
+        participante={PARTICIPANTE}
+        onConfirmar={onConfirmar}
+        onNaoEncontrado={vi.fn()}
+        previaTroca={vi.fn().mockResolvedValue(null)}
+      />
+    );
+
+    fireEvent.click(await screen.findByText("PEDRO BIGARDI"));
+
+    await waitFor(() =>
+      expect(onConfirmar).toHaveBeenCalledWith(CANDIDATURA, { confirmouExclusaoContratoAtual: false })
+    );
+    expect(screen.queryByText(/exclui o contrato atual/)).not.toBeInTheDocument();
   });
 });

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   buscarMetricasCadastroPll: vi.fn(),
   upsertCadastroParticipantes: vi.fn(),
   vincularParticipanteAoTse: vi.fn(),
+  previaTrocaVinculoPll: vi.fn().mockResolvedValue(null),
   buscarLinhaCadastroPorId: vi.fn(),
   atualizarLancamentoCadastroParticipante: vi.fn(),
   // pll-edicao.ts: entidade própria (fat_edicao, migration 20260922160505),
@@ -42,6 +43,7 @@ vi.mock("@backend/queries/pll-cadastro", () => ({
   buscarMetricasCadastroPll: mocks.buscarMetricasCadastroPll,
   upsertCadastroParticipantes: mocks.upsertCadastroParticipantes,
   vincularParticipanteAoTse: mocks.vincularParticipanteAoTse,
+  previaTrocaVinculoPll: mocks.previaTrocaVinculoPll,
   buscarLinhaCadastroPorId: mocks.buscarLinhaCadastroPorId,
   atualizarLancamentoCadastroParticipante: mocks.atualizarLancamentoCadastroParticipante,
 }));
@@ -135,7 +137,7 @@ vi.mock("@/components/pll/lista-participantes-pll", () => ({
 vi.mock("@/components/pll/vincular-tse-dialog", () => ({
   VincularTseDialog: (props: {
     participante: { nomeCompleto: string };
-    onConfirmar: (c: unknown) => void | Promise<void>;
+    onConfirmar: (c: unknown, opcoes: { confirmouExclusaoContratoAtual: boolean }) => void | Promise<void>;
     onNaoEncontrado: () => void | Promise<void>;
   }) => (
     <div data-testid="vincular-tse-dialog">
@@ -146,7 +148,7 @@ vi.mock("@/components/pll/vincular-tse-dialog", () => ({
       <button
         type="button"
         onClick={() => {
-          Promise.resolve(props.onConfirmar({ sgPartido: "PT", cdCargo: 7 })).catch(() => {});
+          Promise.resolve(props.onConfirmar({ sgPartido: "PT", cdCargo: 7 }, { confirmouExclusaoContratoAtual: false })).catch(() => {});
         }}
       >
         Simular confirmar candidatura

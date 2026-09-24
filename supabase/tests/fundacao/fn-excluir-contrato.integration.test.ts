@@ -258,6 +258,38 @@ describe("app.excluir_contrato / app.resumo_exclusao_contrato", () => {
     expect(await existe("dim_contratante", "id_contratante", m.idContratante)).toBe(false);
   }, 180000);
 
+  // 24/09: contrato criado pelo vínculo TSE do PLL -- a linha da planilha
+  // (fat_cadastro_participante) travava a exclusão por FK. Agora ela fica e
+  // só perde o vínculo.
+  it("PLL: linha do cadastro de participantes não trava a exclusão, fica e volta a 'pendente de revisão'", async () => {
+    const m = await criarMandato("EXC Pessoa Vinculada Pelo PLL");
+    const [{ id_vinculo_tse: idVinculo }] = await runSql<{ id_vinculo_tse: number }>(`
+      INSERT INTO rel_mandato_candidatura (id_mandato, ano_eleicao, sq_candidato, nr_turno, metodo_match, confianca)
+      VALUES (${m.idMandato}, 2022, 930001, 1, 'manual', 'baixa') RETURNING id_vinculo_tse;
+    `);
+    const [{ id_cadastro_participante: idLinha }] = await runSql<{ id_cadastro_participante: number }>(`
+      INSERT INTO fat_cadastro_participante (id_produto, papel, nome_completo, email, id_contrato, id_vinculo_tse)
+      VALUES ((SELECT id_produto FROM fat_contrato WHERE id_contrato = ${m.idContrato}), 'mentorado',
+              'EXC Assessora PLL', 'exc-pll-${m.idContrato}@legislabrasil.test', ${m.idContrato}, ${idVinculo})
+      RETURNING id_cadastro_participante;
+    `);
+
+    try {
+      const exclusao = await gestora.schema("app").rpc("excluir_contrato", { p_id_contrato: m.idContrato });
+      expect(exclusao.error).toBeNull();
+      expect(exclusao.data).toMatchObject({ apaga_contratante: true });
+
+      expect(await existe("fat_contrato", "id_contrato", m.idContrato)).toBe(false);
+      expect(await existe("rel_mandato_candidatura", "id_vinculo_tse", idVinculo)).toBe(false);
+      const [linha] = await runSql<{ id_contrato: number | null; id_vinculo_tse: number | null; status_cadastro: string }>(
+        `SELECT id_contrato, id_vinculo_tse, status_cadastro FROM fat_cadastro_participante WHERE id_cadastro_participante = ${idLinha};`
+      );
+      expect(linha).toEqual({ id_contrato: null, id_vinculo_tse: null, status_cadastro: "pendente_revisao" });
+    } finally {
+      await runSql(`DELETE FROM fat_cadastro_participante WHERE id_cadastro_participante = ${idLinha};`);
+    }
+  }, 180000);
+
   it("Prospecção que gerou o contrato sai junto; outra prospecção aberta da pessoa segura o cadastro", async () => {
     const m = await criarMandato("EXC Pessoa Com Prospeccao");
     const [{ id_prospeccao: idGerou }] = await runSql<{ id_prospeccao: number }>(`

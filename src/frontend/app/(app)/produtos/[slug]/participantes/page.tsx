@@ -11,6 +11,7 @@ import {
   buscarLinhaCadastroPorId,
   buscarMetricasCadastroPll,
   upsertCadastroParticipantes,
+  previaTrocaVinculoPll,
   vincularParticipanteAoTse,
   type ParticipantePll,
 } from "@backend/queries/pll-cadastro";
@@ -208,41 +209,47 @@ function ParticipantesPllPage() {
   // (T10) -- sucesso invalida a MESMA queryKey da lista (["pll-cadastro-lista"]),
   // então o indicador ✓ chega por refetch normal do react-query, nunca por
   // reload de página inteira (Done-when de T12).
+  function parametrosVinculo(participante: ParticipantePll, candidatura: CandidaturaSugerida) {
+    const idPartido = partidosRef?.find((p) => p.sigla === candidatura.sgPartido)?.idPartido ?? null;
+    const idCargo = cargos?.find((c) => c.cdCargoTse === candidatura.cdCargo)?.idCargo ?? null;
+    return {
+      idCadastroParticipante: participante.idCadastroParticipante,
+      idProduto: idProduto as number,
+      idEdicao: idEdicaoEfetiva ?? null,
+      candidatura: {
+        ano_eleicao: candidatura.anoEleicao,
+        sq_candidato: candidatura.sqCandidato,
+        nr_turno: candidatura.nrTurno,
+        metodo_match: candidatura.metodoMatch,
+        confianca: candidatura.confianca,
+      },
+      contratante: {
+        nome: candidatura.nmUrna ?? candidatura.nmCandidato ?? participante.nomeParlamentar ?? participante.nomeCompleto,
+        sg_uf: candidatura.sgUf ?? null,
+      },
+      mandato: {
+        nm_civil: candidatura.nmCandidato ?? null,
+        nm_urna: candidatura.nmUrna ?? null,
+        nr_titulo_eleitoral: candidatura.nrTituloEleitoral ?? null,
+        id_partido_atual: idPartido,
+        id_cargo_atual: idCargo,
+      },
+      // PLL-CP-12: já vinculado (troca) -- mesmo mandato reaproveita o
+      // contrato; outro parlamentar exclui o atual (com aviso antes).
+      idContratoAtual: participante.idContrato,
+    };
+  }
+
   const { mutateAsync: vincularTse } = useMutation({
-    mutationFn: (input: { participante: ParticipantePll; candidatura: CandidaturaSugerida }) => {
-      const idPartido = partidosRef?.find((p) => p.sigla === input.candidatura.sgPartido)?.idPartido ?? null;
-      const idCargo = cargos?.find((c) => c.cdCargoTse === input.candidatura.cdCargo)?.idCargo ?? null;
-      return vincularParticipanteAoTse(createClient(), {
-        idCadastroParticipante: input.participante.idCadastroParticipante,
-        idProduto: idProduto as number,
-        idEdicao: idEdicaoEfetiva ?? null,
-        candidatura: {
-          ano_eleicao: input.candidatura.anoEleicao,
-          sq_candidato: input.candidatura.sqCandidato,
-          nr_turno: input.candidatura.nrTurno,
-          metodo_match: input.candidatura.metodoMatch,
-          confianca: input.candidatura.confianca,
-        },
-        contratante: {
-          nome:
-            input.candidatura.nmUrna ??
-            input.candidatura.nmCandidato ??
-            input.participante.nomeParlamentar ??
-            input.participante.nomeCompleto,
-          sg_uf: input.candidatura.sgUf ?? null,
-        },
-        mandato: {
-          nm_civil: input.candidatura.nmCandidato ?? null,
-          nm_urna: input.candidatura.nmUrna ?? null,
-          nr_titulo_eleitoral: input.candidatura.nrTituloEleitoral ?? null,
-          id_partido_atual: idPartido,
-          id_cargo_atual: idCargo,
-        },
-        // PLL-CP-12: já vinculado (troca) -- reaproveita o mesmo contratante,
-        // preservando histórico em rel_mandato_candidatura (T10).
-        idContratanteExistente: input.participante.idContrato ?? undefined,
-      });
-    },
+    mutationFn: (input: {
+      participante: ParticipantePll;
+      candidatura: CandidaturaSugerida;
+      confirmouExclusaoContratoAtual: boolean;
+    }) =>
+      vincularParticipanteAoTse(createClient(), {
+        ...parametrosVinculo(input.participante, input.candidatura),
+        confirmouExclusaoContratoAtual: input.confirmouExclusaoContratoAtual,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-lista"] });
       void queryClient.invalidateQueries({ queryKey: ["pll-cadastro-opcoes-filtro"] });
@@ -388,9 +395,15 @@ function ParticipantesPllPage() {
             if (!aberto) setParticipanteParaVincular(null);
           }}
           participante={participanteParaVincular}
-          onConfirmar={async (candidatura) => {
+          previaTroca={
+            participanteParaVincular.idContrato
+              ? (candidatura) =>
+                  previaTrocaVinculoPll(createClient(), parametrosVinculo(participanteParaVincular, candidatura))
+              : undefined
+          }
+          onConfirmar={async (candidatura, { confirmouExclusaoContratoAtual }) => {
             try {
-              await vincularTse({ participante: participanteParaVincular, candidatura });
+              await vincularTse({ participante: participanteParaVincular, candidatura, confirmouExclusaoContratoAtual });
             } catch (erro) {
               // PLL-CP-11 edge case: candidatura já vinculada a outro
               // participante do mesmo contrato (dim_contratante UNIQUE) chega

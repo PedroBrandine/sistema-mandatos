@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 
+import type { ResumoExclusaoContrato } from "@backend/rpc/exclusao";
 import type { CandidaturaSugerida } from "@backend/types/fundacao";
 
 import {
@@ -15,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Command, CommandInput } from "@/components/ui/command";
 import { ResultadosBuscaTse, useBuscaTse } from "@/components/fundacao/tse-match-search";
+import { linhasExclusaoContrato } from "@/lib/exclusao-rotulos";
 
 // T11 (design.md "VincularTseDialog", PLL-CP-10, PLL-CP-13). Reaproveita
 // `useBuscaTse`/`ResultadosBuscaTse` de tse-match-search.tsx SEM alteração
@@ -52,8 +55,15 @@ export interface VincularTseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   participante: ParticipantePreenchimentoBusca;
-  onConfirmar: (candidatura: CandidaturaSugerida) => void | Promise<void>;
+  onConfirmar: (
+    candidatura: CandidaturaSugerida,
+    opcoes: { confirmouExclusaoContratoAtual: boolean },
+  ) => void | Promise<void>;
   onNaoEncontrado: () => void | Promise<void>;
+  /** Linha já vinculada (Editar vínculo): o que a troca para esta
+   * candidatura apagaria. `null` = nada (mesmo parlamentar). Ausente =
+   * primeiro vínculo, nunca há exclusão. */
+  previaTroca?: (candidatura: CandidaturaSugerida) => Promise<ResumoExclusaoContrato | null>;
 }
 
 export function VincularTseDialog({
@@ -62,6 +72,7 @@ export function VincularTseDialog({
   participante,
   onConfirmar,
   onNaoEncontrado,
+  previaTroca,
 }: VincularTseDialogProps) {
   // PLL-CP-10: busca pré-preenchida com o nome autodeclarado (nome do
   // parlamentar tem prioridade -- é o campo que a busca do TSE realmente
@@ -74,11 +85,39 @@ export function VincularTseDialog({
   });
   const [confirmando, setConfirmando] = useState(false);
   const [marcandoNaoEncontrado, setMarcandoNaoEncontrado] = useState(false);
+  // Troca para outro parlamentar (Pedro, 24/09): o contrato atual é excluído
+  // com tudo que há nele -- o aviso substitui a busca até a pessoa decidir.
+  const [trocaPendente, setTrocaPendente] = useState<{
+    candidatura: CandidaturaSugerida;
+    resumo: ResumoExclusaoContrato;
+  } | null>(null);
+  const [erroPrevia, setErroPrevia] = useState<string | null>(null);
 
-  async function selecionar(candidatura: CandidaturaSugerida) {
+  async function selecionar(escolhida: CandidaturaSugerida) {
+    const candidatura: CandidaturaSugerida = modoManualAtivo ? { ...escolhida, metodoMatch: "manual" } : escolhida;
+    setErroPrevia(null);
+    if (previaTroca) {
+      setConfirmando(true);
+      try {
+        const resumo = await previaTroca(candidatura);
+        if (resumo) {
+          setTrocaPendente({ candidatura, resumo });
+          return;
+        }
+      } catch (e) {
+        setErroPrevia(e instanceof Error ? e.message : "Não foi possível verificar o vínculo atual.");
+        return;
+      } finally {
+        setConfirmando(false);
+      }
+    }
+    await confirmar(candidatura, false);
+  }
+
+  async function confirmar(candidatura: CandidaturaSugerida, confirmouExclusaoContratoAtual: boolean) {
     setConfirmando(true);
     try {
-      await onConfirmar(modoManualAtivo ? { ...candidatura, metodoMatch: "manual" } : candidatura);
+      await onConfirmar(candidatura, { confirmouExclusaoContratoAtual });
       onOpenChange(false);
     } catch {
       // Erro já é responsabilidade de quem chama (ex.: toast na página que
@@ -112,45 +151,128 @@ export function VincularTseDialog({
         <DialogHeader>
           <DialogTitle>Vincular {participante.nomeCompleto} ao TSE</DialogTitle>
           <DialogDescription>
-            Confirme a candidatura correta do parlamentar ou marque que não foi encontrado — ou feche (X) para
-            decidir depois.
+            Confirme a candidatura correta do parlamentar ou marque que não foi encontrado — ou feche (X) para decidir
+            depois.
           </DialogDescription>
         </DialogHeader>
 
-        {(participante.cargosAnteriores ||
-          participante.mandatosAnteriores ||
-          participante.corRacaParlamentar ||
-          participante.redeSocial) && (
-          <div className="grid gap-1 rounded-lg border border-border bg-muted/40 p-3 text-xs">
-            <p className="font-bold uppercase text-muted-foreground">Autodeclarado na planilha</p>
-            {participante.corRacaParlamentar && <p>Cor/raça: {participante.corRacaParlamentar}</p>}
-            {participante.cargosAnteriores && <p>Cargos anteriores: {participante.cargosAnteriores}</p>}
-            {participante.mandatosAnteriores && <p>Mandatos anteriores: {participante.mandatosAnteriores}</p>}
-            {participante.redeSocial && <p>Rede social: {participante.redeSocial}</p>}
-          </div>
-        )}
-
-        <Command shouldFilter={false}>
-          <CommandInput placeholder="Digite o nome..." value={nome} onValueChange={setNome} />
-          <ResultadosBuscaTse
-            buscando={buscando}
-            erro={erro}
-            resultados={resultadosExibidos}
-            onSelecionar={(candidatura) => void selecionar(candidatura)}
+        {trocaPendente ? (
+          <AvisoExclusaoTroca
+            nomeCandidatura={
+              trocaPendente.candidatura.nmUrna ?? trocaPendente.candidatura.nmCandidato ?? "a nova candidatura"
+            }
+            resumo={trocaPendente.resumo}
+            confirmando={confirmando}
+            onVoltar={() => setTrocaPendente(null)}
+            onConfirmar={() => void confirmar(trocaPendente.candidatura, true)}
           />
-        </Command>
+        ) : (
+          <>
+            {(participante.cargosAnteriores ||
+              participante.mandatosAnteriores ||
+              participante.corRacaParlamentar ||
+              participante.redeSocial) && (
+              <div className="grid gap-1 rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                <p className="font-bold uppercase text-muted-foreground">Autodeclarado na planilha</p>
+                {participante.corRacaParlamentar && <p>Cor/raça: {participante.corRacaParlamentar}</p>}
+                {participante.cargosAnteriores && <p>Cargos anteriores: {participante.cargosAnteriores}</p>}
+                {participante.mandatosAnteriores && <p>Mandatos anteriores: {participante.mandatosAnteriores}</p>}
+                {participante.redeSocial && <p>Rede social: {participante.redeSocial}</p>}
+              </div>
+            )}
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void marcarNaoEncontrado()}
-            disabled={confirmando || marcandoNaoEncontrado}
-          >
-            {marcandoNaoEncontrado ? "Marcando..." : "Não encontrado"}
-          </Button>
-        </DialogFooter>
+            <Command shouldFilter={false}>
+              <CommandInput placeholder="Digite o nome..." value={nome} onValueChange={setNome} />
+              <ResultadosBuscaTse
+                buscando={buscando}
+                erro={erro}
+                resultados={resultadosExibidos}
+                onSelecionar={(candidatura) => void selecionar(candidatura)}
+              />
+            </Command>
+
+            {erroPrevia && <p className="text-sm text-destructive">{erroPrevia}</p>}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void marcarNaoEncontrado()}
+                disabled={confirmando || marcandoNaoEncontrado}
+              >
+                {marcandoNaoEncontrado ? "Marcando..." : "Não encontrado"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Mesma lista "Será apagado do banco" da exclusão de mandato na Estratégia
+// (editar-contrato-dialog.tsx), a partir do mesmo resumo do banco.
+function AvisoExclusaoTroca({
+  nomeCandidatura,
+  resumo,
+  confirmando,
+  onVoltar,
+  onConfirmar,
+}: {
+  nomeCandidatura: string;
+  resumo: ResumoExclusaoContrato;
+  confirmando: boolean;
+  onVoltar: () => void;
+  onConfirmar: () => void;
+}) {
+  const linhas = linhasExclusaoContrato(resumo.contagens);
+  return (
+    <>
+      <div className="grid gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+        <p className="flex items-center gap-2 font-bold text-destructive">
+          <AlertTriangle className="size-4" />
+          Trocar para {nomeCandidatura} exclui o contrato atual
+        </p>
+        <p className="text-muted-foreground">
+          A candidatura escolhida é de outro parlamentar. O contrato vinculado hoje ({resumo.nomeContratante}) será
+          excluído definitivamente, com tudo que foi registrado nele. Não é possível desfazer.
+        </p>
+        <div className="grid gap-1.5">
+          <p className="font-medium">Será apagado do banco:</p>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            <li>O contrato de {resumo.nomeContratante}</li>
+            {linhas.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+            {resumo.apagaContratante && <li>O cadastro do parlamentar (contratante e mandato)</li>}
+          </ul>
+        </div>
+        {!resumo.apagaContratante && (
+          <p className="rounded-md bg-muted/50 p-3 text-muted-foreground">
+            O cadastro de {resumo.nomeContratante} <strong>não</strong> será apagado: ainda tem outro contrato,
+            prospecção ou coalizão no sistema.
+          </p>
+        )}
+      </div>
+
+      <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button type="button" variant="outline" onClick={onVoltar} disabled={confirmando}>
+          Voltar
+        </Button>
+        <Button type="button" variant="destructive" className="gap-2" onClick={onConfirmar} disabled={confirmando}>
+          {confirmando ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Excluindo e vinculando…
+            </>
+          ) : (
+            <>
+              <Trash2 className="size-4" />
+              Excluir contrato e trocar
+            </>
+          )}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

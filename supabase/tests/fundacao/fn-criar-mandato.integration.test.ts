@@ -319,6 +319,49 @@ describe("T20 -- app.criar_mandato", () => {
       expect(contratosDoMandato[0].id_contrato).toBe(segundo.data.id_contrato);
     });
 
+    // Bug 24/09 (PLL): vínculo TSE de parlamentar que já tem mandato por outro
+    // contrato -- p_candidatura com p_id_contratante_existente reaproveita a
+    // linha de rel_mandato_candidatura daquela candidatura ou cria uma nova.
+    it("PLL 24/09: p_candidatura with p_id_contratante_existente reuses the existing rel_mandato_candidatura row or creates a new one", async () => {
+      const candA = { ano_eleicao: 2022, sq_candidato: 920101, nr_turno: 1, metodo_match: "nome_uf_cargo", confianca: "alta" };
+      const primeiro = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_contratante: { nome: "T20 PLL Mandato Existente Vinculo", sg_uf: "PE" },
+        p_mandato: {},
+        p_candidatura: candA,
+      });
+      expect(primeiro.error).toBeNull();
+      contratanteIds.push(primeiro.data.id_contratante);
+      mandatoIds.push(primeiro.data.id_mandato);
+      candidaturaIds.push(primeiro.data.id_vinculo_tse);
+
+      const mesmaCandidatura = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_id_contratante_existente: primeiro.data.id_contratante,
+        p_candidatura: candA,
+        p_contrato: { id_produto: idProdutoEstrategia, dt_inicio: "2026-03-01" },
+      });
+      expect(mesmaCandidatura.error).toBeNull();
+      contratosIds.push(mesmaCandidatura.data.id_contrato);
+      expect(mesmaCandidatura.data.id_vinculo_tse).toBe(primeiro.data.id_vinculo_tse);
+
+      const outraCandidatura = await gestoraClient.schema("app").rpc("criar_mandato", {
+        p_id_contratante_existente: primeiro.data.id_contratante,
+        p_candidatura: { ...candA, sq_candidato: 920102 },
+      });
+      expect(outraCandidatura.error).toBeNull();
+      expect(outraCandidatura.data.id_contrato).toBeNull();
+      expect(outraCandidatura.data.id_vinculo_tse).not.toBeNull();
+      expect(outraCandidatura.data.id_vinculo_tse).not.toBe(primeiro.data.id_vinculo_tse);
+      candidaturaIds.push(outraCandidatura.data.id_vinculo_tse);
+
+      const vinculos = await runSql<{ sq_candidato: number; status: string }>(
+        `SELECT sq_candidato, status FROM rel_mandato_candidatura WHERE id_mandato = ${primeiro.data.id_mandato} ORDER BY sq_candidato;`
+      );
+      expect(vinculos.map((v) => [Number(v.sq_candidato), v.status])).toEqual([
+        [920101, "confirmado"],
+        [920102, "confirmado"],
+      ]);
+    });
+
     it("FND-CTR-05: snapshots dim_mandato.id_cargo_atual/id_partido_atual into fat_contrato when the mandato is created together with p_contrato", async () => {
       const { data, error } = await gestoraClient.schema("app").rpc("criar_mandato", {
         p_contratante: { nome: "T20 FND-CTR-05 Mandato Novo", sg_uf: "SP" },
