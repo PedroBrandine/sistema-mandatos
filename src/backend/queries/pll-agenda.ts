@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buscarEncontrosDoMes, type EncontroAgenda } from "./agenda";
-import { buscarProjetosDoProduto } from "./kanban";
+import { buscarEdicoesPll, buscarIdsContratoDasEdicoes } from "./pll-edicao";
 import type { OpcaoAgenda } from "./agenda";
 import type { Database } from "../supabase/database.types";
 
@@ -63,16 +63,14 @@ export async function buscarOpcoesMentoradoPll(
   return buscarUsuariosPorPapel(client, idProduto, "assessor");
 }
 
-// D-4: Edição = ref_projeto com contrato PLL -- mesma leitura de
-// buscarProjetosDoProduto (queries/kanban.ts, já escopada ao produto e usada
-// pelo Dashboard de Estratégia/Coalizão e pelo Dashboard do PLL, T12), só
-// remapeada para a forma {id, nome} de OpcaoAgenda em vez de {idProjeto, nome}.
+// Edição = fat_edicao (PLL1, PLL2...), não ref_projeto (Pedro, 24/09 --
+// substitui a D-4 original, anterior à criação de fat_edicao em 22/09).
 export async function buscarOpcoesEdicaoPll(
   client: SupabaseClient<Database>,
   idProduto: number
 ): Promise<OpcaoAgenda[]> {
-  const projetos = await buscarProjetosDoProduto(client, idProduto);
-  return projetos.map((p) => ({ id: p.idProjeto, nome: p.nome }));
+  const edicoes = await buscarEdicoesPll(client, idProduto);
+  return edicoes.map((e) => ({ id: e.idEdicao, nome: e.nome }));
 }
 
 // =============================================================================
@@ -91,7 +89,8 @@ export interface FiltroAgendaPll {
   mes: number;
   idsMentor?: number[];
   idsMentorado?: number[];
-  idsProjeto?: number[];
+  /** fat_edicao -- resolvida num idsContrato, como mentor(a)/mentorado. */
+  idsEdicao?: number[];
 }
 
 interface RowContratoId {
@@ -108,12 +107,16 @@ export async function resolverIdsContratoPorMentorEMentorado(
   client: SupabaseClient<Database>,
   idProduto: number,
   idsMentor: number[] | undefined,
-  idsMentorado: number[] | undefined
+  idsMentorado: number[] | undefined,
+  idsEdicao?: number[]
 ): Promise<number[]> {
-  const { data: contratos, error: erroContratos } = await client
-    .from("fat_contrato")
-    .select("id_contrato")
-    .eq("id_produto", idProduto);
+  const porEdicao = idsEdicao !== undefined && idsEdicao.length > 0;
+  const idsDasEdicoes = porEdicao ? await buscarIdsContratoDasEdicoes(client, idsEdicao as number[]) : [];
+  if (porEdicao && idsDasEdicoes.length === 0) return [];
+
+  let query = client.from("fat_contrato").select("id_contrato").eq("id_produto", idProduto);
+  if (porEdicao) query = query.in("id_contrato", idsDasEdicoes);
+  const { data: contratos, error: erroContratos } = await query;
   if (erroContratos) throw erroContratos;
   let ids = new Set((contratos ?? []).map((c) => (c as RowContratoId).id_contrato));
 
@@ -193,17 +196,26 @@ export async function buscarEncontrosDoMesPll(
 ): Promise<EncontroAgendaPll[]> {
   const precisaResolverContrato =
     (filtro.idsMentor !== undefined && filtro.idsMentor.length > 0) ||
-    (filtro.idsMentorado !== undefined && filtro.idsMentorado.length > 0);
+    (filtro.idsMentorado !== undefined && filtro.idsMentorado.length > 0) ||
+    (filtro.idsEdicao !== undefined && filtro.idsEdicao.length > 0);
 
   const idsContrato = precisaResolverContrato
-    ? await resolverIdsContratoPorMentorEMentorado(client, filtro.idProduto, filtro.idsMentor, filtro.idsMentorado)
+    ? await resolverIdsContratoPorMentorEMentorado(
+        client,
+        filtro.idProduto,
+        filtro.idsMentor,
+        filtro.idsMentorado,
+        filtro.idsEdicao
+      )
     : undefined;
+  // Recorte vazio sai aqui: buscarEncontrosDoMes trata idsContrato [] como
+  // "sem filtro" e devolveria o produto inteiro.
+  if (idsContrato !== undefined && idsContrato.length === 0) return [];
 
   const encontros = await buscarEncontrosDoMes(client, {
     idProduto: filtro.idProduto,
     ano: filtro.ano,
     mes: filtro.mes,
-    idsProjeto: filtro.idsProjeto,
     idsContrato,
   });
   if (encontros.length === 0) return [];

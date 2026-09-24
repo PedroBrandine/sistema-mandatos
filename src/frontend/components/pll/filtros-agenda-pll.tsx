@@ -14,7 +14,7 @@ import { listaOuUndefined, MultiSelectPesquisavel, opcoesDeIdNome } from "@/comp
 export interface ValorFiltrosAgendaPll {
   idsMentor?: number[];
   idsMentorado?: number[];
-  idsProjeto?: number[];
+  idsEdicao?: number[];
 }
 
 export interface FiltrosAgendaPllProps {
@@ -75,9 +75,9 @@ export function FiltrosAgendaPll({ filtro, onChange, mentores, mentorados, edico
       <DropdownFiltro
         rotulo="Filtrar por edição"
         rotuloPlural="edições"
-        valores={filtro.idsProjeto}
+        valores={filtro.idsEdicao}
         opcoes={edicoes}
-        onChange={(idsProjeto) => atualizar({ idsProjeto })}
+        onChange={(idsEdicao) => atualizar({ idsEdicao })}
       />
 
       <Button

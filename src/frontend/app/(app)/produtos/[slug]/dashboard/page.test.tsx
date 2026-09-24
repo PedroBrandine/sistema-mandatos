@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   buscarEstrategiaKpi: vi.fn(),
   buscarProjetosDoProduto: vi.fn(),
+  buscarEdicoesPll: vi.fn(),
   buscarLimiares: vi.fn(),
   buscarQuadro: vi.fn(),
   buscarPendenciasDashboard: vi.fn(),
@@ -56,6 +57,10 @@ vi.mock("@backend/queries/quadro", async (importOriginal) => ({
 vi.mock("@backend/queries/pendencias", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@backend/queries/pendencias")>()),
   buscarPendenciasDashboard: mocks.buscarPendenciasDashboard,
+}));
+
+vi.mock("@backend/queries/pll-edicao", () => ({
+  buscarEdicoesPll: mocks.buscarEdicoesPll,
 }));
 
 vi.mock("@backend/rpc/kanban", () => ({
@@ -165,6 +170,7 @@ const AFINIDADE_VAZIA = {
 beforeEach(() => {
   mocks.buscarEstrategiaKpi.mockReset().mockResolvedValue(null);
   mocks.buscarProjetosDoProduto.mockReset().mockResolvedValue([]);
+  mocks.buscarEdicoesPll.mockReset().mockResolvedValue([]);
   mocks.buscarLimiares.mockReset().mockResolvedValue([]);
   mocks.buscarQuadro.mockReset().mockResolvedValue([]);
   mocks.buscarPendenciasDashboard.mockReset().mockResolvedValue([]);

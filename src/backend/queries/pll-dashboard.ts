@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../supabase/database.types";
+import { buscarIdsContratoDasEdicoes } from "./pll-edicao";
 
 // pll-dashboard-agenda T4-T7 (design.md "Components" -- buscarPllKpis,
 // buscarStatusMentoriaPorMes, buscarMentoradosPll, buscarRegistrosMentores).
@@ -13,7 +14,8 @@ import type { Database } from "../supabase/database.types";
 export interface FiltroPllDashboard {
   idProduto: number;
   idsMentor?: number[];
-  idsProjeto?: number[];
+  /** fat_edicao (PLL1, PLL2...), não ref_projeto -- ver buscarIdsContratoDasEdicoes. */
+  idsEdicao?: number[];
 }
 
 interface RowContratoId {
@@ -26,18 +28,20 @@ interface RowVinculo {
   papel_no_contrato: string;
 }
 
-// Contratos do produto (PLL), restringidos por projeto (direto em
-// fat_contrato) e por mentor (rel_usuario_contrato, vínculo ativo --
+// Contratos do produto (PLL), restringidos por edição (via linha do
+// participante, buscarIdsContratoDasEdicoes) e por mentor (rel_usuario_contrato, vínculo ativo --
 // dt_fim IS NULL, mesmo critério de resolverIdsContratoDoFiltro em
 // queries/agenda.ts). Compartilhada pelas 4 funções deste arquivo.
 async function resolverIdsContratoPll(
   client: SupabaseClient<Database>,
   filtro: FiltroPllDashboard
 ): Promise<number[]> {
+  const porEdicao = filtro.idsEdicao !== undefined && filtro.idsEdicao.length > 0;
+  const idsDasEdicoes = porEdicao ? await buscarIdsContratoDasEdicoes(client, filtro.idsEdicao as number[]) : [];
+  if (porEdicao && idsDasEdicoes.length === 0) return [];
+
   let query = client.from("fat_contrato").select("id_contrato").eq("id_produto", filtro.idProduto);
-  if (filtro.idsProjeto !== undefined && filtro.idsProjeto.length > 0) {
-    query = query.in("id_projeto", filtro.idsProjeto);
-  }
+  if (porEdicao) query = query.in("id_contrato", idsDasEdicoes);
   const { data, error } = await query;
   if (error) throw error;
   let ids = new Set((data ?? []).map((c) => (c as RowContratoId).id_contrato));

@@ -57,6 +57,10 @@ function criarClienteMock(respostasPorTabela: Record<string, RespostaTabela | Re
         chamadas.push({ tabela, metodo: "is", args });
         return builder;
       },
+      not: (...args: unknown[]) => {
+        chamadas.push({ tabela, metodo: "not", args });
+        return builder;
+      },
       order: (...args: unknown[]) => {
         chamadas.push({ tabela, metodo: "order", args });
         return builder;
@@ -143,6 +147,30 @@ describe("buscarPllKpis (T4, PLL-DB-02/03/04)", () => {
     expect(resultado.distribuicaoStatus).toEqual({ ativo: 0, desistente: 0, desligado: 0, concluido: 0 });
     expect(resultado.atingimentoMedio).toBeNull();
     expect(resultado.fatosGeradoresRegistrados).toBe(0);
+  });
+
+  // Pedro, 24/09: filtro "edição" é fat_edicao (PLL1, PLL2...), resolvido
+  // pelos contratos dos participantes da edição -- não fat_contrato.id_projeto.
+  it("filtro por edição recorta fat_contrato pelos contratos dos participantes da edição", async () => {
+    const { client, chamadas } = criarClienteMock({
+      fat_cadastro_participante: { data: [{ id_contrato: 4 }], ...OK },
+      fat_contrato: { data: [], ...OK },
+    });
+
+    await buscarPllKpis(client, { idProduto: 9, idsEdicao: [3] });
+
+    expect(chamadas).toContainEqual({ tabela: "fat_cadastro_participante", metodo: "in", args: ["id_edicao", [3]] });
+    expect(chamadas).toContainEqual({ tabela: "fat_contrato", metodo: "in", args: ["id_contrato", [4]] });
+    expect(chamadas.some((c) => c.args[0] === "id_projeto")).toBe(false);
+  });
+
+  it("edição sem participante vinculado: KPIs zerados sem consultar fat_contrato", async () => {
+    const { client, chamadas } = criarClienteMock({ fat_cadastro_participante: { data: [], ...OK } });
+
+    const resultado = await buscarPllKpis(client, { idProduto: 9, idsEdicao: [3] });
+
+    expect(resultado.totalMentorados).toBe(0);
+    expect(chamadas.some((c) => c.tabela === "fat_contrato")).toBe(false);
   });
 
   it("AD-005: recorte com contratos mas nenhum dim_planejamento devolve atingimentoMedio null, não 0", async () => {

@@ -84,39 +84,63 @@ describe("buscarOpcoesMentoradoPll (T14, PLL-AG-08)", () => {
   });
 });
 
+// Pedro, 24/09: edição é fat_edicao (PLL1, PLL2...), não ref_projeto.
 describe("buscarOpcoesEdicaoPll (T14, PLL-AG-08)", () => {
-  it("caminho feliz: devolve as edições (ref_projeto) dos contratos do produto", async () => {
+  it("caminho feliz: devolve as edições (fat_edicao) do produto", async () => {
     const client = criarClienteMock({
-      fat_contrato: { data: [{ id_projeto: 10 }], ...OK },
-      ref_projeto: { data: [{ id_projeto: 10, nome: "2026.1" }], ...OK },
+      fat_edicao: {
+        data: [{ id_edicao: 3, nome: "PLL2", dt_inicio: "2026-08-01", id_projeto: 10, ref_projeto: { nome: "GAIA" } }],
+        ...OK,
+      },
     });
 
     const resultado = await buscarOpcoesEdicaoPll(client, 9);
 
-    expect(resultado).toEqual([{ id: 10, nome: "2026.1" }]);
+    expect(resultado).toEqual([{ id: 3, nome: "PLL2" }]);
   });
 
-  it("recorte sem projeto associado devolve []", async () => {
-    const client = criarClienteMock({ fat_contrato: { data: [], ...OK } });
+  it("produto sem edição devolve []", async () => {
+    const client = criarClienteMock({ fat_edicao: { data: [], ...OK } });
 
     expect(await buscarOpcoesEdicaoPll(client, 9)).toEqual([]);
   });
 });
 
 describe("buscarEncontrosDoMesPll (T15, PLL-AG-08)", () => {
-  it("sem idsMentor/idsMentorado, delega direto -- idsContrato undefined, idsProjeto repassado", async () => {
+  it("sem filtro nenhum, delega direto -- idsContrato undefined", async () => {
     mocks.buscarEncontrosDoMes.mockReset().mockResolvedValue([]);
     const clienteInerte = {} as unknown as SupabaseClient<Database>;
 
-    await buscarEncontrosDoMesPll(clienteInerte, { idProduto: 9, ano: 2026, mes: 9, idsProjeto: [10] });
+    await buscarEncontrosDoMesPll(clienteInerte, { idProduto: 9, ano: 2026, mes: 9 });
 
     expect(mocks.buscarEncontrosDoMes).toHaveBeenCalledWith(clienteInerte, {
       idProduto: 9,
       ano: 2026,
       mes: 9,
-      idsProjeto: [10],
       idsContrato: undefined,
     });
+  });
+
+  it("com idsEdicao, recorta pelos contratos dos participantes daquela edição", async () => {
+    mocks.buscarEncontrosDoMes.mockReset().mockResolvedValue([]);
+    const client = criarClienteMock({
+      fat_cadastro_participante: { data: [{ id_contrato: 2 }, { id_contrato: 2 }], ...OK },
+      fat_contrato: { data: [{ id_contrato: 2 }], ...OK },
+    });
+
+    await buscarEncontrosDoMesPll(client, { idProduto: 9, ano: 2026, mes: 9, idsEdicao: [3] });
+
+    expect(mocks.buscarEncontrosDoMes).toHaveBeenCalledWith(client, expect.objectContaining({ idsContrato: [2] }));
+  });
+
+  // idsContrato [] em buscarEncontrosDoMes quer dizer "sem filtro" -- o
+  // recorte vazio tem de parar aqui, nunca virar o produto inteiro.
+  it("edição sem nenhum participante vinculado: [] sem consultar encontros", async () => {
+    mocks.buscarEncontrosDoMes.mockReset().mockResolvedValue([{ idContrato: 99 }]);
+    const client = criarClienteMock({ fat_cadastro_participante: { data: [], ...OK } });
+
+    expect(await buscarEncontrosDoMesPll(client, { idProduto: 9, ano: 2026, mes: 9, idsEdicao: [3] })).toEqual([]);
+    expect(mocks.buscarEncontrosDoMes).not.toHaveBeenCalled();
   });
 
   it("com idsMentor, resolve o idsContrato (interseção com o produto) antes de delegar", async () => {

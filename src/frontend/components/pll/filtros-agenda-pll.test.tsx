@@ -36,7 +36,7 @@ describe("FiltrosAgendaPll (PLL-AG-08)", () => {
     const onChange = vi.fn();
     render(
       <FiltrosAgendaPll
-        filtro={{ idsMentor: [1], idsMentorado: [2], idsProjeto: [10] }}
+        filtro={{ idsMentor: [1], idsMentorado: [2], idsEdicao: [10] }}
         onChange={onChange}
         {...OPCOES}
       />

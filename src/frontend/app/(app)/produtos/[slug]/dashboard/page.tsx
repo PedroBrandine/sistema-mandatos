@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createClient } from "@backend/supabase/client";
 import { buscarEstrategiaKpi } from "@backend/queries/estrategia-kpi";
 import { buscarProjetosDoProduto } from "@backend/queries/kanban";
+import { buscarEdicoesPll } from "@backend/queries/pll-edicao";
 import { buscarLimiares } from "@backend/queries/limiar";
 import {
   buscarAfinidadeAgendaPll,
@@ -330,16 +331,16 @@ function moverCardOtimista(colunas: ColunaQuadro[], idContrato: number, idEtapaD
 // 4 blocos P1 (T8-T11) -- os 3 painéis analíticos (T16-T19, Fase 5) ainda não
 // entram aqui, spec.md marca a aba como P2.
 //
-// Filtro achatado {idsMentor, idsProjeto} -- mesma forma de FiltroPllDashboard
-// (queries/pll-dashboard.ts). "Edição" é ref_projeto (D-4): reaproveita
-// buscarProjetosDoProduto (kanban.ts), já escopado ao produto -- mesma query
-// que EstrategiaDashboardPage usa para o dropdown "Filtrar por projeto".
+// Filtro achatado {idsMentor, idsEdicao} -- mesma forma de FiltroPllDashboard
+// (queries/pll-dashboard.ts). "Edição" é fat_edicao (PLL1, PLL2...), não
+// ref_projeto (Pedro, 24/09 -- substitui a D-4 original, anterior a
+// fat_edicao): mesma lista do seletor da aba Participantes.
 // "Mentor(a)" usa buscarOpcoesMentorPll (queries/pll-dashboard.ts, mesma
 // família das outras 4 leituras do Dashboard PLL -- vive lá, não aqui, pra
 // ficar mockável no teste desta página no mesmo padrão das outras 4 queries).
 interface ValorFiltroPllDashboard {
   idsMentor?: number[];
-  idsProjeto?: number[];
+  idsEdicao?: number[];
 }
 
 // AD-046: tela de leitura -- caminho feliz de cada AC, sem par
@@ -353,7 +354,7 @@ function PllDashboardPage() {
   const hoje = useMemo(() => hojeNoFusoDoProduto(new Date()), []);
 
   const [filtro, setFiltro] = useState<ValorFiltroPllDashboard>({});
-  const filtroConsulta = { idProduto: idProduto as number, idsMentor: filtro.idsMentor, idsProjeto: filtro.idsProjeto };
+  const filtroConsulta = { idProduto: idProduto as number, idsMentor: filtro.idsMentor, idsEdicao: filtro.idsEdicao };
 
   const { data: mentores } = useQuery({
     queryKey: ["pll-dashboard-opcoes-mentor", idProduto],
@@ -363,10 +364,10 @@ function PllDashboardPage() {
 
   const { data: edicoes } = useQuery({
     queryKey: ["pll-dashboard-opcoes-edicao", idProduto],
-    queryFn: () => buscarProjetosDoProduto(createClient(), idProduto as number),
+    queryFn: () => buscarEdicoesPll(createClient(), idProduto as number),
     enabled: idProduto !== undefined,
   });
-  const opcoesEdicao: OpcaoFiltroDashboard[] = (edicoes ?? []).map((p) => ({ id: p.idProjeto, nome: p.nome }));
+  const opcoesEdicao: OpcaoFiltroDashboard[] = (edicoes ?? []).map((e) => ({ id: e.idEdicao, nome: e.nome }));
 
   const {
     data: kpi,
@@ -472,8 +473,8 @@ function PllDashboardPage() {
         <MultiSelectPesquisavel
           className="flex-1"
           opcoes={opcoesDeIdNome(opcoesEdicao)}
-          valores={filtro.idsProjeto ?? []}
-          onChange={(v) => setFiltro((f) => ({ ...f, idsProjeto: listaOuUndefined(v) }))}
+          valores={filtro.idsEdicao ?? []}
+          onChange={(v) => setFiltro((f) => ({ ...f, idsEdicao: listaOuUndefined(v) }))}
           placeholder="Filtrar por edição"
           rotuloPlural="edições"
         />

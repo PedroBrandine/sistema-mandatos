@@ -47,6 +47,24 @@ export async function buscarEdicoesPll(
   }));
 }
 
+/** Contratos das edições escolhidas (Pedro, 24/09: filtro "edição" do
+ * Dashboard/Agenda é PLL1, PLL2... -- fat_edicao, não ref_projeto; várias
+ * edições podem sair do mesmo projeto). A ligação é a linha do participante
+ * vinculado ao TSE: fat_cadastro_participante.id_edicao -> id_contrato. */
+export async function buscarIdsContratoDasEdicoes(
+  client: SupabaseClient<Database>,
+  idsEdicao: number[]
+): Promise<number[]> {
+  if (idsEdicao.length === 0) return [];
+  const { data, error } = await client
+    .from("fat_cadastro_participante")
+    .select("id_contrato")
+    .in("id_edicao", idsEdicao)
+    .not("id_contrato", "is", null);
+  if (error) throw error;
+  return Array.from(new Set((data ?? []).map((r) => r.id_contrato as number)));
+}
+
 export interface CriarEdicaoPllInput {
   idProduto: number;
   idProjeto: number;
